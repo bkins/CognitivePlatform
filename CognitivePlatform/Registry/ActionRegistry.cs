@@ -1,0 +1,79 @@
+using System.Reflection;
+using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Telemetry;
+
+namespace CognitivePlatform.Api.Registry;
+
+public class ActionRegistry : IActionRegistry
+{
+    private readonly List<ActionMetadata> _actions = new();
+    private readonly ITelemetrySink       _telemetry;
+
+    public ActionRegistry(ITelemetrySink telemetry)
+    {
+        _telemetry = telemetry;
+        
+        BuildFromAssembly(Assembly.GetExecutingAssembly());
+    }
+
+    public IReadOnlyCollection<ActionMetadata> Actions => _actions;
+
+    public ActionMetadata? FindByName (string name) => _actions.FirstOrDefault(action => string.Equals(action.Name
+                                                                                                     , name
+                                                                                                     , StringComparison.OrdinalIgnoreCase));
+
+    private void BuildFromAssembly(Assembly assembly)
+    {
+        foreach (var type in assembly.GetTypes())
+        {
+            foreach (var method in type.GetMethods(BindingFlags.Instance
+                                                 | BindingFlags.Static
+                                                 | BindingFlags.Public
+                                                 | BindingFlags.DeclaredOnly))
+            {
+                var actionAttribute = method.GetCustomAttribute<NaturalLanguageActionAttribute>();
+
+                if (actionAttribute is null) continue;
+
+                var actionMetadata = BuildActionMetadata(method
+                                                       , actionAttribute);
+
+                _actions.Add(actionMetadata);
+                
+                _telemetry.Track("Registry.ActionDiscovered", actionMetadata.Name);
+            }
+        }
+    }
+
+    private static ActionMetadata BuildActionMetadata (MethodInfo                     methodInfo
+                                                     , NaturalLanguageActionAttribute attribute)
+    {
+        var parameters = methodInfo.GetParameters()
+                                   .Select(BuildParameterMetadata)
+                                   .ToList();
+
+        return new ActionMetadata
+               {
+                   Name        = methodInfo.Name
+                 , MethodInfo  = methodInfo
+                 , Description = attribute.Description
+                 , Examples    = attribute.Examples
+                 , Parameters  = parameters
+               };
+    }
+
+    private static ParameterMetadata BuildParameterMetadata(ParameterInfo parameterInfo)
+    {
+        var nlAttribute = parameterInfo.GetCustomAttribute<NaturalLanguageParamAttribute>();
+
+        return new ParameterMetadata
+               {
+                   Name          = parameterInfo.Name          ?? string.Empty
+                 , ParameterType = parameterInfo.ParameterType
+                 , Description   = nlAttribute?.Description    ?? string.Empty
+                 , Optional      = nlAttribute?.Optional       ?? parameterInfo.IsOptional
+                 , ParameterInfo = parameterInfo
+               };
+    }
+}

@@ -1,0 +1,17 @@
+namespace CognitivePlatform.Api.Attributes;
+
+[AttributeUsage(AttributeTargets.Method
+              , AllowMultiple = false)]
+public class NaturalLanguageActionAttribute : Attribute
+{
+    /// <summary>
+    /// A human-friendly description of what this action does.
+    /// </summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Example natural language phrases that invoke this action.
+    /// Used by interpreters for matching and intent shaping.
+    /// </summary>
+    public string[]? Examples { get; init; }
+}

@@ -1,0 +1,6 @@
+@CognitivePlatform_HostAddress = http://localhost:5272
+
+GET {{CognitivePlatform_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

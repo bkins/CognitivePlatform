@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="true" type="CompoundRunConfigurationType">
+    <toRun name="CognitivePlatform.Api: http" type="LaunchSettings" />
+    <toRun name="CognitivePlatform.SmokeTest" type="DotNetProject" />
+    <method v="2" />
+  </configuration>
+</component>
