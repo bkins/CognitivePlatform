@@ -54,36 +54,50 @@ public static class MetaActions
     /// </summary>
     public static ListActionsResult BuildListActionsResult(IActionRegistry registry)
     {
-        var sorted = registry.Actions
-                             .OrderBy(metadata => metadata.Name
-                                    , StringComparer.OrdinalIgnoreCase)
-                             .ToArray();
+        // Organize by category (alphabetical), then by action name
+        var grouped = registry.Actions
+                              .GroupBy(a => a.Category)
+                              .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                              .ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"The system currently supports {sorted.Length} actions:");
+        sb.AppendLine("The system currently supports the following actions:");
 
-        foreach (var action in sorted)
+        foreach (var group in grouped)
         {
-            sb.Append(" - ");
-            sb.Append(action.Name);
-
-            if ( ! string.IsNullOrWhiteSpace(action.Description))
-            {
-                sb.Append(" — ");
-                sb.Append(action.Description);
-            }
+            var actions = group.OrderBy(metadata => metadata.Name
+                                      , StringComparer.OrdinalIgnoreCase)
+                               .ToList();
 
             sb.AppendLine();
+            sb.AppendLine($"{group.Key} Actions ({actions.Count}):");
+
+            foreach (var action in actions)
+            {
+                sb.Append(" - ");
+                sb.Append(action.Name);
+
+                if ( ! string.IsNullOrWhiteSpace(action.Description))
+                {
+                    sb.Append(" — ");
+                    sb.Append(action.Description);
+                }
+
+                sb.AppendLine();
+            }
         }
 
-        // Future Phase 3 extension point:
-        // - Group actions by category or module
-        // - e.g. registry.Actions.GroupBy(a => a.Category ?? "General")
+        // Structured metadata is sorted flat (alphabetical) – unchanged from Step 3.1
+        var flatSorted = registry.Actions
+                                 .OrderBy(metadata => metadata.Name
+                                        , StringComparer.OrdinalIgnoreCase)
+                                 .ToArray();
 
         return new ListActionsResult
         (
-              Metadata: sorted
-            , Summary : sb.ToString()
+            Metadata: flatSorted
+          , Summary : sb.ToString()
         );
     }
+
 }
