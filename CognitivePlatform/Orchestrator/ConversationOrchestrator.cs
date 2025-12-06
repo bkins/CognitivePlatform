@@ -16,12 +16,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ITelemetrySink           _telemetry;
     private readonly ConversationContextStore _contextStore;
 
-    public ConversationOrchestrator(
-        IActionRegistry                                                registry,
-        [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter,
-        IExecutionEngine                                               execution,
-        ITelemetrySink                                                 telemetry,
-        ConversationContextStore                                       contextStore)
+    public ConversationOrchestrator (IActionRegistry                                                registry
+                                   , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
+                                   , IExecutionEngine                                               execution
+                                   , ITelemetrySink                                                 telemetry
+                                   , ConversationContextStore                                       contextStore)
     {
         _registry     = registry;
         _interpreter  = interpreter;
@@ -31,7 +30,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     }
 
     public async Task<ConverseResponse> ConverseAsync(ConverseRequest    request
-                                                     , CancellationToken ct = default)
+                                                    , CancellationToken ct = default)
     {
         _telemetry.Track("Conversation.Start", $"Input='{request.Input}'");
 
@@ -39,11 +38,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var context = _contextStore.GetOrCreate(request.SessionId);
 
         // 2. Wire it into the test actions (needed for StoreValue, RecallValue, RepeatLastAction)
-        CognitivePlatform.Api.Actions.TestActions.SetContext(context);
+        Actions.TestActions.SetContext(context);
+
+        // 2b. Wire the registry into meta-actions so they can introspect available actions
+        Actions.MetaActions.SetRegistry(_registry);
+
 
         // 3. Log interpreter identity
-        _telemetry.Track("Interpreter.Selected",
-                         $"Using interpreter: {_interpreter.GetType().Name}");
+        _telemetry.Track("Interpreter.Selected"
+                       , $"Using interpreter: {_interpreter.GetType().Name}");
 
         // 4. Interpret with context
         var interp = _interpreter.InterpretWithContext(request.Input, context);
@@ -52,14 +55,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             return new ConverseResponse
                    {
-                       Message = "I'm not sure what to do next.",
-                       Debug   = interp.DebugInfo
+                       Message = "I'm not sure what to do next."
+                     , Debug   = interp.DebugInfo
                    };
         }
 
         // 5. Look up the action reflectively
-        var action = _registry.Actions.FirstOrDefault(a =>
-                                                          string.Equals(a.Name, interp.ActionName, StringComparison.OrdinalIgnoreCase));
+        var action = _registry.Actions.FirstOrDefault(metadata => string.Equals(metadata.Name
+                                                                              , interp.ActionName
+                                                                              , StringComparison.OrdinalIgnoreCase));
 
         if (action is null)
         {
@@ -68,8 +72,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             return new ConverseResponse
                    {
-                       Message = "That action is not registered in this system.",
-                       Debug   = msg
+                       Message = "That action is not registered in this system."
+                     , Debug   = msg
                    };
         }
 
@@ -80,21 +84,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 7. Update context AFTER execution
         context.LastUserMessage = request.Input;
         context.LastActionName  = interp.ActionName;
+        
         context.LastParameters.Clear();
         
-        foreach (var p in interp.ExtractedParameters)
-            context.LastParameters[p.Key] = p.Value;
+        foreach (var pair in interp.ExtractedParameters)
+            context.LastParameters[pair.Key] = pair.Value;
 
         // 8. Return consolidated response
         return new ConverseResponse
                {
-                   Message = execOutput,
-                   Debug   = interp.DebugInfo
+                   Message = execOutput
+                 , Debug   = interp.DebugInfo
                };
     }
-
-    // Old Phase-1 method — not used anymore
-    OrchestratorResult IConversationOrchestrator.Process(string input)
-        => throw new NotSupportedException(
-            "Use ConverseAsync() with a session-based request.");
 }

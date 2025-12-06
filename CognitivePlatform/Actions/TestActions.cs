@@ -17,22 +17,17 @@ public static class TestActions
     // 1. StoreValue
     // ---------------------------------------------------------------------
     [NaturalLanguageAction(
-        Description = "Stores a value in the session context.",
-        Examples = new[]
-        {
-            "Remember that my favorite number is 42",
-            "Set x to 100",
-            "Store the value blue"
-        })]
-    public static string StoreValue(
-        [NaturalLanguageParam(Description = "The name of the variable to store.")]
-        string key,
-
-        [NaturalLanguageParam(Description = "The value to store under the key.")]
-        string value)
+        Description = "Stores a value in the session context."
+      , Examples = new[]
+                   {
+                       "Remember that my favorite number is 42", "Set x to 100", "Store the value blue"
+                   })]
+    public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store.")] 
+                                     string key
+                                   , [NaturalLanguageParam(Description = "The value to store under the key.")]  
+                                     string value)
     {
-        if (_ctx is null)
-            return "No conversation context available.";
+        if (_ctx is null) return "No conversation context available.";
 
         _ctx.Metadata[key] = value;
 
@@ -42,17 +37,15 @@ public static class TestActions
     // ---------------------------------------------------------------------
     // 2. RecallValue
     // ---------------------------------------------------------------------
-    [NaturalLanguageAction(
-        Description = "Retrieves a previously stored value.",
-        Examples = new[]
-        {
-            "What is x?",
-            "What did I say earlier?",
-            "Recall the value of count"
-        })]
-    public static string RecallValue(
-        [NaturalLanguageParam(Description = "The variable name to retrieve.")]
-        string key)
+    [NaturalLanguageAction(Description = "Retrieves a previously stored value."
+                         , Examples    = new[]
+                                         {
+                                             "What is x?"
+                                           , "What did I say earlier?"
+                                           , "Recall the value of count"
+                                         })]
+    public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve.")]
+                                     string key)
     {
         if (_ctx is null)
             return "No conversation context available.";
@@ -66,14 +59,13 @@ public static class TestActions
     // ---------------------------------------------------------------------
     // 3. RepeatLastAction
     // ---------------------------------------------------------------------
-    [NaturalLanguageAction(
-        Description = "Repeats the last action using the previously extracted parameters.",
-        Examples = new[]
-        {
-            "Do that again",
-            "Repeat the last command",
-            "Run it again"
-        })]
+    [NaturalLanguageAction( Description = "Repeats the last action using the previously extracted parameters."
+                          , Examples    = new[]
+                                          {
+                                              "Do that again"
+                                            , "Repeat the last command"
+                                            , "Run it again"
+                                          })]
     public static string RepeatLastAction()
     {
         if (_ctx is null)
