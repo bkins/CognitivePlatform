@@ -99,5 +99,71 @@ public static class MetaActions
           , Summary : sb.ToString()
         );
     }
+    
+    [NaturalLanguageAction(Description = "Describes an action by name, including its category, parameters, and example phrases."
+                         , Examples    =
+                           [
+                               "Describe the action StoreValue"
+                             , "What does RepeatLastAction do?"
+                             , "Explain the action RecallValue"
+                           ]
+                         , Category    = "interpreter"
+    )]
+    public static string DescribeAction(string actionName)
+    {
+        if (_registry is null)
+            return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
+
+        if (string.IsNullOrWhiteSpace(actionName))
+            return "Please specify the name of the action you want described.";
+
+        var action = _registry.FindByName(actionName);
+
+        if (action is null)
+            return $"I can't find any action named '{actionName}'.";
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"Action: {action.Name}");
+        sb.AppendLine($"Category: {action.Category}");
+
+        if ( ! string.IsNullOrWhiteSpace(action.Description))
+            sb.AppendLine($"Description: {action.Description}");
+
+        // Parameters
+        if (action.Parameters.Count == 0)
+        {
+            sb.AppendLine("Parameters: (none)");
+        }
+        else
+        {
+            sb.AppendLine("Parameters:");
+            foreach (var p in action.Parameters)
+            {
+                sb.Append(" - ");
+                sb.Append(p.Name);
+                sb.Append(" (");
+                sb.Append(p.ParameterType.Name);
+                sb.Append(")");
+
+                if (!string.IsNullOrWhiteSpace(p.Description))
+                {
+                    sb.Append(": ");
+                    sb.Append(p.Description);
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        // Examples
+        if (action.Examples is not { Length: > 0 }) return sb.ToString();
+        
+        sb.AppendLine("Examples:");
+        foreach (var ex in action.Examples)
+            sb.AppendLine($" - \"{ex}\"");
+
+        return sb.ToString();
+    }
 
 }

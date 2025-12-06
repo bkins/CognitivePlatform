@@ -81,16 +81,20 @@ public class LlmInterpreter : IInterpreter
     // ---------------------------------------------------------------------
     // Prompt builder (strong JSON compliance)
     // ---------------------------------------------------------------------
-    private static string BuildPrompt(string userInput, string actionsSummary)
+    private static string BuildPrompt (string userInput
+                                     , string actionsSummary)
     {
         var sb = new StringBuilder();
 
         sb.AppendLine("SYSTEM:");
-        sb.AppendLine("You are a deterministic intent router.");
-        sb.AppendLine("You MUST ALWAYS reply with ONLY valid JSON. No text before or after.");
-        sb.AppendLine("If unsure, choose the closest matching action.");
+        sb.AppendLine("You are the Natural Language Command Interpreter for the CognitivePlatform.");
+        sb.AppendLine("Your job is to choose which action to call and extract the correct parameters.");
+        sb.AppendLine("You NEVER execute actions — you only select them.");
+
         sb.AppendLine();
-        sb.AppendLine("Your required output schema is:");
+        sb.AppendLine("OUTPUT RULES:");
+        sb.AppendLine("You MUST ALWAYS reply with ONLY valid JSON. No commentary, no text before or after.");
+        sb.AppendLine("Your JSON schema is:");
         sb.AppendLine("{");
         sb.AppendLine("  \"actionName\": \"NameOfActionOrNone\",");
         sb.AppendLine("  \"parameters\": { \"paramName\": \"value\" },");
@@ -98,18 +102,43 @@ public class LlmInterpreter : IInterpreter
         sb.AppendLine("}");
         sb.AppendLine();
         sb.AppendLine("If no action applies, return:");
-        sb.AppendLine("{\"actionName\":\"none\",\"parameters\":{},\"reason\":\"No suitable action\"}");
+        sb.AppendLine("{\"actionName\": \"none\", \"parameters\": {}, \"reason\": \"No suitable action\"}");
+
         sb.AppendLine();
-        sb.AppendLine("Available actions:");
+        sb.AppendLine("META-ACTION RULES (CRITICAL):");
+        sb.AppendLine("1. If the user asks to explain, describe, define, summarize, document, or clarify ANY action,");
+        sb.AppendLine("   ALWAYS select the action: DescribeAction(actionName: string).");
+        sb.AppendLine("   - Never call the action being described.");
+        sb.AppendLine("   - The parameter actionName must EXACTLY match the target action's Name.");
+        sb.AppendLine();
+        sb.AppendLine("2. If the user asks:");
+        sb.AppendLine("      \"What can you do?\"");
+        sb.AppendLine("      \"List your commands\"");
+        sb.AppendLine("      \"Show your capabilities\"");
+        sb.AppendLine("   ALWAYS choose: ListActions()");
+        sb.AppendLine();
+        sb.AppendLine("3. NEVER hallucinate action names or parameters.");
+        sb.AppendLine("4. NEVER alter parameter names — they MUST match exactly.");
+        sb.AppendLine("5. Categories guide interpretation. The same action name appearing in the text DOES NOT mean");
+        sb.AppendLine("   the user wants to execute that action.");
+        sb.AppendLine("   Example: \"Describe the action StoreValue\" MUST NOT call StoreValue.");
+        sb.AppendLine();
+        sb.AppendLine("6. If unclear which action to call → choose none.");
+
+        sb.AppendLine();
+        sb.AppendLine("AVAILABLE ACTIONS:");
         sb.AppendLine(actionsSummary);
+
         sb.AppendLine();
         sb.AppendLine("USER:");
         sb.AppendLine(userInput);
+
         sb.AppendLine();
         sb.AppendLine("SYSTEM: Return ONLY the JSON. Nothing else.");
 
         return sb.ToString();
     }
+
 
     private static string BuildActionsSummary(IEnumerable<ActionMetadata> actions)
     {
