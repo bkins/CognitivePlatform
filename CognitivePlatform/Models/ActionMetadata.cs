@@ -28,4 +28,10 @@ public class ActionMetadata
     /// List of parameter metadata extracted from the method.
     /// </summary>
     public List<ParameterMetadata> Parameters { get; init; } = new();
+    
+    /// <summary>
+    /// Canonical, normalized category (PascalCase).
+    /// Guaranteed to be non-null. Defaults to "General".
+    /// </summary>
+    public string Category { get; init; } = "General";
 }

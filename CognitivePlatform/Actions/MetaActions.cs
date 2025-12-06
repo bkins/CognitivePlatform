@@ -24,14 +24,14 @@ public static class MetaActions
     /// This is the "meta-action" the interpreter can choose when the user asks
     /// something like "What can you do?" or "List your commands."
     /// </summary>
-    [NaturalLanguageAction(
-        Description = "Lists all registered actions known to the system, including their names and descriptions.",
-        Examples =
-        [
-              "What can you do?"
-            , "List all your actions."
-            , "Show me your available commands."
-        ]
+    [NaturalLanguageAction( Description = "Lists all registered actions known to the system, including their names and descriptions."
+                          , Examples =
+                           [
+                               "What can you do?"
+                             , "List all your actions."
+                             , "Show me your available commands."
+                           ]
+                           , Category = "interpreter"
     )]
     public static string ListActions()
     {
@@ -55,7 +55,8 @@ public static class MetaActions
     public static ListActionsResult BuildListActionsResult(IActionRegistry registry)
     {
         var sorted = registry.Actions
-                             .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                             .OrderBy(metadata => metadata.Name
+                                    , StringComparer.OrdinalIgnoreCase)
                              .ToArray();
 
         var sb = new StringBuilder();
@@ -66,7 +67,7 @@ public static class MetaActions
             sb.Append(" - ");
             sb.Append(action.Name);
 
-            if (!string.IsNullOrWhiteSpace(action.Description))
+            if ( ! string.IsNullOrWhiteSpace(action.Description))
             {
                 sb.Append(" — ");
                 sb.Append(action.Description);

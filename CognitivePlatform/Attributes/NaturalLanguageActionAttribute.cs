@@ -14,4 +14,10 @@ public class NaturalLanguageActionAttribute : Attribute
     /// Used by interpreters for matching and intent shaping.
     /// </summary>
     public string[]? Examples { get; init; }
+    
+    /// <summary>
+    /// Optional category for grouping and meta-reasoning.
+    /// Normalized internally and defaults to "General".
+    /// </summary>
+    public string? Category { get; init; }
 }

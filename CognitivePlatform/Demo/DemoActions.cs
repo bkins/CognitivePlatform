@@ -11,7 +11,7 @@ public class DemoActions
                                             , "run test"
                                             , "invoke demo"
                                           }
-    )]
+                           , Category = "general")]
     public void TestAction()
     {
         Console.WriteLine("Demo action executed!");

@@ -5,31 +5,33 @@ namespace CognitivePlatform.Api.Actions;
 
 public static class TestActions
 {
-    private static ConversationContext? _ctx;
+    private static ConversationContext? _context;
 
     // Called by orchestrator once per request/session
     public static void SetContext(ConversationContext context)
     {
-        _ctx = context;
+        _context = context;
     }
 
     // ---------------------------------------------------------------------
     // 1. StoreValue
     // ---------------------------------------------------------------------
-    [NaturalLanguageAction(
-        Description = "Stores a value in the session context."
-      , Examples = new[]
-                   {
-                       "Remember that my favorite number is 42", "Set x to 100", "Store the value blue"
-                   })]
+    [NaturalLanguageAction(Description = "Stores a value in the session context."
+                         , Examples = new[]
+                                      {
+                                          "Remember that my favorite number is 42"
+                                        , "Set x to 100"
+                                        , "Store the value blue"
+                                      }
+                          , Category = "memory")]
     public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store.")] 
                                      string key
                                    , [NaturalLanguageParam(Description = "The value to store under the key.")]  
                                      string value)
     {
-        if (_ctx is null) return "No conversation context available.";
+        if (_context is null) return "No conversation context available.";
 
-        _ctx.Metadata[key] = value;
+        _context.Metadata[key] = value;
 
         return $"Stored '{value}' under key '{key}'.";
     }
@@ -43,14 +45,15 @@ public static class TestActions
                                              "What is x?"
                                            , "What did I say earlier?"
                                            , "Recall the value of count"
-                                         })]
+                                         }
+                         , Category = "memory")]
     public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve.")]
                                      string key)
     {
-        if (_ctx is null)
+        if (_context is null)
             return "No conversation context available.";
 
-        if (_ctx.Metadata.TryGetValue(key, out var value))
+        if (_context.Metadata.TryGetValue(key, out var value))
             return $"The stored value of '{key}' is '{value}'.";
 
         return $"No stored value found for '{key}'.";
@@ -65,19 +68,20 @@ public static class TestActions
                                               "Do that again"
                                             , "Repeat the last command"
                                             , "Run it again"
-                                          })]
+                                          }
+                          , Category = "meta")]
     public static string RepeatLastAction()
     {
-        if (_ctx is null)
+        if (_context is null)
             return "No conversation context available.";
 
-        if (_ctx.LastActionName is null)
+        if (_context.LastActionName is null)
             return "There is no previous action to repeat.";
 
-        var summary = _ctx.LastParameters.Count == 0
+        var summary = _context.LastParameters.Count == 0
             ? "(no stored parameters)"
-            : string.Join(", ", _ctx.LastParameters.Select(p => $"{p.Key}={p.Value}"));
+            : string.Join(", ", _context.LastParameters.Select(p => $"{p.Key}={p.Value}"));
 
-        return $"Request to repeat action '{_ctx.LastActionName}' with parameters: {summary}";
+        return $"Request to repeat action '{_context.LastActionName}' with parameters: {summary}";
     }
 }

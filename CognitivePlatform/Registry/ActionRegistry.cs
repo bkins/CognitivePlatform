@@ -52,7 +52,22 @@ public class ActionRegistry : IActionRegistry
         var parameters = methodInfo.GetParameters()
                                    .Select(BuildParameterMetadata)
                                    .ToList();
+        
+        var rawCategory = attribute.Category;
 
+        // Step 1: default if null or whitespace
+        var normalized = string.IsNullOrWhiteSpace(rawCategory)
+                            ? "general"
+                            : rawCategory.Trim().ToLowerInvariant();
+
+        // Step 2: collapse spaces (e.g. "memory tools" → "memorytools")
+        normalized = string.Concat(normalized.Where(char.IsLetterOrDigit));
+        
+        // Step 3: PascalCase it for internal use and display
+        if (normalized.Length == 0) normalized = "general";
+
+        var category = char.ToUpper(normalized[0]) + normalized[1..];
+        
         return new ActionMetadata
                {
                    Name        = methodInfo.Name
@@ -60,6 +75,7 @@ public class ActionRegistry : IActionRegistry
                  , Description = attribute.Description
                  , Examples    = attribute.Examples
                  , Parameters  = parameters
+                 , Category    = category
                };
     }
 
