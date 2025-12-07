@@ -31,4 +31,6 @@ public class InterpreterResult
     /// Future phases will populate this dictionary.
     /// </summary>
     public Dictionary<string, string> ExtractedParameters { get; init; } = new();
+
+    public string? Reason { get; set; }
 }

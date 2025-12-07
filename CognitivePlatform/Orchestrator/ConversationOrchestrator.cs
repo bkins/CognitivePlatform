@@ -43,31 +43,33 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 2b. Wire the registry into meta-actions so they can introspect available actions
         Actions.MetaActions.SetRegistry(_registry);
 
-
+        // 2c. Wire context into meta-actions so they can explain reasoning
+        Actions.MetaActions.SetContext(context);
+        
         // 3. Log interpreter identity
         _telemetry.Track("Interpreter.Selected"
                        , $"Using interpreter: {_interpreter.GetType().Name}");
 
         // 4. Interpret with context
-        var interp = _interpreter.InterpretWithContext(request.Input, context);
+        var interpretation = _interpreter.InterpretWithContext(request.Input, context);
 
-        if (interp.ActionName is null)
+        if (interpretation.ActionName is null)
         {
             return new ConverseResponse
                    {
                        Message = "I'm not sure what to do next."
-                     , Debug   = interp.DebugInfo
+                     , Debug   = interpretation.DebugInfo
                    };
         }
 
         // 5. Look up the action reflectively
         var action = _registry.Actions.FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                              , interp.ActionName
+                                                                              , interpretation.ActionName
                                                                               , StringComparison.OrdinalIgnoreCase));
 
         if (action is null)
         {
-            var msg = $"Interpreter selected unknown action '{interp.ActionName}'.";
+            var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
             _telemetry.Track("ActionLookup.Failed", msg);
 
             return new ConverseResponse
@@ -78,23 +80,28 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         // 6. Execute (sync)
-        var interpretation = _interpreter.InterpretWithContext(request.Input, context);
         var execOutput     = _execution.Execute(action, interpretation.ExtractedParameters);
 
         // 7. Update context AFTER execution
-        context.LastUserMessage = request.Input;
-        context.LastActionName  = interp.ActionName;
-        
+        context.LastUserMessage       = request.Input;
+        context.LastActionName        = interpretation.ActionName;
+        context.LastInterpreterReason = interpretation.Reason;
+        context.LastInterpreterDebug  = interpretation.DebugInfo;
+
         context.LastParameters.Clear();
-        
-        foreach (var pair in interp.ExtractedParameters)
+
+        foreach (var pair in interpretation.ExtractedParameters)
+        {
             context.LastParameters[pair.Key] = pair.Value;
+        }
 
         // 8. Return consolidated response
         return new ConverseResponse
                {
                    Message = execOutput
-                 , Debug   = interp.DebugInfo
+                 , Debug   = interpretation.DebugInfo
                };
     }
+    
+    
 }

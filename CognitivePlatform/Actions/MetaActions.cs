@@ -1,5 +1,6 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 
@@ -7,14 +8,24 @@ namespace CognitivePlatform.Api.Actions;
 
 public static class MetaActions
 {
-    private static IActionRegistry? _registry;
+    private static IActionRegistry?     _registry;
+    private static ConversationContext? _context;
 
     /// <summary>
     /// Called once per app lifetime (or startup) to inject the shared action registry.
     /// </summary>
-    public static void SetRegistry(IActionRegistry registry)
+    public static void SetRegistry (IActionRegistry registry)
     {
         _registry = registry;
+    }
+
+    /// <summary>
+    /// Called once per request to give meta-actions access
+    /// to the live conversation context.
+    /// </summary>
+    public static void SetContext (ConversationContext context)
+    {
+        _context = context;
     }
 
     /// <summary>
@@ -24,14 +35,14 @@ public static class MetaActions
     /// This is the "meta-action" the interpreter can choose when the user asks
     /// something like "What can you do?" or "List your commands."
     /// </summary>
-    [NaturalLanguageAction( Description = "Lists all registered actions known to the system, including their names and descriptions."
-                          , Examples =
+    [NaturalLanguageAction(Description = "Lists all registered actions known to the system, including their names and descriptions."
+                         , Examples =
                            [
                                "What can you do?"
                              , "List all your actions."
                              , "Show me your available commands."
                            ]
-                           , Category = "interpreter"
+                         , Category = "interpreter"
     )]
     public static string ListActions()
     {
@@ -52,12 +63,13 @@ public static class MetaActions
     ///
     /// This is the foundation for future meta-behavior (grouping by category, modules, etc.).
     /// </summary>
-    public static ListActionsResult BuildListActionsResult(IActionRegistry registry)
+    public static ListActionsResult BuildListActionsResult (IActionRegistry registry)
     {
         // Organize by category (alphabetical), then by action name
         var grouped = registry.Actions
-                              .GroupBy(a => a.Category)
-                              .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                              .GroupBy(action => action.Category)
+                              .OrderBy(grouping => grouping.Key
+                                     , StringComparer.OrdinalIgnoreCase)
                               .ToList();
 
         var sb = new StringBuilder();
@@ -77,7 +89,7 @@ public static class MetaActions
                 sb.Append(" - ");
                 sb.Append(action.Name);
 
-                if ( ! string.IsNullOrWhiteSpace(action.Description))
+                if (!string.IsNullOrWhiteSpace(action.Description))
                 {
                     sb.Append(" — ");
                     sb.Append(action.Description);
@@ -93,23 +105,22 @@ public static class MetaActions
                                         , StringComparer.OrdinalIgnoreCase)
                                  .ToArray();
 
-        return new ListActionsResult
-        (
+        return new ListActionsResult(
             Metadata: flatSorted
-          , Summary : sb.ToString()
+          , Summary: sb.ToString()
         );
     }
-    
+
     [NaturalLanguageAction(Description = "Describes an action by name, including its category, parameters, and example phrases."
-                         , Examples    =
+                         , Examples =
                            [
                                "Describe the action StoreValue"
                              , "What does RepeatLastAction do?"
                              , "Explain the action RecallValue"
                            ]
-                         , Category    = "interpreter"
+                         , Category = "interpreter"
     )]
-    public static string DescribeAction(string actionName)
+    public static string DescribeAction (string actionName)
     {
         if (_registry is null)
             return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
@@ -127,7 +138,7 @@ public static class MetaActions
         sb.AppendLine($"Action: {action.Name}");
         sb.AppendLine($"Category: {action.Category}");
 
-        if ( ! string.IsNullOrWhiteSpace(action.Description))
+        if (!string.IsNullOrWhiteSpace(action.Description))
             sb.AppendLine($"Description: {action.Description}");
 
         // Parameters
@@ -138,18 +149,18 @@ public static class MetaActions
         else
         {
             sb.AppendLine("Parameters:");
-            foreach (var p in action.Parameters)
+            foreach (var parameters in action.Parameters)
             {
                 sb.Append(" - ");
-                sb.Append(p.Name);
+                sb.Append(parameters.Name);
                 sb.Append(" (");
-                sb.Append(p.ParameterType.Name);
+                sb.Append(parameters.ParameterType.Name);
                 sb.Append(")");
 
-                if (!string.IsNullOrWhiteSpace(p.Description))
+                if (!string.IsNullOrWhiteSpace(parameters.Description))
                 {
                     sb.Append(": ");
-                    sb.Append(p.Description);
+                    sb.Append(parameters.Description);
                 }
 
                 sb.AppendLine();
@@ -158,12 +169,61 @@ public static class MetaActions
 
         // Examples
         if (action.Examples is not { Length: > 0 }) return sb.ToString();
-        
+
         sb.AppendLine("Examples:");
-        foreach (var ex in action.Examples)
-            sb.AppendLine($" - \"{ex}\"");
+        foreach (var example in action.Examples)
+            sb.AppendLine($" - \"{example}\"");
 
         return sb.ToString();
     }
 
+    [NaturalLanguageAction(Description = "Explains why the interpreter chose the last action it selected."
+                         , Examples =
+                           [
+                               "Why did you choose that?"
+                             , "Why that action?"
+                             , "Explain your reasoning."
+                           ]
+                         , Category = "interpreter"
+    )]
+    public static string WhyAction()
+    {
+        if (_context is null)
+            return "No conversation context available.";
+
+        if (_context.LastActionName is null)
+            return "There is no previous interpreter decision to explain.";
+
+        var result = BuildWhyActionResult(_context);
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"Last action: {result.ActionName ?? "<none>"}");
+        sb.AppendLine();
+        sb.AppendLine("Why it was chosen:");
+        sb.AppendLine(result.Reason ?? "No interpreter reasoning was captured for the last decision.");
+        sb.AppendLine();
+        sb.AppendLine("Debug snapshot:");
+        sb.AppendLine(result.Debug);
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Core introspection logic for WhyAction – returns a structured record
+    /// that can later power dashboards, telemetry, etc.
+    /// </summary>
+    public static WhyActionResult BuildWhyActionResult (ConversationContext context)
+    {
+        var actionName = context.LastActionName;
+        var reason = context.LastInterpreterReason
+                  ?? "No interpreter reasoning was recorded for the last decision.";
+        var debug = context.LastInterpreterDebug
+                 ?? "No interpreter debug information was recorded.";
+
+        return new WhyActionResult(ActionName: actionName
+                                 , Reason: reason
+                                 , Debug: debug
+        );
+    }
 }
