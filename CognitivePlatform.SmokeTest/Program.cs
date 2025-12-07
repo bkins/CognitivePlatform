@@ -3,6 +3,10 @@ using System.Text.Json;
 using System.Text
     .Encodings
     .Web;
+using CognitivePlatform.SmokeTest.Helpers;
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 Console.WriteLine("Phase 2 Smoke Tester\n---------------------");
 
 var http = new HttpClient
@@ -21,6 +25,20 @@ while (true)
     Console.Write("> ");
     var input = Console.ReadLine();
 
+    // if (input == "spin")
+    // {
+    //     for (int i = 0; i <= ConsoleSpinner.NumberOfSpinnerStyles-1; i++)
+    //     {
+    //         using (new ConsoleSpinner($"API Call {i + 1}", (SpinnerStyle)i))
+    //         {
+    //             await Task.Delay(3000);
+    //         }
+    //         Console.WriteLine($"Call {i + 1} complete! ({string.Join(',',ConsoleSpinner.SpinnerStyles[i])})");
+    //     }
+    //     
+    //     continue;
+    // }
+    
     if (string.IsNullOrWhiteSpace(input))
         continue;
 
@@ -30,13 +48,15 @@ while (true)
                     , input     = input
                   };
     
-    Console.WriteLine("Thinking...");
-    
-    var response = await http.PostAsJsonAsync("api/conversation/converse"
+    HttpResponseMessage response;
+    using (new ConsoleSpinner("Thinking", SpinnerStyle.WaveText))
+    {
+        response = await http.PostAsJsonAsync("api/conversation/converse"
                                             , request);
+    }
 
     var rawJson = await response.Content.ReadAsStringAsync();
-
+    
     // Try to pretty-print JSON
     string pretty;
 
@@ -59,3 +79,4 @@ while (true)
     Console.WriteLine(pretty);
     Console.WriteLine();
 }
+

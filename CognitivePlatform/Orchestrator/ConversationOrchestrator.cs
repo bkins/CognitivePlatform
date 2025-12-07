@@ -109,6 +109,45 @@ public class ConversationOrchestrator : IConversationOrchestrator
                          , Debug   = msg
                    };
         }
+        
+        // 5b. Check for missing required parameters before execution.
+        var missingRequiredParameters = action.Parameters
+                                              .Where(parameter => ! parameter.Optional)
+                                              .Where(parameter =>
+                                              {
+                                                  // 1. Missing key entirely
+                                                  if ( ! interpretation.ExtractedParameters
+                                                                       .TryGetValue(parameter.Name
+                                                                                  , out var value))
+                                                      return true;
+
+                                                  // 2. Present, but empty AND empty is not allowed
+                                                  return string.IsNullOrWhiteSpace(value) && ! parameter.AllowEmpty;
+
+                                              })
+                                              .Select(p => p.Name)
+                                              .ToList();
+
+        if (missingRequiredParameters.Count > 0)
+        {
+            context.LastFailureType = InterpreterFailureType.MissingParameters;
+
+            context.LastMissingParameters.Clear();
+            
+            foreach (var missing in missingRequiredParameters)
+                context.LastMissingParameters.Add(missing);
+
+            var debug = $"Missing required parameters for action '{interpretation.ActionName}': {string.Join(", ", missingRequiredParameters)}";
+
+            if (string.IsNullOrWhiteSpace(context.LastInterpreterReason))
+                context.LastInterpreterReason = debug;
+
+            return new ConverseResponse
+                   {
+                           Message = "I'm not sure what to do next."
+                         , Debug   = debug
+                   };
+        }
 
         // 6. Execute (sync)
         var execOutput = _execution.Execute(action
@@ -121,6 +160,4 @@ public class ConversationOrchestrator : IConversationOrchestrator
                  , Debug   = interpretation.DebugInfo
                };
     }
-    
-    
 }

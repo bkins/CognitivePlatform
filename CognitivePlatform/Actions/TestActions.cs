@@ -24,9 +24,13 @@ public static class TestActions
                                         , "Store the value blue"
                                       }
                           , Category = "memory")]
-    public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store.")] 
+    public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store."
+                                                         , Optional = false
+                                                         , AllowEmpty = false)] 
                                      string key
-                                   , [NaturalLanguageParam(Description = "The value to store under the key.")]  
+                                   , [NaturalLanguageParam(Description = "The value to store under the key."
+                                                         , Optional = false
+                                                         , AllowEmpty = true)]  
                                      string value)
     {
         if (_context is null) return "No conversation context available.";
@@ -53,10 +57,11 @@ public static class TestActions
         if (_context is null)
             return "No conversation context available.";
 
-        if (_context.Metadata.TryGetValue(key, out var value))
-            return $"The stored value of '{key}' is '{value}'.";
+        return _context.Metadata
+                       .TryGetValue(key, out var value)
+                            ? $"The stored value of '{key}' is '{value}'."
+                            : $"No stored value found for '{key}'.";
 
-        return $"No stored value found for '{key}'.";
     }
 
     // ---------------------------------------------------------------------
@@ -78,9 +83,12 @@ public static class TestActions
         if (_context.LastActionName is null)
             return "There is no previous action to repeat.";
 
-        var summary = _context.LastParameters.Count == 0
-            ? "(no stored parameters)"
-            : string.Join(", ", _context.LastParameters.Select(p => $"{p.Key}={p.Value}"));
+        var summary = _context.LastParameters
+                              .Count == 0
+                                    ? "(no stored parameters)"
+                                    : string.Join(", "
+                                                , _context.LastParameters
+                                                          .Select(pair => $"{pair.Key}={pair.Value}"));
 
         return $"Request to repeat action '{_context.LastActionName}' with parameters: {summary}";
     }

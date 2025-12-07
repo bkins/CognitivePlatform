@@ -26,6 +26,11 @@ public class ParameterMetadata
     public bool Optional { get; init; }
 
     /// <summary>
+    /// Whether empty strings are allowed as a valid value for this parameter.
+    /// </summary>
+    public bool AllowEmpty { get; init; } = true;
+
+    /// <summary>
     /// Reflection reference to the underlying parameter.
     /// </summary>
     public ParameterInfo? ParameterInfo { get; init; }

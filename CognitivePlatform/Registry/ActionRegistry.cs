@@ -85,11 +85,12 @@ public class ActionRegistry : IActionRegistry
 
         return new ParameterMetadata
                {
-                   Name          = parameterInfo.Name          ?? string.Empty
-                 , ParameterType = parameterInfo.ParameterType
-                 , Description   = nlAttribute?.Description    ?? string.Empty
-                 , Optional      = nlAttribute?.Optional       ?? parameterInfo.IsOptional
-                 , ParameterInfo = parameterInfo
+                       Name          = parameterInfo.Name ?? string.Empty
+                     , ParameterType = parameterInfo.ParameterType
+                     , Description   = nlAttribute?.Description ?? string.Empty
+                     , Optional      = nlAttribute?.Optional    ?? parameterInfo.IsOptional
+                     , AllowEmpty    = nlAttribute?.AllowEmpty  ?? true
+                     , ParameterInfo = parameterInfo
                };
     }
 }
