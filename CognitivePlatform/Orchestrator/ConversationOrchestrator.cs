@@ -3,6 +3,7 @@ using CognitivePlatform.Api.Controllers;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 
@@ -52,6 +53,31 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         // 4. Interpret with context
         var interpretation = _interpreter.InterpretWithContext(request.Input, context);
+        
+        // 4b. Persist interpreter decision (success or failure) into context
+        context.LastUserMessage       = request.Input;
+        context.LastActionName        = interpretation.ActionName;
+        context.LastInterpreterReason = interpretation.Reason;
+        context.LastInterpreterDebug  = interpretation.DebugInfo;
+        context.LastFailureType       = interpretation.FailureType;
+
+        context.LastCandidateActions.Clear();
+        if (interpretation.CandidateActions is { Count: > 0 })
+        {
+            foreach (var name in interpretation.CandidateActions)
+                context.LastCandidateActions.Add(name);
+        }
+
+        context.LastMissingParameters.Clear();
+        if (interpretation.MissingParameters is { Count: > 0 })
+        {
+            foreach (var missingItem in interpretation.MissingParameters)
+                context.LastMissingParameters.Add(missingItem);
+        }
+
+        context.LastParameters.Clear();
+        foreach (var pair in interpretation.ExtractedParameters)
+            context.LastParameters[pair.Key] = pair.Value;
 
         if (interpretation.ActionName is null)
         {
@@ -72,30 +98,23 @@ public class ConversationOrchestrator : IConversationOrchestrator
             var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
             _telemetry.Track("ActionLookup.Failed", msg);
 
+            // Treat as failure
+            context.LastFailureType       = InterpreterFailureType.NoMatchingAction;
+            context.LastInterpreterReason ??=
+                    "Interpreter selected an action name that is not registered.";
+
             return new ConverseResponse
                    {
-                       Message = "That action is not registered in this system."
-                     , Debug   = msg
+                           Message = "That action is not registered in this system."
+                         , Debug   = msg
                    };
         }
 
         // 6. Execute (sync)
-        var execOutput     = _execution.Execute(action, interpretation.ExtractedParameters);
+        var execOutput = _execution.Execute(action
+                                          , interpretation.ExtractedParameters);
 
-        // 7. Update context AFTER execution
-        context.LastUserMessage       = request.Input;
-        context.LastActionName        = interpretation.ActionName;
-        context.LastInterpreterReason = interpretation.Reason;
-        context.LastInterpreterDebug  = interpretation.DebugInfo;
-
-        context.LastParameters.Clear();
-
-        foreach (var pair in interpretation.ExtractedParameters)
-        {
-            context.LastParameters[pair.Key] = pair.Value;
-        }
-
-        // 8. Return consolidated response
+        // 7. Return consolidated response
         return new ConverseResponse
                {
                    Message = execOutput

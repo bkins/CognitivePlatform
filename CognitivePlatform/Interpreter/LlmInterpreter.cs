@@ -40,10 +40,13 @@ public class LlmInterpreter : IInterpreter
         {
             return new InterpreterResult
                    {
-                       ActionName          = null
-                     , ExtractedParameters = new()
-                     , DebugInfo           = "Empty input."
+                           ActionName          = null
+                         , ExtractedParameters = new()
+                         , DebugInfo           = "Empty input."
+                         , Reason              = "Input was empty."
+                         , FailureType         = InterpreterFailureType.NoMatchingAction
                    };
+
         }
 
         var actionsSummary = BuildActionsSummary(_registry.Actions);
@@ -59,9 +62,13 @@ public class LlmInterpreter : IInterpreter
         {
             return new InterpreterResult
                    {
-                       ActionName          = null
-                     , ExtractedParameters = new()
-                     , DebugInfo           = $"LLM call failed: {ex.GetType().Name} - {ex.Message}"
+                           ActionName          = null
+                         , ExtractedParameters = new()
+                         , DebugInfo           = $"LLM call failed: {ex.GetType().Name} - {ex.Message}"
+                         , Reason              = $"LLM call failed: {ex.GetType().Name} - {ex.Message}"
+                         , FailureType         = InterpreterFailureType.NoMatchingAction
+                         , CandidateActions    = null
+                         , MissingParameters   = null
                    };
         }
 
@@ -79,12 +86,14 @@ public class LlmInterpreter : IInterpreter
 
         return new InterpreterResult
                {
-                   ActionName          = parsed.ActionName
-                 , ExtractedParameters = parsed.Parameters
-                 , DebugInfo           = parsed.DebugInfo
-                 , Reason              = parsed.Reason
+                       ActionName          = parsed.ActionName
+                     , ExtractedParameters = parsed.Parameters
+                     , DebugInfo           = parsed.DebugInfo
+                     , Reason              = parsed.Reason
+                     , FailureType         = parsed.FailureType
+                     , CandidateActions    = parsed.CandidateActions
+                     , MissingParameters   = parsed.MissingParameters
                };
-
     }
 
     // ---------------------------------------------------------------------
@@ -105,16 +114,39 @@ public class LlmInterpreter : IInterpreter
         sb.AppendLine();
         sb.AppendLine("OUTPUT RULES:");
         sb.AppendLine("You MUST ALWAYS reply with ONLY valid JSON. No commentary, no text before or after.");
-        sb.AppendLine("Your JSON schema is:");
+        sb.AppendLine("Your required output JSON schema is:");
         sb.AppendLine("{");
         sb.AppendLine("  \"actionName\": \"NameOfActionOrNone\",");
         sb.AppendLine("  \"parameters\": { \"paramName\": \"value\" },");
-        sb.AppendLine("  \"reason\": \"Short explanation\"");
+        sb.AppendLine("  \"reason\": \"Short explanation of why you chose this action or why you could not choose any.\",");
+        sb.AppendLine("  \"failureType\": \"None | NoMatchingAction | AmbiguousIntent | MissingParameters\",");
+        sb.AppendLine("  \"candidateActions\": [\"Optional list of candidate action names if ambiguous\"],");
+        sb.AppendLine("  \"missingParameters\": [\"Optional list of missing required parameter names\"]");
         sb.AppendLine("}");
         sb.AppendLine();
-        sb.AppendLine("If no action applies, return:");
-        sb.AppendLine("{\"actionName\": \"none\", \"parameters\": {}, \"reason\": \"No suitable action\"}");
-
+        sb.AppendLine("If an action applies successfully:");
+        sb.AppendLine("- Set failureType to \"None\".");
+        sb.AppendLine("- actionName must be the chosen action.");
+        sb.AppendLine("- parameters must include all required parameters.");
+        sb.AppendLine();
+        sb.AppendLine("If no action applies at all:");
+        sb.AppendLine("- Set actionName to \"none\".");
+        sb.AppendLine("- Set failureType to \"NoMatchingAction\".");
+        sb.AppendLine("- candidateActions may be empty or omitted.");
+        sb.AppendLine();
+        sb.AppendLine("If multiple actions seem equally likely:");
+        sb.AppendLine("- Set actionName to \"none\".");
+        sb.AppendLine("- Set failureType to \"AmbiguousIntent\".");
+        sb.AppendLine("- candidateActions should list the names of the plausible actions.");
+        sb.AppendLine();
+        sb.AppendLine("If an action matches but required parameters are missing:");
+        sb.AppendLine("- Set actionName to \"none\".");
+        sb.AppendLine("- Set failureType to \"MissingParameters\".");
+        sb.AppendLine("- candidateActions should include the target action.");
+        sb.AppendLine("- missingParameters should include the parameter names that are missing.");
+        sb.AppendLine();
+        sb.AppendLine("If no action applies, return at minimum:");
+        sb.AppendLine("{\"actionName\":\"none\",\"parameters\":{},\"reason\":\"No suitable action\",\"failureType\":\"NoMatchingAction\"}");
         sb.AppendLine();
         sb.AppendLine("META-ACTION RULES (CRITICAL):");
         sb.AppendLine("1. If the user asks to explain, describe, define, summarize, document, or clarify ANY action,");
@@ -192,20 +224,28 @@ public class LlmInterpreter : IInterpreter
         {
             return new ParsedModelResponse
                    {
-                       ActionName = null, Parameters = new(), DebugInfo = "Empty LLM response."
+                       ActionName = null
+                     , Parameters = new()
+                     , DebugInfo = "Empty LLM response."
                    };
         }
 
         // Stage 1: direct JSON attempt
         if (TryParse(raw
-                   , out var parsed1))
+                   , out var parsed1
+                   , actions))
+        {
             return parsed1;
+        }
 
         // Stage 2: attempt substring extraction
         var jsonFromBraces = ExtractJsonBlock(raw);
         if (TryParse(jsonFromBraces
-                   , out var parsed2))
+                   , out var parsed2
+                   , actions))
+        {
             return parsed2;
+        }
 
         // Stage 3: attempt regex fallback
         var regexMatch = Regex.Match(raw
@@ -213,81 +253,143 @@ public class LlmInterpreter : IInterpreter
                                    , RegexOptions.Singleline);
         if (regexMatch.Success
          && TryParse(regexMatch.Value
-                   , out var parsed3))
+                   , out var parsed3
+                   , actions))
+        {
             return parsed3;
+        }
 
         // Total failure
         return new ParsedModelResponse
                {
-                   ActionName = null, Parameters = new(), DebugInfo = $"Failed to parse model JSON. Raw response: {raw}"
+                       ActionName        = null
+                     , Parameters        = new()
+                     , DebugInfo         = $"Failed to parse model JSON. Raw response: {raw}"
+                     , Reason            = "Failed to parse model JSON."
+                     , FailureType       = InterpreterFailureType.NoMatchingAction
+                     , CandidateActions  = null
+                     , MissingParameters = null
                };
 
-        // Local parse method
-        bool TryParse (string                  candidate
-                     , out ParsedModelResponse parsed)
+
+
+    }
+
+    private static bool TryParse (string                      candidate
+                                , out ParsedModelResponse     parsed
+                                , IEnumerable<ActionMetadata> actions)
+    {
+        try
         {
-            try
+            using var doc = JsonDocument.Parse(candidate);
+
+            var root = doc.RootElement;
+            var actionName = root.TryGetProperty("actionName"
+                                               , out var actProp)
+                ? actProp.GetString()
+                : null;
+
+            if (string.Equals(actionName
+                            , "none"
+                            , StringComparison.OrdinalIgnoreCase))
+                actionName = null;
+
+            var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (root.TryGetProperty("parameters"
+                                  , out var paramsProp)
+             && paramsProp.ValueKind == JsonValueKind.Object)
             {
-                using var doc  = JsonDocument.Parse(candidate);
-                var       root = doc.RootElement;
-
-                var actionName = root.TryGetProperty("actionName"
-                                                   , out var actProp)
-                    ? actProp.GetString()
-                    : null;
-
-                if (string.Equals(actionName
-                                , "none"
-                                , StringComparison.OrdinalIgnoreCase))
-                    actionName = null;
-
-                var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                if (root.TryGetProperty("parameters"
-                                      , out var paramsProp)
-                 && paramsProp.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var p in paramsProp.EnumerateObject())
-                        parameters[p.Name] = p.Value.GetString() ?? p.Value.ToString();
-                }
-                
-                string? reason = null;
-
-                if (root.TryGetProperty("reason", out var reasonProp))
-                {
-                    reason = reasonProp.GetString();
-                }
-                
-                // Validate action exists
-                string debug;
-                var    actionsList = actions.ToList();
-
-                if (actionName != null
-                 && !actionsList.Any(a => a.Name.Equals(actionName
-                                                      , StringComparison.OrdinalIgnoreCase)))
-                {
-                    debug      = $"Action '{actionName}' does not exist in registry.";
-                    actionName = null;
-                }
-                else
-                {
-                    debug = $"Parsed action '{actionName ?? "<null>"}' with {parameters.Count} parameter(s).";
-                }
-
-                parsed = new ParsedModelResponse
-                         {
-                             ActionName = actionName
-                           , Parameters = parameters
-                           , Reason     = reason
-                           , DebugInfo  = debug
-                         };
-                return true;
+                foreach (var p in paramsProp.EnumerateObject())
+                    parameters[p.Name] = p.Value.GetString() ?? p.Value.ToString();
             }
-            catch
+
+            // New: reason + failure metadata
+            var reason = string.Empty;
+            if (root.TryGetProperty("reason"
+                                  , out var reasonProp))
+                reason = reasonProp.GetString();
+
+            var failureType = InterpreterFailureType.None;
+
+            if (root.TryGetProperty("failureType"
+                                  , out var failureProp))
             {
-                parsed = null!;
-                return false;
+                var failureValue = failureProp.GetString();
+                if (!string.IsNullOrWhiteSpace(failureValue)
+                 && Enum.TryParse(failureValue
+                                , ignoreCase: true
+                                , out InterpreterFailureType parsedFt))
+                {
+                    failureType = parsedFt;
+                }
             }
+
+            var candidateActions = new List<string?>();
+            if (root.TryGetProperty("candidateActions"
+                                  , out var candProp)
+             && candProp.ValueKind == JsonValueKind.Array)
+            {
+                candidateActions = candProp.EnumerateArray()
+                                           .Select(item => item.GetString())
+                                           .Where(name => !string.IsNullOrWhiteSpace(name))
+                                           .ToList();
+            }
+
+            var missingParameters = new List<string?>();
+            if (root.TryGetProperty("missingParameters"
+                                  , out var missProp)
+             && missProp.ValueKind == JsonValueKind.Array)
+            {
+                missingParameters = missProp.EnumerateArray()
+                                            .Select(item => item.GetString())
+                                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                                            .ToList();
+            }
+
+            // Validate action exists
+            var debug       = string.Empty;
+            var actionsList = actions.ToList();
+
+            if (actionName != null
+             && !actionsList.Any(action => action.Name.Equals(actionName
+                                                            , StringComparison.OrdinalIgnoreCase)))
+            {
+                debug      = $"Action '{actionName}' does not exist in registry.";
+                actionName = null;
+                failureType = failureType == InterpreterFailureType.None
+                                          ? InterpreterFailureType.NoMatchingAction
+                                          : failureType;
+            }
+            else
+            {
+                debug = $"Parsed action '{actionName ?? "<null>"}' with {parameters.Count} parameter(s).";
+            }
+
+            // If model didn't specify a failure type but actionName is null,
+            // assume NoMatchingAction as a sensible default.
+            if (actionName is null
+             && failureType == InterpreterFailureType.None)
+            {
+                failureType = InterpreterFailureType.NoMatchingAction;
+            }
+
+            parsed = new ParsedModelResponse
+                     {
+                         ActionName        = actionName
+                       , Parameters        = parameters
+                       , DebugInfo         = debug
+                       , Reason            = reason
+                       , FailureType       = failureType
+                       , CandidateActions  = candidateActions
+                       , MissingParameters = missingParameters
+                     };
+            return true;
+        }
+        catch
+        {
+            parsed = null!;
+            return false;
         }
     }
 
@@ -295,15 +397,9 @@ public class LlmInterpreter : IInterpreter
     {
         var first = text.IndexOf('{');
         var last  = text.LastIndexOf('}');
-        
+
         return (first >= 0 && last > first) ? text[first..(last + 1)] : text;
     }
 }
 
-public class ParsedModelResponse
-{
-    public string?                    ActionName { get; init; }
-    public Dictionary<string, string> Parameters { get; init; } = new();
-    public string                     DebugInfo  { get; init; } = "";
-    public string?                    Reason     { get; init; }
-}
+

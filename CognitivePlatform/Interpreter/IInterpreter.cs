@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Interpreter;
 
@@ -32,5 +33,24 @@ public class InterpreterResult
     /// </summary>
     public Dictionary<string, string> ExtractedParameters { get; init; } = new();
 
-    public string? Reason { get; set; }
+    /// <summary>
+    /// Short explanation from the model of why it chose (or failed to choose) an action.
+    /// </summary>
+    public string? Reason { get; init; }
+    
+    /// <summary>
+    /// Interpreter-level failure classification.
+    /// </summary>
+    public InterpreterFailureType     FailureType         { get; init; } = InterpreterFailureType.None;
+
+    /// <summary>
+    /// Candidate actions, if the interpreter considered multiple possibilities.
+    /// </summary>
+    public IReadOnlyList<string>?     CandidateActions    { get; init; }
+
+    /// <summary>
+    /// Missing parameter names, if the interpreter believes an action matched
+    /// but could not extract all required parameters.
+    /// </summary>
+    public IReadOnlyList<string>?     MissingParameters   { get; init; }
 }

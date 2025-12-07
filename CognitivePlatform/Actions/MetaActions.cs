@@ -38,9 +38,9 @@ public static class MetaActions
     [NaturalLanguageAction(Description = "Lists all registered actions known to the system, including their names and descriptions."
                          , Examples =
                            [
-                               "What can you do?"
-                             , "List all your actions."
-                             , "Show me your available commands."
+                                   "What can you do?"
+                                 , "List all your actions."
+                                 , "Show me your available commands."
                            ]
                          , Category = "interpreter"
     )]
@@ -106,17 +106,17 @@ public static class MetaActions
                                  .ToArray();
 
         return new ListActionsResult(
-            Metadata: flatSorted
-          , Summary: sb.ToString()
+                Metadata: flatSorted
+              , Summary: sb.ToString()
         );
     }
 
     [NaturalLanguageAction(Description = "Describes an action by name, including its category, parameters, and example phrases."
                          , Examples =
                            [
-                               "Describe the action StoreValue"
-                             , "What does RepeatLastAction do?"
-                             , "Explain the action RecallValue"
+                                   "Describe the action StoreValue"
+                                 , "What does RepeatLastAction do?"
+                                 , "Explain the action RecallValue"
                            ]
                          , Category = "interpreter"
     )]
@@ -177,12 +177,12 @@ public static class MetaActions
         return sb.ToString();
     }
 
-    [NaturalLanguageAction(Description = "Explains why the interpreter chose the last action it selected."
+    [NaturalLanguageAction(Description = "Explains why the interpreter chose (or failed to choose) the last action."
                          , Examples =
                            [
-                               "Why did you choose that?"
-                             , "Why that action?"
-                             , "Explain your reasoning."
+                                   "Why did you choose that?"
+                                 , "Why that action?"
+                                 , "Why didn't you understand me?"
                            ]
                          , Category = "interpreter"
     )]
@@ -191,17 +191,43 @@ public static class MetaActions
         if (_context is null)
             return "No conversation context available.";
 
-        if (_context.LastActionName is null)
-            return "There is no previous interpreter decision to explain.";
-
         var result = BuildWhyActionResult(_context);
 
         var sb = new StringBuilder();
 
-        sb.AppendLine($"Last action: {result.ActionName ?? "<none>"}");
-        sb.AppendLine();
-        sb.AppendLine("Why it was chosen:");
-        sb.AppendLine(result.Reason ?? "No interpreter reasoning was captured for the last decision.");
+        if (result.FailureType == InterpreterFailureType.None)
+        {
+            sb.AppendLine($"Last action: {result.ActionName ?? "<none>"}");
+            sb.AppendLine();
+            sb.AppendLine("Why it was chosen:");
+            sb.AppendLine(result.Reason ?? "No interpreter reasoning was captured for the last decision.");
+        }
+        else
+        {
+            sb.AppendLine("The interpreter was not able to successfully choose or execute an action.");
+            sb.AppendLine();
+            sb.AppendLine($"Failure type: {result.FailureType}");
+            sb.AppendLine();
+            sb.AppendLine("Details:");
+            sb.AppendLine(result.Reason ?? "No interpreter reasoning was captured for the last decision.");
+
+            if (result.CandidateActions is { Count: > 0 })
+            {
+                sb.AppendLine();
+                sb.AppendLine("Candidate actions:");
+                foreach (var name in result.CandidateActions)
+                    sb.AppendLine($" - {name}");
+            }
+
+            if (result.MissingParameters is { Count: > 0 })
+            {
+                sb.AppendLine();
+                sb.AppendLine("Missing parameters:");
+                foreach (var p in result.MissingParameters)
+                    sb.AppendLine($" - {p}");
+            }
+        }
+
         sb.AppendLine();
         sb.AppendLine("Debug snapshot:");
         sb.AppendLine(result.Debug);
@@ -209,21 +235,25 @@ public static class MetaActions
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Core introspection logic for WhyAction – returns a structured record
-    /// that can later power dashboards, telemetry, etc.
-    /// </summary>
-    public static WhyActionResult BuildWhyActionResult (ConversationContext context)
+    public static WhyActionResult BuildWhyActionResult (ConversationContext ctx)
     {
-        var actionName = context.LastActionName;
-        var reason = context.LastInterpreterReason
-                  ?? "No interpreter reasoning was recorded for the last decision.";
-        var debug = context.LastInterpreterDebug
+        var debug = ctx.LastInterpreterDebug
                  ?? "No interpreter debug information was recorded.";
 
-        return new WhyActionResult(ActionName: actionName
-                                 , Reason: reason
+        IReadOnlyList<string>? candidates = ctx.LastCandidateActions.Count > 0
+                                                    ? ctx.LastCandidateActions.AsReadOnly()
+                                                    : null;
+
+        IReadOnlyList<string>? missing = ctx.LastMissingParameters.Count > 0
+                                                 ? ctx.LastMissingParameters.AsReadOnly()
+                                                 : null;
+
+        return new WhyActionResult(ActionName: ctx.LastActionName
+                                 , Reason: ctx.LastInterpreterReason
                                  , Debug: debug
+                                 , FailureType: ctx.LastFailureType
+                                 , CandidateActions: candidates
+                                 , MissingParameters: missing
         );
     }
 }
