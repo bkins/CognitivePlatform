@@ -5,8 +5,8 @@ namespace CognitivePlatform.Api.Interpreter;
 
 public interface IInterpreter
 {
-    InterpreterResult InterpretWithContext (string              input
-                                          , ConversationContext context);
+    Task<InterpreterResult> InterpretWithContext (string              input
+                                                , ConversationContext context);
 }
 
 /// <summary>

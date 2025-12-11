@@ -67,15 +67,16 @@ public class ActionRegistry : IActionRegistry
         if (normalized.Length == 0) normalized = "general";
 
         var category = char.ToUpper(normalized[0]) + normalized[1..];
-        
+
         return new ActionMetadata
                {
-                   Name        = methodInfo.Name
-                 , MethodInfo  = methodInfo
-                 , Description = attribute.Description
-                 , Examples    = attribute.Examples
-                 , Parameters  = parameters
-                 , Category    = category
+                       Name                = methodInfo.Name
+                     , MethodInfo          = methodInfo
+                     , Description         = attribute.Description
+                     , Examples            = attribute.Examples
+                     , Parameters          = parameters
+                     , Category            = category
+                     , AllowsClarification = attribute.AllowsClarification
                };
     }
 

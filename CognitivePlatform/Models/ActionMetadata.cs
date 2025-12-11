@@ -34,4 +34,10 @@ public class ActionMetadata
     /// Guaranteed to be non-null. Defaults to "General".
     /// </summary>
     public string Category { get; init; } = "General";
+    
+    /// <summary>
+    /// Whether this action is allowed to trigger clarifying questions
+    /// when required parameters are missing.
+    /// </summary>
+    public bool AllowsClarification { get; init; }
 }

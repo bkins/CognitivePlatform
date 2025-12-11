@@ -16,7 +16,7 @@ public class MockInterpreter : IInterpreter
         _telemetry = telemetry;
     }
 
-    public InterpreterResult Interpret(string input)
+    public async Task<InterpreterResult> Interpret(string input)
     {
         _telemetry.Track("Interpreter.Start", $"Input='{input}'");
 
@@ -41,7 +41,8 @@ public class MockInterpreter : IInterpreter
                };
     }
 
-    public InterpreterResult InterpretWithContext(string input, ConversationContext context)
+    public async Task<InterpreterResult> InterpretWithContext (string              input
+                                                       , ConversationContext context)
     {
         // Light-weight context logging so you can see it in telemetry
         var ctxSummary = $"[LastAction={context.LastActionName ?? "<none>"}; " +
@@ -51,6 +52,6 @@ public class MockInterpreter : IInterpreter
         _telemetry.Track("Interpreter.Context", ctxSummary);
 
         // Reuse the same simple rule-based behavior for now
-        return Interpret(input);
+        return await Interpret(input);
     }
 }

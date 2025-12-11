@@ -12,5 +12,7 @@ public class LlmClientSettings
     /// <summary>
     /// The model name to use for all interpreter calls.
     /// </summary>
-    public string Model { get; set; } = "llama3"; // "llama3.1:8b"; // 
+    public string Model { get; set; } = "qwen2.5:14b"; //""llama3.1:8b"; // "llama3"; // 
+
+    public double Timeout { get; set; } = 500;
 }

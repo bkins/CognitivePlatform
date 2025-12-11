@@ -19,18 +19,19 @@ public static class TestActions
     [NaturalLanguageAction(Description = "Stores a value in the session context."
                          , Examples = new[]
                                       {
-                                          "Remember that my favorite number is 42"
-                                        , "Set x to 100"
-                                        , "Store the value blue"
+                                              "Remember that my favorite number is 42"
+                                            , "Set x to 100"
+                                            , "Store the value blue"
                                       }
-                          , Category = "memory")]
+                         , Category = "memory"
+                         , AllowsClarification = true)]
     public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store."
-                                                         , Optional = false
-                                                         , AllowEmpty = false)] 
+                                                         , Optional    = false
+                                                         , AllowEmpty  = false)]
                                      string key
                                    , [NaturalLanguageParam(Description = "The value to store under the key."
-                                                         , Optional = false
-                                                         , AllowEmpty = true)]  
+                                                         , Optional    = false
+                                                         , AllowEmpty  = true)]
                                      string value)
     {
         if (_context is null) return "No conversation context available.";
@@ -47,8 +48,11 @@ public static class TestActions
                          , Examples    = new[]
                                          {
                                              "What is x?"
-                                           , "What did I say earlier?"
-                                           , "Recall the value of count"
+                                             , "What is 'my key'?"
+                                             , """What is the value of "foo bar"?"""
+                                             , "What did I store under 'some key'?"
+                                             , "What did I say earlier?"
+                                             , "Recall the value of count"
                                          }
                          , Category = "memory")]
     public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve.")]

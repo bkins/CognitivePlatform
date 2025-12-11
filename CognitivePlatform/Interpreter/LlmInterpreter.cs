@@ -23,15 +23,16 @@ public class LlmInterpreter : IInterpreter
         _llmClient = llmClient;
     }
 
-    public InterpreterResult Interpret (string input)
-    {
-        // Not used anymore — retained for interface compatibility
-        return InterpretWithContext(input
-                                  , null!);
-    }
+    // public InterpreterResult Interpret (string input)
+    // {
+    //     // Not used anymore — retained for interface compatibility
+    //     return  InterpretWithContext(input
+    //                               , null!);
+    // }
 
-    public InterpreterResult InterpretWithContext (string              input
-                                                 , ConversationContext context)
+    public async Task<InterpreterResult> InterpretWithContext (string              input
+                                                  , ConversationContext context
+            )
     {
         _telemetry.Track("Interpreter.Start"
                        , $"Input='{input}'");
@@ -50,9 +51,16 @@ public class LlmInterpreter : IInterpreter
         }
 
         var actionsSummary = BuildActionsSummary(_registry.Actions);
-        var prompt = BuildPrompt(input.Trim()
-                               , actionsSummary);
+        var prompt         = await BuildPromptAsync(input.Trim());
+                               //, actionsSummary);
+        if (context.ClarificationModeEnabled)
+        {
+            prompt += "\n\nCLARIFICATION_MODE = true\n";
+        }
 
+        Console.WriteLine($"actionsSummary: {actionsSummary}");
+        Console.WriteLine($"prompt: {prompt}");
+        
         string rawResponse;
         try
         {
@@ -72,6 +80,8 @@ public class LlmInterpreter : IInterpreter
                    };
         }
 
+        Console.WriteLine($"rawResponse: {rawResponse}");
+        
         var parsed = ParseModelResponse(rawResponse
                                       , _registry.Actions);
 
@@ -88,7 +98,7 @@ public class LlmInterpreter : IInterpreter
                {
                        ActionName          = parsed.ActionName
                      , ExtractedParameters = parsed.Parameters
-                     , DebugInfo           = parsed.DebugInfo
+                     , DebugInfo           = debug //parsed.DebugInfo
                      , Reason              = parsed.Reason
                      , FailureType         = parsed.FailureType
                      , CandidateActions    = parsed.CandidateActions
@@ -99,88 +109,22 @@ public class LlmInterpreter : IInterpreter
     // ---------------------------------------------------------------------
     // Prompt builder (strong JSON compliance)
     // ---------------------------------------------------------------------
-    private static string BuildPrompt (string userInput
-                                     , string actionsSummary)
+    private async Task<string> BuildPromptAsync(string userInput)
     {
-        //TODO: Move this to an external text/josn file, and have this method read from it
-        // instead of build the text.
-        var sb = new StringBuilder();
+        // Load system.txt
+        var systemPrompt = await File.ReadAllTextAsync("Prompts/system.txt");
 
-        sb.AppendLine("SYSTEM:");
-        sb.AppendLine("You are the Natural Language Command Interpreter for the CognitivePlatform.");
-        sb.AppendLine("Your job is to choose which action to call and extract the correct parameters.");
-        sb.AppendLine("You NEVER execute actions — you only select them.");
+        // Build the dynamic actions summary (your existing method)
+        var actionsSummary = BuildActionsSummary(_registry.Actions);
 
-        sb.AppendLine();
-        sb.AppendLine("OUTPUT RULES:");
-        sb.AppendLine("You MUST ALWAYS reply with ONLY valid JSON. No commentary, no text before or after.");
-        sb.AppendLine("Your required output JSON schema is:");
-        sb.AppendLine("{");
-        sb.AppendLine("  \"actionName\": \"NameOfActionOrNone\",");
-        sb.AppendLine("  \"parameters\": { \"paramName\": \"value\" },");
-        sb.AppendLine("  \"reason\": \"Short explanation of why you chose this action or why you could not choose any.\",");
-        sb.AppendLine("  \"failureType\": \"None | NoMatchingAction | AmbiguousIntent | MissingParameters\",");
-        sb.AppendLine("  \"candidateActions\": [\"Optional list of candidate action names if ambiguous\"],");
-        sb.AppendLine("  \"missingParameters\": [\"Optional list of missing required parameter names\"]");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("If an action applies successfully:");
-        sb.AppendLine("- Set failureType to \"None\".");
-        sb.AppendLine("- actionName must be the chosen action.");
-        sb.AppendLine("- parameters must include all required parameters.");
-        sb.AppendLine();
-        sb.AppendLine("If no action applies at all:");
-        sb.AppendLine("- Set actionName to \"none\".");
-        sb.AppendLine("- Set failureType to \"NoMatchingAction\".");
-        sb.AppendLine("- candidateActions may be empty or omitted.");
-        sb.AppendLine();
-        sb.AppendLine("If multiple actions seem equally likely:");
-        sb.AppendLine("- Set actionName to \"none\".");
-        sb.AppendLine("- Set failureType to \"AmbiguousIntent\".");
-        sb.AppendLine("- candidateActions should list the names of the plausible actions.");
-        sb.AppendLine();
-        sb.AppendLine("If an action matches but required parameters are missing:");
-        sb.AppendLine("- Set actionName to \"none\".");
-        sb.AppendLine("- Set failureType to \"MissingParameters\".");
-        sb.AppendLine("- candidateActions should include the target action.");
-        sb.AppendLine("- missingParameters should include the parameter names that are missing.");
-        sb.AppendLine();
-        sb.AppendLine("If no action applies, return at minimum:");
-        sb.AppendLine("{\"actionName\":\"none\",\"parameters\":{},\"reason\":\"No suitable action\",\"failureType\":\"NoMatchingAction\"}");
-        sb.AppendLine();
-        sb.AppendLine("META-ACTION RULES (CRITICAL):");
-        sb.AppendLine("1. If the user asks to explain, describe, define, summarize, document, or clarify ANY action,");
-        sb.AppendLine("   ALWAYS select the action: DescribeAction(actionName: string).");
-        sb.AppendLine("   - Never call the action being described.");
-        sb.AppendLine("   - The parameter actionName must EXACTLY match the target action's Name.");
-        sb.AppendLine();
-        sb.AppendLine("2. If the user asks:");
-        sb.AppendLine("      \"What can you do?\"");
-        sb.AppendLine("      \"List your commands\"");
-        sb.AppendLine("      \"Show your capabilities\"");
-        sb.AppendLine("   ALWAYS choose: ListActions()");
-        sb.AppendLine();
-        sb.AppendLine("3. NEVER hallucinate action names or parameters.");
-        sb.AppendLine("4. NEVER alter parameter names — they MUST match exactly.");
-        sb.AppendLine("5. Categories guide interpretation. The same action name appearing in the text DOES NOT mean");
-        sb.AppendLine("   the user wants to execute that action.");
-        sb.AppendLine("   Example: \"Describe the action StoreValue\" MUST NOT call StoreValue.");
-        sb.AppendLine();
-        sb.AppendLine("6. If unclear which action to call → choose none.");
+        // Replace placeholders
+        systemPrompt = systemPrompt.Replace("{{ACTIONS}}",    actionsSummary)
+                                   .Replace("{{USER_INPUT}}", userInput);
 
-        sb.AppendLine();
-        sb.AppendLine("AVAILABLE ACTIONS:");
-        sb.AppendLine(actionsSummary);
-
-        sb.AppendLine();
-        sb.AppendLine("USER:");
-        sb.AppendLine(userInput);
-
-        sb.AppendLine();
-        sb.AppendLine("SYSTEM: Return ONLY the JSON. Nothing else.");
-
-        return sb.ToString();
+        return systemPrompt;
     }
+
+
 
 
     private static string BuildActionsSummary (IEnumerable<ActionMetadata> actions)
@@ -197,8 +141,9 @@ public class LlmInterpreter : IInterpreter
                 sb.AppendLine("  Parameters:");
                 foreach (var p in action.Parameters)
                 {
-                    sb.AppendLine($"    - {p.Name}: {p.Description}");
+                    sb.AppendLine($"    - {p.Name} (required={!p.Optional}, allowEmpty={p.AllowEmpty}): \"{p.Description}\"");
                 }
+
             }
 
             if (action.Examples is { Length: > 0 })
@@ -214,6 +159,20 @@ public class LlmInterpreter : IInterpreter
         return sb.ToString();
     }
 
+    public async Task<string?> ReadPromptAsync(string fileName)
+    {
+        var filePath = Path.Combine(AppContext.BaseDirectory
+                                  , "Prompts"
+                                  , fileName);
+
+        if ( ! File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"System prompt file not found at: {filePath}");
+        }
+
+        return await File.ReadAllTextAsync(filePath);
+    }
+    
     // ---------------------------------------------------------------------
     // Parsing with multi-stage JSON extraction
     // ---------------------------------------------------------------------
@@ -400,6 +359,7 @@ public class LlmInterpreter : IInterpreter
 
         return (first >= 0 && last > first) ? text[first..(last + 1)] : text;
     }
+    
 }
 
 

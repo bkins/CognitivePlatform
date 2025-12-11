@@ -6,5 +6,5 @@ public class ConversationContextStore
 {
     private readonly ConcurrentDictionary<string, ConversationContext> _sessions = new();
 
-    public ConversationContext GetOrCreate(string sessionId) => _sessions.GetOrAdd(sessionId, _ => new ConversationContext());
+    public ConversationContext GetOrCreate(string sessionId) => _sessions.GetOrAdd(sessionId, _ => new ConversationContext(sessionId));
 }

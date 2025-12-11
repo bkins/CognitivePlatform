@@ -63,35 +63,77 @@ public class ConsoleSpinner : IDisposable
         _spinnerTask = Task.Run(() => Spin(_cancellationTokenSource.Token, ! _isWaveText));
     }
     
+    // private static string[] GenerateWaveTextFrames(string text)
+    // {
+    //     var frames            = new List<string>();
+    //     var textWithoutSpaces = text.Replace(" ", "");
+    //     
+    //     for (int i = 0; i < textWithoutSpaces.Length; i++)
+    //     {
+    //         var frame         = new char[text.Length];
+    //         var nonSpaceIndex = 0;
+    //         
+    //         for (int j = 0; j < text.Length; j++)
+    //         {
+    //             if (text[j] == ' ')
+    //             {
+    //                 frame[j] = ' ';
+    //             }
+    //             else
+    //             {
+    //                 frame[j] = nonSpaceIndex == i 
+    //                                    ? char.ToUpper(text[j]) 
+    //                                    : char.ToLower(text[j]);
+    //                 nonSpaceIndex++;
+    //             }
+    //         }
+    //         
+    //         frames.Add(new string(frame));
+    //     }
+    //     
+    //     return frames.ToArray();
+    // }
     private static string[] GenerateWaveTextFrames(string text)
     {
         var frames            = new List<string>();
         var textWithoutSpaces = text.Replace(" ", "");
-        
+    
+        // Forward pass
         for (int i = 0; i < textWithoutSpaces.Length; i++)
         {
-            var frame         = new char[text.Length];
-            var nonSpaceIndex = 0;
-            
-            for (int j = 0; j < text.Length; j++)
-            {
-                if (text[j] == ' ')
-                {
-                    frame[j] = ' ';
-                }
-                else
-                {
-                    frame[j] = nonSpaceIndex == i 
-                                       ? char.ToUpper(text[j]) 
-                                       : char.ToLower(text[j]);
-                    nonSpaceIndex++;
-                }
-            }
-            
-            frames.Add(new string(frame));
+            frames.Add(CreateFrame(text, i));
         }
-        
+    
+        // Backward pass (skip first and last to avoid duplicates at the ends)
+        for (int i = textWithoutSpaces.Length - 2; i > 0; i--)
+        {
+            frames.Add(CreateFrame(text, i));
+        }
+    
         return frames.ToArray();
+    }
+
+    private static string CreateFrame(string text, int capitalizeIndex)
+    {
+        var frame         = new char[text.Length];
+        var nonSpaceIndex = 0;
+    
+        for (int j = 0; j < text.Length; j++)
+        {
+            if (text[j] == ' ')
+            {
+                frame[j] = ' ';
+            }
+            else
+            {
+                frame[j] = nonSpaceIndex == capitalizeIndex 
+                                   ? char.ToUpper(text[j]) 
+                                   : char.ToLower(text[j]);
+                nonSpaceIndex++;
+            }
+        }
+    
+        return new string(frame);
     }
     
     private async Task Spin(CancellationToken cancellationToken, bool showMessage = true)
