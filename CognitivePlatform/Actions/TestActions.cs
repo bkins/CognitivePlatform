@@ -55,7 +55,9 @@ public static class TestActions
                                              , "Recall the value of count"
                                          }
                          , Category = "memory")]
-    public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve.")]
+    public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve."
+                                                         , Optional = true
+                                                         , DefaultValue = "foo")]
                                      string key)
     {
         if (_context is null)

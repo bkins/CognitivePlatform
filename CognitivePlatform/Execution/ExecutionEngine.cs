@@ -13,7 +13,8 @@ public class ExecutionEngine : IExecutionEngine
         _telemetry = telemetry;
     }
 
-    public string Execute(ActionMetadata action, IReadOnlyDictionary<string, string> arguments)
+    public string Execute (ActionMetadata              action
+                         , IDictionary<string, string> arguments)
     {
         _telemetry.Track("Execution.Start", action.Name);
 

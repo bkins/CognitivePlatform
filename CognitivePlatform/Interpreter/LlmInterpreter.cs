@@ -141,7 +141,7 @@ public class LlmInterpreter : IInterpreter
                 sb.AppendLine("  Parameters:");
                 foreach (var p in action.Parameters)
                 {
-                    sb.AppendLine($"    - {p.Name} (required={!p.Optional}, allowEmpty={p.AllowEmpty}): \"{p.Description}\"");
+                    sb.AppendLine($"    - {p.Name} (required={!p.IsOptional}, allowEmpty={p.AllowEmpty}): \"{p.Description}\"");
                 }
 
             }
@@ -306,9 +306,40 @@ public class LlmInterpreter : IInterpreter
                                             .ToList();
             }
 
-            // Validate action exists
-            var debug       = string.Empty;
+                        // Validate action exists and filter missing parameters
             var actionsList = actions.ToList();
+
+            // ----------------------------------------------------
+            // Phase 3.9: Filter out OPTIONAL parameters from missingParameters
+            // ----------------------------------------------------
+            if (actionName is not null && missingParameters.Count > 0)
+            {
+                var meta = actionsList.FirstOrDefault(a =>
+                    a.Name.Equals(actionName, StringComparison.OrdinalIgnoreCase));
+
+                if (meta is not null)
+                {
+                    // Only keep required parameters in missingParameters
+                    var requiredNames = meta.Parameters
+                                            .Where(p => !p.IsOptional)
+                                            .Select(p => p.Name)
+                                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    missingParameters = missingParameters
+                        .Where(name => name is not null && requiredNames.Contains(name))
+                        .ToList();
+                }
+
+                // If we removed all missing parameters but failureType is still MissingParameters,
+                // clear the failure (no required parameters are missing anymore).
+                if (missingParameters.Count == 0
+                 && failureType == InterpreterFailureType.MissingParameters)
+                {
+                    failureType = InterpreterFailureType.None;
+                }
+            }
+
+            var debug = string.Empty;
 
             if (actionName != null
              && !actionsList.Any(action => action.Name.Equals(actionName
@@ -344,6 +375,7 @@ public class LlmInterpreter : IInterpreter
                        , MissingParameters = missingParameters
                      };
             return true;
+
         }
         catch
         {

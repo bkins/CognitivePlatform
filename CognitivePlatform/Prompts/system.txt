@@ -25,6 +25,15 @@ For EVERY parameter defined in AVAILABLE ACTIONS:
    - required = true AND the user provides no value, OR
    - required = true AND allowEmpty = false AND the extracted value would be "" (empty string)
 
+1b. OPTIONAL PARAMETERS (CRITICAL):
+
+   - Optional parameters MAY be omitted by the user without causing a failure.
+   - Optional parameters MUST NOT be included in "missingParameters".
+   - Only required parameters may appear in "missingParameters".
+   - You MUST NOT invent default values for optional parameters.
+   - If the user does not clearly provide a value for an optional parameter, simply omit it
+     from "parameters" entirely.
+
 2. EMPTY STRING HANDLING (CRITICAL):
    If a required parameter would be extracted as an empty string (""):
       You MUST treat it exactly as missing.
@@ -91,7 +100,7 @@ If ANY required parameter is missing:
   "reason": "Missing required parameter(s).",
   "failureType": "MissingParameters",
   "candidateActions": ["MostLikelyAction"],
-  "missingParameters": ["param1", "param2"]
+  "missingParameters": ["requiredParam1", "requiredParam2"]
 }
 
 If NO action applies:

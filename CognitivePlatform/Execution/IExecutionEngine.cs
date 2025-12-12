@@ -8,5 +8,6 @@ public interface IExecutionEngine
     /// Executes the given action and returns a human-readable result.
     /// Phase 1: no parameter binding, no DI, no safety.
     /// </summary>
-    string Execute(ActionMetadata action, IReadOnlyDictionary<string, string> arguments);
+    string Execute (ActionMetadata              action
+                  , IDictionary<string, string> arguments);
 }

@@ -83,15 +83,33 @@ public class ActionRegistry : IActionRegistry
     private static ParameterMetadata BuildParameterMetadata(ParameterInfo parameterInfo)
     {
         var nlAttribute = parameterInfo.GetCustomAttribute<NaturalLanguageParamAttribute>();
+        
+        // Determine optionality:
+        // - Attribute.Optional wins if set
+        // - Otherwise fall back to reflection (IsOptional / HasDefaultValue)
+        var isOptional = nlAttribute?.Optional
+                      ?? parameterInfo.IsOptional
+                      || parameterInfo.HasDefaultValue;
+        
+        // Determine default value:
+        // - Attribute.DefaultValue wins if set (including "null" as an intentional choice)
+        // - Otherwise, use reflection default if present
+        var defaultValue = nlAttribute?.DefaultValue;
+        if (defaultValue is null 
+         && parameterInfo.HasDefaultValue)
+        {
+            defaultValue = parameterInfo.DefaultValue;
+        }
 
         return new ParameterMetadata
                {
                        Name          = parameterInfo.Name ?? string.Empty
                      , ParameterType = parameterInfo.ParameterType
                      , Description   = nlAttribute?.Description ?? string.Empty
-                     , Optional      = nlAttribute?.Optional    ?? parameterInfo.IsOptional
-                     , AllowEmpty    = nlAttribute?.AllowEmpty  ?? true
+                     , IsOptional    = isOptional
+                     , AllowEmpty    = nlAttribute?.AllowEmpty ?? true
                      , ParameterInfo = parameterInfo
+                     , DefaultValue  = defaultValue
                };
     }
 }
