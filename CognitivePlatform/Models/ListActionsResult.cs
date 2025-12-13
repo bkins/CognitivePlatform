@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Models;
 

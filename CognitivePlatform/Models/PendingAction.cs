@@ -7,8 +7,7 @@ public sealed class PendingAction
     /// <summary>
     /// Parameters we already have values for (from the interpreter).
     /// </summary>
-    public Dictionary<string, string> CollectedParameters { get; init; }
-        = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> CollectedParameters { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Names of parameters we still need from the user.
