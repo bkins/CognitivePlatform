@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
@@ -15,7 +16,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
 builder.Services.AddSingleton<IConversationOrchestrator, ConversationOrchestrator>();
-builder.Services.AddSingleton<IExecutionEngine, ExecutionEngine>();
+// builder.Services.AddSingleton<IExecutionEngine, ExecutionEngine>();
+builder.Services.AddSingleton<IExecutionEngine>(sp => new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>()
+                                                                        , sp));
 builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
 
 builder.Services.AddSingleton<ConversationContextStore>();
@@ -25,7 +28,6 @@ builder.Services.AddSingleton<ConversationContextStore>();
 builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter
                                                 , (sp, key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
                                                                                   , sp.GetRequiredService<ITelemetrySink>()));
-
 // LLM interpreter (primary)
 builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter
                                                 , (sp, key) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
@@ -52,6 +54,8 @@ BuildDataPersistenceLayer(builder);
 // Domains
 builder.Services.AddSingleton<JournalService>();
 
+// Actions 
+builder.Services.AddTransient<JournalActions>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

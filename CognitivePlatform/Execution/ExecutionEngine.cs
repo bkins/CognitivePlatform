@@ -6,11 +6,14 @@ namespace CognitivePlatform.Api.Execution;
 
 public class ExecutionEngine : IExecutionEngine
 {
-    private readonly ITelemetrySink _telemetry;
+    private readonly ITelemetrySink   _telemetry;
+    private static   IServiceProvider _serviceProvider;
 
-    public ExecutionEngine(ITelemetrySink telemetry)
+    public ExecutionEngine (ITelemetrySink   telemetry
+                          , IServiceProvider serviceProvider)
     {
-        _telemetry = telemetry;
+        _telemetry       = telemetry;
+        _serviceProvider = serviceProvider;
     }
 
     public string Execute (ActionMetadata              action
@@ -90,13 +93,16 @@ public class ExecutionEngine : IExecutionEngine
         if (targetType == typeof(string))
             return value;
 
-        if (targetType == typeof(int) || targetType == typeof(int?))
+        if (targetType == typeof(int) 
+         || targetType == typeof(int?))
             return int.TryParse(value, out var i) ? i : default(int?);
 
-        if (targetType == typeof(long) || targetType == typeof(long?))
+        if (targetType == typeof(long) 
+         || targetType == typeof(long?))
             return long.TryParse(value, out var l) ? l : default(long?);
 
-        if (targetType == typeof(bool) || targetType == typeof(bool?))
+        if (targetType == typeof(bool) 
+         || targetType == typeof(bool?))
             return bool.TryParse(value, out var b) ? b : default(bool?);
 
         if (targetType.IsEnum)
@@ -107,7 +113,8 @@ public class ExecutionEngine : IExecutionEngine
             }
             catch
             {
-                return Activator.CreateInstance(targetType);
+                return _serviceProvider.GetRequiredService(targetType);
+                //return Activator.CreateInstance(targetType);
             }
         }
 
@@ -128,7 +135,8 @@ public class ExecutionEngine : IExecutionEngine
         var declaringType = methodInfo.DeclaringType;
         if (declaringType is null) return null;
 
-        return Activator.CreateInstance(declaringType);
+        return _serviceProvider.GetRequiredService(declaringType);
+        //return Activator.CreateInstance(declaringType);
     }
 
     private static string FormatResult(object? result)
@@ -139,73 +147,3 @@ public class ExecutionEngine : IExecutionEngine
                ?? "Action executed, but result was not representable as text.";
     }
 }
-
-
-// using System.Reflection;
-// using CognitivePlatform.Api.Models;
-// using CognitivePlatform.Api.Telemetry;
-//
-// namespace CognitivePlatform.Api.Execution;
-//
-// public class ExecutionEngine : IExecutionEngine
-// {
-//     private readonly ITelemetrySink _telemetry;
-//     
-//     public ExecutionEngine(ITelemetrySink telemetry)
-//     {
-//         _telemetry = telemetry;
-//     }
-//     
-//     public string Execute(ActionMetadata action)
-//     {
-//         _telemetry.Track("Execution.Start", action.Name);
-//
-//         if (action.MethodInfo is null)
-//         {
-//             return "Cannot execute action: no method information available.";
-//         }
-//
-//         try
-//         {
-//             var targetInstance = GetTargetInstance(action.MethodInfo);
-//             var result         = action.MethodInfo.Invoke(targetInstance
-//                                                         , Array.Empty<object>());
-//             _telemetry.Track("Execution.End", "Executed successfully.");
-//
-//             return FormatResult(result);
-//         }
-//         catch (TargetInvocationException ex)
-//         {
-//             var errorMessage = ex.InnerException?.Message ?? ex.Message;
-//             
-//             _telemetry.Track("Execution.End", $"Execution failed: {errorMessage}");
-//
-//             return $"Action threw an exception: {errorMessage}";
-//         }
-//         catch (Exception ex)
-//         {
-//             _telemetry.Track("Execution.End", $"Execution failed: {ex.Message}");
-//             
-//             return $"Failed to execute action: {ex.Message}";
-//         }
-//     }
-//
-//     private static object? GetTargetInstance(MethodInfo methodInfo)
-//     {
-//         if (methodInfo.IsStatic) return null;
-//
-//         var declaringType = methodInfo.DeclaringType;
-//
-//         if (declaringType is null) return null;
-//
-//         return Activator.CreateInstance(declaringType);
-//     }
-//
-//     private static string FormatResult(object? result)
-//     {
-//         if (result is null) return "Action executed successfully (no return value).";
-//
-//         return result.ToString()
-//             ?? "Action executed, but result was not representable as text.";
-//     }
-// }

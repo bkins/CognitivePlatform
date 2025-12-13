@@ -10,7 +10,7 @@ public class ActionRegistry : IActionRegistry
     private readonly List<ActionMetadata> _actions = new();
     private readonly ITelemetrySink       _telemetry;
 
-    public ActionRegistry(ITelemetrySink telemetry)
+    public ActionRegistry (ITelemetrySink   telemetry)
     {
         _telemetry = telemetry;
         
@@ -95,6 +95,7 @@ public class ActionRegistry : IActionRegistry
         // - Attribute.DefaultValue wins if set (including "null" as an intentional choice)
         // - Otherwise, use reflection default if present
         var defaultValue = nlAttribute?.DefaultValue;
+        
         if (defaultValue is null 
          && parameterInfo.HasDefaultValue)
         {
