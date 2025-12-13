@@ -33,6 +33,8 @@ builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter
                                                 , (sp, key) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
                                                                                  , sp.GetRequiredService<ITelemetrySink>()
                                                                                  , sp.GetRequiredService<ILlmClient>()));
+builder.Services.AddSingleton<FastPathResolver>();
+
 builder.Services.AddHttpClient();
 
 builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));

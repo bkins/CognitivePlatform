@@ -141,6 +141,32 @@ public sealed class JournalActions
         return $"Journal entry '{id}' deleted.";
     }
 
+    [NaturalLanguageAction(Description = "Lists all journal entries that occurred on this calendar day across all years."
+                         , Examples = new[]
+                                      {
+                                              "What did I write on this day in history?"
+                                            , "Show me my entries from this day over the years."
+                                            , "Journal entries from this date in past years."
+                                            , "What have I written on December 13 throughout the years?"
+                                      }
+                         , Category = "journal"
+    )]
+    public string JournalEntriesOnThisDay()
+    {
+        var today = DateTimeOffset.UtcNow;
+
+        var entries = _journal.ListEntriesOnThisDay(today.Month
+                                                  , today.Day);
+
+        if (entries.Count == 0) return "You have no entries from this day in your personal history.";
+
+        var lines = entries.Select(entry => $"[{entry.CreatedUtc:yyyy-MM-dd HH:mm}] "
+                                          + $"{entry.Text}{FormatTags(entry.Tags)}{FormatContext(entry.Context)} "
+                                          + $"(ID: {entry.Id})");
+
+        return string.Join("\n", lines);
+    }
+
     // ----------------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------------

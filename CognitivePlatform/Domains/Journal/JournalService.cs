@@ -43,4 +43,13 @@ public sealed class JournalService
     {
         _store.SoftDelete<JournalEntry>(id);
     }
+    
+    public List<JournalEntry> ListEntriesOnThisDay(int month, int day)
+    {
+        return _store.List<JournalEntry>(partitionKey: nameof(JournalEntry))
+                     .Where(e => e.CreatedUtc.Month == month && e.CreatedUtc.Day == day)
+                     .OrderByDescending(e => e.CreatedUtc)
+                     .ToList();
+    }
+
 }
