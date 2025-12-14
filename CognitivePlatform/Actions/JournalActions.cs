@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal;
 
@@ -14,45 +15,60 @@ public sealed class JournalActions
 
     public JournalActions(JournalService journal)
     {
-        _journal = journal;
+        _journal = journal ?? throw new ArgumentNullException(nameof(journal));
     }
 
     // ----------------------------------------------------------------------
-    // 1. AddJournalEntry
+    // AddJournalEntry
     // ----------------------------------------------------------------------
-    [NaturalLanguageAction(Description = "Adds a new journal entry with optional tags or context."
-                         , Examples = new[]
-                                      {
-                                              "Write in my journal that I felt anxious today."
-                                            , "Add a journal entry saying I had a productive day."
-                                            , "Record that I exercised this morning."
-                                            , "Write a journal entry tagged work saying I finished the project."
-                                      }
-                         , Category = "journal")]
-    public string AddJournalEntry ([NaturalLanguageParam(Description = "The text of the journal entry.")] string text
-                                 , [NaturalLanguageParam(Description = "Optional tags for the entry (comma-separated)."
-                                                       , Optional = true
-                                                       , DefaultValue = ""
+    [NaturalLanguageAction(    Description = "Adds a new journal entry with optional tags, context, mood, and media."
+                               , Examples = new[]
+                                            {
+                                                    "Write in my journal that I felt anxious but hopeful today."
+                                                    , "Add a journal entry saying I had a productive day, mood positive."
+                                                    , "Record that I exercised this morning and felt great."
+                                                    , "Write a journal entry tagged work saying I finished the project."
+                                                    , "Add a journal entry with mood score 2 saying I felt pretty low."
+                                            }
+                               , Category = "journal")]
+    public string AddJournalEntry ([NaturalLanguageParam(    Description = "The text of the journal entry."
+                                                             , AllowEmpty = false)]
+                                   string text
+                                   , [NaturalLanguageParam(    Description = "Optional tags for the entry (comma-separated)."
+                                                               , Optional = true
+                                                               , DefaultValue = ""
                                    )]
                                    string? tags
-                                 , [NaturalLanguageParam(Description = "Optional context or category."
-                                                       , Optional = true
-                                                       , DefaultValue = ""
+                                   
+                                   , [NaturalLanguageParam(    Description = "Optional context or category."
+                                                               , Optional = true
+                                                               , DefaultValue = ""
                                    )]
-                                   string? context)
+                                   string? context
+                                   
+                                   , [NaturalLanguageParam(    Description = "Optional free-form mood description (for example: 'anxious but hopeful')."
+                                                               , Optional = true)]
+                                   string? mood = null
+                                   
+                                   , [NaturalLanguageParam(    Description = "Optional mood score from 1 (very negative) to 5 (very positive)."
+                                                               , Optional = true)]
+                                   string? moodScore = null
+                                   
+                                   , [NaturalLanguageParam(    Description = "Optional media file names or paths related to this entry (comma-separated)."
+                                                               , Optional = true)]
+                                   string? media = null)
     {
-        var tagList = string.IsNullOrWhiteSpace(tags)
-                              ? null
-                              : tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(t => t.Trim())
-                                    .Where(t => t.Length > 0)
-                                    .ToList();
+        var tagList   = SplitCommaSeparated(tags);
+        var mediaList = SplitCommaSeparated(media);
+        var score     = TryParseMoodScore(moodScore);
 
-        var id = _journal.AddEntry(text
-                                 , tagList
-                                 , string.IsNullOrWhiteSpace(context)
-                                           ? null
-                                           : context.Trim());
+        var id = _journal.AddEntry(
+                text:       text,
+                tags:       tagList,
+                context:    context,
+                mood:       mood,
+                moodScore:  score,
+                mediaPaths: mediaList);
 
         return $"Journal entry added with ID '{id}'.";
     }
@@ -74,25 +90,31 @@ public sealed class JournalActions
                                                           , DefaultValue = ""
                                       )]
                                       string? fromDate
+                                      
                                     , [NaturalLanguageParam(Description = "End date (optional)."
                                                           , Optional = true
                                                           , DefaultValue = ""
                                       )]
                                       string? toDate)
     {
-        DateTimeOffset? fromUtc = ParseDate(fromDate);
-        DateTimeOffset? toUtc   = ParseDate(toDate);
-
-        var entries = _journal.ListEntries(fromUtc
-                                         , toUtc);
+        var entries = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
 
         if (entries.Count == 0)
             return "No journal entries found.";
 
-        var lines =
-                entries.Select(entry => $"[{entry.CreatedUtc:yyyy-MM-dd HH:mm}] {entry.Text}{FormatTags(entry.Tags)}{FormatContext(entry.Context)} (ID: {entry.Id})");
+        var sb = new StringBuilder();
+        foreach (var entry in entries)
+        {
+            sb.Append('[')
+              .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+              .Append("] ")
+              .Append(entry.Text);
 
-        return string.Join("\n", lines);
+            AppendCommonMetadata(sb, entry, includeId: true);
+            sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     // ----------------------------------------------------------------------
@@ -106,16 +128,23 @@ public sealed class JournalActions
                                             , "Read journal entry with ID 77."
                                       }
                          , Category = "journal")]
-    public string GetJournalEntry ([NaturalLanguageParam(Description = "The ID of the journal entry.")] 
+    public string GetJournalEntry ([NaturalLanguageParam(Description = "The ID of the journal entry."
+                                   , AllowEmpty = false)] 
                                    string id)
     {
         var entry = _journal.GetEntry(id);
+        if (entry == null)
+            return $"No journal entry found with ID '{id}'.";
 
-        if (entry is null) return $"No journal entry found with ID '{id}'.";
+        var sb = new StringBuilder();
+        sb.Append('[')
+          .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+          .Append("] ")
+          .Append(entry.Text);
 
-        return $"[{entry.CreatedUtc:yyyy-MM-dd HH:mm}] {entry.Text}"
-             + $"{FormatTags(entry.Tags)}"
-             + $"{FormatContext(entry.Context)}";
+        AppendCommonMetadata(sb, entry, includeId: false);
+
+        return sb.ToString();
     }
 
     // ----------------------------------------------------------------------
@@ -129,16 +158,14 @@ public sealed class JournalActions
                                             , "Delete my last journal entry." // The model will extract the ID anyway
                                       }
                          , Category = "journal")]
-    public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The ID of the entry to delete.")] 
+    public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The ID of the entry to delete."
+                                      , AllowEmpty = false)] 
                                       string id)
     {
-        var existing = _journal.GetEntry(id);
-
-        if (existing is null) return $"No journal entry found with ID '{id}'.";
-
-        _journal.DeleteEntry(id);
-
-        return $"Journal entry '{id}' deleted.";
+        var deleted = _journal.DeleteEntry(id);
+        return deleted
+                  ? $"Journal entry '{id}' deleted."
+                  : $"No journal entry found with ID '{id}'.";
     }
 
     [NaturalLanguageAction(Description = "Lists all journal entries that occurred on this calendar day across all years."
@@ -155,21 +182,130 @@ public sealed class JournalActions
     {
         var today = DateTimeOffset.UtcNow;
 
-        var entries = _journal.ListEntriesOnThisDay(today.Month
-                                                  , today.Day);
+        var entries = _journal.ListEntries()
+                              .Where(entry => entry.CreatedUtc.Month == today.Month 
+                                           && entry.CreatedUtc.Day   == today.Day 
+                                           && entry.CreatedUtc.Year != today.Year)
+                              .OrderBy(entry => entry.CreatedUtc)
+                              .ToList();
 
-        if (entries.Count == 0) return "You have no entries from this day in your personal history.";
+        if (entries.Count == 0)
+            return "You have no entries from this day in your personal history.";
 
-        var lines = entries.Select(entry => $"[{entry.CreatedUtc:yyyy-MM-dd HH:mm}] "
-                                          + $"{entry.Text}{FormatTags(entry.Tags)}{FormatContext(entry.Context)} "
-                                          + $"(ID: {entry.Id})");
+        var sb = new StringBuilder();
+        sb.AppendLine("Entries from this day in your personal history:");
+        
+        foreach (var entry in entries)
+        {
+            sb.Append('[')
+              .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+              .Append("] ")
+              .Append(entry.Text);
 
-        return string.Join("\n", lines);
+            AppendCommonMetadata(sb, entry, includeId: true);
+            sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     // ----------------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------------
+    private static List<string> SplitCommaSeparated(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
+
+        return value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(item => item.Trim())
+                    .Where(item => item.Length > 0)
+                    .ToList();
+    }
+    
+    private static int? TryParseMoodScore(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        if (!int.TryParse(value, out var score)) return null;
+
+        if (score is < 1 or > 5) return null;
+
+        return score;
+    }
+
+    private static void AppendCommonMetadata (StringBuilder  sb
+                                              , JournalEntry entry
+                                              , bool         includeId)
+    {
+        if (entry.Tags is { Count: > 0 })
+        {
+            sb.Append(" [tags: ")
+              .Append(string.Join(", "
+                                  , entry.Tags))
+              .Append(']');
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Context))
+        {
+            sb.Append(" [context: ")
+              .Append(entry.Context)
+              .Append(']');
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Mood)
+         || entry.MoodScore.HasValue
+         || entry.MoodLevel.HasValue)
+        {
+            sb.Append(" [mood: ");
+
+            var hadText = false;
+
+            if (!string.IsNullOrWhiteSpace(entry.Mood))
+            {
+                sb.Append(entry.Mood);
+                hadText = true;
+            }
+
+            if (entry.MoodScore.HasValue)
+            {
+                if (hadText) sb.Append("; ");
+
+                sb.Append("score ")
+                  .Append(entry.MoodScore.Value);
+
+                if (entry.MoodLevel.HasValue)
+                {
+                    sb.Append(" (")
+                      .Append(entry.MoodLevel.Value)
+                      .Append(')');
+                }
+            }
+            else if (entry.MoodLevel.HasValue)
+            {
+                if (hadText) sb.Append("; ");
+
+                sb.Append(entry.MoodLevel.Value);
+            }
+
+            sb.Append(']');
+        }
+
+        if (entry.MediaPaths is { Count: > 0 })
+        {
+            sb.Append(" [media: ")
+              .Append(string.Join(", "
+                                  , entry.MediaPaths))
+              .Append(']');
+        }
+
+        if (includeId)
+        {
+            sb.Append(" (ID: ")
+              .Append(entry.Id)
+              .Append(')');
+        }
+    }
+
     private static DateTimeOffset? ParseDate(string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -180,15 +316,4 @@ public sealed class JournalActions
 
         return null;
     }
-
-    private static string FormatTags(List<string>? tags) => tags is
-                                                            {
-                                                                    Count: > 0
-                                                            } 
-                                                                    ? $" [tags: {string.Join(", ", tags)}]" 
-                                                                    : "";
-
-    private static string FormatContext(string? context) => string.IsNullOrWhiteSpace(context) 
-                                                                    ? "" 
-                                                                    : $" [context: {context}]";
 }

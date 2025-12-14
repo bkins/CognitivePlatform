@@ -34,6 +34,6 @@ public interface IObjectStore
     /// <summary>
     /// Marks an object as deleted without physically removing it from storage.
     /// </summary>
-    void SoftDelete<T> (string  id
+    bool SoftDelete<T> (string  id
                       , string? partitionKey = null);
 }

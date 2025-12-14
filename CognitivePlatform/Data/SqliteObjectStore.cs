@@ -44,6 +44,10 @@ public class SqliteObjectStore : IObjectStore
                 Type         TEXT NOT NULL,
                 PartitionKey TEXT NULL,
                 Json         TEXT NOT NULL,
+                Mood         TEXT NULL,
+                MoodScore    INTEGER NULL,
+                MoodLevel    INTEGER NULL,
+                MediaPaths   TEXT NULL,
                 CreatedUtc   TEXT NOT NULL,
                 UpdatedUtc   TEXT NOT NULL,
                 DeletedUtc   TEXT NULL
@@ -198,7 +202,7 @@ public class SqliteObjectStore : IObjectStore
         return list;
     }
 
-    public void SoftDelete<T> (string id
+    public bool SoftDelete<T> (string id
                              , string? partitionKey = null)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -224,16 +228,14 @@ public class SqliteObjectStore : IObjectStore
               AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
             """;
 
-        command.Parameters.AddWithValue("$id"
-                                      , id);
-        command.Parameters.AddWithValue("$type"
-                                      , typeName);
-        command.Parameters.AddWithValue("$partitionKey"
-                                      , (object?)partitionKey ?? DBNull.Value);
-        command.Parameters.AddWithValue("$deletedUtc"
-                                      , now);
+        command.Parameters.AddWithValue("$id",           id);
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+        command.Parameters.AddWithValue("$deletedUtc",   now);
 
         command.ExecuteNonQuery();
+        
+        return true;
     }
 
     // ---------------------------------------------------------------------

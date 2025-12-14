@@ -13,35 +13,72 @@ public sealed class JournalService
         _store = store;
     }
 
-    public string AddEntry(string text, IEnumerable<string>? tags = null, string? context = null)
+    public string AddEntry(string                text
+                         , IEnumerable<string>?  tags       = null
+                         , string?               context    = null
+                        , string?             mood       = null
+                          , int?                 moodScore  = null
+                          , IEnumerable<string>? mediaPaths = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Journal text cannot be empty.", nameof(text));
 
+        var entryId = Guid.NewGuid().ToString("N");
+
+        var cleanedTags = tags?.Where(tag => ! string.IsNullOrWhiteSpace(tag))
+                              .Select(tag => tag.Trim())
+                              .Distinct(StringComparer.OrdinalIgnoreCase)
+                              .ToList();
+
         var entry = new JournalEntry
                     {
-                            Text       = text.Trim(),
-                            Tags       = tags is null ? null : new List<string>(tags),
-                            Context    = context,
-                            CreatedUtc = DateTimeOffset.UtcNow
+                            Id         = entryId
+                          , Text       = text.Trim()
+                          , CreatedUtc = DateTimeOffset.UtcNow
+                          , Tags       = cleanedTags
+                          , Context = string.IsNullOrWhiteSpace(context)
+                                              ? null
+                                              : context.Trim()
+                          , Mood = string.IsNullOrWhiteSpace(mood)
+                                           ? null
+                                           : mood.Trim()
+                          , MoodScore = moodScore
+                          , MoodLevel = moodScore.HasValue
+                                                ? MapMoodLevel(moodScore.Value)
+                                                : null
+                          , MediaPaths = NormalizeMediaPaths(mediaPaths
+                                                           , entryId)
                     };
-
-        return _store.Save(entry);
+        _store.Save(entry, partitionKey: null, id: entryId);
+        
+        return entryId;
     }
 
-    public IReadOnlyList<JournalEntry> ListEntries(DateTimeOffset? fromUtc = null, DateTimeOffset? toUtc = null)
+    public IReadOnlyList<JournalEntry> ListEntries (DateTimeOffset? fromUtc = null
+                                                  , DateTimeOffset? toUtc   = null)
     {
-        return _store.List<JournalEntry>(null, fromUtc, toUtc);
+        var entries = _store.List<JournalEntry>(partitionKey: null
+                                              , fromUtc: fromUtc
+                                              , toUtc: toUtc);
+
+        return entries.OrderBy(entry => entry.CreatedUtc)
+                      .ToList();
     }
 
     public JournalEntry? GetEntry(string id)
     {
-        return _store.Get<JournalEntry>(id);
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("id cannot be null or empty.", nameof(id));
+
+        return _store.Get<JournalEntry>(id, partitionKey: null);
     }
 
-    public void DeleteEntry(string id)
+    public bool DeleteEntry(string id)
     {
-        _store.SoftDelete<JournalEntry>(id);
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("id cannot be null or empty.", nameof(id));
+
+        return _store.SoftDelete<JournalEntry>(id, partitionKey: null);
     }
     
     public List<JournalEntry> ListEntriesOnThisDay(int month, int day)
@@ -50,6 +87,46 @@ public sealed class JournalService
                      .Where(e => e.CreatedUtc.Month == month && e.CreatedUtc.Day == day)
                      .OrderByDescending(e => e.CreatedUtc)
                      .ToList();
+    }
+    
+    private static MoodLevel MapMoodLevel(int score)
+    {
+        return score switch
+        {
+                <= 1 => MoodLevel.VeryNegative
+              ,    2 => MoodLevel.Negative
+              ,    3 => MoodLevel.Neutral
+              ,    4 => MoodLevel.Positive
+              , >= 5 => MoodLevel.VeryPositive
+        };
+    }
+
+    private static List<string> NormalizeMediaPaths(IEnumerable<string>? mediaPaths
+                                                   , string              entryId)
+    {
+        var result = new List<string>();
+
+        if (mediaPaths is null) return result;
+
+        foreach (var raw in mediaPaths)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+
+            var trimmed = raw.Trim();
+
+            // If the caller already supplied some kind of path, keep it as-is.
+            if (trimmed.Contains('/') || trimmed.Contains('\\'))
+            {
+                result.Add(trimmed);
+            }
+            else
+            {
+                // Treat as a simple file name and tuck it under a logical per-entry folder.
+                result.Add($"Media/{entryId}/{trimmed}");
+            }
+        }
+
+        return result;
     }
 
 }
