@@ -1,5 +1,6 @@
 using System.Reflection;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Telemetry;
 
@@ -9,28 +10,90 @@ public class ActionRegistry : IActionRegistry
 {
     private readonly List<ActionMetadata> _actions = new();
     private readonly ITelemetrySink       _telemetry;
+    private readonly List<ActionMetadata> _fastPathActions = new();
 
     public ActionRegistry (ITelemetrySink   telemetry)
     {
         _telemetry = telemetry;
         
-        BuildFromAssembly(Assembly.GetExecutingAssembly());
+        LoadActions();
+        //BuildFromAssembly(Assembly.GetExecutingAssembly());
     }
 
-    public IReadOnlyCollection<ActionMetadata> Actions => _actions;
+    public IReadOnlyCollection<ActionMetadata> Actions         => _actions;
+    public IReadOnlyList<ActionMetadata>       FastPathActions => _fastPathActions;
 
     public ActionMetadata? FindByName (string name) => _actions.FirstOrDefault(action => string.Equals(action.Name
                                                                                                      , name
                                                                                                      , StringComparison.OrdinalIgnoreCase));
 
+    private void LoadActions()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+
+        foreach (var type in assembly.GetTypes())
+        {
+            // Only consider classes with methods containing [NaturalLanguageAction]
+            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                              .Where(m => m.GetCustomAttribute<NaturalLanguageActionAttribute>() != null)
+                              .ToList();
+
+            if (methods.Any().Not()) continue;
+
+            foreach (var method in methods)
+            {
+                var nla = method.GetCustomAttribute<NaturalLanguageActionAttribute>()!;
+                var parameters = method.GetParameters()
+                                       .Select(parameter =>
+                                       {
+                                           var pAttr = parameter.GetCustomAttribute<NaturalLanguageParamAttribute>();
+                                           return new ParameterMetadata
+                                                  {
+                                                          Name          = parameter.Name!
+                                                        , ParameterType = parameter.ParameterType
+                                                        , Description   = pAttr?.Description ?? string.Empty
+                                                        , IsOptional    = pAttr?.Optional    ?? false
+                                                        , AllowEmpty    = pAttr?.AllowEmpty  ?? false
+                                                        , DefaultValue  = pAttr?.DefaultValue
+                                                  };
+                                       })
+                                       .ToList();
+
+                // Detect [FastPath]
+                var isFastPath = method.GetCustomAttribute<FastPathAttribute>() != null;
+
+                var meta = new ActionMetadata
+                           {
+                                   Name                = method.Name
+                                 , Description         = nla.Description
+                                 , Category            = nla.Category ?? "General"
+                                 , MethodInfo          = method
+                                 , Parameters          = parameters
+                                 , AllowsClarification = nla.AllowsClarification
+                                 , IsFastPath          = isFastPath
+                           };
+
+                _actions.Add(meta);
+
+                if (isFastPath) _fastPathActions.Add(meta);
+            }
+        }
+    }
+
     private void BuildFromAssembly(Assembly assembly)
     {
         foreach (var type in assembly.GetTypes())
         {
-            foreach (var method in type.GetMethods(BindingFlags.Instance
-                                                 | BindingFlags.Static
-                                                 | BindingFlags.Public
-                                                 | BindingFlags.DeclaredOnly))
+            var methods = type.GetMethods(BindingFlags.Public 
+                                        | BindingFlags.Instance 
+                                        | BindingFlags.Static)
+                              .Where(method => method.GetCustomAttribute<NaturalLanguageActionAttribute>() != null)
+                              .ToList();
+            
+            if ( methods.Count == 0)
+                continue;
+            
+            foreach (var method in methods)
             {
                 var actionAttribute = method.GetCustomAttribute<NaturalLanguageActionAttribute>();
 

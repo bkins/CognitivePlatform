@@ -1,19 +1,16 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Avails.Extensions;
 
-namespace CognitivePlatform.Api.Actions;
+namespace CognitivePlatform.Api.Domains.Journal;
 
 [Category("journal")]
 public sealed class JournalActions
 {
-    private readonly JournalService _journal;
+    private readonly IJournalService _journal;
 
-    public JournalActions(JournalService journal)
+    public JournalActions(IJournalService journal)
     {
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
     }
@@ -21,6 +18,7 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     // AddJournalEntry
     // ----------------------------------------------------------------------
+    [FastPath]
     [NaturalLanguageAction(    Description = "Adds a new journal entry with optional tags, context, mood, and media."
                                , Examples = new[]
                                             {
@@ -76,6 +74,7 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     // 2. ListJournalEntries
     // ----------------------------------------------------------------------
+    [FastPath]
     [NaturalLanguageAction(Description = "Lists journal entries, optionally filtered by date."
                          , Examples = new[]
                                       {
@@ -120,6 +119,7 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     // 3. GetJournalEntry
     // ----------------------------------------------------------------------
+    [FastPath]
     [NaturalLanguageAction(Description = "Retrieves a single journal entry by ID."
                          , Examples = new[]
                                       {
@@ -150,6 +150,7 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     // 4. DeleteJournalEntry
     // ----------------------------------------------------------------------
+    [FastPath]
     [NaturalLanguageAction(Description = "Deletes a journal entry by ID."
                          , Examples = new[]
                                       {
@@ -168,6 +169,7 @@ public sealed class JournalActions
                   : $"No journal entry found with ID '{id}'.";
     }
 
+    [FastPath]
     [NaturalLanguageAction(Description = "Lists all journal entries that occurred on this calendar day across all years."
                          , Examples = new[]
                                       {
@@ -226,7 +228,8 @@ public sealed class JournalActions
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
 
-        if (!int.TryParse(value, out var score)) return null;
+        if (int.TryParse(value, out var score)
+               .Not()) return null;
 
         if (score is < 1 or > 5) return null;
 
@@ -245,14 +248,14 @@ public sealed class JournalActions
               .Append(']');
         }
 
-        if (!string.IsNullOrWhiteSpace(entry.Context))
+        if (entry.Context.HasValue())
         {
             sb.Append(" [context: ")
               .Append(entry.Context)
               .Append(']');
         }
 
-        if (!string.IsNullOrWhiteSpace(entry.Mood)
+        if (entry.Mood.HasValue()
          || entry.MoodScore.HasValue
          || entry.MoodLevel.HasValue)
         {
@@ -260,7 +263,7 @@ public sealed class JournalActions
 
             var hadText = false;
 
-            if (!string.IsNullOrWhiteSpace(entry.Mood))
+            if (entry.Mood.HasValue())
             {
                 sb.Append(entry.Mood);
                 hadText = true;

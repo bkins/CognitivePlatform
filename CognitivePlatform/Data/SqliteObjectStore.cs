@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json;
+using CognitivePlatform.Api.Avails.Extensions;
 using Microsoft.Data.Sqlite;
 
 namespace CognitivePlatform.Api.Data;
@@ -145,7 +146,7 @@ public class SqliteObjectStore : IObjectStore
 
         using var reader = command.ExecuteReader();
 
-        if (!reader.Read())
+        if (reader.Read().Not())
             return default;
 
         var json = reader.GetString(0);
@@ -249,12 +250,12 @@ public class SqliteObjectStore : IObjectStore
 
         var effectiveId = explicitId;
 
-        if (string.IsNullOrWhiteSpace(effectiveId)
+        if (effectiveId.DoesNotHaveValueOrIsNullOrEmpty()
          && idProperty is not null)
         {
             var current = idProperty.GetValue(value) as string;
-            if (!string.IsNullOrWhiteSpace(current))
-                effectiveId = current;
+            
+            if (current.HasValue()) effectiveId = current;
         }
 
         if (string.IsNullOrWhiteSpace(effectiveId))

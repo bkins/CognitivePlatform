@@ -13,4 +13,7 @@ public interface IActionRegistry
     /// Finds a single action by its name, or null if not found.
     /// </summary>
     ActionMetadata? FindByName(string name);
+    
+    IReadOnlyList<ActionMetadata> FastPathActions { get; }
+
 }

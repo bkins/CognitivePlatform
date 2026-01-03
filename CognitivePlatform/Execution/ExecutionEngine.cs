@@ -1,4 +1,5 @@
 using System.Reflection;
+using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Telemetry;
 
@@ -37,30 +38,31 @@ public class ExecutionEngine : IExecutionEngine
 
             for (int i = 0; i < parameters.Length; i++)
             {
-                var p = parameters[i];
-                var paramName = p.Name ?? $"arg{i}";
+                var parameter = parameters[i];
+                var paramName = parameter.Name ?? $"arg{i}";
 
-                if (!arguments.TryGetValue(paramName, out var stringValue))
+                if (arguments.TryGetValue(paramName
+                                        , out var stringValue)
+                             .Not())
                 {
                     // If no argument supplied:
-                    if (p.HasDefaultValue)
+                    if (parameter.HasDefaultValue)
                     {
-                        args[i] = p.DefaultValue;
+                        args[i] = parameter.DefaultValue;
                         continue;
                     }
 
-                    if (p.ParameterType == typeof(string))
+                    if (parameter.ParameterType == typeof(string))
                     {
                         args[i] = null;
                         continue;
                     }
 
                     // You can choose to be stricter here if you want
-                    throw new InvalidOperationException(
-                        $"Missing required parameter '{paramName}'.");
+                    throw new InvalidOperationException($"Missing required parameter '{paramName}'.");
                 }
 
-                args[i] = ConvertStringToType(stringValue, p.ParameterType);
+                args[i] = ConvertStringToType(stringValue, parameter.ParameterType);
             }
 
             object? result;

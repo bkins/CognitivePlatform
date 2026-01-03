@@ -11,4 +11,8 @@
     <Folder Include="Models\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CognitivePlatform\CognitivePlatform.Api.csproj" />
+  </ItemGroup>
+
 </Project>

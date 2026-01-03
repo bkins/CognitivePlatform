@@ -40,4 +40,6 @@ public class ActionMetadata
     /// when required parameters are missing.
     /// </summary>
     public bool AllowsClarification { get; init; }
+    
+    public bool IsFastPath { get; init; }
 }

@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Controllers;
 using CognitivePlatform.Api.Models;
 
@@ -6,6 +7,9 @@ namespace CognitivePlatform.Api.Orchestrator;
 public interface IConversationOrchestrator
 {
     Task<ConverseResponse> ConverseAsync (ConverseRequest   request
+                                        , CancellationToken ct = default);
+
+    IAsyncEnumerable<string> StreamAsync (ConverseRequest   request
                                         , CancellationToken ct = default);
 }
 

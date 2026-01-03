@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CognitivePlatform.Api.Avails;
+using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -10,17 +12,23 @@ namespace CognitivePlatform.Api.Interpreter;
 
 public class LlmInterpreter : IInterpreter
 {
-    private readonly IActionRegistry _registry;
-    private readonly ITelemetrySink  _telemetry;
-    private readonly ILlmClient      _llmClient;
+    private readonly IActionRegistry   _registry;
+    private readonly ITelemetrySink    _telemetry;
+    private readonly ILlmClient        _llmClient;
+    private readonly LlmModelCatalog   _modelCatalog;
+    private readonly LlmClientSettings _settings;
 
     public LlmInterpreter (IActionRegistry registry
                          , ITelemetrySink  telemetry
-                         , ILlmClient      llmClient)
+                         , ILlmClient      llmClient
+                         , LlmModelCatalog modelCatalog
+        , LlmClientSettings settings)
     {
-        _registry  = registry;
-        _telemetry = telemetry;
-        _llmClient = llmClient;
+        _registry     = registry;
+        _telemetry    = telemetry;
+        _llmClient    = llmClient;
+        _modelCatalog = modelCatalog;
+        _settings     = settings;
     }
 
     // public InterpreterResult Interpret (string input)
@@ -61,19 +69,50 @@ public class LlmInterpreter : IInterpreter
         Console.WriteLine($"actionsSummary: {actionsSummary}");
         Console.WriteLine($"prompt: {prompt}");
         
-        string rawResponse;
+        var rawResponse = string.Empty;
+        var model       = string.Empty;
+        
         try
         {
-            rawResponse = _llmClient.SendAsync(prompt).GetAwaiter().GetResult();
+            //rawResponse = _llmClient.SendAsync(prompt).GetAwaiter().GetResult();
+
+            context.Metadata.TryGetValue("model"
+                                       , out var requestedModel);
+            
+            model = requestedModel ?? _settings.DefaultModel;
+            var modelInfo = _modelCatalog.AvailableModels
+                                         .FirstOrDefault(info => info.Name.Equals(model, StringComparison.OrdinalIgnoreCase));
+
+            if (modelInfo is null 
+             || modelInfo.IsUsable.Not())
+            {
+                return new InterpreterResult
+                       {
+                               ActionName          = null
+                             , ExtractedParameters = new()
+                             , DebugInfo           = $"The LlmModelCatalog determined that the model '{model}' is not usable, the prompt will not be sent the client"
+                             , CandidateActions    = null
+                             , MissingParameters   = null
+                             , FailureType         = InterpreterFailureType.NoMatchingAction
+                             , Reason              = $"Model '{model}' is not usable on this system."
+                       };
+            }
+            
+            rawResponse = await _llmClient.SendAsync(prompt
+                                                   , requestedModel
+                                                   , CancellationToken.None);
+
         }
         catch (Exception ex)
         {
+            var message = $"LLM call failed (using Model: {model}): {ex.GetType().Name} - {ex.Message}";
+            
             return new InterpreterResult
                    {
                            ActionName          = null
                          , ExtractedParameters = new()
-                         , DebugInfo           = $"LLM call failed: {ex.GetType().Name} - {ex.Message}"
-                         , Reason              = $"LLM call failed: {ex.GetType().Name} - {ex.Message}"
+                         , DebugInfo           = message
+                         , Reason              = ex.GetType().Name
                          , FailureType         = InterpreterFailureType.NoMatchingAction
                          , CandidateActions    = null
                          , MissingParameters   = null
@@ -124,9 +163,6 @@ public class LlmInterpreter : IInterpreter
         return systemPrompt;
     }
 
-
-
-
     private static string BuildActionsSummary (IEnumerable<ActionMetadata> actions)
     {
         var sb = new StringBuilder();
@@ -139,9 +175,9 @@ public class LlmInterpreter : IInterpreter
             if (action.Parameters.Count > 0)
             {
                 sb.AppendLine("  Parameters:");
-                foreach (var p in action.Parameters)
+                foreach (var parameter in action.Parameters)
                 {
-                    sb.AppendLine($"    - {p.Name} (required={!p.IsOptional}, allowEmpty={p.AllowEmpty}): \"{p.Description}\"");
+                    sb.AppendLine($"    - {parameter.Name} (required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
                 }
 
             }
@@ -165,7 +201,8 @@ public class LlmInterpreter : IInterpreter
                                   , "Prompts"
                                   , fileName);
 
-        if ( ! File.Exists(filePath))
+        if (File.Exists(filePath)
+                .Not())
         {
             throw new FileNotFoundException($"System prompt file not found at: {filePath}");
         }
@@ -275,7 +312,7 @@ public class LlmInterpreter : IInterpreter
                                   , out var failureProp))
             {
                 var failureValue = failureProp.GetString();
-                if (!string.IsNullOrWhiteSpace(failureValue)
+                if (failureValue.HasValue()
                  && Enum.TryParse(failureValue
                                 , ignoreCase: true
                                 , out InterpreterFailureType parsedFt))
@@ -291,7 +328,7 @@ public class LlmInterpreter : IInterpreter
             {
                 candidateActions = candProp.EnumerateArray()
                                            .Select(item => item.GetString())
-                                           .Where(name => !string.IsNullOrWhiteSpace(name))
+                                           .Where(name => name.HasValue())
                                            .ToList();
             }
 
@@ -302,7 +339,7 @@ public class LlmInterpreter : IInterpreter
             {
                 missingParameters = missProp.EnumerateArray()
                                             .Select(item => item.GetString())
-                                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                                            .Where(name => name.HasValue())
                                             .ToList();
             }
 
@@ -321,13 +358,13 @@ public class LlmInterpreter : IInterpreter
                 {
                     // Only keep required parameters in missingParameters
                     var requiredNames = meta.Parameters
-                                            .Where(p => !p.IsOptional)
-                                            .Select(p => p.Name)
+                                            .Where(parameter => parameter.IsOptional.Not())
+                                            .Select(parameter => parameter.Name)
                                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                    missingParameters = missingParameters
-                        .Where(name => name is not null && requiredNames.Contains(name))
-                        .ToList();
+                    missingParameters = missingParameters.Where(name => name is not null 
+                                                                     && requiredNames.Contains(name))
+                                                         .ToList();
                 }
 
                 // If we removed all missing parameters but failureType is still MissingParameters,
@@ -342,14 +379,14 @@ public class LlmInterpreter : IInterpreter
             var debug = string.Empty;
 
             if (actionName != null
-             && !actionsList.Any(action => action.Name.Equals(actionName
-                                                            , StringComparison.OrdinalIgnoreCase)))
+             && actionsList.Any(action => action.Name.EqualsIgnoreCase(actionName))
+                           .Not())
             {
                 debug      = $"Action '{actionName}' does not exist in registry.";
                 actionName = null;
                 failureType = failureType == InterpreterFailureType.None
-                                          ? InterpreterFailureType.NoMatchingAction
-                                          : failureType;
+                                      ? InterpreterFailureType.NoMatchingAction
+                                      : failureType;
             }
             else
             {

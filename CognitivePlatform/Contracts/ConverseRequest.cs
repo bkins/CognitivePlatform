@@ -1,7 +1,8 @@
-﻿namespace CognitivePlatform.Api.Controllers;
+﻿namespace CognitivePlatform.Api.Contracts;
 
 public class ConverseRequest
 {
     public string  SessionId { get; set; } = string.Empty;
-    public string? Input      { get; set; }
+    public string? Input     { get; set; }
+    public string? Model     { get; set; }
 }

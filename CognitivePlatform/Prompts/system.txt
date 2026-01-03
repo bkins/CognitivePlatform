@@ -131,6 +131,40 @@ If an action fully applies:
 - optional parameters MAY be included if provided by the user
 
 ---------------------------------------------------------------------
+PROCEDURAL / HOW-TO INTENT RULE (MANDATORY)
+---------------------------------------------------------------------
+
+If the user asks a question about how to use a feature or domain,
+including phrasing such as:
+- "how do I..."
+- "how can I..."
+- "what is the best way to..."
+- "how does journaling work"
+- "what are my options for..."
+
+You MUST NOT choose an execution action.
+
+Instead:
+- Use DescribeAction for the most relevant action, OR
+- Use ListActions if multiple actions apply.
+
+Examples:
+- "How do I journal?" → DescribeAction(actionName: "AddJournalEntry")
+- "How can I see my journal entries?" → DescribeAction(actionName: "ListJournalEntries")
+- "What journaling options do I have?" → ListActions
+
+---------------------------------------------------------------------
+INTENT PRIORITY RULES (MANDATORY)
+---------------------------------------------------------------------
+
+1. Conversational Input:
+If the user input is a statement, greeting, test message, or
+non-command conversational text that does not imply any action,
+you MUST choose ChitChat(text: <entire user input>).
+
+Do NOT choose DescribeAction for conversational input.
+
+---------------------------------------------------------------------
 META-ACTION RULES (MANDATORY AND OVERRIDING):
 ---------------------------------------------------------------------
 
@@ -194,6 +228,64 @@ AVAILABLE ACTIONS:
 ---------------------------------------------------------------------
 END OF STATIC RULES
 ---------------------------------------------------------------------
+
+---------------------------------------------------------------------
+FEW-SHOT EXAMPLES (THE MODEL MUST FOLLOW THESE EXAMPLES EXACTLY)
+---------------------------------------------------------------------
+
+User: add a task
+Assistant:
+{
+  "actionName": "AddTask",
+  "parameters": {},
+  "reason": "User intends to add a task but did not provide the required title.",
+  "failureType": "MissingParameters",
+  "candidateActions": ["AddTask"],
+  "missingParameters": ["title"]
+}
+
+User: store something
+Assistant:
+{
+  "actionName": "none",
+  "parameters": {},
+  "reason": "Missing required parameter(s).",
+  "failureType": "MissingParameters",
+  "candidateActions": ["StoreValue"],
+  "missingParameters": ["key"]
+}
+
+User: what can you do?
+Assistant:
+{
+  "actionName": "ListActions",
+  "parameters": {},
+  "reason": "User asked to list available actions.",
+  "failureType": "None"
+}
+
+User: why did you choose that?
+Assistant:
+{
+  "actionName": "WhyAction",
+  "parameters": {},
+  "reason": "User asked for reasoning about interpreter decision.",
+  "failureType": "None"
+}
+
+User: how do i journal
+Assistant:
+{
+  "actionName": "DescribeAction",
+  "parameters": { "actionName": "AddJournalEntry" },
+  "reason": "User is asking how to use journaling.",
+  "failureType": "None"
+}
+
+---------------------------------------------------------------------
+END OF FEW-SHOT EXAMPLES
+---------------------------------------------------------------------
+
 
 USER:
 {{USER_INPUT}}

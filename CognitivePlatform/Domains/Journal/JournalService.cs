@@ -1,34 +1,36 @@
 using System;
 using System.Collections.Generic;
+using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
-public sealed class JournalService
+public sealed class JournalService : IJournalService
 {
     private readonly IObjectStore _store;
 
-    public JournalService(IObjectStore store)
+    public JournalService (IObjectStore store)
     {
         _store = store;
     }
 
-    public string AddEntry(string                text
-                         , IEnumerable<string>?  tags       = null
-                         , string?               context    = null
-                        , string?             mood       = null
+    public string AddEntry (string               text
+                          , IEnumerable<string>? tags       = null
+                          , string?              context    = null
+                          , string?              mood       = null
                           , int?                 moodScore  = null
                           , IEnumerable<string>? mediaPaths = null)
     {
         if (string.IsNullOrWhiteSpace(text))
-            throw new ArgumentException("Journal text cannot be empty.", nameof(text));
+            throw new ArgumentException("Journal text cannot be empty."
+                                      , nameof(text));
 
         var entryId = Guid.NewGuid().ToString("N");
 
-        var cleanedTags = tags?.Where(tag => ! string.IsNullOrWhiteSpace(tag))
-                              .Select(tag => tag.Trim())
-                              .Distinct(StringComparer.OrdinalIgnoreCase)
-                              .ToList();
+        var cleanedTags = tags?.Where(tag => tag.HasValue())
+                               .Select(tag => tag.Trim())
+                               .Distinct(StringComparer.OrdinalIgnoreCase)
+                               .ToList();
 
         var entry = new JournalEntry
                     {
@@ -49,8 +51,10 @@ public sealed class JournalService
                           , MediaPaths = NormalizeMediaPaths(mediaPaths
                                                            , entryId)
                     };
-        _store.Save(entry, partitionKey: null, id: entryId);
-        
+        _store.Save(entry
+                  , partitionKey: null
+                  , id: entryId);
+
         return entryId;
     }
 
@@ -65,44 +69,49 @@ public sealed class JournalService
                       .ToList();
     }
 
-    public JournalEntry? GetEntry(string id)
+    public JournalEntry? GetEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("id cannot be null or empty.", nameof(id));
+            throw new ArgumentException("id cannot be null or empty."
+                                      , nameof(id));
 
-        return _store.Get<JournalEntry>(id, partitionKey: null);
+        return _store.Get<JournalEntry>(id
+                                      , partitionKey: null);
     }
 
-    public bool DeleteEntry(string id)
+    public bool DeleteEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("id cannot be null or empty.", nameof(id));
+            throw new ArgumentException("id cannot be null or empty."
+                                      , nameof(id));
 
-        return _store.SoftDelete<JournalEntry>(id, partitionKey: null);
+        return _store.SoftDelete<JournalEntry>(id
+                                             , partitionKey: null);
     }
-    
-    public List<JournalEntry> ListEntriesOnThisDay(int month, int day)
+
+    public List<JournalEntry> ListEntriesOnThisDay (int month
+                                                  , int day)
     {
         return _store.List<JournalEntry>(partitionKey: nameof(JournalEntry))
                      .Where(e => e.CreatedUtc.Month == month && e.CreatedUtc.Day == day)
                      .OrderByDescending(e => e.CreatedUtc)
                      .ToList();
     }
-    
-    private static MoodLevel MapMoodLevel(int score)
+
+    private static MoodLevel MapMoodLevel (int score)
     {
         return score switch
         {
                 <= 1 => MoodLevel.VeryNegative
-              ,    2 => MoodLevel.Negative
-              ,    3 => MoodLevel.Neutral
-              ,    4 => MoodLevel.Positive
+              , 2    => MoodLevel.Negative
+              , 3    => MoodLevel.Neutral
+              , 4    => MoodLevel.Positive
               , >= 5 => MoodLevel.VeryPositive
         };
     }
 
-    private static List<string> NormalizeMediaPaths(IEnumerable<string>? mediaPaths
-                                                   , string              entryId)
+    private static List<string> NormalizeMediaPaths (IEnumerable<string>? mediaPaths
+                                                   , string               entryId)
     {
         var result = new List<string>();
 

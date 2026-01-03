@@ -1,5 +1,6 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -89,7 +90,7 @@ public static class MetaActions
                 sb.Append(" - ");
                 sb.Append(action.Name);
 
-                if (!string.IsNullOrWhiteSpace(action.Description))
+                if (action.Description.HasValue())
                 {
                     sb.Append(" — ");
                     sb.Append(action.Description);
@@ -138,8 +139,7 @@ public static class MetaActions
         sb.AppendLine($"Action: {action.Name}");
         sb.AppendLine($"Category: {action.Category}");
 
-        if (!string.IsNullOrWhiteSpace(action.Description))
-            sb.AppendLine($"Description: {action.Description}");
+        if (action.Description.HasValue()) sb.AppendLine($"Description: {action.Description}");
 
         // Parameters
         if (action.Parameters.Count == 0)
@@ -157,7 +157,7 @@ public static class MetaActions
                 sb.Append(parameters.ParameterType.Name);
                 sb.Append(")");
 
-                if (!string.IsNullOrWhiteSpace(parameters.Description))
+                if (parameters.Description.HasValue())
                 {
                     sb.Append(": ");
                     sb.Append(parameters.Description);
@@ -234,6 +234,10 @@ public static class MetaActions
 
         return sb.ToString();
     }
+
+    [NaturalLanguageAction( Description = "Handles non-command conversational input."
+                          , Category = "General")]
+    public static string ChitChat(string text) => "I'm here when you want to do something.";
 
     public static WhyActionResult BuildWhyActionResult (ConversationContext ctx)
     {

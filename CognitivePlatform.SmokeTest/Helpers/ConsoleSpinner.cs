@@ -1,3 +1,5 @@
+using CognitivePlatform.Api.Avails.Extensions;
+
 namespace CognitivePlatform.SmokeTest.Helpers;
 
 public class ConsoleSpinner : IDisposable
@@ -60,7 +62,8 @@ public class ConsoleSpinner : IDisposable
         
         Console.CursorVisible = false;
         
-        _spinnerTask = Task.Run(() => Spin(_cancellationTokenSource.Token, ! _isWaveText));
+        _spinnerTask = Task.Run(() => Spin(_cancellationTokenSource.Token
+                                         , _isWaveText.Not()));
     }
     
     // private static string[] GenerateWaveTextFrames(string text)
@@ -127,8 +130,8 @@ public class ConsoleSpinner : IDisposable
             else
             {
                 frame[j] = nonSpaceIndex == capitalizeIndex 
-                                   ? char.ToUpper(text[j]) 
-                                   : char.ToLower(text[j]);
+                                   ? char.ToLower(text[j])
+                                   : char.ToUpper(text[j]);
                 nonSpaceIndex++;
             }
         }
@@ -140,7 +143,8 @@ public class ConsoleSpinner : IDisposable
     {
         var frameIndex = 0;
         
-        while ( ! cancellationToken.IsCancellationRequested)
+        while (cancellationToken.IsCancellationRequested
+                                .Not())
         {
             var message = showMessage 
                                   ? $" {_message}..." 

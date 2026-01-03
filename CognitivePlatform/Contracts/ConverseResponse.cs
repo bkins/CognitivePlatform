@@ -1,4 +1,4 @@
-﻿namespace CognitivePlatform.Api.Controllers;
+﻿namespace CognitivePlatform.Api.Contracts;
 
 public class ConverseResponse
 {
