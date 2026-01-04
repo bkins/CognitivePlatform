@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.KnowledgeInbox;
+namespace CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 
 public interface IKnowledgeSource
 {
@@ -6,4 +6,8 @@ public interface IKnowledgeSource
 
     IEnumerable<KnowledgeItemDto> GetKnowledgeItems (KnowledgeQuery    query
                                                    , CancellationToken ct);
+
+    void Archive (Guid              id
+                , CancellationToken ct);
+
 }

@@ -16,7 +16,7 @@ public sealed class KnowledgeItemDto
     public DateTimeOffset LastModifiedAt { get; init; }
 
     // Lifecycle
-    public KnowledgeStatus Status { get; init; }
+    public KnowledgeStatus Status { get; set; }
 
     // Organization
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();

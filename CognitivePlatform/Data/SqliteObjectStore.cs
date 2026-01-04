@@ -8,6 +8,11 @@ using Microsoft.Data.Sqlite;
 
 namespace CognitivePlatform.Api.Data;
 
+/// <summary>
+/// ObjectStore is infrastructure.
+/// Domain Services own meaning.
+/// KnowledgeService coordinates meaning across domains.
+/// </summary>
 public class SqliteObjectStore : IObjectStore
 {
     private readonly string                _connectionString;
@@ -259,9 +264,8 @@ public class SqliteObjectStore : IObjectStore
         }
 
         if (string.IsNullOrWhiteSpace(effectiveId))
-            effectiveId = Guid
-                         .NewGuid()
-                         .ToString("N");
+            effectiveId = Guid.NewGuid()
+                              .ToString("N");
 
         if (idProperty is not null)
             idProperty.SetValue(value

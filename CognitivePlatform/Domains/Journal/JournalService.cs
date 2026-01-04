@@ -5,6 +5,22 @@ using CognitivePlatform.Api.Data;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
+/// DOMAIN SERVICE
+/// ----------------
+/// Owns domain meaning and business rules.
+/// - Defines what this domain object IS and how it behaves.
+/// - Talks directly to persistence (ObjectStore).
+/// - Does NOT know about Knowledge, inboxes, UI, or cross-domain concepts.
+///
+/// Rule of thumb:
+/// If the Knowledge system disappeared tomorrow,
+/// this service should still exist unchanged.
+
+/// <summary>
+/// ObjectStore is infrastructure.
+/// Domain Services own meaning.
+/// KnowledgeService coordinates meaning across domains.
+/// </summary>
 public sealed class JournalService : IJournalService
 {
     private readonly IObjectStore _store;
@@ -79,6 +95,16 @@ public sealed class JournalService : IJournalService
                                       , partitionKey: null);
     }
 
+    public JournalEntry? GetById(Guid id)
+    {
+        if (id == Guid.Empty) throw new ArgumentException("id cannot be empty.", nameof(id));
+
+        // Your entries are stored using Guid.ToString("N")
+        var stringId = id.ToString("N");
+
+        return GetEntry(stringId);
+    }
+    
     public bool DeleteEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))

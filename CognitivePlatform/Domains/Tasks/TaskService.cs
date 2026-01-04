@@ -6,6 +6,11 @@ using CognitivePlatform.Api.Data;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
+/// <summary>
+/// ObjectStore is infrastructure.
+/// Domain Services own meaning.
+/// KnowledgeService coordinates meaning across domains.
+/// </summary>
 public class TaskService : ITaskService
 {
     private readonly IObjectStore _store;

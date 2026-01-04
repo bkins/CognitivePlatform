@@ -11,6 +11,8 @@ using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
+using CognitivePlatform.Api.KnowledgeInbox;
+using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding  = Encoding.UTF8;
@@ -65,6 +67,10 @@ BuildDataPersistenceLayer(builder);
 builder.Services.AddSingleton<IJournalService, JournalService>();
 builder.Services.AddSingleton<ITaskService, TaskService>();
 
+// Knowledge Inbox
+builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
+builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
+//TODO: `builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();` when Task / Knowledge implemented
 // Actions
 builder.Services.AddTransient<JournalActions>();
 builder.Services.AddTransient<TaskActions>();

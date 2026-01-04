@@ -18,4 +18,5 @@ public interface IJournalService
 
     public List<JournalEntry> ListEntriesOnThisDay (int month
                                                   , int day);
+    JournalEntry? GetById(Guid id);
 }
