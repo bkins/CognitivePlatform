@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -9,6 +10,7 @@ using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Controllers;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
@@ -26,6 +28,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ITelemetrySink           _telemetry;
     private readonly FastPathResolver         _fastPath;
     private readonly ILlmClient               _llmClient;
+    private readonly IJournalCommandParser    _journalParser;
+    private readonly IJournalDraftRepository  _journalDraftRepository;
 
     public ConversationOrchestrator (IActionRegistry                                                registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
@@ -33,16 +37,21 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , ConversationContextStore                                       contextStore
                                    , ITelemetrySink                                                 telemetry
                                    , FastPathResolver                                               fastPathResolver
-                                   , ILlmClient                                                     llmClient)
+                                   , ILlmClient                                                     llmClient
+                                   , IJournalCommandParser                                          journalParser
+                                   , IJournalDraftRepository                                        journalDraftRepository)
     {
-        _registry     = registry         ?? throw new ArgumentNullException(nameof(registry));
-        _interpreter  = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
-        _execution    = execution        ?? throw new ArgumentNullException(nameof(execution));
-        _contextStore = contextStore     ?? throw new ArgumentNullException(nameof(contextStore));
-        _telemetry    = telemetry        ?? throw new ArgumentNullException(nameof(telemetry));
-        _fastPath     = fastPathResolver ?? throw new ArgumentNullException(nameof(fastPathResolver));
-        _llmClient    = llmClient        ?? throw new ArgumentNullException(nameof(llmClient));
+        _registry               = registry               ?? throw new ArgumentNullException(nameof(registry));
+        _interpreter            = interpreter            ?? throw new ArgumentNullException(nameof(interpreter));
+        _execution              = execution              ?? throw new ArgumentNullException(nameof(execution));
+        _contextStore           = contextStore           ?? throw new ArgumentNullException(nameof(contextStore));
+        _telemetry              = telemetry              ?? throw new ArgumentNullException(nameof(telemetry));
+        _fastPath               = fastPathResolver       ?? throw new ArgumentNullException(nameof(fastPathResolver));
+        _llmClient              = llmClient              ?? throw new ArgumentNullException(nameof(llmClient));
+        _journalParser          = journalParser          ?? throw new ArgumentNullException(nameof(journalParser));
+        _journalDraftRepository = journalDraftRepository ?? throw new ArgumentNullException(nameof(journalDraftRepository));
     }
+    
 
     public async Task<ConverseResponse> ConverseAsync(ConverseRequest    request
                                                     , CancellationToken ct = default)
@@ -61,11 +70,37 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
-
+        
         if (_fastPath.TryResolve(request.Input
                                , out var actionMeta
                                , out var fastParams))
         {
+            _telemetry.Track("FastPath.Resolved",
+                             $"Action={actionMeta!.Name}");
+            
+            // J-03: Persist JournalDraft locally (local-first capture)
+            // Only do this for the journal "AddJournalEntry" fast-path action.
+            // (Adjust name if your action is named differently in the registry.)
+            
+            //Documentation on how this will work: 
+            //C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System\Flow - User Input - API - Draft - Execution.md
+            if (actionMeta!.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
+            {
+                var parsed = _journalParser.Parse(request.Input);
+
+                // J-02 rule: only quoted directives become structured fields;
+                // unquoted directive-like text stays in Text (handled by parser).
+                var draft = new JournalDraft
+                            {
+                                    Text = parsed.Text
+                                  , Tags = parsed.Tags
+                                  , Mood = parsed.Mood
+                                  , State = JournalDraftState.Local
+                            };
+
+                await _journalDraftRepository.AddAsync(draft, ct);
+            }
+            
             var result = _execution.Execute(actionMeta!, fastParams!);
             _telemetry.Track("ConverseAsync.FastPath", result);
 
@@ -207,6 +242,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 4. Log interpreter identity
         _telemetry.Track("Interpreter.Selected"
                        , $"Using interpreter: {_interpreter.GetType().Name}");
+        // TODO: Define `WasResolvedFor` first
+        // Debug.Assert(!_fastPath.WasResolvedFor(request),
+        //              "Interpreter should not run after FastPath resolution.");
 
         // 5. Interpret with context
             var interpretation = await _interpreter.InterpretWithContext(request.Input
@@ -383,46 +421,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
                      , Debug = interpretation.DebugInfo
                };
 
-
-        // 7. No action chosen at all (e.g. nonsense input or other failure) - here
-        // if (interpretation.ActionName is null)
-        // {
-        //     
-        //     return new ConverseResponse
-        //            {
-        //                    Message = "I'm not sure what to do next."
-        //                  , Debug   = interpretation.DebugInfo
-        //            };
-        // }
-
-        // 8. Look up the action reflectively
-        // var selectedAction = _registry.Actions.FirstOrDefault(metadata => string.Equals(metadata.Name
-        //                                                                               , interpretation.ActionName
-        //                                                                               , StringComparison.OrdinalIgnoreCase));
-        //
-        // if (selectedAction is null)
-        // {
-        //     var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
-        //     _telemetry.Track("ActionLookup.Failed", msg);
-        //
-        //     return new ConverseResponse
-        //            {
-        //                    Message = "That action is not registered in this system."
-        //                  , Debug   = msg
-        //            };
-        // }
-
-        // // 9. Execute (sync) with whatever parameters we have (including defaults for optionals)
-        // var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
-        // var execOutputFinal = _execution.Execute(selectedAction, execParameters);
-        //
-        // // 10. Return consolidated response (context has already been updated above)
-        // return new ConverseResponse
-        //        {
-        //                Message = execOutputFinal
-        //              , Debug   = interpretation.DebugInfo
-        //        };
-
     }
     
     public async IAsyncEnumerable<string> StreamAsync(ConverseRequest                            request,
@@ -445,10 +443,34 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
 
-        // 🚫 Streaming is NOT used for fast-path or clarification yet
-        if (_fastPath.TryResolve(request.Input, out _, out _))
+        // ✅ J-01.1: FastPath always wins.
+        // In streaming mode: if FastPath resolves, execute and emit a single chunk.
+        // If it doesn't resolve, fall back to normal streaming/interpreter behavior.
+        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
         {
-            yield return "Fast-path execution does not support streaming.";
+            _telemetry.Track("FastPath.Resolved.Stream",
+                             $"Action={actionMeta!.Name}");
+
+            // Mirror ConverseAsync J-03 behavior for journal fast-path:
+            if (actionMeta!.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
+            {
+                var parsed = _journalParser.Parse(request.Input);
+
+                var draft = new JournalDraft
+                            {
+                                    Text = parsed.Text
+                                  , Tags = parsed.Tags
+                                  , Mood = parsed.Mood
+                                  , State = JournalDraftState.Local
+                            };
+
+                await _journalDraftRepository.AddAsync(draft, ct);
+            }
+
+            var result = _execution.Execute(actionMeta!, fastParams!);
+            _telemetry.Track("ConverseAsync.FastPath.Stream", result);
+
+            yield return result;
             yield break;
         }
 
@@ -457,7 +479,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
             yield return "Clarification flows do not support streaming.";
             yield break;
         }
-
+        
+//slow here
         var interpretation = await _interpreter.InterpretWithContext(request.Input, context);
 
         // 🚫 If an action was selected, DO NOT stream

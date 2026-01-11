@@ -34,21 +34,67 @@ public class TaskService : ITaskService
         return item;
     }
 
-    public TaskItem? GetById(string id)
+    /*
+     public IReadOnlyList<JournalEntry> ListEntries (DateTimeOffset? fromUtc = null
+                                                  , DateTimeOffset? toUtc   = null)
+    {
+        var entries = _store.List<JournalEntry>(partitionKey: null
+                                              , fromUtc: fromUtc
+                                              , toUtc: toUtc);
+
+        return entries.OrderBy(entry => entry.CreatedUtc)
+                      .ToList();
+    }
+     */
+    public IReadOnlyList<TaskItem> ListTasks (DateTimeOffset? fromUtc = null
+                                            , DateTimeOffset? toUtc   = null)
+    {
+        var entries = _store.List<TaskItem>(partitionKey: null
+                                          , fromUtc: fromUtc
+                                          , toUtc: toUtc);
+
+        return entries.OrderBy(entry => entry.CompletedAt)
+                      .ToList();
+    }
+ 
+    public TaskItem? GetById(Guid id)
+    {
+        if (id == Guid.Empty) throw new ArgumentException("id cannot be empty.", nameof(id));
+
+        // Your entries are stored using Guid.ToString("N")
+        var stringId = id.ToString("N");
+
+        return GetTask(stringId);
+        
+    }
+
+    public void Complete (Guid id) // (sets CompletedAt)
+    {
+        var task = GetById(id);
+
+        if (task == null) throw new KeyNotFoundException($"Task with id {id} not found.");
+        
+        task.CompletedAt = DateTimeOffset.UtcNow;
+        
+        _store.Save(task, partitionKey: null);
+    }
+    
+    public TaskItem? GetTask (string id)
     {
         if (string.IsNullOrWhiteSpace(id))
-            return null;
+            throw new ArgumentException("id cannot be null or empty."
+                                      , nameof(id));
 
-        return _store.Get<TaskItem>(id, partitionKey: null);
+        return _store.Get<TaskItem>(id
+                                  , partitionKey: null);
     }
 
     public IReadOnlyCollection<TaskItem> GetAll()
     {
-        return _store
-               .List<TaskItem>(partitionKey: null)
-               .Where(task => task.IsDeleted.Not())
-               .OrderBy(task => task.CreatedAt)
-               .ToList();
+        return _store.List<TaskItem>(partitionKey: null)
+                     .Where(task => task.IsDeleted.Not())
+                     .OrderBy(task => task.CreatedAt)
+                     .ToList();
     }
 
     public void Save(TaskItem item)
@@ -58,4 +104,9 @@ public class TaskService : ITaskService
 
         _store.Save(item, partitionKey: null, id: item.Id);
     }
+    
+    // Future methods??  Or remove??
+    public bool DeleteTask (string id) => throw new NotImplementedException();
+    
+
 }

@@ -177,8 +177,9 @@ public class TaskActions
     {
         id = NormalizeId(id);
         
-        var task = _taskService.GetById(id);
-
+        //var task = _taskService.GetById(id);
+        var task = _taskService.GetTask(id);
+        
         if (task is null
          || task.IsDeleted)
         {
@@ -211,8 +212,9 @@ public class TaskActions
     {
         id = NormalizeId(id);
         
-        var task = _taskService.GetById(id);
-
+//        var task = _taskService.GetById(id);
+        var task = _taskService.GetTask(id);
+        
         if (task is null
          || task.IsDeleted)
         {

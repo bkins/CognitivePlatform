@@ -66,36 +66,6 @@ public class ConsoleSpinner : IDisposable
                                          , _isWaveText.Not()));
     }
     
-    // private static string[] GenerateWaveTextFrames(string text)
-    // {
-    //     var frames            = new List<string>();
-    //     var textWithoutSpaces = text.Replace(" ", "");
-    //     
-    //     for (int i = 0; i < textWithoutSpaces.Length; i++)
-    //     {
-    //         var frame         = new char[text.Length];
-    //         var nonSpaceIndex = 0;
-    //         
-    //         for (int j = 0; j < text.Length; j++)
-    //         {
-    //             if (text[j] == ' ')
-    //             {
-    //                 frame[j] = ' ';
-    //             }
-    //             else
-    //             {
-    //                 frame[j] = nonSpaceIndex == i 
-    //                                    ? char.ToUpper(text[j]) 
-    //                                    : char.ToLower(text[j]);
-    //                 nonSpaceIndex++;
-    //             }
-    //         }
-    //         
-    //         frames.Add(new string(frame));
-    //     }
-    //     
-    //     return frames.ToArray();
-    // }
     private static string[] GenerateWaveTextFrames(string text)
     {
         var frames            = new List<string>();

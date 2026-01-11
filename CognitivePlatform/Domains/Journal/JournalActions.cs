@@ -60,13 +60,12 @@ public sealed class JournalActions
         var mediaList = SplitCommaSeparated(media);
         var score     = TryParseMoodScore(moodScore);
 
-        var id = _journal.AddEntry(
-                text:       text,
-                tags:       tagList,
-                context:    context,
-                mood:       mood,
-                moodScore:  score,
-                mediaPaths: mediaList);
+        var id = _journal.AddEntry(text:        text
+                                 , tags:        tagList
+                                 , context:     context
+                                 , mood:        mood
+                                 , moodScore:   score
+                                 , mediaPaths:  mediaList);
 
         return $"Journal entry added with ID '{id}'.";
     }

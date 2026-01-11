@@ -66,8 +66,8 @@ public class LlmInterpreter : IInterpreter
             prompt += "\n\nCLARIFICATION_MODE = true\n";
         }
 
-        Console.WriteLine($"actionsSummary: {actionsSummary}");
-        Console.WriteLine($"prompt: {prompt}");
+        Console.WriteLine($"actionsSummary: {actionsSummary.Substring(0, 160)}...");
+        Console.WriteLine($"prompt: {prompt.Substring(0, 160)}...");
         
         var rawResponse = string.Empty;
         var model       = string.Empty;

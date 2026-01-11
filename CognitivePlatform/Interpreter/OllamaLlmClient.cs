@@ -57,17 +57,12 @@ public class OllamaLlmClient : ILlmClient
                             {
                                     Content = JsonContent.Create(requestBody)
                             };
-        Console.WriteLine($"Request:");
+        Console.WriteLine($"{endpoint}/api/generate - Request - Started:");
         Console.WriteLine($"   RequestUri: {request.RequestUri}");
         Console.WriteLine($"   Content: {request.Content}");
         Console.WriteLine($"   ContentType: {request.Content.Headers.ContentType}");
         Console.WriteLine($"   requestBody: {requestBody.ToString()[1..60]}...");
         
-        // using var response = await _httpClient.PostAsJsonAsync(
-        //                              $"{endpoint}/api/generate",
-        //                              requestBody,
-        //                              cancellationToken);
-
         using var response = await _httpClient.SendAsync(request
                                                        , HttpCompletionOption.ResponseHeadersRead
                                                        , cancellationToken);
@@ -77,6 +72,7 @@ public class OllamaLlmClient : ILlmClient
         // Ollama returns a JSON object including "response" and "done"
         var json = await response.Content.ReadFromJsonAsync<OllamaResponse>(cancellationToken: cancellationToken);
 
+        Console.WriteLine($"{endpoint}/api/generate - Complete");
         if (json is null)
             throw new InvalidOperationException("LLM returned no JSON response.");
 

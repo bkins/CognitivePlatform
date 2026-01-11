@@ -19,6 +19,11 @@ public class ConversationController : ControllerBase
     [HttpPost("converse")]
     public async Task<ActionResult<ConverseResponse>> Converse([FromBody] ConverseRequest request)
     {
+        if (request.FastPath)
+        {
+            request.Streaming = false;
+        }
+        
         var result = await _orchestrator.ConverseAsync(request);
         return Ok(result);
     }
@@ -27,9 +32,9 @@ public class ConversationController : ControllerBase
     public async Task StreamConverse ([FromBody] ConverseRequest request
                                     , CancellationToken          ct)
     {
-        Response.Headers.Add("Content-Type",      "text/event-stream");
-        Response.Headers.Add("Cache-Control",     "no-cache");
-        Response.Headers.Add("X-Accel-Buffering", "no");
+        Response.Headers.Append("Content-Type",      "text/event-stream");
+        Response.Headers.Append("Cache-Control",     "no-cache");
+        Response.Headers.Append("X-Accel-Buffering", "no");
 
         await foreach (var chunk in _orchestrator.StreamAsync(request, ct))
         {
@@ -37,7 +42,4 @@ public class ConversationController : ControllerBase
             await Response.Body.FlushAsync(ct);
         }
     }
-
-
-
 }

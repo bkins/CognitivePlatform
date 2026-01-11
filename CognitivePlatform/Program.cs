@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
@@ -19,6 +20,10 @@ Console.InputEncoding  = Encoding.UTF8;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration
+       .AddJsonFile("appsettings.json")
+       .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options =>
 {
@@ -35,10 +40,11 @@ builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
 builder.Services.AddSingleton<ConversationContextStore>();
 
 // Interpreters
-builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter,
-    (sp, key) => new MockInterpreter(
-        sp.GetRequiredService<IActionRegistry>(),
-        sp.GetRequiredService<ITelemetrySink>()));
+builder.Services
+       .AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter
+                                      , (sp
+                                       , key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                                                   , sp.GetRequiredService<ITelemetrySink>()));
 
 builder.Services.AddSingleton<FastPathResolver>();
 
@@ -64,13 +70,20 @@ builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter,
 BuildDataPersistenceLayer(builder);
 
 // Domains
+
+//Journals
 builder.Services.AddSingleton<IJournalService, JournalService>();
+builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
+builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
+
+//Tasks
 builder.Services.AddSingleton<ITaskService, TaskService>();
 
 // Knowledge Inbox
 builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
 builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
-//TODO: `builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();` when Task / Knowledge implemented
+builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
+
 // Actions
 builder.Services.AddTransient<JournalActions>();
 builder.Services.AddTransient<TaskActions>();
@@ -88,7 +101,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -114,11 +127,15 @@ using (var scope = app.Services.CreateScope())
     var catalog  = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
     var log      = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    var swProbe = new Stopwatch();
+    swProbe.Start();
     await probe.RunAsync(settings.SortedAllowedModels, CancellationToken.None);
 
     StoreDefaultModel(settings, catalog);
 
     log.LogInformation("LLM Default Model Selected: {Model}", settings.DefaultModel);
+    //swProbe.Stop();
+    log.LogInformation($"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)");
 }
 
 // ---------- READY ----------
@@ -142,18 +159,24 @@ void StoreDefaultModel(LlmClientSettings settings, LlmModelCatalog catalog)
         settings.DefaultModel = model.Name;
 }
 
-void BuildDataPersistenceLayer(WebApplicationBuilder webApplicationBuilder)
+void BuildDataPersistenceLayer(WebApplicationBuilder builder)
 {
-    var dataDirectory = Path.Combine(webApplicationBuilder.Environment.ContentRootPath, "Data");
+    var dataDirectory = Path.Combine(
+        builder.Environment.ContentRootPath,
+        "Data",
+        builder.Environment.EnvironmentName);
+
     Directory.CreateDirectory(dataDirectory);
 
     var dbPath = Path.Combine(dataDirectory, "platform.db");
-    var connectionString =
-        $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
 
-    webApplicationBuilder.Services.AddSingleton<IObjectStore>(
+    var connectionString =
+            $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
+
+    builder.Services.AddSingleton<IObjectStore>(
         _ => new SqliteObjectStore(connectionString));
 }
+
 
 
 // using CognitivePlatform.Api.Actions;

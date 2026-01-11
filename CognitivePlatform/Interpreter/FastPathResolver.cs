@@ -39,9 +39,14 @@ public sealed class FastPathResolver
             
             return action != null;
         }
-
+        
         // ------------------------------------------------------------
-        // MODE 1: PREFIX COMMANDS
+        // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
+        // ------------------------------------------------------------
+        if (TryResolveColonPrefix(input, out action, out parameters))
+            return true;
+        // ------------------------------------------------------------
+        // MODE 1.2: PREFIX COMMANDS
         // ------------------------------------------------------------
         if (input.StartsWith("/"))
             return TryResolvePrefix(input, out action, out parameters);
@@ -53,6 +58,54 @@ public sealed class FastPathResolver
             return true;
 
         return false;
+    }
+    private bool TryResolveColonPrefix(string                           input
+                                      , out ActionMetadata?             action
+                                      , out Dictionary<string, string>? parameters)
+    {
+        action     = null;
+        parameters = null;
+
+        var colonIndex = input.IndexOf(':');
+        if (colonIndex <= 0) return false;
+
+        var prefix  = input[..colonIndex].Trim();       // e.g. "Journal"
+        var payload = input[(colonIndex + 1)..].Trim(); // everything after ':'
+
+        if (string.IsNullOrWhiteSpace(prefix)) return false;
+        if (string.IsNullOrWhiteSpace(payload)) return false;
+
+        // TODO: Generalize for any action!!
+        // Alias map (keep minimal; expand later)
+        if (prefix.Equals("journal", StringComparison.OrdinalIgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         {
+                                 ["text"] = payload
+                         };
+            return true;
+        }
+
+        // Optional: allow exact action name prefix: "AddJournalEntry: ..."
+        var direct = _registry.Actions.FirstOrDefault(action => action.Name.Equals(prefix, StringComparison.OrdinalIgnoreCase));
+        if (direct is null || direct.Parameters.Count <= 0) return false;
+        
+        // Only safe if exactly one required param
+        var required = direct.Parameters.Where(p => p.IsOptional.Not()).ToList();
+        
+        if (required.Count != 1) return false;
+        
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                     {
+                             [required[0].Name] = payload
+                     };
+        
+        action = direct;
+        
+        return true;
     }
 
     // ================================================================
@@ -178,6 +231,9 @@ public sealed class FastPathResolver
           , "log this "
           , "add task "
           , "create task "
+          , "journal this "
+          , "journal that "
+          , "journal"
     };
 
     private static bool ContainsFastPathSignal(string input)

@@ -1,6 +1,6 @@
 using CognitivePlatform.Api.Avails.Extensions;
 
-namespace CognitivePlatform.Interpreter
+namespace CognitivePlatform.Api.Interpreter
 {
     public class PendingActionContext
     {
