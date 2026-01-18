@@ -88,7 +88,7 @@ public sealed class JournalService : IJournalService
 
         var newRevision = new JournalRevision
                           {
-                                  RevisionId = Guid.NewGuid().ToString()
+                                  RevisionId = Guid.NewGuid().ToString("N")
                                 , EntryId    = entryId
                                 , CreatedUtc = DateTimeOffset.UtcNow
                                 , Text       = text       ?? latest.Text
@@ -115,50 +115,6 @@ public sealed class JournalService : IJournalService
         return latest ?? throw new InvalidOperationException($"JournalEntry '{entryId}' has no revisions.");
 
     }
-
-    // public string AddEntry (string               text
-    //                       , IEnumerable<string>? tags       = null
-    //                       , string?              context    = null
-    //                       , string?              mood       = null
-    //                       , int?                 moodScore  = null
-    //                       , IEnumerable<string>? mediaPaths = null)
-    // {
-    //     if (string.IsNullOrWhiteSpace(text))
-    //         throw new ArgumentException("Journal text cannot be empty."
-    //                                   , nameof(text));
-    //
-    //     var entryId = Guid.NewGuid().ToString("N");
-    //
-    //     var cleanedTags = tags?.Where(tag => tag.HasValue())
-    //                            .Select(tag => tag.Trim())
-    //                            .Distinct(StringComparer.OrdinalIgnoreCase)
-    //                            .ToList();
-    //
-    //     var entry = new JournalEntry
-    //                 {
-    //                         Id         = entryId
-    //                       , Text       = text.Trim()
-    //                       , CreatedUtc = DateTimeOffset.UtcNow
-    //                       , Tags       = cleanedTags
-    //                       , Context = string.IsNullOrWhiteSpace(context)
-    //                                           ? null
-    //                                           : context.Trim()
-    //                       , Mood = string.IsNullOrWhiteSpace(mood)
-    //                                        ? null
-    //                                        : mood.Trim()
-    //                       , MoodScore = moodScore
-    //                       , MoodLevel = moodScore.HasValue
-    //                                             ? MapMoodLevel(moodScore.Value)
-    //                                             : null
-    //                       , MediaPaths = NormalizeMediaPaths(mediaPaths
-    //                                                        , entryId)
-    //                 };
-    //     _store.Save(entry
-    //               , partitionKey: null
-    //               , id: entryId);
-    //
-    //     return entryId;
-    // }
 
     public IReadOnlyList<JournalEntryWithRevision> ListEntries(DateTimeOffset?  fromUtc = null
                                                               , DateTimeOffset? toUtc   = null)

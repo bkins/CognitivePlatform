@@ -4,12 +4,12 @@ namespace CognitivePlatform.Api.Domains.Journal;
 
 public interface IJournalService
 {
-    Task<string> AddEntryAsync(string                text
-                            , IReadOnlyList<string> tags
-                            , string?               mood
-                            , int?                  moodScore
-                            , int?                  moodLevel
-                            , IReadOnlyList<string> mediaPaths);
+    Task<string> AddEntryAsync (string                text
+                              , IReadOnlyList<string> tags
+                              , string?               mood
+                              , int?                  moodScore
+                              , int?                  moodLevel
+                              , IReadOnlyList<string> mediaPaths);
 
     JournalRevision EditEntry (string                 entryId
                              , string?                text       = null
@@ -30,6 +30,7 @@ public interface IJournalService
                                                   , int day);
 
     JournalEntryWithRevision GetById (string id);
+
     [Obsolete("Use GetById (string id) instead")]
-    JournalEntry? GetById(Guid id);
+    JournalEntry? GetById (Guid id);
 }

@@ -25,14 +25,19 @@ public sealed class JournalController : ControllerBase
         var tags = entryRevision.LatestRevision.Tags is { Count: > 0 }
                            ? entryRevision.LatestRevision.Tags
                            : Array.Empty<string>();
-        
-        return Ok(new JournalEntryDto
-                  {
-                          Id        = new Guid(entryRevision.Entry.Id),
-                          Text      = entryRevision.LatestRevision.Text,
-                          CreatedAt = entryRevision.Entry.CreatedUtc,
-                          Tags      = tags
-                  });
+
+        var journalEntry = new JournalEntryDto
+                           {
+                                   Id        = new Guid(entryRevision.Entry.Id)
+                                 , Text      = entryRevision.LatestRevision.Text
+                                 , CreatedAt = entryRevision.Entry.CreatedUtc
+                                 , Tags      = tags
+                                 , Mood      = entryRevision.LatestRevision.Mood
+                                 , MoodScore = entryRevision.LatestRevision.MoodScore
+                                 , State     = entryRevision.LatestRevision.State
+
+                           };
+        return Ok(journalEntry);
 
     }
     [HttpGet]
@@ -43,4 +48,19 @@ public sealed class JournalController : ControllerBase
         return Ok(entryRevision);
 
     }
+    
+    //GET /api/journals/{journalId}/revisions
+    /*This endpoint never returns the current revision.
+     * The current revision already has a home (GetById)
+     * Revision history should never compete with “current truth”
+     *
+     * Case 1 — Entry was never edited:
+     *  - []
+     *
+     * Case 2 — Journal does not exist:
+     *  - 404 Not Found
+     *
+     * Case 3 — Journal exists but is deleted:
+     *  - Still return revisions (read-only)
+     *  - Deletion is about current visibility, not historical truth*/
 }
