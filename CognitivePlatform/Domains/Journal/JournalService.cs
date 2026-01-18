@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
@@ -24,67 +25,170 @@ namespace CognitivePlatform.Api.Domains.Journal;
 public sealed class JournalService : IJournalService
 {
     private readonly IObjectStore _store;
+    private readonly ILogger<JournalService> _logger;
 
-    public JournalService (IObjectStore store)
+    public JournalService (IObjectStore store
+        ,  ILogger<JournalService> logger)
     {
         _store = store;
+        _logger = logger;
     }
 
-    public string AddEntry (string               text
-                          , IEnumerable<string>? tags       = null
-                          , string?              context    = null
-                          , string?              mood       = null
-                          , int?                 moodScore  = null
-                          , IEnumerable<string>? mediaPaths = null)
+    public async Task<string> AddEntryAsync(string                 text
+                                           , IReadOnlyList<string> tags
+                                           , string?               mood
+                                           , int?                  moodScore
+                                           , int?                  moodLevel
+                                           , IReadOnlyList<string> mediaPaths)
     {
-        if (string.IsNullOrWhiteSpace(text))
-            throw new ArgumentException("Journal text cannot be empty."
-                                      , nameof(text));
-
         var entryId = Guid.NewGuid().ToString("N");
-
-        var cleanedTags = tags?.Where(tag => tag.HasValue())
-                               .Select(tag => tag.Trim())
-                               .Distinct(StringComparer.OrdinalIgnoreCase)
-                               .ToList();
 
         var entry = new JournalEntry
                     {
-                            Id         = entryId
-                          , Text       = text.Trim()
-                          , CreatedUtc = DateTimeOffset.UtcNow
-                          , Tags       = cleanedTags
-                          , Context = string.IsNullOrWhiteSpace(context)
-                                              ? null
-                                              : context.Trim()
-                          , Mood = string.IsNullOrWhiteSpace(mood)
-                                           ? null
-                                           : mood.Trim()
-                          , MoodScore = moodScore
-                          , MoodLevel = moodScore.HasValue
-                                                ? MapMoodLevel(moodScore.Value)
-                                                : null
-                          , MediaPaths = NormalizeMediaPaths(mediaPaths
-                                                           , entryId)
+                            Id         = entryId,
+                            CreatedUtc = DateTime.UtcNow
                     };
-        _store.Save(entry
-                  , partitionKey: null
-                  , id: entryId);
 
-        return entryId;
+        var revision = new JournalRevision
+                       {
+                               RevisionId = Guid.NewGuid().ToString("N")
+                             , EntryId    = entryId
+                             , CreatedUtc = DateTime.UtcNow
+                             , Text       = text
+                             , Tags       = tags
+                             , Mood       = mood
+                             , MoodScore  = moodScore
+                             , MoodLevel  = moodLevel
+                             , MediaPaths = mediaPaths
+                       };
+
+        var actualEntryId = _store.Save(entry, entry.Id);
+        if (entryId != actualEntryId) _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service.  Look into why.");
+        
+        _store.Save(revision, revision.RevisionId);
+
+        return actualEntryId;
     }
 
-    public IReadOnlyList<JournalEntry> ListEntries (DateTimeOffset? fromUtc = null
-                                                  , DateTimeOffset? toUtc   = null)
-    {
-        var entries = _store.List<JournalEntry>(partitionKey: null
-                                              , fromUtc: fromUtc
-                                              , toUtc: toUtc);
 
-        return entries.OrderBy(entry => entry.CreatedUtc)
+    public JournalRevision EditEntry(string                 entryId
+                                   , string?                text       = null
+                                   , IReadOnlyList<string>? tags       = null
+                                   , string?                mood       = null
+                                   , int?                   moodScore  = null
+                                   , int?                   moodLevel  = null
+                                   , IReadOnlyList<string>? mediaPaths = null)
+    {
+        var entry = _store.Get<JournalEntry>(entryId);
+        if (entry is null) throw new KeyNotFoundException($"Entry with Id '{entryId}' not found.");
+        if (entry.DeletedUtc is not null) throw new InvalidOperationException($"Journal entry with Id '{entryId}' has already been deleted.");
+
+        var latest = GetLatestRevision(entryId);
+        if (latest is null) throw  new InvalidOperationException($"Entry with Id '{entryId}' does not have a revision.");
+
+        var newRevision = new JournalRevision
+                          {
+                                  RevisionId = Guid.NewGuid().ToString()
+                                , EntryId    = entryId
+                                , CreatedUtc = DateTimeOffset.UtcNow
+                                , Text       = text       ?? latest.Text
+                                , Tags       = tags       ?? latest.Tags
+                                , Mood       = mood       ?? latest.Mood
+                                , MoodScore  = moodScore  ?? latest.MoodScore
+                                , MoodLevel  = moodLevel  ?? latest.MoodLevel
+                                , MediaPaths = mediaPaths ?? latest.MediaPaths
+                          };
+        _store.Save(newRevision
+                  , newRevision.RevisionId);
+
+        return newRevision;
+    }
+    
+    private JournalRevision GetLatestRevision(string entryId)
+    {
+        var revisions = _store.List<JournalRevision>();
+
+        var latest = revisions.Where(revision => revision.EntryId == entryId)
+                              .OrderByDescending(revision => revision.CreatedUtc)
+                              .FirstOrDefault();
+
+        return latest ?? throw new InvalidOperationException($"JournalEntry '{entryId}' has no revisions.");
+
+    }
+
+    // public string AddEntry (string               text
+    //                       , IEnumerable<string>? tags       = null
+    //                       , string?              context    = null
+    //                       , string?              mood       = null
+    //                       , int?                 moodScore  = null
+    //                       , IEnumerable<string>? mediaPaths = null)
+    // {
+    //     if (string.IsNullOrWhiteSpace(text))
+    //         throw new ArgumentException("Journal text cannot be empty."
+    //                                   , nameof(text));
+    //
+    //     var entryId = Guid.NewGuid().ToString("N");
+    //
+    //     var cleanedTags = tags?.Where(tag => tag.HasValue())
+    //                            .Select(tag => tag.Trim())
+    //                            .Distinct(StringComparer.OrdinalIgnoreCase)
+    //                            .ToList();
+    //
+    //     var entry = new JournalEntry
+    //                 {
+    //                         Id         = entryId
+    //                       , Text       = text.Trim()
+    //                       , CreatedUtc = DateTimeOffset.UtcNow
+    //                       , Tags       = cleanedTags
+    //                       , Context = string.IsNullOrWhiteSpace(context)
+    //                                           ? null
+    //                                           : context.Trim()
+    //                       , Mood = string.IsNullOrWhiteSpace(mood)
+    //                                        ? null
+    //                                        : mood.Trim()
+    //                       , MoodScore = moodScore
+    //                       , MoodLevel = moodScore.HasValue
+    //                                             ? MapMoodLevel(moodScore.Value)
+    //                                             : null
+    //                       , MediaPaths = NormalizeMediaPaths(mediaPaths
+    //                                                        , entryId)
+    //                 };
+    //     _store.Save(entry
+    //               , partitionKey: null
+    //               , id: entryId);
+    //
+    //     return entryId;
+    // }
+
+    public IReadOnlyList<JournalEntryWithRevision> ListEntries(DateTimeOffset?  fromUtc = null
+                                                              , DateTimeOffset? toUtc   = null)
+    {
+        var entries               = _store.List<JournalEntry>(fromUtc: fromUtc, toUtc: toUtc);
+        var revisions             = _store.List<JournalRevision>();
+
+        var revisionsByEntry = revisions.GroupBy(revision => revision.EntryId)
+                                        .ToDictionary(
+                                            grouping => grouping.Key
+                                          , grouping => new
+                                                        {
+                                                                Latest = grouping.OrderByDescending(revision => revision.CreatedUtc)
+                                                                                 .First()
+                                                              , IsEdited = grouping.Count() > 1
+                                                        });
+
+        return entries.Where(entry => revisionsByEntry.ContainsKey(entry.Id))
+                      .OrderBy(entry => entry.CreatedUtc)
+                      .Select(entry =>
+                      {
+                          var revisionInfo = revisionsByEntry[entry.Id];
+                          return new JournalEntryWithRevision(
+                              entry,
+                              revisionInfo.Latest,
+                              revisionInfo.IsEdited);
+                      })
                       .ToList();
     }
-
+    
     public JournalEntry? GetEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -94,7 +198,27 @@ public sealed class JournalService : IJournalService
         return _store.Get<JournalEntry>(id
                                       , partitionKey: null);
     }
+    
+    public JournalEntryWithRevision GetById(string id)
+    {
+        var entry = _store.Get<JournalEntry>(id);
+        if (entry is null) throw new KeyNotFoundException($"JournalEntry {id} not found.");
 
+        var revisions             = _store.List<JournalRevision>();
+        var revisionsForThisEntry = revisions.Where(revision => revision.EntryId == id);
+        var wasEdited             = revisionsForThisEntry.Count() > 1;
+
+        var latest = revisions.Where(revision => revision.EntryId == id)
+                              .OrderByDescending(revision => revision.CreatedUtc)
+                              .FirstOrDefault();
+        
+        return latest is null
+                       ? throw new InvalidOperationException($"JournalEntry {id} has no revisions.")
+                       : new JournalEntryWithRevision(entry, latest, wasEdited);
+
+    }
+
+    [Obsolete("Use GetById(string id) instead")]
     public JournalEntry? GetById(Guid id)
     {
         if (id == Guid.Empty) throw new ArgumentException("id cannot be empty.", nameof(id));
@@ -105,6 +229,18 @@ public sealed class JournalService : IJournalService
         return GetEntry(stringId);
     }
     
+    public void DeleteEntry(string id, string reason)
+    {
+        var entry = _store.Get<JournalEntry>(id, partitionKey: null)!;
+        if (entry is null) return;
+
+        entry.DeletedUtc    = DateTime.UtcNow;
+        entry.DeletedReason = reason;
+
+        _store.Save(entry, entry.Id);
+    }
+    
+    [Obsolete("Use DeleteEntry(string id, string reason)")]
     public bool DeleteEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))

@@ -8,4 +8,5 @@ public sealed class JournalDraft
     public IReadOnlyList<string> Tags       { get; init; } = Array.Empty<string>();
     public string?               Mood       { get; init; }
     public JournalDraftState     State      { get; init; } = JournalDraftState.Local;
+    public int?                  MoodScore  { get; set; }
 }

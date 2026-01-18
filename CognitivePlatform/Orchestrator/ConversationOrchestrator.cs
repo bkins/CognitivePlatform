@@ -92,13 +92,28 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 // unquoted directive-like text stays in Text (handled by parser).
                 var draft = new JournalDraft
                             {
-                                    Text = parsed.Text
-                                  , Tags = parsed.Tags
-                                  , Mood = parsed.Mood
-                                  , State = JournalDraftState.Local
+                                    Text      = parsed.Text
+                                  , Tags      = parsed.Tags
+                                  , Mood      = parsed.Mood
+                                  , State     = JournalDraftState.Local
+                                  , MoodScore = parsed.MoodScore
                             };
 
                 await _journalDraftRepository.AddAsync(draft, ct);
+                fastParams = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                             {
+                                     ["text"] = parsed.Text
+                             };
+
+                if (parsed.Tags.Count > 0)
+                    fastParams["tags"] = string.Join(", ", parsed.Tags);
+
+                if (parsed.Mood.HasValue())
+                    fastParams["mood"] = parsed.Mood;
+
+                if (parsed.MoodScore.HasValue)
+                    fastParams["moodScore"] = parsed.MoodScore.Value.ToString();
+                
             }
             
             var result = _execution.Execute(actionMeta!, fastParams!);

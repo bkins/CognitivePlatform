@@ -5,33 +5,14 @@ namespace CognitivePlatform.Api.Domains.Journal;
 
 public sealed class JournalEntry
 {
-    public string         Id         { get; set; } = string.Empty;
-    public string         Text       { get; set; } = string.Empty;
-    public DateTimeOffset CreatedUtc { get; set; }
-    public List<string>?  Tags       { get; set; }
-    public string?        Context    { get; set; }
-    
-    
-    /// <summary>
-    /// Free-form description of mood (e.g. "anxious but hopeful").
-    /// </summary>
-    public string? Mood { get; set; }
+    public string Id { get; init; } = default!;
 
-    /// <summary>
-    /// Numeric mood score: 1 = very negative, 5 = very positive.
-    /// </summary>
-    public int? MoodScore { get; set; }
+    public DateTime CreatedUtc { get; init; }
 
-    /// <summary>
-    /// Normalised mood level derived from MoodScore.
-    /// </summary>
-    public MoodLevel? MoodLevel { get; set; }
-
-    /// <summary>
-    /// Logical media paths related to this entry (e.g. "Media/{Id}/photo.jpg").
-    /// </summary>
-    public List<string> MediaPaths { get; set; } = new();
+    public DateTime? DeletedUtc    { get; set; }
+    public string?   DeletedReason { get; set; }
 }
+
 
 public enum MoodLevel
 {

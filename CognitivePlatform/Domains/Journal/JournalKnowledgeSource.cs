@@ -37,25 +37,25 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
         // TODO: introduce filtering
         // NOTE: Filtering is intentionally deferred to the aggregator for now
         
-        var entries = _journalService.ListEntries();
-
-        foreach (var entry in entries)
+        var entryWithRevisions = _journalService.ListEntries();
+        
+        foreach (var entryWithRevision in entryWithRevisions)
         {
             if (query.Id is not null 
-             && entry.Id != query.Id.Value.ToString("N"))
+             && entryWithRevision.Entry.Id != query.Id.Value.ToString("N"))
                 continue;
             
-            IReadOnlyList<string> tags = entry.Tags is { Count: > 0 }
-                                                         ? entry.Tags
+            IReadOnlyList<string> tags = entryWithRevision.LatestRevision.Tags is { Count: > 0 }
+                                                         ? entryWithRevision.LatestRevision.Tags
                                                          : Array.Empty<string>();
             yield return new KnowledgeItemDto
                          {
-                                 Id             = Guid.Parse(entry.Id)
+                                 Id             = Guid.Parse(entryWithRevision.Entry.Id)
                                , Kind           = KnowledgeKind.Journal
-                               , Title          = DeriveTitle(entry)
-                               , Summary        = DeriveSummary(entry)
-                               , CreatedAt      = entry.CreatedUtc
-                               , LastModifiedAt = entry.CreatedUtc // TODO: update when journal edits are introduced
+                               , Title          = DeriveTitle(entryWithRevision.LatestRevision)
+                               , Summary        = DeriveSummary(entryWithRevision.LatestRevision)
+                               , CreatedAt      = entryWithRevision.Entry.CreatedUtc
+                               , LastModifiedAt = entryWithRevision.Entry.CreatedUtc // TODO: update when journal edits are introduced
                                , Status         = KnowledgeStatus.Active
                                , Tags           = tags
                                , Importance     = null
@@ -71,7 +71,7 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
         _objectStore.SoftDelete<JournalEntry>(id.ToString("N"));
     }
 
-    private static string DeriveTitle (JournalEntry entry)
+    private static string DeriveTitle (JournalRevision entry)
     {
         return entry.Text
                     .Length <= 60
@@ -79,7 +79,7 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
                        : string.Concat(entry.Text.AsSpan(0, 57), "…");
     }
 
-    private static string? DeriveSummary (JournalEntry entry)
+    private static string? DeriveSummary (JournalRevision entry)
     {
         return entry.Text
                     .Length <= 140

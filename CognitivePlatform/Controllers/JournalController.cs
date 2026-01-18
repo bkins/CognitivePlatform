@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -17,19 +18,29 @@ public sealed class JournalController : ControllerBase
     [HttpGet("{id:guid}")]
     public ActionResult<JournalEntryDto> GetById(Guid id, CancellationToken ct)
     {
-        var entry = _journalService.GetById(id);
+        var entryRevision = _journalService.GetById(id.ToString("N"));
 
-        if (entry is null)
-            return NotFound();
-        IReadOnlyList<string> tags = entry.Tags is { Count: > 0 }
-                                             ? entry.Tags
-                                             : Array.Empty<string>();
+        //var entry = _journalService.GetById(id);
+
+        var tags = entryRevision.LatestRevision.Tags is { Count: > 0 }
+                           ? entryRevision.LatestRevision.Tags
+                           : Array.Empty<string>();
+        
         return Ok(new JournalEntryDto
                   {
-                          Id        = id
-                        , Text      = entry.Text
-                        , CreatedAt = entry.CreatedUtc
-                        , Tags      = tags
+                          Id        = new Guid(entryRevision.Entry.Id),
+                          Text      = entryRevision.LatestRevision.Text,
+                          CreatedAt = entryRevision.Entry.CreatedUtc,
+                          Tags      = tags
                   });
+
+    }
+    [HttpGet]
+    public ActionResult<IReadOnlyList<JournalEntryWithRevision>> Get()
+    {
+        var entryRevision = _journalService.ListEntries();
+
+        return Ok(entryRevision);
+
     }
 }

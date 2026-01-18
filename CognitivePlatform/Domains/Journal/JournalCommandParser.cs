@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using CognitivePlatform.Api.Avails.Extensions;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
@@ -12,6 +12,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
     {
             "Tags:"
           , "Mood:"
+          , "MoodScore:"
 
             //Later add "Context:", "Media:"
     };
@@ -37,7 +38,8 @@ public sealed class JournalCommandParser : IJournalCommandParser
         var     textBuilder = new StringBuilder();
         var     tags        = new List<string>();
         string? mood        = null;
-
+        int?    moodScore   = null;
+        
         foreach (var line in lines)
         {
             var tagsSegment = ExtractDirectiveSegment(line, "Tags:");
@@ -53,6 +55,12 @@ public sealed class JournalCommandParser : IJournalCommandParser
                 mood = ExtractQuotedValues(moodSegment).FirstOrDefault();
             }
 
+            var moodScoreSegment = ExtractDirectiveSegment(line, "moodScore:");
+            if (moodScoreSegment != null)
+            {
+                moodScore = ExtractIntValue(moodScoreSegment);
+            }
+            
             // Only strip directives from text if they were actually parsed
             var cleanedLine = line;
 
@@ -62,7 +70,12 @@ public sealed class JournalCommandParser : IJournalCommandParser
             if (moodSegment != null && HasQuotedValues(moodSegment))
                 cleanedLine = RemoveDirectiveSegments(cleanedLine, "Mood:");
 
-            if (string.IsNullOrWhiteSpace(cleanedLine))
+            if (moodScoreSegment != null && moodScore.HasValue)
+            {
+                cleanedLine = RemoveScalarDirective(cleanedLine, "MoodScore:");
+            }
+            
+            if (cleanedLine.HasNoValue())
                 continue;
 
             if (textBuilder.Length > 0)
@@ -73,9 +86,10 @@ public sealed class JournalCommandParser : IJournalCommandParser
 
         return new ParsedJournalCommand
                {
-                       Text = textBuilder.ToString()
-                     , Tags = tags
-                     , Mood = mood
+                       Text      = textBuilder.ToString()
+                     , Tags      = tags
+                     , Mood      = mood
+                     , MoodScore = moodScore
                };
     }
 
@@ -87,6 +101,16 @@ public sealed class JournalCommandParser : IJournalCommandParser
             
             if (value.Length > 0) yield return value;
         }
+    }
+    
+    private static int? ExtractIntValue(string input)
+    {
+        var score = int.Parse(input.Trim());
+        
+        if ( score is >= 1 and <= 5)
+            return score;
+        
+        return null;
     }
     
     private static string? ExtractDirectiveSegment(string line, string directive)
@@ -110,6 +134,16 @@ public sealed class JournalCommandParser : IJournalCommandParser
         }
 
         return line.Substring(start, end - start);
+    }
+
+    private static string RemoveScalarDirective(string line, string directive)
+    {
+        return Regex.Replace(
+            line,
+            @$"{directive}\s*\d+",
+            "",
+            RegexOptions.IgnoreCase
+        ).Trim();
     }
 
 

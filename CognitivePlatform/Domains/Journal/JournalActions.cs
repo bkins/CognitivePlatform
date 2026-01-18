@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails.Extensions;
+using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
@@ -60,14 +61,17 @@ public sealed class JournalActions
         var mediaList = SplitCommaSeparated(media);
         var score     = TryParseMoodScore(moodScore);
 
-        var id = _journal.AddEntry(text:        text
-                                 , tags:        tagList
-                                 , context:     context
-                                 , mood:        mood
-                                 , moodScore:   score
-                                 , mediaPaths:  mediaList);
+        var id = _journal.AddEntryAsync(text: text
+                                      , tags: tagList
+                                      , mood: mood
+                                      , moodScore: score
+                                      , moodLevel: -1
+                                      , mediaPaths: mediaList);
 
-        return $"Journal entry added with ID '{id}'.";
+        var shortenTextBy = text.Length < 25
+                                    ? text.Length
+                                    : 25;
+        return $"Journal entry added: '{text[..shortenTextBy]}'.";
     }
 
     // ----------------------------------------------------------------------
@@ -95,20 +99,20 @@ public sealed class JournalActions
                                       )]
                                       string? toDate)
     {
-        var entries = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
+        var entryWithRevisions = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
 
-        if (entries.Count == 0)
+        if (entryWithRevisions.Count == 0)
             return "No journal entries found.";
 
         var sb = new StringBuilder();
-        foreach (var entry in entries)
+        foreach (var entryWithRevision in entryWithRevisions)
         {
             sb.Append('[')
-              .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+              .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
               .Append("] ")
-              .Append(entry.Text);
+              .Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entry, includeId: true);
+            AppendCommonMetadata(sb, entryWithRevision, includeId: true);
             sb.AppendLine();
         }
 
@@ -131,17 +135,15 @@ public sealed class JournalActions
                                    , AllowEmpty = false)] 
                                    string id)
     {
-        var entry = _journal.GetEntry(id);
-        if (entry == null)
-            return $"No journal entry found with ID '{id}'.";
-
+        var entryWithRevision = _journal.GetById(id); //.GetEntry(id);
+        
         var sb = new StringBuilder();
         sb.Append('[')
-          .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+          .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
           .Append("] ")
-          .Append(entry.Text);
+          .Append(entryWithRevision.LatestRevision.Text);
 
-        AppendCommonMetadata(sb, entry, includeId: false);
+        AppendCommonMetadata(sb, entryWithRevision, includeId: false);
 
         return sb.ToString();
     }
@@ -183,27 +185,27 @@ public sealed class JournalActions
     {
         var today = DateTimeOffset.UtcNow;
 
-        var entries = _journal.ListEntries()
-                              .Where(entry => entry.CreatedUtc.Month == today.Month 
-                                           && entry.CreatedUtc.Day   == today.Day 
-                                           && entry.CreatedUtc.Year != today.Year)
-                              .OrderBy(entry => entry.CreatedUtc)
+        var entryWithRevisions = _journal.ListEntries()
+                              .Where(entryWithRevision => entryWithRevision.Entry.CreatedUtc.Month == today.Month 
+                                           && entryWithRevision.Entry.CreatedUtc.Day   == today.Day 
+                                           && entryWithRevision.Entry.CreatedUtc.Year != today.Year)
+                              .OrderBy(entryWithRevision => entryWithRevision.Entry.CreatedUtc)
                               .ToList();
 
-        if (entries.Count == 0)
+        if (entryWithRevisions.Count == 0)
             return "You have no entries from this day in your personal history.";
 
         var sb = new StringBuilder();
         sb.AppendLine("Entries from this day in your personal history:");
         
-        foreach (var entry in entries)
+        foreach (var entryWithRevision in entryWithRevisions)
         {
             sb.Append('[')
-              .Append(entry.CreatedUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+              .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
               .Append("] ")
-              .Append(entry.Text);
+              .Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entry, includeId: true);
+            AppendCommonMetadata(sb, entryWithRevision, includeId: true);
             sb.AppendLine();
         }
 
@@ -236,74 +238,67 @@ public sealed class JournalActions
     }
 
     private static void AppendCommonMetadata (StringBuilder  sb
-                                              , JournalEntry entry
+                                              , JournalEntryWithRevision entryWithRevision
                                               , bool         includeId)
     {
-        if (entry.Tags is { Count: > 0 })
+        if (entryWithRevision.LatestRevision.Tags is { Count: > 0 })
         {
             sb.Append(" [tags: ")
               .Append(string.Join(", "
-                                  , entry.Tags))
+                                  , entryWithRevision.LatestRevision.Tags))
               .Append(']');
         }
-
-        if (entry.Context.HasValue())
-        {
-            sb.Append(" [context: ")
-              .Append(entry.Context)
-              .Append(']');
-        }
-
-        if (entry.Mood.HasValue()
-         || entry.MoodScore.HasValue
-         || entry.MoodLevel.HasValue)
+        
+        if (entryWithRevision.LatestRevision.Mood.HasValue()
+         || entryWithRevision.LatestRevision.MoodScore.HasValue
+         || entryWithRevision.LatestRevision.MoodLevel.HasValue)
         {
             sb.Append(" [mood: ");
 
             var hadText = false;
 
-            if (entry.Mood.HasValue())
+            if (entryWithRevision.LatestRevision.Mood.HasValue())
             {
-                sb.Append(entry.Mood);
+                sb.Append(entryWithRevision.LatestRevision.Mood);
                 hadText = true;
             }
 
-            if (entry.MoodScore.HasValue)
+            if (entryWithRevision.LatestRevision.MoodScore.HasValue)
             {
                 if (hadText) sb.Append("; ");
 
                 sb.Append("score ")
-                  .Append(entry.MoodScore.Value);
+                  .Append(entryWithRevision.LatestRevision.MoodScore.Value);
 
-                if (entry.MoodLevel.HasValue)
+                if (entryWithRevision.LatestRevision.MoodLevel.HasValue)
                 {
                     sb.Append(" (")
-                      .Append(entry.MoodLevel.Value)
+                      .Append(entryWithRevision.LatestRevision.MoodLevel.Value)
                       .Append(')');
                 }
             }
-            else if (entry.MoodLevel.HasValue)
+            else if (entryWithRevision.LatestRevision.MoodLevel.HasValue)
             {
                 if (hadText) sb.Append("; ");
 
-                sb.Append(entry.MoodLevel.Value);
+                sb.Append(entryWithRevision.LatestRevision.MoodLevel.Value);
             }
 
             sb.Append(']');
         }
 
-        if (entry.MediaPaths is { Count: > 0 })
+        if (entryWithRevision.LatestRevision.MediaPaths is { Count: > 0 })
         {
             sb.Append(" [media: ")
               .Append(string.Join(", "
-                                  , entry.MediaPaths))
+                                  , entryWithRevision.LatestRevision.MediaPaths))
               .Append(']');
         }
 
         if (includeId)
         {
             sb.Append(" (ID: ")
-              .Append(entry.Id)
+              .Append(entryWithRevision.Entry.Id)
               .Append(')');
         }
     }
