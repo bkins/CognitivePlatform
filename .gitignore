@@ -55,6 +55,7 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 
+# Misc
 /.vs/Coco.API/DesignTimeBuild/.dtbcache.v2
 /.vs/Coco.API/v17/.futdcache.v2
 /.idea/.idea.Coco.API/.idea/.gitignore
@@ -81,3 +82,4 @@ nunit-*.xml
 /publish/Markdig.dll
 /publish/web.config
 /Data/telemetry.db
+platform.db
