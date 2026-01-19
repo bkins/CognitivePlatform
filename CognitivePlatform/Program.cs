@@ -15,6 +15,7 @@ using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
+using Scalar.AspNetCore;
 
 public partial class Program
 {
@@ -106,8 +107,22 @@ public partial class Program
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
 
+// Scalar setup
+        builder.Services.AddEndpointsApiExplorer();
+        
         var app = builder.Build();
-
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapScalarApiReference(options =>
+            {
+                //http://localhost:5273/scalar
+                options.WithTitle("Cognitive Platform API")
+                       .WithTheme(ScalarTheme.Mars)
+                       .WithDefaultHttpClient(ScalarTarget.CSharp
+                                            , ScalarClient.HttpClient);
+            });
+        }
+        
 // ---------- HTTP PIPELINE (LISTENING STARTS) ----------
 
         if (app.Environment.IsDevelopment())

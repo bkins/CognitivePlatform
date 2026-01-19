@@ -1,6 +1,7 @@
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Models.TestingTemp;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,20 +34,21 @@ public sealed class JournalController : ControllerBase
                            ? entryRevision.LatestRevision.Tags
                            : Array.Empty<string>();
 
-        var journalEntry = new JournalEntryDto
-                           {
-                                   Id        = new Guid(entryRevision.Entry.Id)
-                                 , Text      = entryRevision.LatestRevision.Text
-                                 , CreatedAt = entryRevision.Entry.CreatedUtc
-                                 , Tags      = tags
-                                 , Mood      = entryRevision.LatestRevision.Mood
-                                 , MoodScore = entryRevision.LatestRevision.MoodScore
-                                 , State     = entryRevision.LatestRevision.State
+            var journalEntry = new JournalEntryDto
+                               {
+                                       Id        = entryRevision.Entry.Id.ToGuid() // <- This is the same as -> Guid.ParseExact(entryRevision.Entry.Id, "N")
+                                     , Text      = entryRevision.LatestRevision.Text
+                                     , CreatedAt = entryRevision.Entry.CreatedUtc
+                                     , Tags      = tags
+                                     , Mood      = entryRevision.LatestRevision.Mood
+                                     , MoodScore = entryRevision.LatestRevision.MoodScore
+                                     , State     = entryRevision.LatestRevision.State
 
-                           };
+                               };
         return Ok(journalEntry);
 
     }
+    
     [HttpGet]
     public ActionResult<IReadOnlyList<JournalEntryWithRevision>> Get()
     {
@@ -91,5 +93,34 @@ public sealed class JournalController : ControllerBase
 
         return Ok(dto);
     }
+    
+    // POST /api/journals/{journalId:guid}/edit-test
+    [ApiExplorerSettings(GroupName = "dev-only")]
+    [HttpPost("{journalId:guid}/edit-test")]
+    public ActionResult EditEntry_Test(Guid                               journalId
+                                      , [FromBody] JournalEditTestRequest request)
+    {
+        /*
+         * TEST-ONLY ENDPOINT
+         * Purpose: force creation of journal revisions during development.
+         * This endpoint will be removed once real edit UX exists.
+         */
+
+        try
+        {
+            var temp = _journalService.EditEntry(journalId.ToString("N")
+                                               , text: request.Text
+                                               , tags: request.Tags
+                                               , mood: request.Mood
+                                               , moodScore: request.MoodScore);
+
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
 
 }
