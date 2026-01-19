@@ -1,6 +1,6 @@
 using CognitivePlatform.Api.Models;
 
-namespace CognitivePlatform.Api.Domains.Journal;
+namespace CognitivePlatform.Api.Domains.Journal.Interfaces;
 
 public interface IJournalService
 {
@@ -24,13 +24,12 @@ public interface IJournalService
 
     public JournalEntry? GetEntry (string id);
 
-    public bool DeleteEntry (string id);
+    public bool DeleteEntry (string id, string reason);
 
     public List<JournalEntry> ListEntriesOnThisDay (int month
                                                   , int day);
 
     JournalEntryWithRevision GetById (string id);
 
-    [Obsolete("Use GetById (string id) instead")]
-    JournalEntry? GetById (Guid id);
+    bool Exists (Guid journalId);
 }

@@ -7,7 +7,7 @@ public sealed class JournalEntry
 {
     public string Id { get; init; } = default!;
 
-    public DateTime CreatedUtc { get; init; }
+    public DateTimeOffset CreatedUtc { get; init; }
 
     public DateTime? DeletedUtc    { get; set; }
     public string?   DeletedReason { get; set; }

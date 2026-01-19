@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 

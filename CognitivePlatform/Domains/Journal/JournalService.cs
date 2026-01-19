@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Domains.Journal;
@@ -24,36 +25,39 @@ namespace CognitivePlatform.Api.Domains.Journal;
 /// </summary>
 public sealed class JournalService : IJournalService
 {
-    private readonly IObjectStore _store;
-    private readonly ILogger<JournalService> _logger;
+    private readonly IObjectStore               _store;
+    private readonly ILogger<JournalService>    _logger;
+    private readonly IJournalRevisionRepository _revisionRepository;
 
-    public JournalService (IObjectStore store
-        ,  ILogger<JournalService> logger)
+    public JournalService (IObjectStore               store
+                         , IJournalRevisionRepository revisionRepository
+                         , ILogger<JournalService>    logger)
     {
-        _store = store;
-        _logger = logger;
+        _store              = store;
+        _revisionRepository = revisionRepository;
+        _logger             = logger;
     }
 
     public async Task<string> AddEntryAsync(string                 text
-                                           , IReadOnlyList<string> tags
-                                           , string?               mood
-                                           , int?                  moodScore
-                                           , int?                  moodLevel
-                                           , IReadOnlyList<string> mediaPaths)
+                                          , IReadOnlyList<string> tags
+                                          , string?               mood
+                                          , int?                  moodScore
+                                          , int?                  moodLevel
+                                          , IReadOnlyList<string> mediaPaths)
     {
         var entryId = Guid.NewGuid().ToString("N");
 
         var entry = new JournalEntry
                     {
                             Id         = entryId,
-                            CreatedUtc = DateTime.UtcNow
+                            CreatedUtc = DateTimeOffset.UtcNow
                     };
 
         var revision = new JournalRevision
                        {
                                RevisionId = Guid.NewGuid().ToString("N")
                              , EntryId    = entryId
-                             , CreatedUtc = DateTime.UtcNow
+                             , CreatedUtc = DateTimeOffset.UtcNow
                              , Text       = text
                              , Tags       = tags
                              , Mood       = mood
@@ -106,43 +110,35 @@ public sealed class JournalService : IJournalService
     
     private JournalRevision GetLatestRevision(string entryId)
     {
-        var revisions = _store.List<JournalRevision>();
+        var revisions = _revisionRepository.GetRevisionsByEntryId(entryId);
 
-        var latest = revisions.Where(revision => revision.EntryId == entryId)
-                              .OrderByDescending(revision => revision.CreatedUtc)
-                              .FirstOrDefault();
-
-        return latest ?? throw new InvalidOperationException($"JournalEntry '{entryId}' has no revisions.");
-
+        return revisions.FirstOrDefault() 
+                        ?? throw new InvalidOperationException($"JournalEntry '{entryId}' has no revisions.");
     }
-
+    
     public IReadOnlyList<JournalEntryWithRevision> ListEntries(DateTimeOffset?  fromUtc = null
                                                               , DateTimeOffset? toUtc   = null)
     {
-        var entries               = _store.List<JournalEntry>(fromUtc: fromUtc, toUtc: toUtc);
-        var revisions             = _store.List<JournalRevision>();
+        //NOTE: this may call the repository multiple times — that’s fine for now.
+        // Correctness > optimization, for now. When batching is implemented, it will be done once, in the repository.
+        
+        
+        var entries = _store.List<JournalEntry>(fromUtc: fromUtc
+                                              , toUtc: toUtc);
 
-        var revisionsByEntry = revisions.GroupBy(revision => revision.EntryId)
-                                        .ToDictionary(
-                                            grouping => grouping.Key
-                                          , grouping => new
-                                                        {
-                                                                Latest = grouping.OrderByDescending(revision => revision.CreatedUtc)
-                                                                                 .First()
-                                                              , IsEdited = grouping.Count() > 1
-                                                        });
-
-        return entries.Where(entry => revisionsByEntry.ContainsKey(entry.Id))
-                      .OrderBy(entry => entry.CreatedUtc)
-                      .Select(entry =>
+        return entries.Select(entry =>
                       {
-                          var revisionInfo = revisionsByEntry[entry.Id];
-                          return new JournalEntryWithRevision(
-                              entry,
-                              revisionInfo.Latest,
-                              revisionInfo.IsEdited);
+                          var revisions = _revisionRepository.GetRevisionsByEntryId(entry.Id);
+
+                          if (revisions.Count == 0) return null;
+
+                          return new JournalEntryWithRevision(entry
+                                                            , revisions[0]
+                                                            , revisions.Count > 1);
                       })
-                      .ToList();
+                      .Where(revision => revision is not null)
+                      .OrderBy(revision => revision!.Entry.CreatedUtc)
+                      .ToList()!;
     }
     
     public JournalEntry? GetEntry (string id)
@@ -160,40 +156,33 @@ public sealed class JournalService : IJournalService
         var entry = _store.Get<JournalEntry>(id);
         if (entry is null) throw new KeyNotFoundException($"JournalEntry {id} not found.");
 
-        var revisions             = _store.List<JournalRevision>();
-        var revisionsForThisEntry = revisions.Where(revision => revision.EntryId == id);
-        var wasEdited             = revisionsForThisEntry.Count() > 1;
+        var revisions = _revisionRepository.GetRevisionsByEntryId(id);
 
-        var latest = revisions.Where(revision => revision.EntryId == id)
-                              .OrderByDescending(revision => revision.CreatedUtc)
-                              .FirstOrDefault();
-        
-        return latest is null
-                       ? throw new InvalidOperationException($"JournalEntry {id} has no revisions.")
-                       : new JournalEntryWithRevision(entry, latest, wasEdited);
+        if (revisions.Count == 0) throw new InvalidOperationException($"JournalEntry {id} has no revisions.");
 
+        var latest    = revisions[0];
+        var wasEdited = revisions.Count > 1;
+
+        return new JournalEntryWithRevision(entry, latest, wasEdited);
     }
 
-    [Obsolete("Use GetById(string id) instead")]
-    public JournalEntry? GetById(Guid id)
+    public bool Exists (Guid journalId)
     {
-        if (id == Guid.Empty) throw new ArgumentException("id cannot be empty.", nameof(id));
-
-        // Your entries are stored using Guid.ToString("N")
-        var stringId = id.ToString("N");
-
-        return GetEntry(stringId);
+        var entry = _store.Get<JournalEntry>(journalId.ToString("N"));
+        return entry is not null;
     }
-    
-    public void DeleteEntry(string id, string reason)
+
+    public bool DeleteEntry(string id, string reason)
     {
         var entry = _store.Get<JournalEntry>(id, partitionKey: null)!;
-        if (entry is null) return;
+        if (entry is null) return false;
 
         entry.DeletedUtc    = DateTime.UtcNow;
         entry.DeletedReason = reason;
 
         _store.Save(entry, entry.Id);
+
+        return true;
     }
     
     [Obsolete("Use DeleteEntry(string id, string reason)")]
@@ -216,7 +205,7 @@ public sealed class JournalService : IJournalService
                      .ToList();
     }
 
-    private static MoodLevel MapMoodLevel (int score)
+    public static MoodLevel MapMoodLevel (int score)
     {
         return score switch
         {
@@ -225,6 +214,19 @@ public sealed class JournalService : IJournalService
               , 3    => MoodLevel.Neutral
               , 4    => MoodLevel.Positive
               , >= 5 => MoodLevel.VeryPositive
+        };
+    }
+    
+    public static string MapMoodEmoji (MoodLevel mood)
+    {
+        return mood switch
+        {
+                MoodLevel.VeryNegative => "😢"
+              , MoodLevel.Negative     => "🙁"
+              , MoodLevel.Neutral      => "😐"
+              , MoodLevel.Positive     => "🙂"
+              , MoodLevel.VeryPositive => "😄"
+              , _                      => "❓"
         };
     }
 

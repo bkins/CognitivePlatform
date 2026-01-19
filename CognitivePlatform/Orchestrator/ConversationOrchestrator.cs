@@ -11,6 +11,7 @@ using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Controllers;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;

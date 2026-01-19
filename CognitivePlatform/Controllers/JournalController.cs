@@ -1,18 +1,25 @@
 using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
+
+//TODO: Consider renaming `journalId` to `entryId`, here and everywhere...for consistency
 
 [ApiController]
 [Route("api/journals")]
 public sealed class JournalController : ControllerBase
 {
-    private readonly IJournalService _journalService;
+    private readonly IJournalService            _journalService;
+    private readonly IJournalRevisionRepository _journalRevisionRepository;
 
-    public JournalController(IJournalService journalService)
+    public JournalController (IJournalService            journalService
+                            , IJournalRevisionRepository journalRevisionRepository)
     {
-        _journalService = journalService;
+        _journalService            = journalService;
+        _journalRevisionRepository = journalRevisionRepository;
     }
 
     [HttpGet("{id:guid}")]
@@ -52,15 +59,37 @@ public sealed class JournalController : ControllerBase
     //GET /api/journals/{journalId}/revisions
     /*This endpoint never returns the current revision.
      * The current revision already has a home (GetById)
-     * Revision history should never compete with “current truth”
+     * Revision history returns the full immutable revision timeline.
      *
      * Case 1 — Entry was never edited:
-     *  - []
+     *  - [ initial revision ]
      *
      * Case 2 — Journal does not exist:
      *  - 404 Not Found
      *
      * Case 3 — Journal exists but is deleted:
      *  - Still return revisions (read-only)
-     *  - Deletion is about current visibility, not historical truth*/
+     */
+
+    [HttpGet("{journalId:guid}/revisions")]
+    public ActionResult<IReadOnlyList<JournalRevisionDto>> GetRevisions(Guid journalId)
+    {
+        var journalExists = _journalService.Exists(journalId);
+        if (journalExists.Not()) return NotFound();
+
+        var revisions = _journalRevisionRepository.GetRevisionsByEntryId(journalId.ToString("N"));
+
+        var dto = revisions.Select(revision => new JournalRevisionDto
+                                               {
+                                                       RevisionId = new Guid(revision.RevisionId) 
+                                                     , CreatedAt  = revision.CreatedUtc
+                                                     , Text       = revision.Text
+                                                     , Tags       = revision.Tags
+                                                     , Mood       = revision.Mood
+                                                     , MoodScore  = revision.MoodScore
+                                               });
+
+        return Ok(dto);
+    }
+
 }

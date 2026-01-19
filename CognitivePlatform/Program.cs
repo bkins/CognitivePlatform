@@ -12,173 +12,182 @@ using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 
-Console.OutputEncoding = Encoding.UTF8;
-Console.InputEncoding  = Encoding.UTF8;
-
-var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
-
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-                                           {
-                                                   Args            = args
-                                                 , EnvironmentName = env
-                                           });
-builder.Configuration
-       .AddJsonFile("appsettings.json")
-       .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
-
-
-builder.Logging.ClearProviders();
-builder.Logging.AddSimpleConsole(options =>
+public partial class Program
 {
-    options.SingleLine      = true;
-    options.TimestampFormat = "HH:mm:ss ";
-});
+    public static async Task Main (string[] args)
+    {
+        Console.OutputEncoding = Encoding.UTF8;
+        Console.InputEncoding  = Encoding.UTF8;
+
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+                                                   {
+                                                           Args            = args
+                                                         , EnvironmentName = env
+                                                   });
+        builder.Configuration
+               .AddJsonFile("appsettings.json")
+               .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+
+
+        builder.Logging.ClearProviders();
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.SingleLine      = true;
+            options.TimestampFormat = "HH:mm:ss ";
+        });
 
 // Core services
-builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
-builder.Services.AddSingleton<IConversationOrchestrator, ConversationOrchestrator>();
-builder.Services.AddSingleton<IExecutionEngine>(sp =>
-    new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>(), sp));
-builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
-builder.Services.AddSingleton<ConversationContextStore>();
+        builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
+        builder.Services.AddSingleton<IConversationOrchestrator, ConversationOrchestrator>();
+        builder.Services.AddSingleton<IExecutionEngine>(sp =>
+                                                                new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>(), sp));
+        builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
+        builder.Services.AddSingleton<ConversationContextStore>();
 
 // Interpreters
-builder.Services
-       .AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter
-                                      , (sp
-                                       , key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
-                                                                   , sp.GetRequiredService<ITelemetrySink>()));
+        builder.Services
+               .AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter
+                                              , (sp
+                                               , key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                                                           , sp.GetRequiredService<ITelemetrySink>()));
 
-builder.Services.AddSingleton<FastPathResolver>();
+        builder.Services.AddSingleton<FastPathResolver>();
 
 // LLM
-builder.Services.AddHttpClient();
-builder.Services.AddHttpClient<ILlmClient, OllamaLlmClient>();
+        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient<ILlmClient, OllamaLlmClient>();
 
-builder.Services.AddSingleton<LlmModelCatalog>();
-builder.Services.AddSingleton<LlmStartupProbe>();
+        builder.Services.AddSingleton<LlmModelCatalog>();
+        builder.Services.AddSingleton<LlmStartupProbe>();
 
-builder.Services.Configure<LlmClientSettings>(
-    builder.Configuration.GetSection("LlmClient"));
+        builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));
 
-builder.Services.AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter,
-    (sp, key) => new LlmInterpreter(
-        sp.GetRequiredService<IActionRegistry>(),
-        sp.GetRequiredService<ITelemetrySink>(),
-        sp.GetRequiredService<ILlmClient>(),
-        sp.GetRequiredService<LlmModelCatalog>(),
-        sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
+        builder.Services
+               .AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter
+                                              , (sp
+                                               , _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                                                        , sp.GetRequiredService<ITelemetrySink>()
+                                                                        , sp.GetRequiredService<ILlmClient>()
+                                                                        , sp.GetRequiredService<LlmModelCatalog>()
+                                                                        , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
 
 // Persistence
-BuildDataPersistenceLayer(builder);
+        BuildDataPersistenceLayer(builder);
 
 // Domains
 
 //Journals
-builder.Services.AddSingleton<IJournalService, JournalService>();
-builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
-builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
+        builder.Services.AddSingleton<IJournalService, JournalService>();
+        builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
+        builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
+
+//Journals-Revisions
+        builder.Services.AddSingleton<IJournalRevisionRepository, JournalRevisionRepository>();
 
 //Tasks
-builder.Services.AddSingleton<ITaskService, TaskService>();
+        builder.Services.AddSingleton<ITaskService, TaskService>();
 
 // Knowledge Inbox
-builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
-builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
-builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
+        builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
+        builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
+        builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
 
 // Actions
-builder.Services.AddTransient<JournalActions>();
-builder.Services.AddTransient<TaskActions>();
-builder.Services.AddTransient<DebugFastPath>();
+        builder.Services.AddTransient<JournalActions>();
+        builder.Services.AddTransient<TaskActions>();
+        builder.Services.AddTransient<DebugFastPath>();
 
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+        builder.Services.AddControllers();
+        builder.Services.AddOpenApi();
 
-var app = builder.Build();
+        var app = builder.Build();
 
 // ---------- HTTP PIPELINE (LISTENING STARTS) ----------
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi();
+        }
 
-//app.UseHttpsRedirection();
-app.UseAuthorization();
+        app.UseAuthorization();
 
-app.MapControllers();
+        app.MapControllers();
 
-app.MapGet("/health/ready", () =>
-{
-    return StartupState.IsReady
-        ? Results.Ok("Ready")
-        : Results.StatusCode(503);
-});
+        app.MapGet("/health/ready", () =>
+        {
+            return StartupState.IsReady
+                           ? Results.Ok("Ready")
+                           : Results.StatusCode(503);
+        });
 
 // Start listening immediately
-var runTask = app.RunAsync();
+        var runTask = app.RunAsync();
 
 // ---------- HEAVY STARTUP (DOES NOT BLOCK LISTENING) ----------
 
-using (var scope = app.Services.CreateScope())
-{
-    var probe    = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
-    var settings = scope.ServiceProvider
-                        .GetRequiredService<IOptions<LlmClientSettings>>()
-                        .Value;
-    var catalog  = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
-    var log      = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        using (var scope = app.Services.CreateScope())
+        {
+            var probe    = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
+            var settings = scope.ServiceProvider
+                                .GetRequiredService<IOptions<LlmClientSettings>>()
+                                .Value;
+            var catalog = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
+            var log     = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    var swProbe = new Stopwatch();
-    swProbe.Start();
-    await probe.RunAsync(settings.SortedAllowedModels, CancellationToken.None);
+            var swProbe = new Stopwatch();
+            swProbe.Start();
+            await probe.RunAsync(settings.SortedAllowedModels, CancellationToken.None);
 
-    StoreDefaultModel(settings, catalog);
+            StoreDefaultModel(settings, catalog);
 
-    log.LogInformation("LLM Default Model Selected: {Model}", settings.DefaultModel);
-    //swProbe.Stop();
-    log.LogInformation($"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)");
-}
+            log.LogInformation("LLM Default Model Selected: {Model}", settings.DefaultModel);
+            //swProbe.Stop();
+            log.LogInformation($"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)");
+        }
 
 // ---------- READY ----------
 
-StartupState.MarkReady();
+        StartupState.MarkReady();
 
 // Keep server alive
-await runTask;
+        await runTask;
 
 // ---------- helpers ----------
 
-void StoreDefaultModel(LlmClientSettings settings, LlmModelCatalog catalog)
-{
-    var model = settings.SortedAllowedModels
-                        .Select(name => catalog.AvailableModels
-                            .FirstOrDefault(m => m.IsUsable &&
-                                                 m.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                        .FirstOrDefault(m => m != null);
+        void StoreDefaultModel(LlmClientSettings settings, LlmModelCatalog catalog)
+        {
+            var ignoreCase = StringComparison.OrdinalIgnoreCase;
+    
+            var model = settings.SortedAllowedModels
+                                .Select(name => catalog.AvailableModels
+                                                       .FirstOrDefault(model => model.IsUsable
+                                                                             && model.Name
+                                                                                     .Equals(name, ignoreCase)))
+                                .FirstOrDefault(model => model != null);
 
-    if (model != null)
-        settings.DefaultModel = model.Name;
-}
+            if (model != null)
+                settings.DefaultModel = model.Name;
+        }
 
-void BuildDataPersistenceLayer(WebApplicationBuilder builder)
-{
-    var dataDirectory = Path.Combine(
-        builder.Environment.ContentRootPath,
-        "Data",
-        builder.Environment.EnvironmentName);
+        void BuildDataPersistenceLayer(WebApplicationBuilder builder)
+        {
+            var dataDirectory = Path.Combine(builder.Environment.ContentRootPath
+                                           , "Data"
+                                           , builder.Environment.EnvironmentName);
 
-    Directory.CreateDirectory(dataDirectory);
+            Directory.CreateDirectory(dataDirectory);
 
-    var dbPath = Path.Combine(dataDirectory, "platform.db");
+            var dbPath = Path.Combine(dataDirectory, "platform.db");
 
-    var connectionString =
-            $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
+            var connectionString = $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
 
-    builder.Services.AddSingleton<IObjectStore>(
-        _ => new SqliteObjectStore(connectionString));
+            builder.Services.AddSingleton<IObjectStore>( _ => new SqliteObjectStore(connectionString));
+        }
+    }
 }

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails.Extensions;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Domains.Journal;
@@ -152,22 +153,25 @@ public sealed class JournalActions
     // 4. DeleteJournalEntry
     // ----------------------------------------------------------------------
     [FastPath]
-    [NaturalLanguageAction(Description = "Deletes a journal entry by ID."
+    [NaturalLanguageAction(Description = "Deletes a journal entry by ID. And a reason must be provided"
                          , Examples = new[]
                                       {
-                                              "Delete journal entry abc123."
-                                            , "Remove the entry with ID 42."
-                                            , "Delete my last journal entry." // The model will extract the ID anyway
+                                              "Delete journal entry abc123, because it was added by mistake."
+                                            , "Remove the entry with ID 42. It is no long needed"
+                                            , "Delete my last journal entry. It is not complete" // The model will extract the ID anyway
                                       }
                          , Category = "journal")]
     public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The ID of the entry to delete."
-                                      , AllowEmpty = false)] 
-                                      string id)
+                                                          , AllowEmpty = false)]
+                                      string id
+                                    , [NaturalLanguageParam(Description = "Reason Entry was deleted"
+                                                          , AllowEmpty = false)]
+                                      string reason)
     {
-        var deleted = _journal.DeleteEntry(id);
+        var deleted = _journal.DeleteEntry(id, reason);
         return deleted
-                  ? $"Journal entry '{id}' deleted."
-                  : $"No journal entry found with ID '{id}'.";
+                       ? $"Journal entry '{id}' deleted."
+                       : $"No journal entry found with ID '{id}'. Or a reason must be provided.";
     }
 
     [FastPath]

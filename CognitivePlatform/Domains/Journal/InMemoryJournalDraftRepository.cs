@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
