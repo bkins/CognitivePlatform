@@ -1,37 +1,36 @@
 ﻿{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-
-    "Api-QA": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "applicationUrl": "https://localhost:7083;http://localhost:5272;http://192.168.0.33:5272",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "QA"
-      }
-    },
-
     "Api-Dev": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
-      "applicationUrl": "https://localhost:7084;http://localhost:5273;http://192.168.0.33:5273",
+      "applicationUrl": "https://localhost:7083;http://localhost:5273;http://192.168.0.33:5273",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
-    }
-  },
-
-  "Api-Pro": {
-    "commandName": "Project",
-    "dotnetRunMessages": true,
-    "launchBrowser": false,
-    "applicationUrl": "https://localhost:7085;http://localhost:5274;http://192.168.0.33:5274",
-    "environmentVariables": {
-      "ASPNETCORE_ENVIRONMENT": "Production"
+    },
+    "Api-QA": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7084;http://localhost:5274;http://192.168.0.33:5274",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "QA"
+      }
+    },
+    
+    "Api-Prod": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7085;http://localhost:5275;http://192.168.0.33:5275",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Prod"
+      }
     }
   }
 }
+
 
 
