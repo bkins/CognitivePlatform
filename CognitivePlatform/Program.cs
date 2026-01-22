@@ -134,12 +134,11 @@ public partial class Program
 
         app.MapControllers();
 
-        app.MapGet("/health/ready", () =>
-        {
-            return StartupState.IsReady
-                           ? Results.Ok("Ready")
-                           : Results.StatusCode(503);
-        });
+        app.MapGet("/health/ready", () => StartupState.IsReady
+                                                  ? Results.Ok("Ready")
+                                                  : Results.StatusCode(503));
+
+        app.MapGet("/telemetry/logs", () => ConsoleTelemetrySink.InMemoryTelemetry);
 
 // Start listening immediately
         var runTask = app.RunAsync();

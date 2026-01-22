@@ -60,7 +60,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (request?.Input is null) throw new ArgumentNullException(nameof(request));
 
-        _telemetry.Track("Conversation.Start", $"Input='{request.Input}'; Using Model='{request.Model}'");
+        _telemetry.Track("Conversation.Start", $"Model='{request.Model}'");
 
         // 1. Get or create the session context
         var context = _contextStore.GetOrCreate(request.SessionId);
@@ -155,6 +155,46 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             var pending = context.PendingAction;
 
+            if (pending.ConfirmationRequired)
+            {
+                var input = request.Input?.Trim().ToLowerInvariant();
+
+                if (IsAffirmative(input))
+                {
+                    context.PendingAction = null;
+
+                    var confirmedAction = _registry.Actions
+                                          .First(action => string.Equals(action.Name
+                                                                       , pending.ActionName
+                                                                       , StringComparison.OrdinalIgnoreCase));
+
+                    var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
+                    var result     = _execution.Execute(confirmedAction, execParams);
+
+                    return new ConverseResponse
+                           {
+                                   Message = result,
+                                   Debug   = "Delete confirmed and executed."
+                           };
+                }
+
+                if (IsNegative(input).Not())
+                    return new ConverseResponse
+                           {
+                                   Message = "Please confirm or cancel the deletion."
+                                 , Debug = "Awaiting delete confirmation."
+                           };
+                
+                context.PendingAction = null;
+
+                return new ConverseResponse
+                       {
+                               Message = "Deletion cancelled.",
+                               Debug   = "Delete cancelled by user."
+                       };
+
+            }
+            
             // Look up action metadata
             var action = _registry.Actions
                                   .FirstOrDefault(action => string.Equals(action.Name
@@ -256,7 +296,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         // 4. Log interpreter identity
-        _telemetry.Track("Interpreter.Selected"
+        _telemetry.Track("ConversationOrchestrator.Interpreter.Selected"
                        , $"Using interpreter: {_interpreter.GetType().Name}");
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
@@ -426,6 +466,40 @@ public class ConversationOrchestrator : IConversationOrchestrator
             
         }
 
+        if (selectedAction.Name == "DeleteJournalEntry"
+         && !context.HasConfirmedDelete)
+        {
+            var parameters = interpretation.ExtractedParameters;
+
+            // Build a human-readable review prompt
+            var reason = parameters.TryGetValue("reason", out var r)
+                                 ? r
+                                 : "(no reason provided)";
+
+            var reviewMessage =
+                    "Delete journal entry?\n\n"                                           +
+                    $"Reason: {reason}\n\n"                                               +
+                    "This entry will be marked as deleted and hidden from your journal, " +
+                    "but its history will be preserved.\n\n"                              +
+                    "Please confirm or cancel.";
+
+            context.PendingAction = new PendingAction
+                                    {
+                                            ActionName           = selectedAction.Name,
+                                            CollectedParameters  = new Dictionary<string, string>(parameters, StringComparer.OrdinalIgnoreCase),
+                                            RemainingParameters  = new List<string>(),
+                                            ConfirmationRequired = true,
+                                            ConfirmationPrompt   = reviewMessage
+                                    };
+
+            return new ConverseResponse
+                   {
+                           Message = reviewMessage,
+                           Debug   = "Delete action requires confirmation."
+                   };
+        }
+
+
         // 9. Execute (sync) with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
         var execOutputFinal = _execution.Execute(selectedAction, execParameters);
@@ -438,7 +512,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
                };
 
     }
-    
+
+    private bool IsNegative (string? input)
+    {
+        return input is "no" or "cancel" or "never mind";
+    }
+
+    private bool IsAffirmative (string? input)
+    {
+        return input is "yes" or "confirm" or "delete" or "do it";
+    }
+
     public async IAsyncEnumerable<string> StreamAsync(ConverseRequest                            request,
                                                       [EnumeratorCancellation] CancellationToken ct = default)
     {

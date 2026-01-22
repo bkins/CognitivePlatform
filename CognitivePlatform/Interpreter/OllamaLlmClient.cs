@@ -59,8 +59,8 @@ public class OllamaLlmClient : ILlmClient
                             };
         Console.WriteLine($"{endpoint}/api/generate - Request - Started:");
         Console.WriteLine($"   RequestUri: {request.RequestUri}");
-        Console.WriteLine($"   Content: {request.Content}");
-        Console.WriteLine($"   ContentType: {request.Content.Headers.ContentType}");
+        //Console.WriteLine($"   Content: {request.Content}");
+        //Console.WriteLine($"   ContentType: {request.Content.Headers.ContentType}");
         Console.WriteLine($"   requestBody: {requestBody.ToString()[1..60]}...");
         
         using var response = await _httpClient.SendAsync(request

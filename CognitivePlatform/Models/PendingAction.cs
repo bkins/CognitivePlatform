@@ -9,9 +9,20 @@ public sealed class PendingAction
     /// </summary>
     public Dictionary<string, string> CollectedParameters { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /*
+     * For delete:
+        - RemainingParameters is empty
+        - ConfirmationRequired = true
+        - Parameters are already complete
+     */
+    
     /// <summary>
     /// Names of parameters we still need from the user.
     /// For Step 3.8 we mainly care about the first one, but this keeps us future-proof.
     /// </summary>
     public List<string> RemainingParameters { get; init; } = new();
+    
+    public bool   ConfirmationRequired { get; init; }
+    public string ConfirmationPrompt { get; init; } = string.Empty;
+    
 }

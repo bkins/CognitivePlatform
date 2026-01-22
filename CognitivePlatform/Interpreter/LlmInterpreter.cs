@@ -18,11 +18,11 @@ public class LlmInterpreter : IInterpreter
     private readonly LlmModelCatalog   _modelCatalog;
     private readonly LlmClientSettings _settings;
 
-    public LlmInterpreter (IActionRegistry registry
-                         , ITelemetrySink  telemetry
-                         , ILlmClient      llmClient
-                         , LlmModelCatalog modelCatalog
-        , LlmClientSettings settings)
+    public LlmInterpreter (IActionRegistry   registry
+                         , ITelemetrySink    telemetry
+                         , ILlmClient        llmClient
+                         , LlmModelCatalog   modelCatalog
+                         , LlmClientSettings settings)
     {
         _registry     = registry;
         _telemetry    = telemetry;
@@ -39,8 +39,7 @@ public class LlmInterpreter : IInterpreter
     // }
 
     public async Task<InterpreterResult> InterpretWithContext (string              input
-                                                  , ConversationContext context
-            )
+                                                             , ConversationContext context)
     {
         _telemetry.Track("Interpreter.Start"
                        , $"Input='{input}'");
@@ -60,30 +59,31 @@ public class LlmInterpreter : IInterpreter
 
         var actionsSummary = BuildActionsSummary(_registry.Actions);
         var prompt         = await BuildPromptAsync(input.Trim());
-                               //, actionsSummary);
+        //, actionsSummary);
         if (context.ClarificationModeEnabled)
         {
             prompt += "\n\nCLARIFICATION_MODE = true\n";
         }
 
-        Console.WriteLine($"actionsSummary: {actionsSummary.Substring(0, 160)}...");
-        Console.WriteLine($"prompt: {prompt.Substring(0, 160)}...");
-        
+        // Console.WriteLine($"actionsSummary: {actionsSummary.Substring(0, 160)}...");
+        // Console.WriteLine($"prompt: {prompt.Substring(0, 160)}...");
+
         var rawResponse = string.Empty;
         var model       = string.Empty;
-        
+
         try
         {
             //rawResponse = _llmClient.SendAsync(prompt).GetAwaiter().GetResult();
 
             context.Metadata.TryGetValue("model"
                                        , out var requestedModel);
-            
+
             model = requestedModel ?? _settings.DefaultModel;
             var modelInfo = _modelCatalog.AvailableModels
-                                         .FirstOrDefault(info => info.Name.Equals(model, StringComparison.OrdinalIgnoreCase));
+                                         .FirstOrDefault(info => info.Name.Equals(model
+                                                                                , StringComparison.OrdinalIgnoreCase));
 
-            if (modelInfo is null 
+            if (modelInfo is null
              || modelInfo.IsUsable.Not())
             {
                 return new InterpreterResult
@@ -97,7 +97,8 @@ public class LlmInterpreter : IInterpreter
                              , Reason              = $"Model '{model}' is not usable on this system."
                        };
             }
-            
+
+            _telemetry.Track("LlmClient.Send", $"RequestedModel: {requestedModel}");
             rawResponse = await _llmClient.SendAsync(prompt
                                                    , requestedModel
                                                    , CancellationToken.None);
@@ -106,6 +107,7 @@ public class LlmInterpreter : IInterpreter
         catch (Exception ex)
         {
             var message = $"LLM call failed (using Model: {model}): {ex.GetType().Name} - {ex.Message}";
+            _telemetry.Track("LlmClient.Send", message);
             
             return new InterpreterResult
                    {
@@ -120,7 +122,7 @@ public class LlmInterpreter : IInterpreter
         }
 
         Console.WriteLine($"rawResponse: {rawResponse}");
-        
+
         var parsed = ParseModelResponse(rawResponse
                                       , _registry.Actions);
 
@@ -266,9 +268,6 @@ public class LlmInterpreter : IInterpreter
                      , CandidateActions  = null
                      , MissingParameters = null
                };
-
-
-
     }
 
     private static bool TryParse (string                      candidate
@@ -282,8 +281,8 @@ public class LlmInterpreter : IInterpreter
             var root = doc.RootElement;
             var actionName = root.TryGetProperty("actionName"
                                                , out var actProp)
-                ? actProp.GetString()
-                : null;
+                                     ? actProp.GetString()
+                                     : null;
 
             if (string.Equals(actionName
                             , "none"
@@ -343,7 +342,7 @@ public class LlmInterpreter : IInterpreter
                                             .ToList();
             }
 
-                        // Validate action exists and filter missing parameters
+            // Validate action exists and filter missing parameters
             var actionsList = actions.ToList();
 
             // ----------------------------------------------------
@@ -400,7 +399,7 @@ public class LlmInterpreter : IInterpreter
             {
                 failureType = InterpreterFailureType.NoMatchingAction;
             }
-
+            
             parsed = new ParsedModelResponse
                      {
                          ActionName        = actionName
@@ -426,7 +425,10 @@ public class LlmInterpreter : IInterpreter
         var first = text.IndexOf('{');
         var last  = text.LastIndexOf('}');
 
-        return (first >= 0 && last > first) ? text[first..(last + 1)] : text;
+        return (first >= 0 
+             && last > first) 
+                       ? text[first..(last + 1)] 
+                       : text;
     }
     
 }

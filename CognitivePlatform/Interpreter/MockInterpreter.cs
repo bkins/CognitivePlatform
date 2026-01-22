@@ -26,11 +26,13 @@ public class MockInterpreter : IInterpreter
         var match = _registry.Actions
                              .FirstOrDefault(metadata => metadata.Name
                                  .StartsWith(trimmed, StringComparison.OrdinalIgnoreCase));
-
+        
         var debugInfo = match is null
                             ? $"No action matched '{trimmed}'."
                             : $"Matched action '{match.Name}' using prefix rule.";
 
+        _telemetry.Track("Action.Match",  debugInfo );
+        
         _telemetry.Track("Interpreter.End", debugInfo);
 
         return new InterpreterResult

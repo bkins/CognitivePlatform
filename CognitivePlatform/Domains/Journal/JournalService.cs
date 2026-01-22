@@ -136,7 +136,8 @@ public sealed class JournalService : IJournalService
                                                             , revisions[0]
                                                             , revisions.Count > 1);
                       })
-                      .Where(revision => revision is not null)
+                      .Where(revision => revision is not null
+                                      && revision.Entry.DeletedUtc == null)
                       .OrderBy(revision => revision!.Entry.CreatedUtc)
                       .ToList()!;
     }
@@ -174,10 +175,12 @@ public sealed class JournalService : IJournalService
 
     public bool DeleteEntry(string id, string reason)
     {
-        var entry = _store.Get<JournalEntry>(id, partitionKey: null)!;
+        var entry = _store.Get<JournalEntry>(id, partitionKey: null);
+        
         if (entry is null) return false;
-
-        entry.DeletedUtc    = DateTime.UtcNow;
+        if (entry.DeletedUtc is not null) throw new InvalidOperationException("Entry is already deleted.");
+        
+        entry.DeletedUtc    = DateTimeOffset.UtcNow;
         entry.DeletedReason = reason;
 
         _store.Save(entry, entry.Id);
@@ -185,23 +188,14 @@ public sealed class JournalService : IJournalService
         return true;
     }
     
-    [Obsolete("Use DeleteEntry(string id, string reason)")]
-    public bool DeleteEntry (string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("id cannot be null or empty."
-                                      , nameof(id));
-
-        return _store.SoftDelete<JournalEntry>(id
-                                             , partitionKey: null);
-    }
-
     public List<JournalEntry> ListEntriesOnThisDay (int month
                                                   , int day)
     {
         return _store.List<JournalEntry>(partitionKey: nameof(JournalEntry))
-                     .Where(e => e.CreatedUtc.Month == month && e.CreatedUtc.Day == day)
-                     .OrderByDescending(e => e.CreatedUtc)
+                     .Where(entry => entry.CreatedUtc.Month == month
+                                  && entry.CreatedUtc.Day   == day
+                                  && entry.DeletedUtc       == null)
+                     .OrderByDescending(entry => entry.CreatedUtc)
                      .ToList();
     }
 

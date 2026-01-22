@@ -9,10 +9,9 @@ public sealed class JournalEntry
 
     public DateTimeOffset CreatedUtc { get; init; }
 
-    public DateTime? DeletedUtc    { get; set; }
+    public DateTimeOffset? DeletedUtc    { get; set; }
     public string?   DeletedReason { get; set; }
 }
-
 
 public enum MoodLevel
 {

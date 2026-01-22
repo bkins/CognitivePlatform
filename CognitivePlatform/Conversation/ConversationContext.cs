@@ -69,6 +69,7 @@ public class ConversationContext
     public bool    ClarificationModeEnabled  { get; set; }
     public string? ClarificationForAction    { get; set; }
     public string? ClarificationForParameter { get; set; }
+    public bool    HasConfirmedDelete        { get; set; }
 
     public ConversationContext (string sessionId)
     {
