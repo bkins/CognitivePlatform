@@ -15,6 +15,8 @@ using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
+using CognitivePlatform.Api.System;
+using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
 
 public partial class Program
@@ -34,20 +36,36 @@ public partial class Program
         builder.Configuration
                .AddJsonFile("appsettings.json")
                .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
-
+// Set loggers
 
         builder.Logging.ClearProviders();
-        builder.Logging.AddSimpleConsole(options =>
+
+        builder.Logging.AddConsoleFormatter<AdaptiveConsoleFormatter, SimpleConsoleFormatterOptions>(o =>
         {
-            options.SingleLine      = true;
-            options.TimestampFormat = "HH:mm:ss ";
+            o.TimestampFormat = "HH:mm:ss ";
         });
 
+        builder.Logging.AddConsole(o =>
+        {
+            o.FormatterName = "Adaptive";
+        });
+
+        builder.Logging.AddFilter((provider, category, level) =>
+        {
+            if (!provider.Contains("Console")) return false;
+    
+            // Only log Diagnostics at Information and above
+            if (category.StartsWith("Diagnostics"))
+                return level >= LogLevel.Information;
+    
+            // Log everything else at your desired level
+            return level >= LogLevel.Information;
+        });
+        
 // Core services
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
         builder.Services.AddSingleton<IConversationOrchestrator, ConversationOrchestrator>();
-        builder.Services.AddSingleton<IExecutionEngine>(sp =>
-                                                                new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>(), sp));
+        builder.Services.AddSingleton<IExecutionEngine>(sp => new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>(), sp));
         builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
         builder.Services.AddSingleton<ConversationContextStore>();
 
@@ -110,7 +128,30 @@ public partial class Program
 // Scalar setup
         builder.Services.AddEndpointsApiExplorer();
         
+// Register SystemService
+        builder.Services.AddSingleton<SystemService>(sp =>
+        {
+            var environment = sp.GetRequiredService<IHostEnvironment>();
+
+            // Reuse existing resolved paths
+            var dataRoot = Path.Combine(environment.ContentRootPath
+                                      , "Data"
+                                      , environment.EnvironmentName);
+            var dbPath = Path.Combine(dataRoot
+                                    , "platform.db");
+
+            return new SystemService(environment
+                                   , dataRoot
+                                   , dbPath);
+        });
+        
+// Build App
         var app = builder.Build();
+        
+        var diagnosticsLogger = app.Services
+                                   .GetRequiredService<ILoggerFactory>()
+                                   .CreateLogger("Diagnostics.Program");
+        
         if (app.Environment.IsDevelopment())
         {
             app.MapScalarApiReference(options =>
@@ -133,6 +174,9 @@ public partial class Program
         app.UseAuthorization();
 
         app.MapControllers();
+        
+// ---------- Minimal APIs (Health and System info) ----------
+// ---------- (These should not relate to business logic) ----        
 
         app.MapGet("/health/ready", () => StartupState.IsReady
                                                   ? Results.Ok("Ready")
@@ -140,6 +184,14 @@ public partial class Program
 
         app.MapGet("/telemetry/logs", () => ConsoleTelemetrySink.InMemoryTelemetry);
 
+        app.MapGet("/system/environment",
+                   (SystemService systemService) =>
+                           Results.Ok(systemService.GetEnvironment()));
+
+        app.MapGet("/system/version",
+                   (SystemService systemService) =>
+                           Results.Ok(systemService.GetVersion()));
+        
 // Start listening immediately
         var runTask = app.RunAsync();
 
@@ -163,6 +215,17 @@ public partial class Program
             log.LogInformation("LLM Default Model Selected: {Model}", settings.DefaultModel);
             //swProbe.Stop();
             log.LogInformation($"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)");
+            
+            var sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
+            
+            var envInfo = sysInfo.GetEnvironment();
+            diagnosticsLogger.LogInformation("SystemInfo: /system/environment");
+            diagnosticsLogger.LogInformation("{SystemEnvironment}", envInfo.ToString());
+
+            var verInfo = sysInfo.GetVersion();
+            diagnosticsLogger.LogInformation("SystemInfo: /system/version");
+            diagnosticsLogger.LogInformation("{SystemVersion}", verInfo.ToString());
+
         }
 
 // ---------- READY ----------
