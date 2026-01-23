@@ -32,7 +32,10 @@ public partial class Program
                                                    {
                                                            Args            = args
                                                          , EnvironmentName = env
+                                                         //, ApplicationName = $"CognitivePlatform.Api.{env}"
                                                    });
+      
+        
         builder.Configuration
                .AddJsonFile("appsettings.json")
                .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
@@ -147,6 +150,12 @@ public partial class Program
         
 // Build App
         var app = builder.Build();
+        
+        using (var scope = app.Services.CreateScope())
+        {
+            var guard = scope.ServiceProvider.GetRequiredService<StartupInvariantGuard>();
+            guard.Enforce();
+        }
         
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()
@@ -265,6 +274,7 @@ public partial class Program
             var connectionString = $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
 
             builder.Services.AddSingleton<IObjectStore>( _ => new SqliteObjectStore(connectionString));
+            builder.Services.AddSingleton<StartupInvariantGuard>();
         }
     }
 }

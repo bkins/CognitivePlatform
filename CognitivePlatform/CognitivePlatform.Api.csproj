@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName Condition="'$(AssemblyName)' == ''">CognitivePlatform.Api</AssemblyName>
+    <FileDescription Condition="'$(FileDescription)' == ''">CognitivePlatform.Api</FileDescription>
   </PropertyGroup>
 
   <ItemGroup>
