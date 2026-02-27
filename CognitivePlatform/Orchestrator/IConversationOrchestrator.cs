@@ -11,6 +11,10 @@ public interface IConversationOrchestrator
 
     IAsyncEnumerable<string> StreamAsync (ConverseRequest   request
                                         , CancellationToken ct = default);
+
+    Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
+                                        , ConverseResponse  response
+                                        , CancellationToken ct );
 }
 
 /// <summary>

@@ -8,3 +8,4 @@ public sealed record JournalEntryWithRevision
   , JournalRevision LatestRevision
   , bool            IsEdited
 );
+

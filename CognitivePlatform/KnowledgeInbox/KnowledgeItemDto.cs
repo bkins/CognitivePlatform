@@ -21,6 +21,8 @@ public sealed class KnowledgeItemDto
     // Organization
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
+    public bool IsEdited { get; set; }
+    
     // Optional signals (nullable on purpose)
     public int? Importance { get; init; }
     public int? Urgency    { get; init; }

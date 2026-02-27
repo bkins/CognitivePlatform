@@ -59,6 +59,7 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
                                , LastModifiedAt = entryWithRevision.Entry.CreatedUtc // TODO: update when journal edits are introduced
                                , Status         = KnowledgeStatus.Active
                                , Tags           = tags
+                               , IsEdited       = entryWithRevision.IsEdited
                                , Importance     = null
                                , Urgency        = null
                          };

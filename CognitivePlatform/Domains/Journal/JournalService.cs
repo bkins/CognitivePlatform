@@ -28,13 +28,16 @@ public sealed class JournalService : IJournalService
     private readonly IObjectStore               _store;
     private readonly ILogger<JournalService>    _logger;
     private readonly IJournalRevisionRepository _revisionRepository;
+    private readonly IJournalDraftRepository    _draftRepository;
 
     public JournalService (IObjectStore               store
                          , IJournalRevisionRepository revisionRepository
+                           , IJournalDraftRepository draftRepository
                          , ILogger<JournalService>    logger)
     {
         _store              = store;
         _revisionRepository = revisionRepository;
+        _draftRepository    = draftRepository;
         _logger             = logger;
     }
 
@@ -45,18 +48,18 @@ public sealed class JournalService : IJournalService
                                           , int?                  moodLevel
                                           , IReadOnlyList<string> mediaPaths)
     {
-        var entryId = Guid.NewGuid().ToString("N");
+        var entryId = Guid.NewGuid();//.ToString("N");
 
         var entry = new JournalEntry
                     {
-                            Id         = entryId,
-                            CreatedUtc = DateTimeOffset.UtcNow
+                            Id = entryId.ToString("N")
+                          , CreatedUtc = DateTimeOffset.UtcNow
                     };
 
         var revision = new JournalRevision
                        {
                                RevisionId = Guid.NewGuid().ToString("N")
-                             , EntryId    = entryId
+                             , EntryId    = entryId.ToString("N")
                              , CreatedUtc = DateTimeOffset.UtcNow
                              , Text       = text
                              , Tags       = tags
@@ -67,10 +70,23 @@ public sealed class JournalService : IJournalService
                        };
 
         var actualEntryId = _store.Save(entry, entry.Id);
-        if (entryId != actualEntryId) _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service.  Look into why.");
+        if (entryId.ToString("N") != actualEntryId) _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service.  Look into why.");
         
         _store.Save(revision, revision.RevisionId);
 
+        // TODO: Not sure if this is needed. Consider removing the concept of a "draft" and just having the latest revision be the "draft"
+        //  until it's finalized? The draft concept was originally intended to support a "save draft" vs "publish" flow,
+        //  but that may be overcomplicating things for now.
+        await _draftRepository.AddAsync(new JournalDraft
+                                        {
+                                                Id         = entryId
+                                              , Text       = text
+                                              , Tags       = tags
+                                              , Mood       = mood
+                                              , MoodScore  = moodScore
+                                              , State      = JournalDraftState.Local
+                                              , CreatedUtc = DateTimeOffset.UtcNow
+                                        });
         return actualEntryId;
     }
 
@@ -160,7 +176,7 @@ public sealed class JournalService : IJournalService
         var revisions = _revisionRepository.GetRevisionsByEntryId(id);
 
         if (revisions.Count == 0) throw new InvalidOperationException($"JournalEntry {id} has no revisions.");
-
+        
         var latest    = revisions[0];
         var wasEdited = revisions.Count > 1;
 

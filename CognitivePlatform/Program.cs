@@ -13,6 +13,7 @@ using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.System;
@@ -161,25 +162,28 @@ public partial class Program
                                    .GetRequiredService<ILoggerFactory>()
                                    .CreateLogger("Diagnostics.Program");
         
-        if (app.Environment.IsDevelopment())
+        app.MapScalarApiReference(options =>
         {
-            app.MapScalarApiReference(options =>
-            {
-                //http://localhost:5273/scalar
-                options.WithTitle("Cognitive Platform API")
-                       .WithTheme(ScalarTheme.Mars)
-                       .WithDefaultHttpClient(ScalarTarget.CSharp
-                                            , ScalarClient.HttpClient);
-            });
-        }
+            //http://localhost:5273/scalar
+            options.WithTitle($"Cognitive Platform API ({app.Environment.EnvironmentName})")
+                   .WithTheme(ScalarTheme.Purple)
+                   .WithDefaultHttpClient(ScalarTarget.CSharp
+                                        , ScalarClient.HttpClient).Title=$"Cognitive Platform API ({app.Environment.EnvironmentName})";
+        });
+        
+        // if (app.Environment.IsDevelopment())
+        // {
+        //     
+        // }
         
 // ---------- HTTP PIPELINE (LISTENING STARTS) ----------
 
-        if (app.Environment.IsDevelopment())
-        {
-            app.MapOpenApi();
-        }
-
+        // if (app.Environment.IsDevelopment())
+        // {
+        //     
+        // }
+        app.MapOpenApi();
+        
         app.UseAuthorization();
 
         app.MapControllers();
@@ -200,7 +204,34 @@ public partial class Program
         app.MapGet("/system/version",
                    (SystemService systemService) =>
                            Results.Ok(systemService.GetVersion()));
-        
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapPost("/debug/generate-journal"
+                      , async ( int             paragraphs
+                              , int             lineLength
+                              , bool            includeUnicode
+                              , IJournalService journalService ) =>
+                        {
+                            var content = JournalStressGenerator.Generate(
+                                paragraphs
+                              , lineLength
+                              , includeUnicode);
+
+                            var entryId = await journalService.AddEntryAsync(content
+                                                                           , ["testTag1", "testTag2"]
+                                                                           , "Content"
+                                                                           , 3
+                                                                           , 4
+                                                                           , null!);
+
+                            return Results.Ok(new
+                                              {
+                                                      entryId
+                                                    , Length = content.Length
+                                              });
+                        });
+        }
+
 // Start listening immediately
         var runTask = app.RunAsync();
 
@@ -228,13 +259,10 @@ public partial class Program
             var sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
             
             var envInfo = sysInfo.GetEnvironment();
-            diagnosticsLogger.LogInformation("SystemInfo: /system/environment");
             diagnosticsLogger.LogInformation("{SystemEnvironment}", envInfo.ToString());
 
             var verInfo = sysInfo.GetVersion();
-            diagnosticsLogger.LogInformation("SystemInfo: /system/version");
             diagnosticsLogger.LogInformation("{SystemVersion}", verInfo.ToString());
-
         }
 
 // ---------- READY ----------
@@ -261,11 +289,11 @@ public partial class Program
                 settings.DefaultModel = model.Name;
         }
 
-        void BuildDataPersistenceLayer(WebApplicationBuilder builder)
+        void BuildDataPersistenceLayer(WebApplicationBuilder dataBuilder)
         {
-            var dataDirectory = Path.Combine(builder.Environment.ContentRootPath
+            var dataDirectory = Path.Combine(dataBuilder.Environment.ContentRootPath
                                            , "Data"
-                                           , builder.Environment.EnvironmentName);
+                                           , dataBuilder.Environment.EnvironmentName);
 
             Directory.CreateDirectory(dataDirectory);
 
@@ -273,8 +301,10 @@ public partial class Program
 
             var connectionString = $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
 
-            builder.Services.AddSingleton<IObjectStore>( _ => new SqliteObjectStore(connectionString));
-            builder.Services.AddSingleton<StartupInvariantGuard>();
+            dataBuilder.Services.AddSingleton<IObjectStore>( _ => new SqliteObjectStore(connectionString));
+            dataBuilder.Services.AddSingleton<StartupInvariantGuard>();
+            
+            dataBuilder.Services.AddSingleton<IIdempotencyStore, ObjectStoreIdempotencyStore>();
         }
     }
 }

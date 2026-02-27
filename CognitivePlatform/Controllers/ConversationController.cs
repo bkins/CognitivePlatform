@@ -33,6 +33,7 @@ public class ConversationController : ControllerBase
         _telemetry.Track("Converse.Start", $"Input: {request.Input ?? "Not `request.Input` provided."}");
         
         var result = await _orchestrator.ConverseAsync(request);
+        
         sw.Stop();
         var ts                     = sw.Elapsed;
         var totalMinutesAndSeconds = $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";          // Seconds within the current minute
