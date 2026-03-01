@@ -20,7 +20,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IExecutionEngine         _execution;
     private readonly ConversationContextStore _contextStore;
     private readonly ITelemetrySink           _telemetry;
-    private readonly FastPathResolver         _fastPath;
+    private readonly IFastPathResolver         _fastPath;
     private readonly ILlmClient               _llmClient;
     private readonly IIdempotencyStore        _idempotencyStore;
 
@@ -29,7 +29,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IExecutionEngine                                               execution
                                    , ConversationContextStore                                       contextStore
                                    , ITelemetrySink                                                 telemetry
-                                   , FastPathResolver                                               fastPathResolver
+                                   , IFastPathResolver                                               fastPathResolver
                                    , ILlmClient                                                     llmClient
                                    , IIdempotencyStore                                              idempotencyStore )
     {
@@ -152,8 +152,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             var response = new ConverseResponse
                            {
-                                   Message = result,
-                                   Debug   = $"FastPath → Action={actionMeta!.Name}, Params=[{parameters}]"
+                                   Message = result
+                                 , Debug = $"FastPath → Action={actionMeta!.Name}, Params=[{parameters}]"
                            };
 
             return await FinalizeAsync(request, response, ct);

@@ -58,6 +58,8 @@ public sealed class JournalActions
                                                                , Optional = true)]
                                    string? media = null)
     {
+        if (mood is not null) mood = mood.Replace(@"""", "");
+        
         var tagList   = SplitCommaSeparated(tags);
         var mediaList = SplitCommaSeparated(media);
         var score     = TryParseMoodScore(moodScore);
@@ -223,6 +225,8 @@ public sealed class JournalActions
     {
         if (string.IsNullOrWhiteSpace(value)) return new List<string>();
 
+        value = value.Replace(@""""
+                            , "");
         return value.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .Select(item => item.Trim())
                     .Where(item => item.Length > 0)

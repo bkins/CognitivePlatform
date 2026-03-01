@@ -9,7 +9,7 @@ using CognitivePlatform.Api.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Interpreter;
 
-public sealed class FastPathResolver
+public sealed class FastPathResolver : IFastPathResolver
 {
     private readonly IActionRegistry _registry;
 
@@ -44,7 +44,10 @@ public sealed class FastPathResolver
         // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
         // ------------------------------------------------------------
         if (TryResolveColonPrefix(input, out action, out parameters))
+        {
             return true;
+        }
+
         // ------------------------------------------------------------
         // MODE 1.2: PREFIX COMMANDS
         // ------------------------------------------------------------
@@ -70,44 +73,50 @@ public sealed class FastPathResolver
         if (colonIndex <= 0) return false;
 
         var prefix  = input[..colonIndex].Trim();       // e.g. "Journal"
-        var payload = input[(colonIndex + 1)..].Trim(); // everything after ':'
-
         if (string.IsNullOrWhiteSpace(prefix)) return false;
-        if (string.IsNullOrWhiteSpace(payload)) return false;
 
-        // TODO: Generalize for any action!!
-        // Alias map (keep minimal; expand later)
         if (prefix.Equals("journal", StringComparison.OrdinalIgnoreCase))
         {
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");
             if (action is null) return false;
 
-            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                         {
-                                 ["text"] = payload
-                         };
+            input = input.Replace("journal:"
+                                , "text:"
+                                , StringComparison.OrdinalIgnoreCase);
+            
+            parameters = ParseToDictionary(input);
+            
             return true;
         }
 
-        // Optional: allow exact action name prefix: "AddJournalEntry: ..."
-        var direct = _registry.Actions.FirstOrDefault(action => action.Name.Equals(prefix, StringComparison.OrdinalIgnoreCase));
-        if (direct is null || direct.Parameters.Count <= 0) return false;
-        
-        // Only safe if exactly one required param
-        var required = direct.Parameters.Where(p => p.IsOptional.Not()).ToList();
-        
-        if (required.Count != 1) return false;
-        
-        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                     {
-                             [required[0].Name] = payload
-                     };
-        
-        action = direct;
-        
-        return true;
+        // // Optional: allow exact action name prefix: "AddJournalEntry: ..."
+        // var direct = _registry.Actions.FirstOrDefault(action => action.Name.Equals(prefix, StringComparison.OrdinalIgnoreCase));
+        // if (direct is null || direct.Parameters.Count <= 0) return false;
+        //
+        // // Only safe if exactly one required param
+        // var required = direct.Parameters.Where(p => p.IsOptional.Not()).ToList();
+        //
+        // if (required.Count != 1) return false;
+        //
+        // parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        //              {
+        //                      [required[0].Name] = payload
+        //              };
+        //
+        // action = direct;
+        //
+        // return true;
+        return false;
     }
 
+    public static Dictionary<string, string> ParseToDictionary(string input)
+    {
+        return input.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(line => line.Split(':', 2, StringSplitOptions.TrimEntries))
+                    .Where(parts => parts.Length == 2)
+                    .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.OrdinalIgnoreCase);
+    }
+    
     // ================================================================
     // PREFIX COMMAND MODE (/journal add "text")
     // ================================================================

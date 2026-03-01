@@ -28,6 +28,7 @@ public sealed class LlmStartupProbe
 
         foreach (var model in candidateModels)
         {
+            _log.LogInformation($"Probing {model}...");
             var probe = await _llm.ProbeAsync(model, ct);
 
             results.Add(new LlmModelInfo(model

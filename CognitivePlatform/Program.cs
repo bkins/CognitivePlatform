@@ -80,7 +80,7 @@ public partial class Program
                                                , key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
                                                                            , sp.GetRequiredService<ITelemetrySink>()));
 
-        builder.Services.AddSingleton<FastPathResolver>();
+        builder.Services.AddSingleton<IFastPathResolver, FastPathResolver>();
 
 // LLM
         builder.Services.AddHttpClient();

@@ -12,21 +12,18 @@ public sealed class DebugFastPath
 {
     private readonly IActionRegistry _registry;
 
-    public DebugFastPath(IActionRegistry registry)
+    public DebugFastPath( IActionRegistry registry )
     {
         _registry = registry;
     }
 
-    [NaturalLanguageAction(
-        Description = "Shows diagnostic information about all FastPath-enabled actions.",
-        Examples = new[]
-        {
-            "Show fast path diagnostics.",
-            "Debug fast path actions.",
-            "What actions support fast-path?"
-        },
-        AllowsClarification = false,
-        Category = "debug")]
+    [NaturalLanguageAction(Description = "Shows diagnostic information about all FastPath-enabled actions."
+                         , Examples = new[]
+                                      {
+                                              "Show fast path diagnostics.", "Debug fast path actions.", "What actions support fast-path?"
+                                      }
+                         , AllowsClarification = false
+                         , Category = "debug")]
     public string ShowFastPathDiagnostics()
     {
         var sb = new StringBuilder();
@@ -53,20 +50,22 @@ public sealed class DebugFastPath
                                  .Where(parameter => parameter.IsOptional
                                                               .Not())
                                  .ToList();
-            
+
             var optional = action.Parameters
                                  .Where(parameter => parameter.IsOptional)
                                  .ToList();
 
             sb.Append("Required Parameters: ");
             sb.AppendLine(required.Count == 0
-                ? "(none)"
-                : string.Join(", ", required.Select(r => $"{r.Name}:{r.ParameterType.Name}")));
+                                  ? "(none)"
+                                  : string.Join(", "
+                                              , required.Select(r => $"{r.Name}:{r.ParameterType.Name}")));
 
             sb.Append("Optional Parameters: ");
             sb.AppendLine(optional.Count == 0
-                ? "(none)"
-                : string.Join(", ", optional.Select(o => $"{o.Name}:{o.ParameterType.Name}")));
+                                  ? "(none)"
+                                  : string.Join(", "
+                                              , optional.Select(o => $"{o.Name}:{o.ParameterType.Name}")));
 
             // Diagnostic rule: FastPathResolver only considers actions with exactly 1 required param.
             if (required.Count == 1)
