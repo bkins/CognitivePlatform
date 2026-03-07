@@ -191,9 +191,14 @@ public partial class Program
 // ---------- Minimal APIs (Health and System info) ----------
 // ---------- (These should not relate to business logic) ----        
 
-        app.MapGet("/health/ready", () => StartupState.IsReady
-                                                  ? Results.Ok("Ready")
-                                                  : Results.StatusCode(503));
+        app.MapGet("/health/ready", (ITelemetrySink telemetrySink, string caller = "N/A") =>
+        {
+            telemetrySink.Track("Ready?"
+                              , $"Returns Ready or 503 :: Called by: {caller}");
+            return StartupState.IsReady
+                           ? Results.Ok("Ready")
+                           : Results.StatusCode(503);
+        });
 
         app.MapGet("/telemetry/logs", () => ConsoleTelemetrySink.InMemoryTelemetry);
 

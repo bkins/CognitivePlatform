@@ -2,7 +2,8 @@ namespace CognitivePlatform.Api.KnowledgeInbox;
 
 public sealed class KnowledgeItemDto
 {
-    public Guid Id { get; init; }
+    public Guid   Id       { get; init; }
+    public string IdString => Id.ToString(); // convenience for SQLite store
 
     // What kind of thing is this?
     public KnowledgeKind Kind { get; init; }
@@ -32,6 +33,7 @@ public enum KnowledgeKind
 {
     Journal
   , Task
+  , Pending // queued offline — kind not yet assigned by API
 }
 
 public enum KnowledgeStatus
