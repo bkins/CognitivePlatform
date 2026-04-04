@@ -10,6 +10,8 @@ public sealed class LlmStartupProbe
     private readonly LlmModelCatalog          _catalog;
     private readonly ILogger<LlmStartupProbe> _log;
 
+    public bool ShouldProbeModels { get; set; } = true;
+    
     public LlmStartupProbe (ILlmClient               llm
                           , LlmModelCatalog          catalog
                           , ILogger<LlmStartupProbe> log)
@@ -22,6 +24,27 @@ public sealed class LlmStartupProbe
     public async Task RunAsync (IEnumerable<string> candidateModels
                               , CancellationToken   ct)
     {
+
+        if (ShouldProbeModels)
+        {
+            await ProbeModels(candidateModels
+                            , ct);
+        }
+    }
+
+    public async Task RunAsync( string candidateModel
+                              , CancellationToken   ct )
+    {
+        if (ShouldProbeModels)
+        {
+            await ProbeModels(candidateModel
+                            , ct);
+        }
+    }
+    private async Task ProbeModels( IEnumerable<string> candidateModels
+                                  , CancellationToken   ct )
+    {
+
         _log.LogInformation("Starting Llm Startup Probe...");
         
         var results = new List<LlmModelInfo>();
@@ -44,7 +67,27 @@ public sealed class LlmStartupProbe
         LogSummary(results);
     }
 
-    private void LogSummary (IEnumerable<LlmModelInfo> models)
+    private async Task ProbeModels( string            candidateModel
+                                  , CancellationToken ct )
+    {
+        _log.LogInformation("Starting Llm Startup Probe...");
+
+        _log.LogInformation($"Probing {candidateModel}...");
+        var probe = await _llm.ProbeAsync(candidateModel
+                                        , ct);
+
+        var result = new LlmModelInfo(candidateModel
+                                    , probe.IsUsable
+                                    , probe.Error
+                                    , SupportsChat: probe.IsUsable
+                                    , SupportsStreaming: probe.IsUsable);
+
+        _catalog.Add(result);
+
+        LogSummary(result);
+    }
+
+    private void LogSummary( IEnumerable<LlmModelInfo> models )
     {
         _log.LogInformation("LLM Startup Probe Results:");
 
@@ -52,7 +95,8 @@ public sealed class LlmStartupProbe
         {
             if (model.IsUsable)
             {
-                _log.LogInformation("  ✔ {Model} [OK]", model.Name);
+                _log.LogInformation("  ✔ {Model} [OK]"
+                                  , model.Name);
             }
             else
             {
@@ -63,7 +107,24 @@ public sealed class LlmStartupProbe
         }
 
     }
-    
+
+    private void LogSummary( LlmModelInfo model )
+    {
+        _log.LogInformation("LLM Startup Probe Results:");
+
+        if (model.IsUsable)
+        {
+            _log.LogInformation("  ✔ {Model} [OK]"
+                              , model.Name);
+        }
+        else
+        {
+            _log.LogWarning("  ✖ {Model.Name} [FAILED] — {Model.FailureReason}"
+                          , model.Name
+                          , model.FailureReason ?? "Unknown error");
+        }
+
+    }
     // private void LogSummary (IEnumerable<LlmModelInfo> models)
     // {
     //     var sb = new StringBuilder();

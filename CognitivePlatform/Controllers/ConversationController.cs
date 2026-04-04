@@ -3,6 +3,8 @@
     using CognitivePlatform.Api.Conversation;
     using CognitivePlatform.Api.Orchestrator;
     using CognitivePlatform.Api.Telemetry;
+    using CognitivePlatform.Api.Telemetry.Events;
+    using CP.Shared.Primitives.Avails.Extensions;
     using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -14,10 +16,12 @@ public class ConversationController : ControllerBase
     private readonly IConversationOrchestrator _orchestrator;
     private readonly ITelemetrySink            _telemetry;
 
-    public ConversationController(IConversationOrchestrator orchestrator, ITelemetrySink telemetry)
+    public ConversationController( IConversationOrchestrator orchestrator
+                                 , ITelemetrySink            telemetry
+                                 , TelemetryContext          telemetryContext )
     {
-        _orchestrator = orchestrator;
-        _telemetry    = telemetry;
+        _orchestrator     = orchestrator;
+        _telemetry        = telemetry;
     }
 
     [HttpPost("converse")]
@@ -28,19 +32,9 @@ public class ConversationController : ControllerBase
             request.Streaming = false;
         }
 
-        var sw = new Stopwatch();
-        sw.Start();
-        _telemetry.Track("Converse.Start", $"Input: {request.Input ?? "Not `request.Input` provided."}");
-        
         var result = await _orchestrator.ConverseAsync(request);
-        
-        sw.Stop();
-        var ts                     = sw.Elapsed;
-        var totalMinutesAndSeconds = $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";          // Seconds within the current minute
-        
-        result.Debug += $"{Environment.NewLine}{totalMinutesAndSeconds}";
-        
-        _telemetry.Track("Converse.End", totalMinutesAndSeconds);
+
+        if (result.Success.Not()) return BadRequest(result);
         
         return Ok(result);
     }
@@ -49,10 +43,7 @@ public class ConversationController : ControllerBase
     public async Task StreamConverse ([FromBody] ConverseRequest request
                                     , CancellationToken          ct)
     {
-        var sw = new Stopwatch();
-        sw.Start();
-        _telemetry.Track("StreamConverse.Start", request.Input ?? "Not `request.Input` provided.");
-
+        
         Response.Headers.Append("Content-Type",      "text/event-stream");
         Response.Headers.Append("Cache-Control",     "no-cache");
         Response.Headers.Append("X-Accel-Buffering", "no");
@@ -63,8 +54,5 @@ public class ConversationController : ControllerBase
             await Response.Body.FlushAsync(ct);
         }
         
-        sw.Stop();
-        _telemetry.Track("StreamConverse.End", (sw.ElapsedMilliseconds/1000).ToString());
-
     }
 }

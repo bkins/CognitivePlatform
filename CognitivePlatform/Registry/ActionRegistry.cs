@@ -9,13 +9,10 @@ namespace CognitivePlatform.Api.Registry;
 public class ActionRegistry : IActionRegistry
 {
     private readonly List<ActionMetadata> _actions = new();
-    private readonly ITelemetrySink       _telemetry;
     private readonly List<ActionMetadata> _fastPathActions = new();
 
-    public ActionRegistry (ITelemetrySink   telemetry)
+    public ActionRegistry ()
     {
-        _telemetry = telemetry;
-        
         LoadActions();
         //BuildFromAssembly(Assembly.GetExecutingAssembly());
     }
@@ -103,8 +100,6 @@ public class ActionRegistry : IActionRegistry
                                                        , actionAttribute);
 
                 _actions.Add(actionMetadata);
-                
-                _telemetry.Track("Registry.ActionDiscovered", actionMetadata.Name);
             }
         }
     }

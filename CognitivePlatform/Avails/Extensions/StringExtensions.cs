@@ -1,5 +1,6 @@
 namespace CognitivePlatform.Api.Avails.Extensions;
 
+[Obsolete("Use CP.Shared.Primitives.Avails.Extensions instead")]
 public static class StringExtensions
 {
     extension(string? value)

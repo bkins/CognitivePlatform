@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,6 +7,7 @@
     <AssemblyName Condition="'$(AssemblyName)' == ''">CognitivePlatform.Api</AssemblyName>
     <FileDescription Condition="'$(FileDescription)' == ''">CognitivePlatform.Api</FileDescription>
     <ApplicationIcon>appicon_background.ico</ApplicationIcon>
+    <UserSecretsId>1be4e63f-a96d-44f6-b08f-ed88ee0739bc</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

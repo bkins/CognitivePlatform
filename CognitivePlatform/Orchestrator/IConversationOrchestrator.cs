@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Controllers;
 using CognitivePlatform.Api.Models;
@@ -14,6 +15,7 @@ public interface IConversationOrchestrator
 
     Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
                                         , ConverseResponse  response
+                                        , Stopwatch         sw
                                         , CancellationToken ct );
 }
 

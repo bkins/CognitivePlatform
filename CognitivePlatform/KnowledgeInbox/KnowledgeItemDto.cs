@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace CognitivePlatform.Api.KnowledgeInbox;
 
 public sealed class KnowledgeItemDto
@@ -20,7 +22,7 @@ public sealed class KnowledgeItemDto
     public KnowledgeStatus Status { get; set; }
 
     // Organization
-    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+    public IEnumerable Tags { get; init; } = Array.Empty<string>();
 
     public bool IsEdited { get; set; }
     

@@ -12,16 +12,18 @@ public interface IObjectStore
     /// - Otherwise generate a new GUID string
     /// The resolved Id is returned and (if possible) written back to the object's "Id" property.
     /// </summary>
-    string Save<T> (T       value
-                  , string? partitionKey = null
-                  , string? id           = null);
+    Task<string> Save<T> (T       value
+                        , string? partitionKey = null
+                        , string? id           = null);
 
     /// <summary>
     /// Retrieves an object by Id (and optional partition) or null if not found / soft-deleted.
     /// </summary>
     T? Get<T> (string  id
              , string? partitionKey = null);
-
+    T? GetDeleted<T> (string  id
+                    , string? partitionKey = null);
+    
     /// <summary>
     /// Lists all objects of type <typeparamref name="T"/> filtered by:
     /// - optional partitionKey

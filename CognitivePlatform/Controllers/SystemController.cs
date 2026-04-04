@@ -17,7 +17,7 @@ public class SystemController : ControllerBase
     [HttpGet("environment")]
     public IActionResult Get()
     {
-        _telemetry.Track("SystemController.Get.Started", "Environment");
+        _telemetry.Track("SystemController.Get.Started; Environment");
         
         return Ok(new { Pong = "Pong" });
     }

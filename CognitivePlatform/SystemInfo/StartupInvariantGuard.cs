@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CognitivePlatform.Api.Models.SystemInfo;
+using CognitivePlatform.Api.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.System;

@@ -1,20 +1,30 @@
-using System;
+using CognitivePlatform.Api.Telemetry.Events;
+using Microsoft.Extensions.Logging;
 
 namespace CognitivePlatform.Api.Telemetry;
 
 public class ConsoleTelemetrySink : ITelemetrySink
 {
-    public static string InMemoryTelemetry;
-    
-    public void Track(string eventName, string detail)
+    private readonly ILogger<ConsoleTelemetrySink> _logger;
+    private readonly TelemetryContext              _context;
+
+    public ConsoleTelemetrySink( ILogger<ConsoleTelemetrySink> logger
+                               , TelemetryContext              context )
     {
-        var currentColor = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        var message = $"{DateTime.Now.TimeOfDay:g} [TELE] [{eventName}] {detail}";
-        InMemoryTelemetry += $"{Environment.NewLine}{message}";
+        _logger  = logger;
+        _context = context;
+    }
+
+    public void Track(TelemetryEvent telemetryEvent)
+    {
+        var line = telemetryEvent.ToString();
         
-        Console.WriteLine(message);
-        
-        Console.ForegroundColor = currentColor;
+        Console.WriteLine(line);
+    }
+
+    public void Track( string line )
+    {
+        var output = line + "; TODO: Create a Telemetry Event to handle this";
+        Console.WriteLine(output);
     }
 }

@@ -74,7 +74,7 @@ public sealed class JournalActions
         var shortenTextBy = text.Length < 25
                                     ? text.Length
                                     : 25;
-        return $"Journal entry added: '{text[..shortenTextBy]}'.";
+        return $"Journal entry added: '{text[..shortenTextBy]}...'";
     }
 
     // ----------------------------------------------------------------------

@@ -1,3 +1,4 @@
+using System.Collections;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
@@ -38,7 +39,7 @@ public class TaskKnowledgeSource : IKnowledgeSource
         // TODO: introduce filtering
         // NOTE: Filtering is intentionally deferred to the aggregator for now
 
-        var tasks = _taskService.ListTasks();
+        var tasks = _taskService.List();
 
         foreach (var task in tasks)
         {
@@ -46,22 +47,24 @@ public class TaskKnowledgeSource : IKnowledgeSource
              && task.Id != query.Id.Value.ToString("N"))
                 continue;
 
-            IReadOnlyList<string> tags = task.Tags is { Count: > 0 }
-                                                 ? task.Tags
-                                                 : Array.Empty<string>();
-            yield return new KnowledgeItemDto
-                         {
-                                 Id        = Guid.Parse(task.Id)
-                               , Kind      = Kind
-                               , Title     = DeriveTitle(task)
-                               , Summary   = DeriveSummary(task)
-                               , CreatedAt = task.CreatedAt
-                                 // , LastModifiedAt = task.TODO
-                               , Status     = GetStatus(task)
-                               , Tags       = tags
-                               , Importance = null
-                               , Urgency    = null
-                         };
+            IEnumerable tags = task.Tags is { Count: > 0 }
+                                       ? task.Tags
+                                       : Array.Empty<string>();
+            var item = new KnowledgeItemDto
+                       {
+                               Id        = Guid.Parse(task.Id)
+                             , Kind      = Kind
+                             , Title     = DeriveTitle(task)
+                             , Summary   = DeriveSummary(task)
+                             , CreatedAt = task.CreatedAt
+                               // , LastModifiedAt = task.TODO
+                             , Status     = GetStatus(task)
+                             , Tags       = tags
+                             , Importance = null
+                             , Urgency    = null
+                       };
+            
+            yield return item;
         }
     }
 
@@ -98,17 +101,22 @@ public class TaskKnowledgeSource : IKnowledgeSource
 
     private static string DeriveTitle (TaskItem task)
     {
-        return task.Title
+        return task.ShortDescription
                    .Length <= 60
-                       ? task.Title
-                       : string.Concat(task.Title.AsSpan(0, 57), "…");
+                       ? task.ShortDescription
+                       : string.Concat(task.ShortDescription.AsSpan(0, 57), "…");
     }
 
     private static string? DeriveSummary (TaskItem task)
     {
-        return task.Title
+        if (task.Details is null)
+        {
+            return string.Empty;
+        }
+        
+        return task.Details?
                    .Length <= 140
                        ? null
-                       : string.Concat(task.Title.AsSpan(0, 137), "…");
+                       : string.Concat(task.Details.AsSpan(0, 137), "…");
     }
 }

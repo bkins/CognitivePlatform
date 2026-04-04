@@ -18,7 +18,7 @@ public class MockInterpreter : IInterpreter
 
     public async Task<InterpreterResult> Interpret(string input)
     {
-        _telemetry.Track("Interpreter.Start", $"Input='{input}'");
+        _telemetry.Track($"Interpreter.Start; Input='{input}'");
 
         var trimmed = input.Trim();
 
@@ -31,9 +31,9 @@ public class MockInterpreter : IInterpreter
                             ? $"No action matched '{trimmed}'."
                             : $"Matched action '{match.Name}' using prefix rule.";
 
-        _telemetry.Track("Action.Match",  debugInfo );
+        _telemetry.Track($"Action.Match: {debugInfo}");
         
-        _telemetry.Track("Interpreter.End", debugInfo);
+        _telemetry.Track($"Interpreter.End {debugInfo}");
 
         return new InterpreterResult
                {
@@ -51,7 +51,7 @@ public class MockInterpreter : IInterpreter
                          $"LastUser={context.LastUserMessage ?? "<none>"}; " +
                          $"ParamCount={context.LastParameters.Count}]";
 
-        _telemetry.Track("Interpreter.Context", ctxSummary);
+        _telemetry.Track($"Interpreter.Context; {ctxSummary}");
 
         // Reuse the same simple rule-based behavior for now
         return await Interpret(input);

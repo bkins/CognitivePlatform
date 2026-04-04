@@ -1,5 +1,5 @@
-using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Tasks;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -10,27 +10,53 @@ public sealed class TaskController : ControllerBase
 {
     private readonly ITaskService _service;
 
-    public TaskController(ITaskService service)
+    public TaskController( ITaskService service )
     {
         _service = service;
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<TaskDto> GetById(Guid id, CancellationToken ct)
+    public ActionResult<TaskDto> GetById( [FromRoute] Guid id )
     {
-        var item = _service.GetById(id);
+        var task = _service.Get(id);
 
-        if (item is null) return NotFound();
+        if (task is null || task.IsDeleted)
+            return NotFound();
+
+        return Ok(TaskDto.From(task));
+    }
+
+    [HttpGet]
+    public ActionResult<IReadOnlyList<TaskDto>> GetActive()
+    {
+        var tasks = _service.GetActive();
+
+        return Ok(tasks.Select(TaskDto.From)
+                       .ToList());
+    }
+
+    [HttpDelete("{id:guid}")]
+    public IActionResult Delete( [FromRoute] Guid id )
+    {
+        var task = _service.Get(id);
         
-        IReadOnlyList<string> tags = item.Tags is { Count: > 0 }
-                                             ? item.Tags
-                                             : Array.Empty<string>();
-        return Ok(new TaskDto
-                  {
-                          Id        = id
-                        , Text      = item.Title
-                        , CreatedAt = item.CreatedAt
-                        , Tags      = tags
-                  });
+        if (task is null || task.IsDeleted)
+            return NotFound();
+
+        _service.Delete(id);
+
+        return Ok($"Task '{task.ShortDescription}' deleted ({task.Id}).");
+    }
+
+    [HttpPut("{id:guid}")]
+    public ActionResult<TaskDto> Undelete( [FromRoute] Guid id )
+    {
+        var task = _service.GetDeleted(id);
+        if (task is null || task.IsDeleted.Not())
+            return NotFound();
+        
+        _service.UnDelete(id);
+        
+        return Ok($"Task '{task.ShortDescription}' Undeleted ({task.Id}).");
     }
 }

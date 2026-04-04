@@ -4,15 +4,34 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 
 public class TaskItem
 {
-    public string          Id             { get; set; } = Guid.NewGuid().ToString("N");
-    public string          Title          { get; set; } = string.Empty;
-    public string?         Description    { get; set; }
-    public DateTimeOffset  CreatedAt      { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset? DueDate        { get; set; }
-    public bool            IsImportant    { get; set; }
-    public bool            IsUrgent       { get; set; }
-    public List<string>    Tags           { get; set; } = new();
-    public bool            IsDeleted      { get; set; }
-    public DateTimeOffset? CompletedAt    { get; set; }
-    public string?         RecurrenceRule { get; set; }   // Future: v2 recurrence
+    public string          Id               { get; set; } = Guid.NewGuid().ToString("N");
+    public string          ShortDescription { get; set; } = string.Empty;
+    public string?         Details          { get; set; }
+    public TaskPriority    Priority         { get; set; } = TaskPriority.Normal;
+    public DateTimeOffset  CreatedAt        { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset  UpdatedAt        { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? DueDate          { get; set; }
+    public DateTimeOffset? CompletedAt      { get; set; }
+    public bool            IsDeleted        { get; set; } = false;
+    public HashSet<string> Tags             { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool            IsImportant      { get; set; }
+    public bool            IsUrgent         { get; set; }
+
+    /// <summary>
+    /// Monotonically increasing counter assigned by TaskService.Create.
+    /// Guarantees stable, deterministic ordering when CreatedAt timestamps
+    /// are identical (e.g. tasks created in a tight batch loop).
+    /// </summary>
+    public long SequenceNumber { get; set; }
+
+    public Dictionary<string, string> Meta { get; set; } = new();
+
+    public static class MetaKeys
+    {
+        public const string Project      = "project";
+        public const string ParentTaskId = "parentTaskId";
+        public const string Recurrence   = "recurrence";
+        public const string Goal         = "goal";
+        public const string ExternalRef  = "externalRef";
+    }
 }

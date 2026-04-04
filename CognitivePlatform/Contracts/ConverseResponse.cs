@@ -7,4 +7,6 @@ public class ConverseResponse
     public string? ExecutionResult        { get; set; }
     public string? Message                { get; set; }
     public string? Debug                  { get; set; }
+    public bool    Success                { get; set; } = true;
+    public bool    WasFastPath            { get; set; }
 }

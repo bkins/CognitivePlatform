@@ -18,9 +18,9 @@ public sealed class FastPathResolver : IFastPathResolver
         _registry = registry;
     }
 
-    public bool TryResolve(string                           input
-                          , out ActionMetadata?             action
-                          , out Dictionary<string, string>? parameters)
+    public bool TryResolve( string                           input
+                           , out ActionMetadata?             action
+                           , out Dictionary<string, string>? parameters )
     {
         action     = null;
         parameters = null;
@@ -36,35 +36,63 @@ public sealed class FastPathResolver : IFastPathResolver
                               .FirstOrDefault(action => action.Name == "ListActions");
 
             parameters = new Dictionary<string, string>();
-            
+
             return action != null;
         }
-        
+
         // ------------------------------------------------------------
         // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
         // ------------------------------------------------------------
         if (TryResolveColonPrefix(input, out action, out parameters))
-        {
             return true;
-        }
 
         // ------------------------------------------------------------
-        // MODE 1.2: PREFIX COMMANDS
+        // MODE 1.2: PREFIX COMMANDS  (/journal ..., /task ...)
         // ------------------------------------------------------------
         if (input.StartsWith("/"))
             return TryResolvePrefix(input, out action, out parameters);
 
         // ------------------------------------------------------------
-        // MODE 2: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
+        // MODE 2: TASK-SPECIFIC FAST PATHS
+        // Evaluated before the generic path so task intent patterns
+        // are not accidentally swallowed by journal signals.
+        // ------------------------------------------------------------
+        if (TryResolveTaskAnalyze(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskList(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskCompleteBatch(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskComplete(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskDelete(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskUpdatePriority(input, out action, out parameters))
+            return true;
+
+        if (TryResolveTaskUpdateDueDate(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
+        // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
             return true;
 
         return false;
     }
-    private bool TryResolveColonPrefix(string                           input
+
+    // ================================================================
+    // COLON PREFIX MODE  (journal: ..., task: ...)
+    // ================================================================
+    private bool TryResolveColonPrefix( string                           input
                                       , out ActionMetadata?             action
-                                      , out Dictionary<string, string>? parameters)
+                                      , out Dictionary<string, string>? parameters )
     {
         action     = null;
         parameters = null;
@@ -72,7 +100,7 @@ public sealed class FastPathResolver : IFastPathResolver
         var colonIndex = input.IndexOf(':');
         if (colonIndex <= 0) return false;
 
-        var prefix  = input[..colonIndex].Trim();       // e.g. "Journal"
+        var prefix = input[..colonIndex].Trim();
         if (string.IsNullOrWhiteSpace(prefix)) return false;
 
         if (prefix.Equals("journal", StringComparison.OrdinalIgnoreCase))
@@ -80,32 +108,23 @@ public sealed class FastPathResolver : IFastPathResolver
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");
             if (action is null) return false;
 
-            input = input.Replace("journal:"
-                                , "text:"
-                                , StringComparison.OrdinalIgnoreCase);
-            
+            input      = input.Replace("journal:", "text:", StringComparison.OrdinalIgnoreCase);
             parameters = ParseToDictionary(input);
-            
+
             return true;
         }
 
-        // // Optional: allow exact action name prefix: "AddJournalEntry: ..."
-        // var direct = _registry.Actions.FirstOrDefault(action => action.Name.Equals(prefix, StringComparison.OrdinalIgnoreCase));
-        // if (direct is null || direct.Parameters.Count <= 0) return false;
-        //
-        // // Only safe if exactly one required param
-        // var required = direct.Parameters.Where(p => p.IsOptional.Not()).ToList();
-        //
-        // if (required.Count != 1) return false;
-        //
-        // parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        //              {
-        //                      [required[0].Name] = payload
-        //              };
-        //
-        // action = direct;
-        //
-        // return true;
+        if (prefix.Equals("task", StringComparison.OrdinalIgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(action => action.Name == "AddTask");
+            if (action is null) return false;
+
+            input      = input.Replace("task:", "shortDescription:", StringComparison.OrdinalIgnoreCase);
+            parameters = ParseToDictionary(input);
+
+            return true;
+        }
+
         return false;
     }
 
@@ -116,56 +135,175 @@ public sealed class FastPathResolver : IFastPathResolver
                     .Where(parts => parts.Length == 2)
                     .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.OrdinalIgnoreCase);
     }
-    
+
     // ================================================================
-    // PREFIX COMMAND MODE (/journal add "text")
+    // PREFIX COMMAND MODE  (/journal ..., /task ...)
     // ================================================================
-    private bool TryResolvePrefix(string                           input
-                                 , out ActionMetadata?             action
-                                 , out Dictionary<string, string>? parameters)
+    private bool TryResolvePrefix( string                           input
+                                  , out ActionMetadata?             action
+                                  , out Dictionary<string, string>? parameters )
     {
-        action = null;
+        action     = null;
         parameters = null;
 
-        var parts = input.Substring(1).Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        var parts  = input.Substring(1).Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        var domain = parts.Length > 0 ? parts[0].ToLowerInvariant() : string.Empty;
 
-        if (parts.Length == 0)
-            return false;
-
-        var domain = parts[0].ToLowerInvariant();
-
-        // /journal ...
         if (domain == "journal")
+            return TryResolvePrefixJournal(parts, out action, out parameters);
+
+        if (domain == "task")
+            return TryResolvePrefixTask(parts, out action, out parameters);
+
+        return false;
+    }
+
+    private bool TryResolvePrefixJournal( string[]                         parts
+                                         , out ActionMetadata?             action
+                                         , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2) return false;
+
+        var verb = parts[1].ToLowerInvariant();
+
+        if (verb == "add" && parts.Length == 3)
         {
-            if (parts.Length >= 2)
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AddJournalEntry");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["text"] = parts[2] };
+            return true;
+        }
+
+        if (verb == "history")
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "JournalEntriesOnThisDay");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        if (verb == "list")
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListJournalEntries");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        return false;
+    }
+
+    // ----------------------------------------------------------------
+    // /task <verb> [arg]
+    //
+    //   /task add <description>
+    //   /task list
+    //   /task list urgent
+    //   /task list important
+    //   /task list overdue
+    //   /task complete <ref>
+    //   /task done <ref>
+    //   /task delete <ref>
+    //   /task remove <ref>
+    //   /task analyze
+    //   /task prioritize
+    // ----------------------------------------------------------------
+    private bool TryResolvePrefixTask( string[]                         parts
+                                      , out ActionMetadata?             action
+                                      , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2) return false;
+
+        var verb = parts[1].ToLowerInvariant();
+        var arg  = parts.Length == 3 ? parts[2] : string.Empty;
+
+        switch (verb)
+        {
+            case "add":
             {
-                var verb = parts[1].ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(arg)) return false;
 
-                if (verb == "add" && parts.Length == 3)
-                {
-                    action = _registry.Actions.FirstOrDefault(a => a.Name == "AddJournalEntry");
-                    if (action == null) return false;
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AddTask");
+                if (action is null) return false;
 
-                    parameters = new Dictionary<string, string>
-                    {
-                        ["text"] = parts[2]
-                    };
-                    return true;
-                }
+                parameters = new Dictionary<string, string> { ["shortDescription"] = arg };
+                return true;
+            }
 
-                if (verb == "history")
-                {
-                    action = _registry.Actions.FirstOrDefault(a => a.Name == "JournalEntriesOnThisDay");
-                    parameters = new();
-                    return action != null;
-                }
+            case "list":
+            {
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListTasks");
+                if (action is null) return false;
 
-                if (verb == "list")
-                {
-                    action = _registry.Actions.FirstOrDefault(a => a.Name == "ListJournalEntries");
-                    parameters = new();
-                    return action != null;
-                }
+                var listParams = BuildListTasksParameters(arg.ToLowerInvariant());
+
+                // "/task list" with no qualifier means "show everything" — same
+                // contract as "show my tasks" in natural language.
+                if (string.IsNullOrWhiteSpace(arg))
+                    listParams["includeCompleted"] = "true";
+
+                parameters = listParams;
+                return true;
+            }
+
+            case "complete":
+            case "done":
+            {
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CompleteTask");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string> { ["taskReference"] = arg };
+                return true;
+            }
+
+            case "delete":
+            case "remove":
+            {
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DeleteTask");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string> { ["taskReference"] = arg };
+                return true;
+            }
+
+            case "due":
+            {
+                // /task due <ref> <date>  e.g. "/task due 2 Friday"
+                // Split arg into reference (first token) and date text (remainder).
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                var dueParts   = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                var dueRef     = dueParts[0];
+                var dueDateArg = dueParts.Length == 2 ? dueParts[1] : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(dueDateArg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskDueDate");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string>
+                             {
+                                     ["taskReference"] = dueRef
+                                   , ["dueDateText"]   = dueDateArg
+                             };
+                return true;
+            }
+
+            case "analyze":
+            case "prioritize":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AnalyzeTasks");
+                parameters = new Dictionary<string, string>();
+                return action != null;
             }
         }
 
@@ -173,41 +311,483 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // MODE 2: GENERIC FAST PATH — USING METADATA AND ATTRIBUTES
+    // TASK-SPECIFIC FAST PATHS (natural language)
     // ================================================================
-    private bool TryResolveGenericFastPath(string                           input
-                                          , out ActionMetadata?             action
-                                          , out Dictionary<string, string>? parameters)
+
+    // ----------------------------------------------------------------
+    // AnalyzeTasks
+    // "prioritize my tasks", "analyze my workload", "eisenhower matrix"
+    // ----------------------------------------------------------------
+    private static readonly string[] AnalyzeTaskSignals =
     {
-        action = null;
+            "prioritize my tasks"
+          , "analyze my tasks"
+          , "analyze my workload"
+          , "analyze tasks"
+          , "eisenhower"
+          , "which tasks should i do first"
+          , "what should i work on first"
+          , "show my task matrix"
+          , "task matrix"
+    };
+
+    private bool TryResolveTaskAnalyze( string                           input
+                                       , out ActionMetadata?             action
+                                       , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (AnalyzeTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AnalyzeTasks");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // ListTasks
+    // "show my tasks", "list tasks", "show urgent tasks", "show overdue tasks"
+    // ----------------------------------------------------------------
+    private static readonly string[] ListTaskSignals =
+    {
+            "show my tasks"
+          , "show tasks"
+          , "list my tasks"
+          , "list tasks"
+          , "what are my tasks"
+          , "what tasks do i have"
+          , "show all tasks"
+          , "show completed tasks"
+          , "show open tasks"
+          , "show urgent tasks"
+          , "show important tasks"
+          , "show overdue tasks"
+          , "show high priority tasks"
+          , "show critical tasks"
+          , "tasks due today"
+          , "tasks due tomorrow"
+          , "tasks this week"
+    };
+
+    private bool TryResolveTaskList( string                           input
+                                    , out ActionMetadata?             action
+                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListTasks");
+        if (action is null) return false;
+
+        parameters = BuildListTasksParameters(normalized);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Extracts ListTasks filter parameters from a normalized (lowercased) input string.
+    /// Called both from natural-language detection and from the /task list prefix command.
+    /// </summary>
+    private static Dictionary<string, string> BuildListTasksParameters(string normalized)
+    {
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // "show my tasks" / "list my tasks" / "what are my tasks" — no qualifier means
+        // the user wants their full picture: open AND completed (but not deleted).
+        // Explicit filter phrases like "show open tasks" leave includeCompleted unset (false).
+        var unqualifiedSignals    = new[] { "show my tasks", "list my tasks", "what are my tasks"
+                                               , "what tasks do i have", "show all tasks" };
+        var isUnqualifiedTaskList = unqualifiedSignals.Any(signal => normalized.Contains(signal));
+        if (isUnqualifiedTaskList)
+            parameters["includeCompleted"] = "true";
+
+        if (normalized.Contains("completed") || (normalized.Contains("done") && normalized.Contains("show")))
+            parameters["includeCompleted"] = "true";
+
+        if (normalized.Contains("urgent"))
+            parameters["onlyUrgent"] = "true";
+
+        if (normalized.Contains("important"))
+            parameters["onlyImportant"] = "true";
+
+        if (normalized.Contains("overdue"))
+            parameters["overdueOnly"] = "true";
+
+        // Due-date shorthand phrases — translate to a dueBefore value the execution engine
+        // can coerce to DateTimeOffset?. Full ISO-8601 with offset is used deliberately:
+        // date-only "yyyy-MM-dd" may be parsed as a local DateTime rather than a DateTimeOffset,
+        // causing silent coercion failure and the filter being ignored entirely.
+        if (normalized.Contains("due today"))
+            parameters["dueBefore"] = DateTimeOffset.UtcNow.Date.AddDays(1).ToString("yyyy-MM-ddTHH:mm:sszzz");
+
+        if (normalized.Contains("due tomorrow"))
+            parameters["dueBefore"] = DateTimeOffset.UtcNow.Date.AddDays(2).ToString("yyyy-MM-ddTHH:mm:sszzz");
+
+        if (normalized.Contains("this week"))
+            parameters["dueBefore"] = DateTimeOffset.UtcNow.Date.AddDays(7).ToString("yyyy-MM-ddTHH:mm:sszzz");
+
+        // Priority keyword → map to the equivalent importance/urgency flags so
+        // ListTasks' existing filter parameters are satisfied without LLM help.
+        if (normalized.Contains("high priority") || normalized.Contains("critical"))
+        {
+            parameters["onlyImportant"] = "true";
+            parameters["onlyUrgent"]    = "true";
+        }
+
+        return parameters;
+    }
+
+    // ----------------------------------------------------------------
+    // CompleteTask (single)
+    // "task 3 is done", "complete task 2", "mark task 4 as done", "task 1 done"
+    // ----------------------------------------------------------------
+    private static readonly string[] CompleteTaskSignals =
+    {
+            "task"
+          , "complete task"
+          , "mark task"
+          , "finish task"
+          , "finished task"
+          , "done with task"
+    };
+
+    private bool TryResolveTaskComplete( string                           input
+                                        , out ActionMetadata?             action
+                                        , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
         parameters = null;
 
         var normalized = input.ToLowerInvariant();
 
-        // 1) Find actions marked [FastPath]
+        // Must contain a completion signal AND a single task number.
+        // Batch detection runs first in TryResolve, so if we reach here
+        // the input is already confirmed to be a single-task reference.
+        var completionWords        = new[] { "done", "complete", "completed", "finish", "finished" };
+        var containsCompletionWord = completionWords.Any(word => normalized.Contains(word));
+
+        if (containsCompletionWord.Not())
+            return false;
+
+        if (CompleteTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        var reference = ExtractSingleTaskReference(normalized);
+        if (reference is null) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CompleteTask");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string> { ["taskReference"] = reference };
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // CompleteBatch
+    // "tasks 2 and 4 are done", "mark tasks 1, 3, and 5 as complete"
+    // ----------------------------------------------------------------
+    private bool TryResolveTaskCompleteBatch( string                           input
+                                             , out ActionMetadata?             action
+                                             , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        // Must look like a multi-task completion intent.
+        var completionWords   = new[] { "done", "complete", "completed", "finish", "finished" };
+        var hasTasksPlural    = normalized.Contains("tasks");
+        var hasCompletionWord = completionWords.Any(word => normalized.Contains(word));
+
+        if (hasTasksPlural.Not() || hasCompletionWord.Not())
+            return false;
+
+        var refs = ExtractAllTaskReferences(normalized);
+
+        if (refs.Count < 2) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CompleteBatch");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string> { ["taskReferences"] = string.Join("|", refs) };
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // DeleteTask
+    // "delete task 3", "remove task 2 from my list"
+    // ----------------------------------------------------------------
+    private static readonly string[] DeleteTaskSignals =
+    {
+            "delete task"
+          , "remove task"
+          , "drop task"
+          , "get rid of task"
+          , "cancel task"
+    };
+
+    private bool TryResolveTaskDelete( string                           input
+                                      , out ActionMetadata?             action
+                                      , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        if (DeleteTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        var reference = ExtractSingleTaskReference(normalized);
+        if (reference is null) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DeleteTask");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string> { ["taskReference"] = reference };
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // UpdateTaskPriority
+    // "make task 1 high priority", "task 3 is urgent", "mark task 2 not important"
+    // "set task 4 to critical", "task 1 is important and urgent"
+    // ----------------------------------------------------------------
+    private static readonly string[] UpdatePrioritySignals =
+    {
+            "make task"
+          , "set task"
+          , "mark task"
+          , "task is urgent"
+          , "task is important"
+          , "task is not urgent"
+          , "task is not important"
+          , "is urgent"
+          , "is important"
+          , "is not urgent"
+          , "is not important"
+          , "high priority"
+          , "low priority"
+          , "critical"
+          , "normal priority"
+    };
+
+    private bool TryResolveTaskUpdatePriority( string                           input
+                                              , out ActionMetadata?             action
+                                              , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        if (UpdatePrioritySignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        var reference = ExtractSingleTaskReference(normalized);
+        if (reference is null) return false;
+
+        // Only proceed if we can extract at least one meaningful update.
+        var extracted = ExtractPriorityParameters(normalized);
+        if (extracted.Count == 0) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskPriority");
+        if (action is null) return false;
+
+        extracted["taskReference"] = reference;
+        parameters                 = extracted;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Extracts priority, isImportant, and isUrgent values from a normalized input string.
+    /// Returns an empty dictionary if no recognizable priority signals are found.
+    /// </summary>
+    private static Dictionary<string, string> ExtractPriorityParameters(string normalized)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // --- Priority level ---
+        if (normalized.Contains("critical"))
+            result["priority"] = "Critical";
+        else if (normalized.Contains("high priority") || normalized.Contains("high-priority"))
+            result["priority"] = "High";
+        else if (normalized.Contains("low priority") || normalized.Contains("low-priority"))
+            result["priority"] = "Low";
+        else if (normalized.Contains("normal priority"))
+            result["priority"] = "Normal";
+
+        // --- Urgency ---
+        // "not urgent" must be tested before "urgent" to avoid false positives.
+        if (normalized.Contains("not urgent") || normalized.Contains("isn't urgent") || normalized.Contains("no longer urgent"))
+            result["isUrgent"] = "false";
+        else if (normalized.Contains("urgent"))
+            result["isUrgent"] = "true";
+
+        // --- Importance ---
+        // Same negative-first ordering.
+        if (normalized.Contains("not important") || normalized.Contains("isn't important") || normalized.Contains("no longer important"))
+            result["isImportant"] = "false";
+        else if (normalized.Contains("important"))
+            result["isImportant"] = "true";
+
+        return result;
+    }
+
+    // ----------------------------------------------------------------
+    // UpdateTaskDueDate
+    // "task 2 is due Friday", "set task 3 due date to April 5th",
+    // "task 1 is due tomorrow", "clear due date on task 4"
+    // ----------------------------------------------------------------
+    private static readonly string[] UpdateDueDateSignals =
+    {
+            "is due"
+          , "due date"
+          , "due on"
+          , "due by"
+          , "set due"
+          , "change due"
+          , "update due"
+          , "move due"
+          , "clear due"
+          , "remove due"
+          , "no due date"
+    };
+
+    private bool TryResolveTaskUpdateDueDate( string                           input
+                                             , out ActionMetadata?             action
+                                             , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        if (UpdateDueDateSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        var reference = ExtractSingleTaskReference(normalized);
+        if (reference is null) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskDueDate");
+        if (action is null) return false;
+
+        // Clearing phrases — pass a sentinel the action recognises as "remove due date".
+        var isClearIntent = normalized.Contains("clear due")
+                         || normalized.Contains("remove due")
+                         || normalized.Contains("no due date");
+
+        if (isClearIntent)
+        {
+            parameters = new Dictionary<string, string>
+                         {
+                                 ["taskReference"] = reference
+                               , ["dueDateText"]   = string.Empty
+                         };
+            return true;
+        }
+
+        // Extract the date text that follows the signal phrase.
+        var dateText = ExtractDueDateText(normalized);
+        if (string.IsNullOrWhiteSpace(dateText)) return false;
+
+        parameters = new Dictionary<string, string>
+                     {
+                             ["taskReference"] = reference
+                           , ["dueDateText"]   = dateText
+                     };
+        return true;
+    }
+
+    /// <summary>
+    /// Extracts the raw date string that follows a due-date signal phrase.
+    /// e.g. "task 2 is due friday" → "friday"
+    ///      "set task 3 due date to april 5th" → "april 5th"
+    /// </summary>
+    private static string ExtractDueDateText(string normalized)
+    {
+        // Ordered from most specific to least so we consume the longest match first.
+        var dueDatePhrases = new[]
+        {
+                "due date to "
+              , "due date on "
+              , "due date by "
+              , "due date "
+              , "due on "
+              , "due by "
+              , "is due "
+              , "set due "
+              , "due "
+        };
+
+        foreach (var phrase in dueDatePhrases)
+        {
+            var index = normalized.IndexOf(phrase, StringComparison.Ordinal);
+            if (index < 0) continue;
+
+            var candidate = normalized.Substring(index + phrase.Length).Trim();
+
+            // Strip leading filler words ("to", "for", "at") that may precede the date.
+            foreach (var filler in new[] { "to ", "for ", "at " })
+            {
+                if (candidate.StartsWith(filler))
+                    candidate = candidate.Substring(filler.Length).Trim();
+            }
+
+            if (candidate.Length > 0)
+                return candidate;
+        }
+
+        return string.Empty;
+    }
+
+    // ================================================================
+    // MODE 3: GENERIC FAST PATH — ATTRIBUTE + METADATA DRIVEN
+    // ================================================================
+    private bool TryResolveGenericFastPath( string                           input
+                                           , out ActionMetadata?             action
+                                           , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        // Guard: if the input looks like a batch task list, do not fast-path it.
+        // Let the LLM handle it so BatchAddTasks can be selected instead.
+        if (IsBatchIntent(normalized))
+            return false;
+
         var candidates = _registry.FastPathActions;
 
         if (candidates.Any().Not())
             return false;
 
-        // 2) For each candidate, find required parameters
         foreach (var meta in candidates)
         {
             var requiredParams = meta.Parameters
                                      .Where(parameter => parameter.IsOptional.Not())
                                      .ToList();
 
-            // Fast-path rules:
-            // Only consider actions with exactly ONE required parameter.
             if (requiredParams.Count != 1)
                 continue;
 
             var mainParam = requiredParams.Single();
 
-            // 3) Whitelist fast-path language triggers
             if (ContainsFastPathSignal(normalized).Not()) continue;
 
-            // Extract text after the trigger
             var extracted = ExtractPrimaryValue(normalized);
             if (string.IsNullOrWhiteSpace(extracted))
                 continue;
@@ -224,7 +804,39 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // SIGNAL DETECTION — NATURAL LANGUAGE INTENT MARKERS
+    // BATCH INTENT GUARD
+    // Signals that the user is describing multiple tasks at once.
+    // When any of these are present, skip fast-path so the LLM can
+    // route to BatchAddTasks instead of AddTask.
+    // ================================================================
+    private static readonly string[] BatchIntentSignals =
+    {
+            "several things"
+          , "a few things"
+          , "these tasks:"
+          , "these tasks :"
+          , "add tasks:"
+          , "add tasks :"
+          , "create tasks:"
+          , "create tasks :"
+          , ", and "
+          , ": "    // colon-separated list pattern (e.g. "need to do: x, y, z")
+    };
+
+    private static bool IsBatchIntent(string normalizedInput)
+    {
+        // A single comma alone is not enough (e.g. "add task finish report, friday").
+        // Require at least two commas OR a known batch signal phrase.
+        var commaCount = normalizedInput.Count(character => character == ',');
+
+        if (commaCount >= 2)
+            return true;
+
+        return BatchIntentSignals.Any(signal => normalizedInput.Contains(signal));
+    }
+
+    // ================================================================
+    // SIGNAL DETECTION — NATURAL LANGUAGE INTENT MARKERS (journal/add)
     // ================================================================
     private static readonly string[] FastPathSignals =
     {
@@ -246,29 +858,61 @@ public sealed class FastPathResolver : IFastPathResolver
     };
 
     private static bool ContainsFastPathSignal(string input)
-    {
-        return FastPathSignals.Any(sig => input.Contains(sig));
-    }
+        => FastPathSignals.Any(signal => input.Contains(signal));
 
     // ================================================================
-    // PRIMARY VALUE EXTRACTION
+    // PRIMARY VALUE EXTRACTION (journal/add generic path)
     // ================================================================
     private static string ExtractPrimaryValue(string input)
     {
-        foreach (var sig in FastPathSignals)
+        foreach (var signal in FastPathSignals)
         {
-            if (input.DoesNotContainOrNull(sig)) continue;
-            
-            var pos = input.IndexOf(sig, StringComparison.Ordinal);
+            if (input.DoesNotContainOrNull(signal)) continue;
+
+            var pos = input.IndexOf(signal, StringComparison.Ordinal);
             if (pos >= 0)
-            {
-                return input.Substring(pos + sig.Length).Trim();
-            }
+                return input.Substring(pos + signal.Length).Trim();
         }
 
         return string.Empty;
     }
-    
+
+    // ================================================================
+    // TASK REFERENCE EXTRACTION HELPERS
+    // ================================================================
+
+    // Matches a standalone integer: "task 3", "tasks 2 and 4", "delete task 12"
+    private static readonly Regex TaskReferencePattern = new(@"\b(\d+)\b", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Extracts a single task position or id from the input.
+    /// Returns null if zero or more than one number is found (use
+    /// <see cref="ExtractAllTaskReferences"/> for batch inputs).
+    /// </summary>
+    private static string? ExtractSingleTaskReference(string normalized)
+    {
+        var matches = TaskReferencePattern.Matches(normalized);
+
+        return matches.Count == 1
+                       ? matches[0].Value
+                       : null;
+    }
+
+    /// <summary>
+    /// Extracts all task position numbers from a normalized input string,
+    /// preserving the order they appear in. Used by CompleteBatch.
+    /// </summary>
+    private static List<string> ExtractAllTaskReferences(string normalized)
+    {
+        return TaskReferencePattern.Matches(normalized)
+                                   .Select(match => match.Value)
+                                   .Distinct()
+                                   .ToList();
+    }
+
+    // ================================================================
+    // CAPABILITIES QUERY
+    // ================================================================
     private static bool IsCapabilitiesQuery(string input)
     {
         var normalized = input.Trim()
@@ -284,181 +928,4 @@ public sealed class FastPathResolver : IFastPathResolver
                     or "show commands"
                     or "show capabilities";
     }
-
 }
-
-
-
-// Version 1
-
-// using System;
-// using System.Collections.Generic;
-// using System.Linq;
-// using System.Text.RegularExpressions;
-// using CognitivePlatform.Api.Models;
-// using CognitivePlatform.Api.Registry;
-//
-// namespace CognitivePlatform.Api.Interpreter;
-//
-// public sealed class FastPathResolver
-// {
-//     private readonly IActionRegistry _registry;
-//
-//     public FastPathResolver(IActionRegistry registry)
-//     {
-//         _registry = registry;
-//     }
-//
-//     public bool TryResolve(string                           input
-//                           , out ActionMetadata?             action
-//                           , out Dictionary<string, string>? parameters)
-//     {
-//         action = null;
-//         parameters = null;
-//
-//         input = input.Trim();
-//
-//         // ------------------------------------------------------------
-//         // MODE 1: PREFIX COMMANDS (start with "/")
-//         // ------------------------------------------------------------
-//         if (input.StartsWith("/"))
-//         {
-//             return TryResolvePrefix(input, out action, out parameters);
-//         }
-//
-//         // ------------------------------------------------------------
-//         // MODE 2: DETERMINISTIC NLP RULES
-//         // ------------------------------------------------------------
-//         if (TryResolveDeterministic(input, out action, out parameters))
-//         {
-//             return true;
-//         }
-//
-//         return false;
-//     }
-//
-//     // TODO: 
-//     // 1. At least, move literal strings to consts
-//     // 2. Explore ways of generalizing, and/or getting the string values from Attribute(s)
-//     
-//     // ================================================================
-//     // PREFIX COMMAND MODE (/journal add "text")
-//     // ================================================================
-//     private bool TryResolvePrefix(string                           input
-//                                  , out ActionMetadata?             action
-//                                  , out Dictionary<string, string>? parameters)
-//     {
-//         action = null;
-//         parameters = null;
-//
-//         // Remove leading slash
-//         var parts = input.Substring(1).Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-//
-//         if (parts.Length == 0)
-//             return false;
-//
-//         var domain = parts[0].ToLowerInvariant();
-//
-//         // /journal ...
-//         if (domain == "journal")
-//         {
-//             if (parts.Length >= 2)
-//             {
-//                 var verb = parts[1].ToLowerInvariant();
-//
-//                 // /journal add <text>
-//                 if (verb == "add" 
-//                  && parts.Length == 3)
-//                 {
-//                     var meta = _registry.Actions
-//                                         .FirstOrDefault(action => action.Name == "AddJournalEntry");
-//
-//                     if (meta is null) return false;
-//
-//                     action = meta;
-//                     parameters = new Dictionary<string, string>
-//                     {
-//                         ["text"] = parts[2]
-//                     };
-//                     return true;
-//                 }
-//
-//                 // /journal history
-//                 if (verb == "history")
-//                 {
-//                     action = _registry.Actions
-//                                       .FirstOrDefault(action => action.Name == "JournalEntriesOnThisDay");
-//
-//                     parameters = new Dictionary<string, string>();
-//                     return action != null;
-//                 }
-//
-//                 // /journal list
-//                 if (verb == "list")
-//                 {
-//                     action = _registry.Actions
-//                                       .FirstOrDefault(action => action.Name == "ListJournalEntries");
-//
-//                     parameters = new Dictionary<string, string>();
-//                     return action != null;
-//                 }
-//             }
-//         }
-//
-//         return false;
-//     }
-//
-//     // ================================================================
-//     // NATURAL LANGUAGE FAST RULES
-//     // ================================================================
-//     private bool TryResolveDeterministic(string                           input
-//                                         , out ActionMetadata?             action
-//                                         , out Dictionary<string, string>? parameters)
-//     {
-//         action = null;
-//         parameters = null;
-//
-//         var normalized = input.ToLowerInvariant();
-//
-//         // Add journal entry
-//         if (normalized.StartsWith("add journal entry") 
-//           || normalized.StartsWith("write in my journal") 
-//           || normalized.StartsWith("journal add"))
-//         {
-//             var meta = _registry.Actions
-//                                 .FirstOrDefault(action => action.Name == "AddJournalEntry");
-//
-//             if (meta is null) return false;
-//
-//             // Try to extract text by removing known prefixes
-//             var text = normalized.Replace("add journal entry", "")
-//                                  .Replace("write in my journal", "")
-//                                  .Replace("journal add", "")
-//                                  .Trim();
-//
-//             if (string.IsNullOrWhiteSpace(text))
-//                 return false;
-//
-//             action = meta;
-//             parameters = new Dictionary<string, string>
-//             {
-//                 ["text"] = text
-//             };
-//             return true;
-//         }
-//
-//         // This day in history
-//         if (normalized.Contains("this day in history") 
-//           || normalized.Contains("this day over the years") 
-//           || normalized.Contains("today but past years"))
-//         {
-//             action = _registry.Actions
-//                               .FirstOrDefault(a => a.Name == "JournalEntriesOnThisDay");
-//
-//             parameters = new Dictionary<string, string>();
-//             return action != null;
-//         }
-//
-//         return false;
-//     }
-// }

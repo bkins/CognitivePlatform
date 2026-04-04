@@ -6,4 +6,5 @@ public enum InterpreterFailureType
   , NoMatchingAction
   , AmbiguousIntent
   , MissingParameters
+  , Exception
 }

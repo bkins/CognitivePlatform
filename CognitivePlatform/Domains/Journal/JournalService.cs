@@ -69,7 +69,7 @@ public sealed class JournalService : IJournalService
                              , MediaPaths = mediaPaths
                        };
 
-        var actualEntryId = _store.Save(entry, entry.Id);
+        var actualEntryId = await _store.Save(entry, entry.Id);
         if (entryId.ToString("N") != actualEntryId) _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service.  Look into why.");
         
         _store.Save(revision, revision.RevisionId);

@@ -3,294 +3,599 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Avails.Extensions;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
 public class TaskActions
 {
-    // Simple shared in-memory store for this phase.
-    //private static readonly TaskRepositoryInMemory _repository = new();
-    
-    // Domain service (DI-friendly, even though ExecutionEngine currently
-    // creates instances via Activator.CreateInstance)
     private readonly ITaskService _taskService;
 
     public TaskActions(ITaskService taskService)
     {
         _taskService = taskService;
     }
-    
+
     [FastPath]
-    [NaturalLanguageAction(    Description = "Create a new task with optional due date, priority, and tags."
-                               , Examples = new[]
-                                            {
-                                                    "Create a task to buy groceries tomorrow with the personal tag."
-                                                    , "Add an urgent work task to finish the report."
-                                            }
-                               , AllowsClarification = true)]
-    public string AddTask ([NaturalLanguageParam(    Description = "Short description of the task."
-                                                     , Optional = false
-                                                     , AllowEmpty = false)]
-                           string title
-                           , [NaturalLanguageParam(    Description = "Additional details about the task."
-                                                       , Optional = true)]
-                           string? description = null
-                           , [NaturalLanguageParam(    Description = "Whether this task is important."
-                                                       , Optional = true
-                                                       , DefaultValue = true)]
+    [NaturalLanguageAction(Description = "Create a new task with optional due date, priority, and tags."
+                         , Examples =
+                           [
+                                   "Create a task to buy groceries tomorrow with the personal tag."
+                                 , "Add an urgent work task to finish the report."
+                                 , "Add task buy milk"
+                                 , "Remind me to call mom tonight"
+                                 , "Create a task to finish report by Friday"
+                           ]
+                         , AllowsClarification = true)]
+    public string AddTask( [NaturalLanguageParam(Description = "Short description of the task."
+                                               , Optional    = false
+                                               , AllowEmpty  = false)]
+                           string shortDescription
+                         , [NaturalLanguageParam(Description = "Additional details about the task."
+                                               , Optional    = true)]
+                           string? details = null
+                         , [NaturalLanguageParam(Description  = "Whether this task is important."
+                                               , Optional     = true
+                                               , DefaultValue = true)]
                            bool? isImportant = null
-                           , [NaturalLanguageParam(
-                                   Description = "Whether this task is urgent."
-                                   , Optional = true
-                                   , DefaultValue = false)]
+                         , [NaturalLanguageParam(Description  = "Whether this task is urgent."
+                                               , Optional     = true
+                                               , DefaultValue = false)]
                            bool? isUrgent = null
-                           , [NaturalLanguageParam(    Description = "Due date or time for the task, if any."
-                                                       , Optional = true
-                                                       , AllowEmpty = true)]
+                         , [NaturalLanguageParam(Description = "Due date or time for the task, if any."
+                                               , Optional    = true
+                                               , AllowEmpty  = true)]
                            string? dueDateText = null
-                           , [NaturalLanguageParam(    Description = "Comma-separated list of tags."
-                                                       , Optional = true
-                                                       , AllowEmpty = true)]
-                           string? tags = null)
+                         , [NaturalLanguageParam(Description = "Comma-separated list of tags."
+                                               , Optional    = true
+                                               , AllowEmpty  = true)]
+                           string? tags = null
+                         , [NaturalLanguageParam(Description = "The task's priority: low, normal, high, or critical."
+                                               , Optional    = true)]
+                           TaskPriority priority = TaskPriority.Normal )
     {
         var task = new TaskItem
                    {
-                           Title = title
-                           , Description = string.IsNullOrWhiteSpace(description)
-                                                   ? null
-                                                   : description.Trim()
-                           , IsImportant = isImportant ?? true
-                           , IsUrgent    = isUrgent    ?? false
-                           , Tags        = ParseTags(tags)
+                           ShortDescription = shortDescription
+                         , Details          = string.IsNullOrWhiteSpace(details) ? null : details.Trim()
+                         , IsImportant      = isImportant ?? true
+                         , IsUrgent         = isUrgent    ?? false
+                         , Tags             = ParseTags(tags)
+                         , Priority         = priority
+                         , CreatedAt        = DateTimeOffset.UtcNow
+                         , UpdatedAt        = DateTimeOffset.UtcNow
                    };
 
-        if (TryParseDate(dueDateText
-                         , out var due))
-        {
+        if (TryParseDate(dueDateText, out var due))
             task.DueDate = due;
-        }
 
-        _taskService.Save(task);
+        _taskService.Create(task);
 
-        return $"Task created with id {task.Id}:{Environment.NewLine}- {task.Title}";
+        return $"Task created: {task.ShortDescription}{Environment.NewLine}ID: {task.Id}";
     }
 
     [FastPath]
-    [NaturalLanguageAction(    Description = "List tasks, optionally filtered by completion, urgency, importance, or tag."
-                               , Examples = new[]
-                                            {
-                                                    "Show my tasks."
-                                                    , "List urgent and important tasks."
-                                                    , "Show my personal tasks that are not completed."
-                                            }
-                               , AllowsClarification = false)]
-    public string ListTasks ([NaturalLanguageParam(    Description = "Include completed tasks (true/false)."
-                                                       , Optional = true
-                                                       , DefaultValue = false)]
-                             bool? includeCompleted = null
-                             , [NaturalLanguageParam(
-                                     Description = "Only show urgent tasks."
-                                     , Optional = true
-                                     , DefaultValue = null)]
-                             bool? onlyUrgent = null
-                             , [NaturalLanguageParam(    Description = "Only show important tasks."
-                                                         , Optional = true
-                                                         , DefaultValue = null)]
-                             bool? onlyImportant = null
-                             , [NaturalLanguageParam(    Description = "Filter by a single tag."
-                                                         , Optional = true
-                                                         , AllowEmpty = true)]
-                             string? tag = null)
+    [NaturalLanguageAction(Description = "Create multiple tasks at once from a list. Use when the user provides several tasks in a single message."
+                         , Examples =
+                           [
+                                   "I need to do several things: review Elena's PD, check the CRM servers, and look at bug 161843."
+                                 , "Add these tasks: buy milk, call dentist, finish report by Friday."
+                                 , "Let me give you a list of tasks I need to track."
+                                 , "I have a few things I need to get done today."
+                           ]
+                         , AllowsClarification = false)]
+    public string BatchAddTasks( [NaturalLanguageParam(Description = "A pipe-separated list of task descriptions extracted from the user's message. "
+                                                                   + "Each entry is the short description of one task. "
+                                                                   + "Example: 'Review Elena PD|Check CRM servers|Look at bug 161843'"
+                                                     , Optional    = false
+                                                     , AllowEmpty  = false)]
+                                 string descriptions )
     {
-        var tasks = _taskService.GetAll()
-                               .Where(item => item.IsDeleted.Not());
+        var parsed = descriptions.Split('|')
+                                 .Select(description => description.Trim())
+                                 .Where(description  => description.Length > 0)
+                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .Select(description => new TaskItem { ShortDescription = description })
+                                 .ToList();
 
-        if ((includeCompleted ?? false).Not())
-        {
-            tasks = tasks.Where(item => item.CompletedAt is null);
-        }
+        if (parsed.Count == 0)
+            return "No task descriptions were found in your message. Please list the tasks you want to add.";
 
-        if (onlyUrgent.HasValue
-         && onlyUrgent.Value)
-        {
-            tasks = tasks.Where(item => item.IsUrgent);
-        }
+        var created = _taskService.CreateBatch(parsed);
 
-        if (onlyImportant.HasValue
-         && onlyImportant.Value)
-        {
-            tasks = tasks.Where(item => item.IsImportant);
-        }
-
-        if (tag.HasValue())
-        {
-            var normalized = tag.Trim();
-
-            tasks = tasks.Where(item => item.Tags.Any(aTag => string.Equals(aTag
-                                                                            , normalized
-                                                                            , StringComparison.OrdinalIgnoreCase)));
-        }
-
-        var list = tasks.ToList();
-
-        if (list.Count == 0)
-        {
-            return "No matching tasks found.";
-        }
+        // Re-query the full-ordered list after creation so position numbers in the
+        // response match what a subsequent ListTasks call would show. The user can
+        // immediately say "task 2 is done" without a separate ListTasks call.
+        var allOrdered = _taskService.GetOrderedActiveTasks();
+        var createdIds = created.Select(task => task.Id).ToHashSet();
 
         var sb = new StringBuilder();
+        sb.AppendLine($"Created {created.Count} task(s). Here is your current task list:");
+        sb.AppendLine();
 
-        sb.AppendLine($"Found {list.Count} task(s):");
-
-        foreach (var task in list.OrderBy(t => t.DueDate ?? t.CreatedAt))
+        foreach (var (position, task) in allOrdered)
         {
-            var status = task.CompletedAt is null
-                                 ? "Open"
-                                 : "Completed";
-            var matrix = DescribeMatrix(task);
-            var tagsPart = task.Tags.Count > 0
-                                   ? $" [tags: {string.Join(", ", task.Tags)}]"
-                                   : string.Empty;
-            var duePart = task.DueDate.HasValue
-                                  ? $" (due {task.DueDate:yyyy-MM-dd})"
-                                  : string.Empty;
+            var marker  = createdIds.Contains(task.Id) ? "NEW" : "   ";
+            var duePart = task.DueDate.HasValue ? $"  Due: {task.DueDate:yyyy-MM-dd}" : string.Empty;
 
-            sb.AppendLine($"- {task.Id}: {task.Title}{duePart} [{status}, {matrix}]{tagsPart}");
+            sb.AppendLine($"{position} - [{marker}] {task.ShortDescription}{duePart}");
         }
 
         return sb.ToString();
     }
 
     [FastPath]
-    [NaturalLanguageAction(    Description = "Mark a task as completed by its id."
-                               , Examples = new[]
-                                            {
-                                                    "Mark task 1234 as done."
-                                                    , "Complete the task with id abc."
-                                            }
-                               , AllowsClarification = true)]
-    public string CompleteTask ([NaturalLanguageParam(    Description = "The id of the task to complete."
-                                                          , Optional = false
-                                                          , AllowEmpty = false)]
-                                string id)
+    [NaturalLanguageAction(Description = "List tasks, optionally filtered by completion, urgency, importance, or tag."
+                         , Examples =
+                           [
+                                   "Show my tasks."
+                                 , "List urgent and important tasks."
+                                 , "Show my personal tasks that are not completed."
+                                 , "Show high priority tasks"
+                                 , "Show overdue tasks"
+                                 , "Show tasks due tomorrow"
+                           ]
+                         , AllowsClarification = false)]
+    public string ListTasks( [NaturalLanguageParam(Description  = "Include completed tasks (true/false)."
+                                                 , Optional     = true
+                                                 , DefaultValue = false)]
+                             bool? includeCompleted = null
+                           , [NaturalLanguageParam(Description  = "Only show urgent tasks."
+                                                 , Optional     = true
+                                                 , DefaultValue = null)]
+                             bool? onlyUrgent = null
+                           , [NaturalLanguageParam(Description  = "Only show important tasks."
+                                                 , Optional     = true
+                                                 , DefaultValue = null)]
+                             bool? onlyImportant = null
+                           , [NaturalLanguageParam(Description = "Filter by a single tag."
+                                                 , Optional    = true
+                                                 , AllowEmpty  = true)]
+                             string? tag = null
+                           , [NaturalLanguageParam(Description  = "Filter tasks due before this date."
+                                                 , Optional     = true
+                                                 , DefaultValue = null)]
+                             DateTimeOffset? dueBefore = null
+                           , [NaturalLanguageParam(Description  = "Filter tasks due after this date."
+                                                 , Optional     = true
+                                                 , DefaultValue = null)]
+                             DateTimeOffset? dueAfter = null
+                           , [NaturalLanguageParam(Description  = "Filter to past-due tasks only."
+                                                 , Optional     = true
+                                                 , DefaultValue = false)]
+                             bool overdueOnly = false )
     {
-        id = NormalizeId(id);
-        
-        //var task = _taskService.GetById(id);
-        var task = _taskService.GetTask(id);
-        
-        if (task is null
-         || task.IsDeleted)
+        IEnumerable<TaskItem> tasks = _taskService.QueryTasks(includeCompleted
+                                                            , onlyUrgent
+                                                            , onlyImportant
+                                                            , tag);
+
+        tasks = FilterByDueDate(dueBefore, dueAfter, overdueOnly, tasks);
+
+        // Preserve stable position numbers from the full ordered list even when
+        // filters are active, so "task 3" always refers to the same task regardless
+        // of which filtered view the user is looking at.
+        var allOrdered  = _taskService.GetOrderedActiveTasks();
+        var filteredIds = tasks.Select(taskItem => taskItem.Id).ToHashSet();
+        var list        = allOrdered.Where(entry => filteredIds.Contains(entry.Task.Id)).ToList();
+
+        if (list.Count == 0)
+            return "No matching tasks found.";
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"# Tasks ({list.Count})");
+        sb.AppendLine();
+
+        foreach (var (position, task) in list)
         {
-            return $"No active task found with id '{id}'.";
+            var shortDescription = task.ShortDescription.HasNoValue()
+                                           ? "_No description_"
+                                           : task.ShortDescription;
+
+            var status = task.CompletedAt is null ? "Open" : "Completed";
+            var matrix = DescribeMatrix(task);
+            var tagsPart = task.Tags.Count > 0
+                                   ? string.Join(", ", task.Tags)
+                                   : "_None_";
+            var duePart  = task.DueDate.HasValue
+                                   ? task.DueDate.Value.ToString("yyyy-MM-dd")
+                                   : "_None_";
+
+            sb.AppendLine($"## {position}. {shortDescription}");
+            sb.AppendLine();
+
+            sb.AppendLine($"- **Status:** {status}");
+            sb.AppendLine($"- **Priority:** {matrix}");
+            sb.AppendLine($"- **Due:** {duePart}");
+            sb.AppendLine($"- **Tags:** {tagsPart}");
+            sb.AppendLine($"- **Id:** `{task.Id}`");
+
+            sb.AppendLine();
         }
 
-        if (task.CompletedAt is not null)
-        {
-            return $"Task '{id}' is already completed.";
-        }
+        return sb.ToString();
 
-        task.CompletedAt = DateTimeOffset.UtcNow;
-        _taskService.Save(task);
-
-        return $"Task '{id}' marked as completed.";
     }
 
     [FastPath]
-    [NaturalLanguageAction(    Description = "Soft delete a task by its id."
-                               , Examples = new[]
-                                            {
-                                                    "Delete task 1234."
-                                                    , "Remove the task with id abc from my list."
-                                            }
-                               , AllowsClarification = true)]
-    public string DeleteTask ([NaturalLanguageParam(    Description = "The id of the task to delete."
-                                                        , Optional = false
-                                                        , AllowEmpty = false)]
-                              string id)
+    [NaturalLanguageAction(Description = "Mark a task as completed. Accepts a task position number (from the list) or a full task id."
+                         , Examples =
+                           [
+                                   "Mark task 2 as done."
+                                 , "Complete task 1."
+                                 , "Task 3 is done."
+                                 , "Mark task id abc123 as complete."
+                           ]
+                         , AllowsClarification = true)]
+    public string CompleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
+                                                    , Optional    = false
+                                                    , AllowEmpty  = false)]
+                                string taskReference )
     {
-        id = NormalizeId(id);
-        
-//        var task = _taskService.GetById(id);
-        var task = _taskService.GetTask(id);
-        
-        if (task is null
-         || task.IsDeleted)
+        var task = TryResolveTaskReference(taskReference, out var resolveError);
+
+        if (task is null)
+            return resolveError!;
+
+        if (task.CompletedAt is not null)
+            return $"Task '{task.ShortDescription}' is already completed (completed on: {task.CompletedAt:yyyy-MM-dd}).";
+
+        var completedAt = _taskService.Complete(task.Id);
+
+        return $"Task {taskReference} — '{task.ShortDescription}' marked as completed at {completedAt}.";
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description = "Mark multiple tasks as completed in one command. "
+                        + "Accepts a mix of position numbers and task ids."
+          , Examples =
+            [
+                    "Tasks 2 and 4 are done."
+                  , "Mark tasks 1, 3, and 5 as complete."
+                  , "I finished tasks 2 and 3."
+                  , "Complete tasks 1 and 4."
+            ]
+          , AllowsClarification = false)]
+    public string CompleteBatch( [NaturalLanguageParam(Description = "A pipe-separated list of task position numbers or ids to mark complete. "
+                                                                   + "Example: '2|4' or '1|3|5'"
+                                                     , Optional    = false
+                                                     , AllowEmpty  = false)]
+                                 string taskReferences )
+    {
+        // The system prompt instructs the LLM to separate references with '|'.
+        // Previously this was ',' which caused "2|4" to be treated as a single
+        // unresolvable reference, crashing on Guid.Parse.
+        var references = taskReferences.Split('|')
+                                       .Select(reference => reference.Trim())
+                                       .Where(reference  => reference.Length > 0)
+                                       .Distinct(StringComparer.OrdinalIgnoreCase)
+                                       .ToList();
+
+        if (references.Count == 0)
+            return "No task references were found. Please provide position numbers or ids separated by pipes (e.g. '2|4').";
+
+        var succeeded = new List<string>();
+        var skipped   = new List<string>();
+        var failed    = new List<string>();
+
+        foreach (var reference in references)
         {
-            return $"No active task found with id '{id}'.";
+            var task = TryResolveTaskReference(reference, out var resolveError);
+
+            if (task is null)
+            {
+                failed.Add($"  {reference}: {resolveError}");
+                continue;
+            }
+
+            if (task.CompletedAt is not null)
+            {
+                skipped.Add($"  {reference} — '{task.ShortDescription}' (already completed)");
+                continue;
+            }
+
+            _taskService.Complete(task.Id);
+
+            succeeded.Add($"  {reference} — '{task.ShortDescription}'");
         }
 
-        task.IsDeleted = true;
-        _taskService.Save(task);
+        var sb = new StringBuilder();
 
-        return $"Task '{id}' has been deleted (soft delete).";
+        if (succeeded.Count > 0)
+        {
+            sb.AppendLine($"Completed {succeeded.Count} task(s):");
+            succeeded.ForEach(line => sb.AppendLine(line));
+        }
+
+        if (skipped.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Already completed ({skipped.Count}):");
+            skipped.ForEach(line => sb.AppendLine(line));
+        }
+
+        if (failed.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Could not resolve ({failed.Count}):");
+            failed.ForEach(line => sb.AppendLine(line));
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description = "Update the priority, importance, or urgency of an existing task. "
+                        + "Accepts a task position number or full task id. "
+                        + "Provide at least one of: priority, isImportant, or isUrgent."
+          , Examples =
+            [
+                    "Make task 1 high priority."
+                  , "Task 3 is now urgent."
+                  , "Mark task 2 as not important."
+                  , "Set task 4 to critical priority."
+                  , "Task 1 is important and urgent."
+            ]
+          , AllowsClarification = true)]
+    public string UpdateTaskPriority( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
+                                                          , Optional    = false
+                                                          , AllowEmpty  = false)]
+                                      string taskReference
+                                    , [NaturalLanguageParam(Description = "New priority level: low, normal, high, or critical."
+                                                          , Optional    = true)]
+                                      TaskPriority? priority = null
+                                    , [NaturalLanguageParam(Description = "Whether this task is important."
+                                                          , Optional    = true)]
+                                      bool? isImportant = null
+                                    , [NaturalLanguageParam(Description = "Whether this task is urgent."
+                                                          , Optional    = true)]
+                                      bool? isUrgent = null )
+    {
+        if (priority is null && isImportant is null && isUrgent is null)
+            return "Please specify at least one field to update: priority, isImportant, or isUrgent.";
+
+        var task = TryResolveTaskReference(taskReference, out var resolveError);
+
+        if (task is null)
+            return resolveError!;
+
+        var changes = new List<string>();
+
+        if (priority is not null && priority != task.Priority)
+        {
+            changes.Add($"priority: {task.Priority} → {priority}");
+            task.Priority = priority.Value;
+        }
+
+        if (isImportant is not null && isImportant != task.IsImportant)
+        {
+            changes.Add($"important: {task.IsImportant} → {isImportant}");
+            task.IsImportant = isImportant.Value;
+        }
+
+        if (isUrgent is not null && isUrgent != task.IsUrgent)
+        {
+            changes.Add($"urgent: {task.IsUrgent} → {isUrgent}");
+            task.IsUrgent = isUrgent.Value;
+        }
+
+        if (changes.Count == 0)
+            return $"Task '{task.ShortDescription}' already has those values — no changes made.";
+
+        _taskService.Update(task);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Task {taskReference} — '{task.ShortDescription}' updated:");
+        changes.ForEach(change => sb.AppendLine($"  {change}"));
+        sb.AppendLine();
+        sb.AppendLine($"Decision Matrix: {DescribeMatrix(task)}");
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description = "Set or clear the due date on an existing task. "
+                        + "Accepts a task position number or full task id. "
+                        + "Pass an empty dueDateText to clear the due date."
+          , Examples =
+            [
+                    "Task 2 is due Friday."
+                  , "Set the due date on task 3 to April 5th."
+                  , "Task 1 is due tomorrow."
+                  , "Move task 4's due date to next Monday."
+                  , "Clear the due date on task 2."
+                  , "Task 3 has no due date."
+            ]
+          , AllowsClarification = true)]
+    public string UpdateTaskDueDate( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
+                                                         , Optional    = false
+                                                         , AllowEmpty  = false)]
+                                     string taskReference
+                                   , [NaturalLanguageParam(Description = "The new due date as natural text (e.g. 'Friday', 'April 5th', 'tomorrow'). "
+                                                                       + "Pass an empty string to clear the existing due date."
+                                                         , Optional    = false
+                                                         , AllowEmpty  = true)]
+                                     string dueDateText )
+    {
+        var task = TryResolveTaskReference(taskReference, out var resolveError);
+
+        if (task is null)
+            return resolveError!;
+
+        var previousDue = task.DueDate;
+
+        if (string.IsNullOrWhiteSpace(dueDateText))
+        {
+            if (task.DueDate is null)
+                return $"Task '{task.ShortDescription}' already has no due date.";
+
+            task.DueDate  = null;
+            task.UpdatedAt = DateTimeOffset.UtcNow;
+            _taskService.Update(task);
+
+            return $"Task {taskReference} — '{task.ShortDescription}': due date cleared (was {previousDue:yyyy-MM-dd}).";
+        }
+
+        if (TryParseDate(dueDateText, out var parsed).Not())
+            return $"Could not parse '{dueDateText}' as a date. Try a format like 'Friday', 'April 5th', or '2026-04-05'.";
+
+        if (parsed == task.DueDate)
+            return $"Task '{task.ShortDescription}' already has that due date ({parsed:yyyy-MM-dd}) — no changes made.";
+
+        task.DueDate   = parsed;
+        task.UpdatedAt = DateTimeOffset.UtcNow;
+        _taskService.Update(task);
+
+        var previousPart = previousDue.HasValue
+                                   ? $" (was {previousDue:yyyy-MM-dd})"
+                                   : " (previously none)";
+
+        return $"Task {taskReference} — '{task.ShortDescription}': due date set to {parsed:yyyy-MM-dd}{previousPart}.";
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(Description = "Soft delete a task. Accepts a task position number (from the list) or a full task id."
+                         , Examples =
+                           [
+                                   "Delete task 2."
+                                 , "Remove task 4 from my list."
+                                 , "Delete the task with id abc123."
+                           ]
+                         , AllowsClarification = true)]
+    public string DeleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
+                                                  , Optional    = false
+                                                  , AllowEmpty  = false)]
+                              string taskReference )
+    {
+        var task = TryResolveTaskReference(taskReference, out var resolveError);
+
+        if (task is null)
+            return resolveError!;
+
+        _taskService.Delete(task.Id);
+
+        return $"Task {taskReference} — '{task.ShortDescription}' has been deleted.";
     }
 
     [FastPath]
     [NaturalLanguageAction(Description = "Analyzes all tasks using the Eisenhower Matrix and provides recommendations."
-                         , Examples = new[]
-                                      {
-                                              "Prioritize my tasks."
-                                            , "Analyze my workload."
-                                            , "Which tasks should I do first?"
-                                            , "Show my Eisenhower matrix."
-                                      }
+                         , Examples =
+                           [
+                                   "Prioritize my tasks."
+                                 , "Analyze my workload."
+                                 , "Which tasks should I do first?"
+                                 , "Show my Eisenhower matrix."
+                           ]
                          , AllowsClarification = false)]
     public string AnalyzeTasks()
     {
-        var tasks    = _taskService.GetAll();
+        var tasks    = _taskService.GetActive();
         var reasoner = new EisenhowerReasoner();
         var result   = reasoner.Analyze(tasks);
 
         return result.ToHumanReadableString();
     }
 
-    // --- Helper methods -----------------------------------------------------
+    // --- Private helpers ----------------------------------------------------
 
-    private static bool TryParseDate (string?              text
-                                      , out DateTimeOffset value)
+    /// <summary>
+    /// Resolves a taskReference that is either a 1-based position integer or a GUID string.
+    /// Returns the resolved TaskItem, or null with an error message in <paramref name="errorMessage"/>.
+    /// </summary>
+    private TaskItem? TryResolveTaskReference( string      taskReference
+                                             , out string? errorMessage )
     {
-        if (text.HasValue()
-         && DateTimeOffset.TryParse(text, out value))
+        taskReference = NormalizeId(taskReference);
+
+        if (int.TryParse(taskReference, out var position))
         {
-            return true;
+            var byPosition = _taskService.ResolveByPosition(position);
+
+            if (byPosition is null || byPosition.IsDeleted)
+            {
+                errorMessage = $"No active task found at position {position}.";
+                return null;
+            }
+
+            errorMessage = null;
+            return byPosition;
         }
+
+        var byId = _taskService.Get(taskReference);
+
+        if (byId is null || byId.IsDeleted)
+        {
+            errorMessage = $"No active task found with id '{taskReference}'.";
+            return null;
+        }
+
+        errorMessage = null;
+        return byId;
+    }
+
+    private static IEnumerable<TaskItem> FilterByDueDate( DateTimeOffset?       dueBefore
+                                                        , DateTimeOffset?       dueAfter
+                                                        , bool                  overdueOnly
+                                                        , IEnumerable<TaskItem> tasks )
+    {
+        if (overdueOnly)
+        {
+            return tasks.Where(taskItem => taskItem.DueDate     != null
+                                        && taskItem.DueDate     < DateTimeOffset.UtcNow
+                                        && taskItem.CompletedAt == null);
+        }
+
+        if (dueBefore is not null)
+            tasks = tasks.Where(taskItem => taskItem.DueDate != null && taskItem.DueDate < dueBefore);
+
+        if (dueAfter is not null)
+            tasks = tasks.Where(taskItem => taskItem.DueDate != null && taskItem.DueDate > dueAfter);
+
+        return tasks;
+    }
+
+    private static bool TryParseDate( string?           text
+                                    , out DateTimeOffset value )
+    {
+        if (text.HasValue() && DateTimeOffset.TryParse(text, out value))
+            return true;
 
         value = default;
         return false;
     }
 
-    private static List<string> ParseTags (string? value)
+    private static HashSet<string> ParseTags(string? value)
     {
-        if (value.DoesNotHaveValueOrIsNullOrEmpty()) return new List<string>();
+        if (value?.HasNoValue() ?? true) return [];
 
-        return value.Split(',')
-                    .Select(tag => tag.Trim())
-                    .Where(tag => tag.Length > 0)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+        return new HashSet<string>(value.Split(',')
+                                        .Select(tag => tag.Trim())
+                                        .Where(tag  => tag.Length > 0)
+                                        .Distinct(StringComparer.OrdinalIgnoreCase));
     }
 
-    private static string DescribeMatrix (TaskItem task)
+    private static string DescribeMatrix(TaskItem task)
     {
         return (task.IsImportant, task.IsUrgent) switch
         {
-                  (true, true)  => "Do It Now (Important & Urgent)"
-                , (true, false) => "Decide (Important & Not Urgent)"
-                , (false, true) => "Delegate (Not Important & Urgent)"
-                , _             => "Delete (Not Important & Not Urgent)"
+                (true,  true)  => "Do It Now (Important & Urgent)"
+              , (true,  false) => "Decide (Important & Not Urgent)"
+              , (false, true)  => "Delegate (Not Important & Urgent)"
+              , _              => "Delete (Not Important & Not Urgent)"
         };
     }
-    
+
     private static string NormalizeId(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             return id;
 
         return id.Replace("{", "")
                  .Replace("}", "")
                  .Trim();
     }
-
 }

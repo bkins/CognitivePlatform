@@ -46,17 +46,17 @@ public class SqliteObjectStore : IObjectStore
             """
             CREATE TABLE IF NOT EXISTS Objects
             (
-                Id           TEXT PRIMARY KEY,
-                Type         TEXT NOT NULL,
-                PartitionKey TEXT NULL,
-                Json         TEXT NOT NULL,
-                Mood         TEXT NULL,
-                MoodScore    INTEGER NULL,
-                MoodLevel    INTEGER NULL,
-                MediaPaths   TEXT NULL,
-                CreatedUtc   TEXT NOT NULL,
-                UpdatedUtc   TEXT NOT NULL,
-                DeletedUtc   TEXT NULL
+                Id           TEXT PRIMARY KEY
+              , Type         TEXT NOT NULL
+              , PartitionKey TEXT NULL
+              , Json         TEXT NOT NULL
+              , Mood         TEXT NULL
+              , MoodScore    INTEGER NULL
+              , MoodLevel    INTEGER NULL
+              , MediaPaths   TEXT NULL
+              , CreatedUtc   TEXT NOT NULL
+              , UpdatedUtc   TEXT NOT NULL
+              , DeletedUtc   TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_Objects_Type_Partition_Deleted
@@ -69,9 +69,9 @@ public class SqliteObjectStore : IObjectStore
     // ---------------------------------------------------------------------
     // IObjectStore implementation
     // ---------------------------------------------------------------------
-    public string Save<T> (T      value
-                         , string? partitionKey = null
-                         , string? id           = null)
+    public async Task<string> Save<T> (T       value
+                               , string? partitionKey = null
+                               , string? id           = null)
     {
         if (value is null)
             throw new ArgumentNullException(nameof(value));
@@ -87,10 +87,10 @@ public class SqliteObjectStore : IObjectStore
         var json = JsonSerializer.Serialize(value
                                            , _jsonOptions);
 
-        using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        using var command = connection.CreateCommand();
+        await using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO Objects (Id, Type, PartitionKey, Json, CreatedUtc, UpdatedUtc, DeletedUtc)
@@ -159,7 +159,44 @@ public class SqliteObjectStore : IObjectStore
         return JsonSerializer.Deserialize<T>(json
                                            , _jsonOptions);
     }
+    public T? GetDeleted<T> (string  id
+                    , string? partitionKey = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("Value cannot be null or whitespace."
+                                      , nameof(id));
 
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+                """
+                SELECT Json
+                FROM Objects
+                WHERE Id = $id
+                  AND Type = $type;
+                """;
+
+        command.Parameters.AddWithValue("$id"
+                                      , id);
+        command.Parameters.AddWithValue("$type"
+                                      , typeName);
+
+        using var reader = command.ExecuteReader();
+
+        if (reader.Read().Not())
+            return default;
+
+        var json = reader.GetString(0);
+
+        return JsonSerializer.Deserialize<T>(json
+                                           , _jsonOptions);
+    }
+    
     public IReadOnlyList<T> List<T> (string?         partitionKey = null
                                    , DateTimeOffset? fromUtc      = null
                                    , DateTimeOffset? toUtc        = null)

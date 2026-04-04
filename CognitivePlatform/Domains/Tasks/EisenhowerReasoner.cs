@@ -12,10 +12,10 @@ public class EisenhowerReasoner
     {
         var now = DateTimeOffset.UtcNow;
 
-        var doItNew     = new List<TaskItem>(); // Do It Now
-        var decide      = new List<TaskItem>(); // Decide
+        var doItNew     = new List<TaskItem>(); // Do It Now / First
+        var decide      = new List<TaskItem>(); // Decide / Schedule
         var doDeletgate = new List<TaskItem>(); // Delegate
-        var delete      = new List<TaskItem>(); // Delete
+        var delete      = new List<TaskItem>(); // Delete / Eliminate
 
         foreach (var taskItem in tasks.Where(taskItem => taskItem.IsDeleted
                                                                  .Not()))
@@ -23,7 +23,7 @@ public class EisenhowerReasoner
             switch (taskItem.IsImportant, taskItem.IsUrgent)
             {
                 case (true, true):
-                    doItNew.Add(taskItem); 
+                    doItNew.Add(taskItem);
                     break;
                 
                 case (true, false):
@@ -83,7 +83,7 @@ public record EisenhowerResult
                                   ? $" (due {taskItem.DueDate:yyyy-MM-dd})"
                                   : string.Empty;
 
-                sb.AppendLine($"- {taskItem.Title}{due} [ID: {taskItem.Id}]");
+                sb.AppendLine($"- {taskItem.ShortDescription}{due}{Environment.NewLine}  [ID: {taskItem.Id}]");
             }
         }
 

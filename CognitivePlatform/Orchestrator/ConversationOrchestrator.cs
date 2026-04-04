@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Avails.Extensions;
@@ -10,6 +11,7 @@ using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
+using CognitivePlatform.Api.Telemetry.Events;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -20,18 +22,22 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IExecutionEngine         _execution;
     private readonly ConversationContextStore _contextStore;
     private readonly ITelemetrySink           _telemetry;
-    private readonly IFastPathResolver         _fastPath;
+    private readonly IFastPathResolver        _fastPath;
     private readonly ILlmClient               _llmClient;
     private readonly IIdempotencyStore        _idempotencyStore;
+    private readonly TelemetryContext         _telemetryContext;
 
+    private bool _isDebug  = false;
+    
     public ConversationOrchestrator( IActionRegistry                                                registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
                                    , IExecutionEngine                                               execution
                                    , ConversationContextStore                                       contextStore
                                    , ITelemetrySink                                                 telemetry
-                                   , IFastPathResolver                                               fastPathResolver
+                                   , IFastPathResolver                                              fastPathResolver
                                    , ILlmClient                                                     llmClient
-                                   , IIdempotencyStore                                              idempotencyStore )
+                                   , IIdempotencyStore                                              idempotencyStore 
+                                   , TelemetryContext                                               telemetryContext )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -41,12 +47,30 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _fastPath         = fastPathResolver ?? throw new ArgumentNullException(nameof(fastPathResolver));
         _llmClient        = llmClient        ?? throw new ArgumentNullException(nameof(llmClient));
         _idempotencyStore = idempotencyStore ?? throw new ArgumentNullException(nameof(idempotencyStore));
+        _telemetryContext = telemetryContext ?? throw new ArgumentNullException(nameof(telemetryContext));
+
+#if DEBUG
+        _isDebug = true;
+#endif
     }
 
 
     public async Task<ConverseResponse> ConverseAsync(ConverseRequest    request
                                                     , CancellationToken ct = default)
     {
+        var sw = new Stopwatch();
+        sw.Start();
+
+        var sessionId = request.SessionId;
+        
+        _telemetryContext.SessionId = sessionId;
+        _telemetry.Track(_telemetryContext.CreateEvent( new ConversationStartedEvent
+                         {
+                                 SessionId = sessionId
+                               , Sequence  = _telemetryContext.NextSequence()
+                               , Input     = request.Input ?? "No input provided."
+                         }));
+
         if (request?.Input is null) throw new ArgumentNullException(nameof(request));
         
         if (request.ClientRequestId.HasValue)
@@ -55,15 +79,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             if (existing is not null)
             {
-                _telemetry.Track("Idempotency.Hit"
-                               , request.ClientRequestId.Value.ToString());
+                _telemetry.Track($"Idempotency.Hit {request.ClientRequestId.Value.ToString()}");
 
                 return existing;
             }
         }
-        
-        _telemetry.Track("Conversation.Start", $"Model='{request.Model}'");
 
+        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorStartedEvent
+                                                       {
+                                                               Model     = request.Model ?? "No Model defined"
+                                                       }));
+        
         // 1. Get or create the session context
         var context = _contextStore.GetOrCreate(request.SessionId);
         
@@ -74,89 +100,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
         
-        // if (_fastPath.TryResolve(request.Input
-        //                        , out var actionMeta
-        //                        , out var fastParams))
-        // {
-        //     _telemetry.Track("FastPath.Resolved",
-        //                      $"Action={actionMeta!.Name}");
-        //     
-        //     // J-03: Persist JournalDraft locally (local-first capture)
-        //     // Only do this for the journal "AddJournalEntry" fast-path action.
-        //     // (Adjust name if your action is named differently in the registry.)
-        //     
-        //     //Documentation on how this will work: 
-        //     //C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System\Flow - User Input - API - Draft - Execution.md
-        //     if (actionMeta!.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
-        //     {
-        //         var parsed = _journalParser.Parse(fastParams!.FirstOrDefault().Value ?? string.Empty);
-        //         
-        //         // J-02 rule: only quoted directives become structured fields;
-        //         // unquoted directive-like text stays in Text (handled by parser).
-        //         var draft = new JournalDraft
-        //                     {
-        //                             Text      = parsed.Text
-        //                           , Tags      = parsed.Tags
-        //                           , Mood      = parsed.Mood
-        //                           , State     = JournalDraftState.Local
-        //                           , MoodScore = parsed.MoodScore
-        //                     };
-        //
-        //         await _journalDraftRepository.AddAsync(draft, ct);
-        //         fastParams = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        //                      {
-        //                              ["text"] = parsed.Text
-        //                      };
-        //
-        //         if (parsed.Tags.Count > 0)
-        //             fastParams["tags"] = string.Join(", ", parsed.Tags);
-        //
-        //         if (parsed.Mood.HasValue())
-        //             fastParams["mood"] = parsed.Mood;
-        //
-        //         if (parsed.MoodScore.HasValue)
-        //             fastParams["moodScore"] = parsed.MoodScore.Value.ToString();
-        //         
-        //     }
-        //     
-        //     var result = _execution.Execute(actionMeta!, fastParams!);
-        //     _telemetry.Track("ConverseAsync.FastPath", result);
-        //
-        //     var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}={pair.Value}"));
-        //     
-        //     if (request.ClientRequestId.HasValue)
-        //     {
-        //         var existing = await _idempotencyStore.TryGetAsync(request.ClientRequestId.Value, ct);
-        //         if (existing is not null)
-        //         {
-        //             _telemetry.Track("Idempotency.Hit", request.ClientRequestId.Value.ToString());
-        //             return existing;
-        //         }
-        //     }
-        //     
-        //     return new ConverseResponse
-        //            {
-        //                    Message = result
-        //                  , Debug = $"FastPath → Action={actionMeta!.Name}"
-        //                          + $", Params=[{parameters}]"
-        //            };
-        // }
-        
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
         {
-            _telemetry.Track("FastPath.Resolved", $"Action={actionMeta!.Name}");
+            var response = TakeTheFastPath(actionMeta
+                                         , fastParams
+                                         , context);
 
-            var result = _execution.Execute(actionMeta!, fastParams!);
-
-            var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}={pair.Value}"));
-
-            var response = new ConverseResponse
-                           {
-                                   Message = result
-                                 , Debug = $"FastPath → Action={actionMeta!.Name}, Params=[{parameters}]"
-                           };
-
-            return await FinalizeAsync(request, response, ct);
+            return await FinalizeAsync(request, response, sw, ct);
         }
 
         // Persist client-selected model (if provided) into session metadata
@@ -169,15 +119,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // Prevent a prior request model from leaking into this turn
             context.Metadata.Remove("model");
         }
-
-        // 2. Wire it into the test actions (needed for StoreValue, RecallValue, RepeatLastAction)
-        //Actions.TestActions.SetContext(context);
-
-        // 2b. Wire the registry into meta-actions so they can introspect available actions
-        //Actions.MetaActions.SetRegistry(_registry);
-
-        // 2c. Wire context into meta-actions so they can explain reasoning
-        //Actions.MetaActions.SetContext(context);
 
         // 3. If we are in a clarification flow, consume this turn
         if (context.PendingAction is not null)
@@ -198,32 +139,40 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                        , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
-                    var result     = _execution.Execute(confirmedAction, execParams);
+                    var result     = _execution.Execute(confirmedAction, execParams, context.SessionId);
 
                     var confirmationResponse = new ConverseResponse
-                           {
-                                   Message = result
-                                 , Debug = "Delete confirmed and executed."
-                           };
-                    return await FinalizeAsync(request, confirmationResponse, ct);
+                                               {
+                                                       Message = result
+                                                     , Debug   = "Delete confirmed and executed."
+                                                     , ExecutionResult = $"Executed confirmed action '{confirmedAction.Name}' "
+                                                                       + $"with parameters: {string.Join(", ", execParams.Select(pair => $"{pair.Key}={pair.Value}"))}"
+                                                     , WasFastPath = true
+                                               };
+                    return await FinalizeAsync(request, confirmationResponse, sw, ct);
                 }
 
                 if (IsNegative(input).Not())
                     return new ConverseResponse
                            {
-                                   Message = "Please confirm or cancel the deletion."
-                                 , Debug = "Awaiting delete confirmation."
+                                   Message         = "Please confirm or cancel the deletion."
+                                 , Debug           = "Awaiting delete confirmation."
+                                 , ExecutionResult = "User has not yet confirmed or cancelled the delete action."
+                                 , WasFastPath     = true
                            };
                 
                 context.PendingAction = null;
 
                 var response = new ConverseResponse
                                {
-                                       Message = "Deletion cancelled."
-                                     , Debug = "Delete cancelled by user."
+                                       Message         = "Deletion cancelled."
+                                     , Debug           = "Delete cancelled by user."
+                                     , ExecutionResult = "User cancelled the delete action during confirmation step."
+                                     , WasFastPath     = true
                                };
                 return await FinalizeAsync(request
                                          , response
+                                         , sw
                                          , ct);
 
             }
@@ -240,14 +189,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = null;
 
                 const string message = "The action I was trying to clarify is no longer available.";
-                _telemetry.Track("Clarification.ActionMissing", message);
+                _telemetry.Track($"Clarification.ActionMissing; {message}");
 
                 var response = new ConverseResponse
-                       {
-                               Message = message
-                             , Debug   = "Pending action not found in registry."
-                       };
-                return await FinalizeAsync(request, response, ct);
+                               {
+                                       Message         = message
+                                     , Debug           = "Pending action not found in registry."
+                                     , ExecutionResult = $"Could not find action '{pending.ActionName}' in registry during clarification flow."
+                                     , WasFastPath     = true
+                               };
+                return await FinalizeAsync(request, response, sw, ct);
             }
 
             // If somehow no remaining parameters, just execute with what we have
@@ -256,20 +207,23 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = null;
 
                 var finalParameters = ApplyDefaultValues(action, pending.CollectedParameters);
-                var execOutput      = _execution.Execute(action, finalParameters);
+                var execOutput      = _execution.Execute(action, finalParameters, context.SessionId);
 
-                _telemetry.Track("Clarification.Completed"
-                               , $"Action={pending.ActionName}, "
-                               + $"Collected={pending.CollectedParameters.Count}");
+                _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                       {
+                                                               Details = $"Clarification.Completed; Action={pending.ActionName}, Collected={pending.CollectedParameters.Count}"
+                                                       }));
 
                 var response = new ConverseResponse
-                       {
-                               Message = execOutput
-                             , Debug   = $"Executed pending action '{pending.ActionName}' with previously collected parameters."
-                       };
-                return await FinalizeAsync(request, response, ct);
+                               {
+                                       Message = execOutput
+                                     , Debug   = $"Executed pending action '{pending.ActionName}' with previously collected parameters."
+                                     , ExecutionResult = $"Executed action '{action.Name}' "
+                                                       + $"with parameters: {string.Join(", ", finalParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
+                                     , WasFastPath = true
+                               };
+                return await FinalizeAsync(request, response, sw, ct);
             }
-
 
             // Take the next missing parameter name
             var nextParameterName = pending.RemainingParameters[0];
@@ -280,10 +234,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
             pending.CollectedParameters[nextParameterName] = userValue;
             pending.RemainingParameters.RemoveAt(0);
 
-            _telemetry.Track("Clarification.ParameterCollected"
-                           , $"Action={pending.ActionName}, "
-                           + $"Parameter={nextParameterName}, "
-                           + $"Value='{userValue}'");
+            _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                   {
+                                                           Details = $"Clarification.ParameterCollected; Action={pending.ActionName}, Parameter={nextParameterName}"
+                                                   }));
 
             // If there are still parameters to collect, ask for the next one
             if (pending.RemainingParameters.Count > 0)
@@ -304,46 +258,49 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = pending;
 
                 var response = new ConverseResponse
-                       {
-                               Message = question
-                             , Debug   = $"Clarification: collected '{nextParameterName}' = '{userValue}'. "
-                                       + $"Still need parameter '{friendlyName}'."
-                       };
+                               {
+                                       Message = question
+                                     , Debug = $"Clarification: collected '{nextParameterName}' = '{userValue}'. "
+                                             + $"Still need parameter '{friendlyName}'."
+                                     , ExecutionResult = $"Collected parameter '{nextParameterName}' with value '{userValue}' for action '{action.Name}'. Still need parameter '{friendlyName}'."
+                                     , WasFastPath = true
+                               };
                 
-                return await FinalizeAsync(request, response, ct);
+                return await FinalizeAsync(request, response, sw, ct);
             }
 
             // execute the action now
             context.PendingAction = null;
 
             var parameters  = ApplyDefaultValues(action, pending.CollectedParameters);
-            var finalOutput = _execution.Execute(action, parameters);
+            var finalOutput = _execution.Execute(action, parameters, context.SessionId);
 
-            _telemetry.Track("Clarification.Completed",
-                             $"Action={pending.ActionName}, "
-                           + $"Collected={pending.CollectedParameters.Count}");
+            _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                   {
+                                                           Details = $"Clarification.Completed; Action={pending.ActionName}, Collected={pending.CollectedParameters.Count}"
+                                                   }));
 
             var finalClarificationResponse = new ConverseResponse
-                   {
-                           Message = finalOutput,
-                           Debug   = $"Executed pending action '{pending.ActionName}' "
-                                   + $"after collecting all required parameters."
-                   };
-            return await FinalizeAsync(request, finalClarificationResponse, ct);
+                                             {
+                                                     Message = finalOutput
+                                                   , Debug = $"Executed pending action '{pending.ActionName}' "
+                                                           + $"after collecting all required parameters."
+                                                   , ExecutionResult = $"Executed action '{action.Name}' with parameters: {string.Join(", ", parameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
+                                                   , WasFastPath = true
+                                             };
+            return await FinalizeAsync(request, finalClarificationResponse, sw, ct);
         }
 
         // 4. Log interpreter identity
-        _telemetry.Track("ConversationOrchestrator.Interpreter.Selected"
-                       , $"Using interpreter: {_interpreter.GetType().Name}");
+        _telemetry.Track($"ConversationOrchestrator.Interpreter.Selected; Using interpreter: {_interpreter.GetType().Name}");
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
         //              "Interpreter should not run after FastPath resolution.");
 
         // 5. Interpret with context
-            var interpretation = await _interpreter.InterpretWithContext(request.Input
+        var interpretation = await _interpreter.InterpretWithContext(request.Input
                                                                        , context);
         
-
         // 5a. By default, clear any pending action; clarification will set it again
         context.PendingAction = null;
 
@@ -354,6 +311,35 @@ public class ConversationOrchestrator : IConversationOrchestrator
         context.LastInterpreterDebug  = interpretation.DebugInfo;
         context.LastFailureType       = interpretation.FailureType;
 
+        if (interpretation.FailureType == InterpreterFailureType.Exception)
+        {
+            var message = "I'm not sure what to do next.";
+            if (_isDebug)
+            {
+                message = $"""
+                          ## I'm not sure what to do next. 
+                          ----
+                          You are getting this because:
+                          ```csharp
+                          interpretation.FailureType == InterpreterFailureType.Exception
+                          ```
+                          Is `true` 
+                          The exception is:
+                          >{interpretation.DebugInfo}
+                          """;
+            }
+
+            var llmExceptionResponse = new ConverseResponse
+                                       {
+                                               Message         = message
+                                             , Debug           = interpretation.DebugInfo
+                                             , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
+                                             , Success         = false
+                                       };
+            return await FinalizeAsync(request, llmExceptionResponse, sw, ct);
+        }
+        
+        
         context.LastCandidateActions.Clear();
         
         if (interpretation.CandidateActions is { Count: > 0 })
@@ -390,14 +376,19 @@ public class ConversationOrchestrator : IConversationOrchestrator
             if (action is null)
             {
                 var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
-                _telemetry.Track("ActionLookup.Failed", msg);
+                
+                _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                       {
+                                                               Details = $"ActionLookup.Failed; {msg}"
+                                                       }));
 
                 var response = new ConverseResponse
                        {
                                Message = "That action is not registered in this system."
                              , Debug   = msg
+                             , ExecutionResult = $"Could not find action '{interpretation.ActionName}' in registry during missing parameters handling."
                        };
-                return await  FinalizeAsync(request, response, ct);
+                return await  FinalizeAsync(request, response, sw, ct);
             }
 
             if (action.AllowsClarification)
@@ -461,32 +452,68 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                         };
 
                 var response = new ConverseResponse
-                       {
-                               Message = question
-                             , Debug   = interpretation.DebugInfo
-                       };
-                return await  FinalizeAsync(request, response, ct);
+                               {
+                                       Message = question
+                                     , Debug   = interpretation.DebugInfo
+                                     , ExecutionResult = $"Interpreter selected action '{action.Name}' but is missing required parameters: {string.Join(", ", missingNames)}. Prompting user for '{friendlyName}'."
+                               };
+                return await  FinalizeAsync(request, response, sw, ct);
             }
 
             // Action does NOT allow clarification: treat as a normal failure
             var missingJoined = string.Join(", ", interpretation.MissingParameters);
+
+            var message = "I'm not sure what to do next.";
+            if (_isDebug)
+            {
+                message = """
+                          ## I'm not sure what to do next. 
+                          ----
+                          You are getting this because:
+                          ```csharp
+                          if (interpretation is
+                          {
+                                  FailureType: InterpreterFailureType.MissingParameters
+                                , ActionName: not null
+                                , MissingParameters.Count: > 0
+                          })
+                          ```
+                          Is `true` 
+                          """;
+            }
+
             var missingParametersResponse = new ConverseResponse
-                   {
-                           Message = "I'm not sure what to do next."
-                         , Debug   = $"Missing required parameters for action '{interpretation.ActionName}': {missingJoined}"
-                   };
-            return await FinalizeAsync(request, missingParametersResponse, ct);
+                                            {
+                                                    Message         = message
+                                                  , Debug           = $"Missing required parameters for action '{interpretation.ActionName}': {missingJoined}"
+                                                  , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
+                                            };
+            return await FinalizeAsync(request, missingParametersResponse, sw, ct);
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
         if (string.IsNullOrWhiteSpace(interpretation.ActionName))
         {
+            var message = "I'm not sure what to do next.";
+            if (_isDebug)
+            {
+                message = """
+                          ## I'm not sure what to do next. 
+                          ----
+                          You are getting this because:
+                          ```csharp
+                          if (string.IsNullOrWhiteSpace(interpretation.ActionName))
+                          ```
+                          Is `true` 
+                          
+                          """;
+            }
             var missingActionResponse = new ConverseResponse
                    {
-                           Message = "I'm not sure what to do next."
+                           Message = message
                          , Debug   = interpretation.DebugInfo
                    };
-            return await FinalizeAsync(request, missingActionResponse, ct);
+            return await FinalizeAsync(request, missingActionResponse, sw, ct);
         }
 
         // 8. Look up the action reflectively
@@ -497,14 +524,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (selectedAction is null)
         {
             var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
-            _telemetry.Track("ActionLookup.Failed", msg);
+            _telemetry.Track($"ActionLookup.Failed: {msg}");
 
             var unknownActionResponse = new ConverseResponse
                                         {
                                                 Message = "That action is not registered in this system."
                                               , Debug   = msg
                                         };
-            return await FinalizeAsync(request, unknownActionResponse, ct);
+            return await FinalizeAsync(request, unknownActionResponse, sw, ct);
 
         }
 
@@ -537,24 +564,51 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             var response = new ConverseResponse
                            {
-                                   Message = reviewMessage
-                                 , Debug = "Delete action requires confirmation."
+                                   Message         = reviewMessage
+                                 , Debug           = "Delete action requires confirmation."
+                                 , ExecutionResult = "Awaiting user confirmation for delete action."
                            };
-            return await FinalizeAsync(request, response, ct);
+            return await FinalizeAsync(request, response, sw, ct);
         }
         
         // 9. Execute (sync) with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
-        var execOutputFinal = _execution.Execute(selectedAction, execParameters);
+        var execOutputFinal = _execution.Execute(selectedAction, execParameters, context.SessionId);
 
         // 10. Return a consolidated response after finalizing it
         var finalResponse = new ConverseResponse
-                       {
-                               Message = execOutputFinal
-                             , Debug   = interpretation.DebugInfo
-                       };
+                            {
+                                    Message = execOutputFinal
+                                  , Debug   = interpretation.DebugInfo
+                                  , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
+                            };
 
-        return await FinalizeAsync(request, finalResponse, ct);
+        return await FinalizeAsync(request, finalResponse, sw, ct);
+    }
+
+    private ConverseResponse TakeTheFastPath( ActionMetadata?             actionMeta
+                                            , Dictionary<string, string>? fastParams
+                                            , ConversationContext         context )
+    {
+
+        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                       {
+                                                               Details = $"FastPath.Resolved; Action={actionMeta!.Name}"
+                                                       }));
+
+        var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+
+        var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}: {pair.Value}"));
+
+        var response = new ConverseResponse
+                       {
+                               Message         = result
+                             , Debug           = $"FastPath → Action={actionMeta!.Name} with Params=[{parameters}]"
+                             , ExecutionResult = $"Successfully executed FastPath-resolved action '{actionMeta.Name}'\n"
+                                               + $"                  with parameters: {parameters}"
+                             , WasFastPath     = true
+                       };
+        return response;
     }
 
     private bool IsNegative (string? input)
@@ -570,6 +624,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
     public async IAsyncEnumerable<string> StreamAsync(ConverseRequest                            request,
                                                       [EnumeratorCancellation] CancellationToken ct = default)
     {
+        var sw = new Stopwatch();
+        sw.Start();
+        
+        var sessionId = request.SessionId;
+        _telemetryContext.SessionId = sessionId;
+        _telemetry.Track(_telemetryContext.CreateEvent(new ConversationStartedEvent
+                                                       {
+                                                               Input       = request.Input ?? "No input provided."
+                                                             , IsStreaming = true
+                                                       }));
+
         if (request?.Input is null)
             yield break;
 
@@ -592,8 +657,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // If it doesn't resolve, fall back to normal streaming/interpreter behavior.
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
         {
-            _telemetry.Track("FastPath.Resolved.Stream",
-                             $"Action={actionMeta!.Name}");
+            _telemetry.Track($"FastPath.Resolved.Stream; Action={actionMeta!.Name}");
 
             // Mirror ConverseAsync J-03 behavior for journal fast-path:
             // if (actionMeta.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
@@ -611,8 +675,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //     await _journalDraftRepository.AddAsync(draft, ct);
             // }
             
-            var result = _execution.Execute(actionMeta!, fastParams!);
-            _telemetry.Track("ConverseAsync.FastPath.Stream", result);
+            var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+            _telemetry.Track($"ConverseAsync.FastPath.Stream; Result: {result}");
 
             yield return result;
             yield break;
@@ -637,13 +701,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         // 🔥 Stream directly from the LLM
-        await foreach (var chunk in _llmClient.StreamAsync(
-                           request.Input,
-                           request.Model,
-                           ct))
+        await foreach (var chunk in _llmClient.StreamAsync(request.Input
+                                                         , request.Model
+                                                         , ct))
         {
             yield return chunk;
         }
+        
+        //TODO:  Figure out how to determine when the stream is complete.
+        // Does this need to be determined in the controller?  
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
@@ -670,6 +736,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
     public async Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
                                                       , ConverseResponse  response
+                                                       , Stopwatch sw
                                                       , CancellationToken ct )
     {
         if (request.ClientRequestId.HasValue)
@@ -679,6 +746,25 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                              , ct);
         }
 
+        var property = new Dictionary<string, object?>();
+        property.Add("DebugInfo", response.Debug ?? "No debug info.");
+
+        sw.Stop();
+
+        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorCompletedEvent
+                                                       {
+                                                               Model      = request.Model            ?? "No Model defined"
+                                                             , Response   = response.ExecutionResult ?? "No execution result."
+                                                             , Properties = property
+                                                       }));
+        
+        _telemetry.Track(_telemetryContext.CreateEvent(new ConversationCompletedEvent
+                                                       {
+                                                               TimeElapsed = sw.Elapsed
+                                                       }));
+
+        // _telemetry.Track($"Orchestrator.End; Model='{request.Model}' Response: {response.ExecutionResult}");
+        // _telemetry.Track("Orchestrator.End.Debug", response.Debug ?? "No debug info.");
         return response;
     }
 }

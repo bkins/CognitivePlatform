@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
@@ -16,7 +17,9 @@ using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
+using CognitivePlatform.Api.Models.SystemInfo;
 using CognitivePlatform.Api.System;
+using CognitivePlatform.Api.SystemInfo;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
 
@@ -26,7 +29,11 @@ public partial class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding  = Encoding.UTF8;
-
+        
+#if DEBUG
+        //Console.SetOut(new InterceptingWriter(Console.Out));
+#endif        
+        
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -35,88 +42,90 @@ public partial class Program
                                                          , EnvironmentName = env
                                                          //, ApplicationName = $"CognitivePlatform.Api.{env}"
                                                    });
-      
-        
+
+
         builder.Configuration
                .AddJsonFile("appsettings.json")
-               .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true);
+               .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+               .AddUserSecrets<Program>(optional: true);
 // Set loggers
 
         builder.Logging.ClearProviders();
 
-        builder.Logging.AddConsoleFormatter<AdaptiveConsoleFormatter, SimpleConsoleFormatterOptions>(o =>
+        builder.Services.AddSingleton<ConsoleFormatter, AdaptiveConsoleFormatter>();
+        builder.Services.Configure<SimpleConsoleFormatterOptions>(options =>
         {
-            o.TimestampFormat = "HH:mm:ss ";
+            options.TimestampFormat = "yyyy/MM/dd HH:mm:ss.ff ";
+            options.SingleLine      = false; // important for your multi-line output
         });
-
-        builder.Logging.AddConsole(o =>
+        
+        builder.Logging.AddConsole(options =>
         {
-            o.FormatterName = "Adaptive";
-        });
-
-        builder.Logging.AddFilter((provider, category, level) =>
-        {
-            if (!provider.Contains("Console")) return false;
-    
-            // Only log Diagnostics at Information and above
-            if (category.StartsWith("Diagnostics"))
-                return level >= LogLevel.Information;
-    
-            // Log everything else at your desired level
-            return level >= LogLevel.Information;
+            options.FormatterName = "Adaptive";
         });
         
 // Core services
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
-        builder.Services.AddSingleton<IConversationOrchestrator, ConversationOrchestrator>();
-        builder.Services.AddSingleton<IExecutionEngine>(sp => new ExecutionEngine(sp.GetRequiredService<ITelemetrySink>(), sp));
-        builder.Services.AddSingleton<ITelemetrySink, ConsoleTelemetrySink>();
+        builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
+        builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
+
+        
+        builder.Services.AddScoped<ITelemetrySink, ConsoleTelemetrySink>();
+        builder.Services.AddScoped<TelemetryContext>();
+        
         builder.Services.AddSingleton<ConversationContextStore>();
 
 // Interpreters
         builder.Services
-               .AddKeyedSingleton<IInterpreter>(KeyedServices.MockInterpreter
-                                              , (sp
-                                               , key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
-                                                                           , sp.GetRequiredService<ITelemetrySink>()));
+               .AddKeyedScoped<IInterpreter>(KeyedServices.MockInterpreter
+                                           , (sp, key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                                                            , sp.GetRequiredService<ITelemetrySink>()));
 
-        builder.Services.AddSingleton<IFastPathResolver, FastPathResolver>();
+        builder.Services.AddScoped<IFastPathResolver, FastPathResolver>();
 
 // LLM
+        // LLM — named HttpClients, one per provider
         builder.Services.AddHttpClient();
-        builder.Services.AddHttpClient<ILlmClient, OllamaLlmClient>();
-
+        builder.Services.AddHttpClient("Ollama");
+        builder.Services.AddHttpClient("Groq");
+ 
+        // Settings
+        builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));
+ 
+        // Factory — selects the active provider at runtime
+        builder.Services.AddSingleton<LlmClientFactory>();
+ 
+        // ILlmClient — resolved via factory so swapping providers is a config change
+        builder.Services.AddSingleton<ILlmClient>(sp => sp.GetRequiredService<LlmClientFactory>().Create());
+ 
         builder.Services.AddSingleton<LlmModelCatalog>();
         builder.Services.AddSingleton<LlmStartupProbe>();
-
-        builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));
-
+ 
         builder.Services
-               .AddKeyedSingleton<IInterpreter>(KeyedServices.LlmInterpreter
-                                              , (sp
-                                               , _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
-                                                                        , sp.GetRequiredService<ITelemetrySink>()
-                                                                        , sp.GetRequiredService<ILlmClient>()
-                                                                        , sp.GetRequiredService<LlmModelCatalog>()
-                                                                        , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
+               .AddKeyedScoped<IInterpreter>(KeyedServices.LlmInterpreter
+                                           , (sp, _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                                                         , sp.GetRequiredService<ITelemetrySink>()
+                                                                         , sp.GetRequiredService<ILlmClient>()
+                                                                         , sp.GetRequiredService<LlmModelCatalog>()
+                                                                         , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
 
 // Persistence
         BuildDataPersistenceLayer(builder);
 
 // Domains
 
-//Journals
+    //Journals
         builder.Services.AddSingleton<IJournalService, JournalService>();
         builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
         builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
 
-//Journals-Revisions
+    //Journals-Revisions
         builder.Services.AddSingleton<IJournalRevisionRepository, JournalRevisionRepository>();
 
-//Tasks
+    //Tasks
         builder.Services.AddSingleton<ITaskService, TaskService>();
 
-// Knowledge Inbox
+    // Knowledge Inbox
         builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
         builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
         builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
@@ -148,8 +157,12 @@ public partial class Program
                                    , dataRoot
                                    , dbPath);
         });
+
+        // Suppress the built-in messages
+        builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
+        builder.Services.Configure<ConsoleLifetimeOptions>(options => options.SuppressStatusMessages = true);
         
-// Build App
+        // Build App
         var app = builder.Build();
         
         using (var scope = app.Services.CreateScope())
@@ -161,7 +174,6 @@ public partial class Program
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()
                                    .CreateLogger("Diagnostics.Program");
-        
         app.MapScalarApiReference(options =>
         {
             //http://localhost:5273/scalar
@@ -171,17 +183,8 @@ public partial class Program
                                         , ScalarClient.HttpClient).Title=$"Cognitive Platform API ({app.Environment.EnvironmentName})";
         });
         
-        // if (app.Environment.IsDevelopment())
-        // {
-        //     
-        // }
-        
 // ---------- HTTP PIPELINE (LISTENING STARTS) ----------
 
-        // if (app.Environment.IsDevelopment())
-        // {
-        //     
-        // }
         app.MapOpenApi();
         
         app.UseAuthorization();
@@ -191,16 +194,19 @@ public partial class Program
 // ---------- Minimal APIs (Health and System info) ----------
 // ---------- (These should not relate to business logic) ----        
 
-        app.MapGet("/health/ready", (ITelemetrySink telemetrySink, string caller = "N/A") =>
+        app.MapGet("/health/ready"
+                 , (ITelemetrySink telemetrySink
+                  , bool telemetryOn = false
+                  , [CallerMemberName] string caller = "N/A") =>
         {
-            telemetrySink.Track("Ready?"
-                              , $"Returns Ready or 503 :: Called by: {caller}");
+            if (telemetryOn) telemetrySink.Track($"'/health/ready' Returns Ready or 503 :: Called by: {caller}");
+            
             return StartupState.IsReady
                            ? Results.Ok("Ready")
                            : Results.StatusCode(503);
         });
 
-        app.MapGet("/telemetry/logs", () => ConsoleTelemetrySink.InMemoryTelemetry);
+        //app.MapGet("/telemetry/logs", () => ConsoleTelemetrySink.InMemoryTelemetry);
 
         app.MapGet("/system/environment",
                    (SystemService systemService) =>
@@ -237,39 +243,47 @@ public partial class Program
                         });
         }
 
-// Start listening immediately
-        var runTask = app.RunAsync();
-
-// ---------- HEAVY STARTUP (DOES NOT BLOCK LISTENING) ----------
-
+        // Start listening immediately
+        var runTask = app.RunAsync(); 
+        
+// ---------- HEAVY STARTUP  ----------
+        SystemEnvironmentInfo envInfo;
+        SystemService         sysInfo;
+        SystemVersionInfo     verInfo;
+        GroqSettings          settings;
+        
         using (var scope = app.Services.CreateScope())
         {
             var probe    = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
-            var settings = scope.ServiceProvider
-                                .GetRequiredService<IOptions<LlmClientSettings>>()
-                                .Value;
+            settings = scope.ServiceProvider
+                            .GetRequiredService<IOptions<GroqSettings>>()
+                            .Value;
             var catalog = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
-            var log     = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+           
+            await StartProbe(startWithProbeFirst: true
+                           , probe
+                           , settings
+                           , diagnosticsLogger);
 
-            var swProbe = new Stopwatch();
-            swProbe.Start();
-            await probe.RunAsync(settings.SortedAllowedModels, CancellationToken.None);
+            //StoreDefaultModel(settings, catalog);
 
-            StoreDefaultModel(settings, catalog);
-
-            log.LogInformation("LLM Default Model Selected: {Model}", settings.DefaultModel);
-            //swProbe.Stop();
-            log.LogInformation($"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)");
-            
-            var sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
-            
-            var envInfo = sysInfo.GetEnvironment();
-            diagnosticsLogger.LogInformation("{SystemEnvironment}", envInfo.ToString());
-
-            var verInfo = sysInfo.GetVersion();
-            diagnosticsLogger.LogInformation("{SystemVersion}", verInfo.ToString());
+            sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
+            envInfo = sysInfo.GetEnvironment();
+            verInfo = sysInfo.GetVersion();
         }
 
+        var summary = new StartupSummary
+                      {
+                              Urls         = app.Urls.ToList()
+                            , EnvInfo      = envInfo
+                            , VerInfo      = verInfo
+                            , SysInfo      = sysInfo
+                            , DefaultModel = settings.Model
+                            , Provider     = settings.Provider
+                      };
+
+        diagnosticsLogger.LogInformation("{StartupSummary}", summary);
+        StartupState.MarkReady();
 // ---------- READY ----------
 
         StartupState.MarkReady();
@@ -310,6 +324,26 @@ public partial class Program
             dataBuilder.Services.AddSingleton<StartupInvariantGuard>();
             
             dataBuilder.Services.AddSingleton<IIdempotencyStore, ObjectStoreIdempotencyStore>();
+        }
+    }
+
+    private static async Task StartProbe( bool              startWithProbeFirst
+                                        , LlmStartupProbe   probe
+                                        , GroqSettings settings
+                                        , ILogger  log )
+    {
+
+        if (startWithProbeFirst)
+        {
+            var swProbe = new Stopwatch();
+            swProbe.Start();
+                
+            await probe.RunAsync(settings.Model
+                               , CancellationToken.None);
+                
+            log.LogInformation(probe.ShouldProbeModels
+                                       ? $"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)"
+                                       : "Probe skipped");
         }
     }
 }

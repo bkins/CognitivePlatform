@@ -1,10 +1,8 @@
-using System.Diagnostics;
 using System.Reflection;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
-using Microsoft.Extensions.Hosting;
 
-namespace CognitivePlatform.Api.System;
+namespace CognitivePlatform.Api.SystemInfo;
 
 public sealed class SystemService
 {
@@ -78,7 +76,7 @@ public sealed class SystemService
                        : null;
     }
 
-    private static DateTime? GetBuildTimeUtc (Assembly assembly)
+    private static DateTime GetBuildTimeUtc (Assembly assembly)
     {
         // Best-effort only; returns null if not available
         var location = assembly.Location;
@@ -86,7 +84,7 @@ public sealed class SystemService
         if (location.HasNoValue() 
          || File.Exists(location)
                 .Not())
-            return null;
+            return default;
 
         return File.GetLastWriteTimeUtc(location);
     }

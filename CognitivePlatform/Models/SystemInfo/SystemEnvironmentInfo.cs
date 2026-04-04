@@ -19,11 +19,11 @@ public sealed class SystemEnvironmentInfo
                 sb.AppendLine(nameof(SystemEnvironmentInfo));
                 sb.AppendLine($"\t{nameof(EnvironmentName)}:  {EnvironmentName}");
                 sb.AppendLine($"\t{nameof(MachineName)}:      {MachineName}");
-                sb.AppendLine($"\t{nameof(ContentRoot)}:      {ContentRoot}");
-                sb.AppendLine($"\t{nameof(DataRoot)}:         {DataRoot}");
+                // sb.AppendLine($"\t{nameof(ContentRoot)}:      {ContentRoot}");
+                // sb.AppendLine($"\t{nameof(DataRoot)}:         {DataRoot}");
                 sb.AppendLine($"\t{nameof(DatabasePath)}:     {DatabasePath}");
                 sb.AppendLine($"\t{nameof(ProcessId)}:        {ProcessId}");
-                sb.AppendLine($"\t{nameof(StartedAtUtc)}:     {StartedAtUtc.ToLocalTime()}");
+                sb.Append($"\t{nameof(StartedAtUtc)}:     {StartedAtUtc.ToLocalTime()}");
 
                 return sb.ToString();
         }
