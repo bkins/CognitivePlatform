@@ -92,7 +92,10 @@ public partial class Program
         // Settings
         builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));
  
-        // Factory — selects the active provider at runtime
+        // Usage tracker — must be registered before LlmClientFactory
+        builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
+
+// Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();
  
         // ILlmClient — resolved via factory so swapping providers is a config change

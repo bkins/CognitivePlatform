@@ -11,12 +11,15 @@ public class LlmClientFactory
 {
     private readonly IHttpClientFactory _httpFactory;
     private readonly LlmClientSettings  _settings;
+    private readonly IGroqUsageTracker  _usageTracker;
 
     public LlmClientFactory( IHttpClientFactory          httpFactory
-                           , IOptions<LlmClientSettings> settings )
+                           , IOptions<LlmClientSettings> settings
+                           , IGroqUsageTracker           usageTracker )
     {
-        _httpFactory = httpFactory;
-        _settings    = settings.Value;
+        _httpFactory  = httpFactory;
+        _settings     = settings.Value;
+        _usageTracker = usageTracker;
     }
 
     public ILlmClient Create()
@@ -25,10 +28,13 @@ public class LlmClientFactory
 
         return _settings.Provider switch
         {
-                LlmProvider.Groq   => new GroqLlmClient(_httpFactory.CreateClient("Groq"),   options)
-              , LlmProvider.Ollama => new OllamaLlmClient(_httpFactory.CreateClient("Ollama"), options)
-              , _                  => throw new InvalidOperationException(
-                                          $"Unknown LLM provider: {_settings.Provider}")
+                LlmProvider.Groq   => new GroqLlmClient(_httpFactory.CreateClient("Groq")
+                                                      , options
+                                                      , _usageTracker)
+              , LlmProvider.Ollama => new OllamaLlmClient(_httpFactory.CreateClient("Ollama")
+                                                        , options)
+              , _ => throw new InvalidOperationException(
+                         $"Unknown LLM provider: {_settings.Provider}")
         };
     }
 }

@@ -235,9 +235,17 @@ public static class MetaActions
         return sb.ToString();
     }
 
-    [NaturalLanguageAction( Description = "Handles non-command conversational input."
-                          , Category = "General")]
-    public static string ChitChat(string text) => "I'm here when you want to do something.";
+    [NaturalLanguageAction(Description = "Handles non-command conversational input."
+                         , Category = "General")]
+    public static string ChitChat( string text )
+    {
+#if DEBUG
+        return $"You said: '{text}'. This is a placeholder response from the ChitChat action. "
+             + $"In a real implementation, this could be a call to a language model to generate a conversational reply."
+             + $"\n\n(Also, since this is a debug build, you can see the input text echoed back here for testing purposes.)";
+#endif
+        return "I'm here when you want to do something.";
+    }
 
     public static WhyActionResult BuildWhyActionResult (ConversationContext ctx)
     {

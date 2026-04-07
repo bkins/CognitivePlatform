@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Avails;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
@@ -12,6 +11,7 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -79,7 +79,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             if (existing is not null)
             {
-                _telemetry.Track($"Idempotency.Hit {request.ClientRequestId.Value.ToString()}");
+                _telemetry.Track(_telemetryContext.CreateEvent(new IdempotencyHitEvent
+                                                       {
+                                                               ClientRequestId = request.ClientRequestId
+                                                                                        .Value
+                                                                                        .ToString()
+                                                       }));
 
                 return existing;
             }
@@ -87,7 +92,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorStartedEvent
                                                        {
-                                                               Model     = request.Model ?? "No Model defined"
+                                                               Model = request.Model ?? "No Model defined"
                                                        }));
         
         // 1. Get or create the session context
@@ -188,9 +193,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 // Safety: clear the pending action so we don't get stuck
                 context.PendingAction = null;
 
+                
                 const string message = "The action I was trying to clarify is no longer available.";
-                _telemetry.Track($"Clarification.ActionMissing; {message}");
-
+                
+                _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                       {
+                                                               Details = $"{message} (Action: {pending.ActionName})"
+                                                       }));
                 var response = new ConverseResponse
                                {
                                        Message         = message
@@ -292,7 +301,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         // 4. Log interpreter identity
-        _telemetry.Track($"ConversationOrchestrator.Interpreter.Selected; Using interpreter: {_interpreter.GetType().Name}");
+        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                       {
+                                                               Details = $"Interpreter.Selected; Using interpreter: {_interpreter.GetType().Name}"
+                                                       }));
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
         //              "Interpreter should not run after FastPath resolution.");
@@ -492,7 +504,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
-        if (string.IsNullOrWhiteSpace(interpretation.ActionName))
+        if (interpretation.ActionName.HasNoValue())
         {
             var message = "I'm not sure what to do next.";
             if (_isDebug)
@@ -524,7 +536,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (selectedAction is null)
         {
             var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
-            _telemetry.Track($"ActionLookup.Failed: {msg}");
+            _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                   {
+                                                           Details = $"ActionLookup.Failed; {msg}"
+                                                   }));
 
             var unknownActionResponse = new ConverseResponse
                                         {
@@ -657,7 +672,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // If it doesn't resolve, fall back to normal streaming/interpreter behavior.
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
         {
-            _telemetry.Track($"FastPath.Resolved.Stream; Action={actionMeta!.Name}");
+            _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                   {
+                                                           Details = $"FastPath.Resolved.Stream; Action={actionMeta!.Name}"
+                                                   }));
 
             // Mirror ConverseAsync J-03 behavior for journal fast-path:
             // if (actionMeta.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
@@ -676,7 +694,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // }
             
             var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
-            _telemetry.Track($"ConverseAsync.FastPath.Stream; Result: {result}");
+            _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
+                                                   {
+                                                           Details = $"FastPath.Executed.Stream; Action={actionMeta.Name}; Result {result}\n"
+                                                   }));
 
             yield return result;
             yield break;

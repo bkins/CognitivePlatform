@@ -1,5 +1,6 @@
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Telemetry.Events;
 
 namespace CognitivePlatform.Api.Interpreter;
 
@@ -53,4 +54,12 @@ public class InterpreterResult
     /// but could not extract all required parameters.
     /// </summary>
     public IReadOnlyList<string>?     MissingParameters   { get; init; }
+
+    public LlmInterpreterCompletedEvent ToEvent()
+    {
+        return new LlmInterpreterCompletedEvent
+               {
+                       Output = $"ActionName='{ActionName}'\n\tReason='{Reason}'\n\tFailureType={FailureType}\n\tDebugInfo='{DebugInfo}'\n"
+               };
+    }
 }

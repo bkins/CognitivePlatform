@@ -8,7 +8,7 @@ public class LlmInterpreterStartedEvent : TelemetryEvent
     
     public string Input { get; init; } = string.Empty;
     public string Model { get; init; } = string.Empty;
-
+    
     public override string ToString()
     {
         var shortenTextBy = Input is { Length: < 25 }

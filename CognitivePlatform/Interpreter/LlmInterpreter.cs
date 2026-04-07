@@ -43,14 +43,17 @@ public class LlmInterpreter : IInterpreter
 
         if (input.HasNoValue())
         {
-            return new InterpreterResult
-                   {
-                           ActionName          = null
-                         , ExtractedParameters = new()
-                         , DebugInfo           = "Empty input."
-                         , Reason              = "Input was empty."
-                         , FailureType         = InterpreterFailureType.NoMatchingAction
-                   };
+            var noInputResult = new InterpreterResult
+                                {
+                                        ActionName          = null
+                                      , ExtractedParameters = new()
+                                      , DebugInfo           = "Empty input."
+                                      , Reason              = "Input was empty."
+                                      , FailureType         = InterpreterFailureType.NoMatchingAction
+                                };
+            _telemetry.Track(noInputResult.ToEvent());
+            
+            return noInputResult;
         }
 
         var actionsSummary = BuildActionsSummary(_registry.Actions);
@@ -80,7 +83,7 @@ public class LlmInterpreter : IInterpreter
 
             if (modelInfo is null || modelInfo.IsUsable.Not())
             {
-                return new InterpreterResult
+                var noModelResult= new InterpreterResult
                        {
                                ActionName          = null
                              , ExtractedParameters = new()
@@ -90,10 +93,16 @@ public class LlmInterpreter : IInterpreter
                              , FailureType         = InterpreterFailureType.NoMatchingAction
                              , Reason              = $"Model '{model}' is not usable on this system."
                        };
+                
+                _telemetry.Track(noModelResult.ToEvent());
+
+                return noModelResult;
             }
-
-            _telemetry.Track($"LlmClient.Send; RequestedModel: {requestedModel}, ResolvedModel: {model}");
-
+            _telemetry.Track(new LlmInterpreterProgressEvent()
+                             {
+                                     Details = $" : InterpretWithContext : RequestedModel: {requestedModel}, ResolvedModel: {model}"
+                             });
+            
             // Pass the resolved model name to the client so each provider
             // receives its own model identifier (e.g. "llama-3.3-70b-versatile"
             // for Groq rather than the Ollama name the LAA sent).
@@ -104,9 +113,14 @@ public class LlmInterpreter : IInterpreter
         catch (Exception ex)
         {
             var message = $"LLM call failed (using Model: {model}): {ex.GetType().Name} - {ex.Message}";
-            _telemetry.Track($"LlmClient.Send; {message}");
 
-            return new InterpreterResult
+            _telemetry.Track(new LlmInterpreterErrorEvent
+                             {
+                                     Details    = message
+                                    , Exception = ex
+                             });
+
+            var errorResult = new InterpreterResult
                    {
                            ActionName          = null
                          , ExtractedParameters = new()
@@ -116,6 +130,10 @@ public class LlmInterpreter : IInterpreter
                          , CandidateActions    = null
                          , MissingParameters   = null
                    };
+            
+            _telemetry.Track(errorResult.ToEvent());
+            
+            return errorResult;
         }
 
         Console.WriteLine($"rawResponse: {rawResponse}");
@@ -126,11 +144,10 @@ public class LlmInterpreter : IInterpreter
                                        .AppendLine($"UserInput: {input}")
                                        .AppendLine($"ModelActionName: {parsed.ActionName ?? "<null>"}")
                                        .AppendLine($"ParseDebug: {parsed.DebugInfo}")
+                                       .AppendLine($"Raw Response: {rawResponse}")
                                        .ToString();
 
-        _telemetry.Track($"Interpreter.End: {debug}");
-
-        return new InterpreterResult
+        var results = new InterpreterResult
                {
                        ActionName          = parsed.ActionName
                      , ExtractedParameters = parsed.Parameters
@@ -140,6 +157,10 @@ public class LlmInterpreter : IInterpreter
                      , CandidateActions    = parsed.CandidateActions
                      , MissingParameters   = parsed.MissingParameters
                };
+        
+        _telemetry.Track(results.ToEvent());
+
+        return results;
     }
 
     // ---------------------------------------------------------------------

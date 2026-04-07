@@ -15,22 +15,38 @@ namespace CognitivePlatform.Api.Interpreter;
 ///
 /// API key is loaded from user-secrets (development) or environment
 /// variables (production) — never from appsettings.json.
+///
+/// After each successful response the rate-limit headers are captured
+/// and written to <see cref="IGroqUsageTracker"/> for downstream consumers.
 /// </summary>
 public class GroqLlmClient : ILlmClient
 {
-    private readonly HttpClient        _httpClient;
-    private readonly LlmClientSettings _settings;
+    private readonly HttpClient          _httpClient;
+    private readonly LlmClientSettings   _settings;
+    private readonly IGroqUsageTracker   _usageTracker;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
                                                                 {
                                                                         PropertyNameCaseInsensitive = true
                                                                 };
 
+    // ----------------------------------------------------------------
+    // Groq rate-limit header names
+    // ----------------------------------------------------------------
+    private const string HeaderRequestLimit      = "x-ratelimit-limit-requests";
+    private const string HeaderRequestsRemaining = "x-ratelimit-remaining-requests";
+    private const string HeaderRequestsReset     = "x-ratelimit-reset-requests";
+    private const string HeaderTokenLimit        = "x-ratelimit-limit-tokens";
+    private const string HeaderTokensRemaining   = "x-ratelimit-remaining-tokens";
+    private const string HeaderTokensReset       = "x-ratelimit-reset-tokens";
+
     public GroqLlmClient( HttpClient                  httpClient
-                        , IOptions<LlmClientSettings> settings )
+                        , IOptions<LlmClientSettings> settings
+                        , IGroqUsageTracker            usageTracker )
     {
-        _httpClient = httpClient;
-        _settings   = settings.Value;
+        _httpClient   = httpClient;
+        _settings     = settings.Value;
+        _usageTracker = usageTracker;
 
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.Timeout);
 
@@ -47,7 +63,7 @@ public class GroqLlmClient : ILlmClient
 
         var requestBody = new GroqChatRequest
                           {
-                                  Model = selectedModel
+                                  Model    = selectedModel
                                 , Messages =
                                   [
                                           new GroqMessage { Role = "user", Content = prompt }
@@ -56,8 +72,7 @@ public class GroqLlmClient : ILlmClient
 
         var endpoint = $"{_settings.Groq.Endpoint.TrimEnd('/')}/chat/completions";
 
-        using var request = new HttpRequestMessage(HttpMethod.Post
-                                                 , endpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
                             {
                                     Content = JsonContent.Create(requestBody, options: JsonOptions)
                             };
@@ -65,6 +80,10 @@ public class GroqLlmClient : ILlmClient
         using var response = await _httpClient.SendAsync(request
                                                        , HttpCompletionOption.ResponseHeadersRead
                                                        , cancellationToken);
+
+        // Capture rate-limit headers regardless of success/failure —
+        // even a 429 response carries the current window state.
+        CaptureUsageHeaders(response.Headers);
 
         if (response.IsSuccessStatusCode.Not())
         {
@@ -90,13 +109,10 @@ public class GroqLlmClient : ILlmClient
         // Groq supports streaming via SSE. For now we fall back to a
         // non-streaming call and yield the whole response as one chunk.
         // Streaming can be implemented here in a future iteration.
-        var result = await SendAsync(prompt
-                                   , model
-                                   , cancellationToken);
+        var result = await SendAsync(prompt, model, cancellationToken);
         yield return result;
     }
 
-    
     public async Task<LlmModelProbeResult> ProbeAsync( string            model
                                                      , CancellationToken ct = default )
     {
@@ -104,14 +120,10 @@ public class GroqLlmClient : ILlmClient
         {
             var requestBody = new GroqChatRequest
                               {
-                                      Model = model
+                                      Model    = model
                                     , Messages =
                                       [
-                                              new GroqMessage
-                                              {
-                                                      Role = "user"
-                                                    , Content = "hi"
-                                              }
+                                              new GroqMessage { Role = "user", Content = "hi" }
                                       ]
                                     , MaxTokens = 1
                               };
@@ -123,25 +135,68 @@ public class GroqLlmClient : ILlmClient
                                                                  , JsonOptions
                                                                  , ct);
 
+            CaptureUsageHeaders(response.Headers);
+
             if (response.IsSuccessStatusCode)
-                return new LlmModelProbeResult(model
-                                             , true);
+                return new LlmModelProbeResult(model, true);
 
             var text = await response.Content.ReadAsStringAsync(ct);
-            return new LlmModelProbeResult(model
-                                         , false
-                                         , $"HTTP {(int)response.StatusCode}: {text}");
+            return new LlmModelProbeResult(model, false, $"HTTP {(int)response.StatusCode}: {text}");
         }
         catch (Exception ex)
         {
-            return new LlmModelProbeResult(model
-                                         , false
-                                         , ex.Message);
+            return new LlmModelProbeResult(model, false, ex.Message);
         }
     }
 
     // ----------------------------------------------------------------
-    // Private helpers
+    // Header capture
+    // ----------------------------------------------------------------
+
+    private void CaptureUsageHeaders(HttpResponseHeaders headers)
+    {
+        var requestsResetRaw = ReadHeader(headers, HeaderRequestsReset);
+        var tokensResetRaw   = ReadHeader(headers, HeaderTokensReset);
+
+        var snapshot = new GroqUsageSnapshot
+                       {
+                               RequestLimit      = ReadInt(headers, HeaderRequestLimit)
+                             , RequestsRemaining  = ReadInt(headers, HeaderRequestsRemaining)
+                             , RequestsResetRaw   = requestsResetRaw
+                             , RequestsResetAt    = ToResetTime(requestsResetRaw)
+                             , TokenLimit         = ReadInt(headers, HeaderTokenLimit)
+                             , TokensRemaining    = ReadInt(headers, HeaderTokensRemaining)
+                             , TokensResetRaw     = tokensResetRaw
+                             , TokensResetAt      = ToResetTime(tokensResetRaw)
+                             , CapturedAt         = DateTimeOffset.UtcNow
+                       };
+
+        _usageTracker.Update(snapshot);
+    }
+
+    private static string ReadHeader(HttpResponseHeaders headers, string name)
+    {
+        return headers.TryGetValues(name, out var values)
+                       ? values.FirstOrDefault() ?? string.Empty
+                       : string.Empty;
+    }
+
+    private static int ReadInt(HttpResponseHeaders headers, string name)
+    {
+        var raw = ReadHeader(headers, name);
+        return int.TryParse(raw, out var value) ? value : 0;
+    }
+
+    private static DateTimeOffset? ToResetTime(string raw)
+    {
+        if (raw.HasNoValue()) return null;
+
+        var duration = GroqResetTimeParser.Parse(raw);
+        return duration == TimeSpan.Zero ? null : DateTimeOffset.Now.Add(duration);
+    }
+
+    // ----------------------------------------------------------------
+    // Auth
     // ----------------------------------------------------------------
 
     private void ConfigureAuthHeader()
@@ -151,8 +206,8 @@ public class GroqLlmClient : ILlmClient
         if (apiKey.HasNoValue())
             return;
 
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer"
-                                                                                      , apiKey);
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", apiKey);
     }
 
     // ----------------------------------------------------------------
@@ -161,7 +216,7 @@ public class GroqLlmClient : ILlmClient
 
     private sealed class GroqChatRequest
     {
-        [JsonPropertyName("model")] public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("model")]    public string Model { get; set; } = string.Empty;
 
         [JsonPropertyName("messages")] public List<GroqMessage> Messages { get; set; } = [];
 
@@ -172,8 +227,7 @@ public class GroqLlmClient : ILlmClient
 
     private sealed class GroqMessage
     {
-        [JsonPropertyName("role")] public string Role { get; set; } = string.Empty;
-
+        [JsonPropertyName("role")]    public string Role    { get; set; } = string.Empty;
         [JsonPropertyName("content")] public string Content { get; set; } = string.Empty;
     }
 

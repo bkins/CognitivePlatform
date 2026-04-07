@@ -9,4 +9,6 @@ public class ConverseResponse
     public string? Debug                  { get; set; }
     public bool    Success                { get; set; } = true;
     public bool    WasFastPath            { get; set; }
+    
+    
 }
