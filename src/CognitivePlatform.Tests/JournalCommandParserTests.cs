@@ -126,4 +126,110 @@ public class JournalCommandParserTests
         Assert.Equal($"Line one.{Environment.NewLine}Line two.", result.Text);
         Assert.Equal("Reflective",           result.Mood);
     }
+
+    // --- MoodScore boundary and out-of-range ---
+
+    [Fact]
+    public void Parse_ReturnsMoodScore_1_WhenScoreIsMinBoundary()
+    {
+        var input = """
+                    Made it through.
+                    MoodScore: 1
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(1, result.MoodScore);
+    }
+
+    [Fact]
+    public void Parse_ReturnsMoodScore_5_WhenScoreIsMaxBoundary()
+    {
+        var input = """
+                    Best day ever.
+                    MoodScore: 5
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(5, result.MoodScore);
+    }
+
+    [Fact]
+    public void Parse_ReturnsNullMoodScore_WhenScoreIsBelowRange()
+    {
+        var input = """
+                    Rough start.
+                    MoodScore: 0
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Null(result.MoodScore);
+    }
+
+    [Fact]
+    public void Parse_ReturnsNullMoodScore_WhenScoreIsAboveRange()
+    {
+        var input = """
+                    Going great.
+                    MoodScore: 6
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Null(result.MoodScore);
+    }
+
+    // --- Edge-case inputs ---
+
+    [Fact]
+    public void Parse_ReturnsEmptyText_WhenInputIsWhitespaceOnly()
+    {
+        var result = _parser.Parse("   ");
+
+        Assert.Equal(string.Empty, result.Text);
+        Assert.Empty(result.Tags);
+        Assert.Null(result.Mood);
+    }
+
+    [Fact]
+    public void Parse_ReturnsEmptyText_WhenInputIsEmpty()
+    {
+        var result = _parser.Parse(string.Empty);
+
+        Assert.Equal(string.Empty, result.Text);
+        Assert.Empty(result.Tags);
+        Assert.Null(result.Mood);
+    }
+
+    [Fact]
+    public void Parse_ReturnsEmptyText_WhenInputContainsOnlyDirectives()
+    {
+        var input = """
+                    Tags: work, focus
+                    Mood: "Content"
+                    MoodScore: 3
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(string.Empty,              result.Text);
+        Assert.Equal(new[] { "work", "focus" }, result.Tags);
+        Assert.Equal("Content",                 result.Mood);
+        Assert.Equal(3,                         result.MoodScore);
+    }
+
+    [Fact]
+    public void Parse_ParsesText_WhenMixedDirectivesAndTextAreOnSingleLine()
+    {
+        var input = """Great session. Tags: "dev", "win" Mood: "Focused" MoodScore: 4""";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Great session.",           result.Text);
+        Assert.Equal(new[] { "dev", "win" },    result.Tags);
+        Assert.Equal("Focused",                  result.Mood);
+        Assert.Equal(4,                          result.MoodScore);
+    }
 }
