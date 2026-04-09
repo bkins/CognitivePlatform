@@ -108,8 +108,8 @@ public sealed class FastPathResolver : IFastPathResolver
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");
             if (action is null) return false;
 
-            input      = input.Replace("journal:", "text:", StringComparison.OrdinalIgnoreCase);
-            parameters = ParseToDictionary(input);
+            var body = input[(colonIndex + 1)..].Trim();
+            parameters = new Dictionary<string, string> { ["text"] = body };
 
             return true;
         }
@@ -121,6 +121,11 @@ public sealed class FastPathResolver : IFastPathResolver
 
             input      = input.Replace("task:", "shortDescription:", StringComparison.OrdinalIgnoreCase);
             parameters = ParseToDictionary(input);
+
+            // "DueDate:" is a natural alias users write in the block, but the action
+            // parameter is "dueDateText". Remap so it isn't silently dropped.
+            if (parameters.Remove("DueDate", out var dueDateValue))
+                parameters["dueDateText"] = dueDateValue;
 
             return true;
         }

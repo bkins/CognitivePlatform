@@ -43,39 +43,44 @@ public sealed class JournalCommandParser : IJournalCommandParser
         
         foreach (var line in lines)
         {
+            var tagsCountBefore = tags.Count;
+            var moodBefore      = mood;
+
             var tagsSegment = ExtractDirectiveSegment(line, "Tags:");
-            if (tagsSegment != null 
-             && HasQuotedValues(tagsSegment))
+            if (tagsSegment != null)
             {
-                tags.AddRange(ExtractQuotedValues(tagsSegment));
+                tags.AddRange(HasQuotedValues(tagsSegment)
+                                      ? ExtractQuotedValues(tagsSegment)
+                                      : ExtractUnquotedValues(tagsSegment));
             }
 
             var moodSegment = ExtractDirectiveSegment(line, "Mood:");
-            if (moodSegment != null && HasQuotedValues(moodSegment))
+            if (moodSegment != null)
             {
-                mood = ExtractQuotedValues(moodSegment).FirstOrDefault();
+                if (HasQuotedValues(moodSegment))
+                    mood = ExtractQuotedValues(moodSegment).FirstOrDefault();
+                else if (moodSegment.Trim() is { Length: > 0 } unquotedMood)
+                    mood = unquotedMood;
             }
 
-            var moodScoreSegment = ExtractDirectiveSegment(line, "moodScore:");
+            var moodScoreSegment = ExtractDirectiveSegment(line, "MoodScore:");
             if (moodScoreSegment != null)
-            {
                 moodScore = ExtractIntValue(moodScoreSegment);
-            }
-            
-            // Only strip directives from text if they were actually parsed
-            var cleanedLine = line;
 
-            if (tagsSegment != null && HasQuotedValues(tagsSegment))
-                cleanedLine = RemoveDirectiveSegments(cleanedLine, "Tags:");
+            // Only strip directives from text if they were actually parsed on this line
+            var cleanedLine    = line;
+            var tagsWereParsed = tags.Count > tagsCountBefore;
+            var moodWasParsed  = mood != moodBefore;
 
-            if (moodSegment != null && HasQuotedValues(moodSegment))
-                cleanedLine = RemoveDirectiveSegments(cleanedLine, "Mood:");
+            if (tagsWereParsed)
+                cleanedLine = RemoveDirectiveContent(cleanedLine, "Tags:");
+
+            if (moodWasParsed)
+                cleanedLine = RemoveDirectiveContent(cleanedLine, "Mood:");
 
             if (moodScoreSegment != null && moodScore.HasValue)
-            {
-                cleanedLine = RemoveScalarDirective(cleanedLine, "MoodScore:");
-            }
-            
+                cleanedLine = RemoveDirectiveContent(cleanedLine, "MoodScore:");
+
             if (cleanedLine.HasNoValue())
                 continue;
 
@@ -99,10 +104,15 @@ public sealed class JournalCommandParser : IJournalCommandParser
         foreach (Match match in QuotedValueRegex.Matches(input))
         {
             var value = match.Groups[1].Value.Trim();
-            
+
             if (value.Length > 0) yield return value;
         }
     }
+
+    private static IEnumerable<string> ExtractUnquotedValues(string input)
+        => input.Split(',')
+                .Select(value => value.Trim())
+                .Where(value => value.Length > 0);
     
     private static int? ExtractIntValue(string input)
     {
@@ -137,26 +147,23 @@ public sealed class JournalCommandParser : IJournalCommandParser
         return line.Substring(start, end - start);
     }
 
-    private static string RemoveScalarDirective(string line, string directive)
+    private static string RemoveDirectiveContent(string line, string directive)
     {
-        return Regex.Replace(
-            line,
-            @$"{directive}\s*\d+",
-            "",
-            RegexOptions.IgnoreCase
-        ).Trim();
-    }
+        var start = line.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return line;
 
+        var contentStart = start + directive.Length;
+        var end          = line.Length;
 
-    private static string RemoveDirectiveSegments (string cleanedLine
-                                                 , string directive)
-    {
-        var result = cleanedLine;
+        foreach (var other in Directives)
+        {
+            if (other.Equals(directive, StringComparison.OrdinalIgnoreCase)) continue;
 
-        result = Regex.Replace(result, @$"{directive}\s*(""[^""]+""\s*,?\s*)+", "", RegexOptions.IgnoreCase);
-        //result = Regex.Replace(result, @"Mood:\s*""[^""]+""",            "", RegexOptions.IgnoreCase);
+            var idx = line.IndexOf(other, contentStart, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0 && idx < end) end = idx;
+        }
 
-        return result.Trim();
+        return (line[..start] + line[end..]).Trim();
     }
 
 }

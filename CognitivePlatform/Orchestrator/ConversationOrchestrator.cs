@@ -325,17 +325,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
-            var message = "I'm not sure what to do next.";
+            var message = "Something went wrong while processing your request. Please try again.";
             if (_isDebug)
             {
                 message = $"""
-                          ## I'm not sure what to do next. 
+                          ## Something went wrong while processing your request.
                           ----
                           You are getting this because:
                           ```csharp
                           interpretation.FailureType == InterpreterFailureType.Exception
                           ```
-                          Is `true` 
+                          Is `true`
                           The exception is:
                           >{interpretation.DebugInfo}
                           """;
@@ -475,11 +475,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // Action does NOT allow clarification: treat as a normal failure
             var missingJoined = string.Join(", ", interpretation.MissingParameters);
 
-            var message = "I'm not sure what to do next.";
+            var message = "I understood what you want to do, but I'm missing some required details. Could you rephrase with more specifics?";
             if (_isDebug)
             {
                 message = """
-                          ## I'm not sure what to do next. 
+                          ## Missing required parameters — action does not allow clarification.
                           ----
                           You are getting this because:
                           ```csharp
@@ -506,18 +506,18 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 7. No action chosen at all (e.g. nonsense input or other failure)
         if (interpretation.ActionName.HasNoValue())
         {
-            var message = "I'm not sure what to do next.";
+            var message = "I didn't recognize that as something I can do. Try 'what can you do' to see available commands.";
             if (_isDebug)
             {
                 message = """
-                          ## I'm not sure what to do next. 
+                          ## No action recognized.
                           ----
                           You are getting this because:
                           ```csharp
                           if (string.IsNullOrWhiteSpace(interpretation.ActionName))
                           ```
-                          Is `true` 
-                          
+                          Is `true`
+
                           """;
             }
             var missingActionResponse = new ConverseResponse
@@ -622,6 +622,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                              , ExecutionResult = $"Successfully executed FastPath-resolved action '{actionMeta.Name}'\n"
                                                + $"                  with parameters: {parameters}"
                              , WasFastPath     = true
+                               
                        };
         return response;
     }

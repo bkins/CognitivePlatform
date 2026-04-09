@@ -1,4 +1,5 @@
 ﻿using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
 
 namespace CognitivePlatform.Tests;
 
@@ -46,7 +47,7 @@ public class JournalCommandParserTests
     }
 
     [Fact]
-    public void Ignores_Unquoted_Tags()
+    public void Parses_Unquoted_Tags()
     {
         var input = """
                     Just writing.
@@ -55,8 +56,60 @@ public class JournalCommandParserTests
 
         var result = _parser.Parse(input);
 
-        Assert.Equal(input, result.Text); // Just leave the input as-is.  Later allow for unquoted directives
-        Assert.Empty(result.Tags);
+        Assert.Equal("Just writing.",               result.Text);
+        Assert.Equal(new[] { "work", "planning" }, result.Tags);
+    }
+
+    [Fact]
+    public void Parses_Unquoted_Mood()
+    {
+        var input = """
+                    Went for a walk.
+                    Mood: hopeful
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Went for a walk.", result.Text);
+        Assert.Equal("hopeful",          result.Mood);
+    }
+
+    [Fact]
+    public void Parses_Unquoted_Tags_And_MoodScore_No_Mood()
+    {
+        var input = """
+                    Finished the project.
+                    Tags: work, focus
+                    MoodScore: 4
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Finished the project.",      result.Text);
+        Assert.Equal(new[] { "work", "focus" },   result.Tags);
+        Assert.Null(result.Mood);
+        Assert.Equal(4, result.MoodScore);
+    }
+
+    [Fact]
+    public void Parses_Full_Block_Grammar()
+    {
+        // Simulates what FastPathResolver passes to AddJournalEntry after stripping
+        // the "Journal:" prefix — confirms BUG-06 fix: the prefix does not reach storage
+        // and the full block is parsed correctly by the parser.
+        var input = """
+                    Had a great day.
+                    Tags: work, focus
+                    Mood: hopeful
+                    MoodScore: 4
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Had a great day.",          result.Text);
+        Assert.Equal(new[] { "work", "focus" },  result.Tags);
+        Assert.Equal("hopeful",                   result.Mood);
+        Assert.Equal(4,                           result.MoodScore);
     }
 
     [Fact]

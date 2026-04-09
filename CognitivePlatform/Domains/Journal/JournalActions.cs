@@ -10,11 +10,13 @@ namespace CognitivePlatform.Api.Domains.Journal;
 [Category("journal")]
 public sealed class JournalActions
 {
-    private readonly IJournalService _journal;
+    private readonly IJournalService       _journal;
+    private readonly IJournalCommandParser _parser;
 
-    public JournalActions(IJournalService journal)
+    public JournalActions(IJournalService journal, IJournalCommandParser parser)
     {
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
+        _parser  = parser  ?? throw new ArgumentNullException(nameof(parser));
     }
 
     // ----------------------------------------------------------------------
@@ -58,23 +60,30 @@ public sealed class JournalActions
                                                                , Optional = true)]
                                    string? media = null)
     {
-        if (mood is not null) mood = mood.Replace(@"""", "");
-        
-        var tagList   = SplitCommaSeparated(tags);
-        var mediaList = SplitCommaSeparated(media);
-        var score     = TryParseMoodScore(moodScore);
+        // Parse the text through the command parser so block grammar
+        // (Tags: / Mood: / MoodScore: directives) is handled at the ingestion boundary.
+        // Fall back to explicit parameters when the parser finds nothing (LLM path).
+        var parsed     = _parser.Parse(text);
+        var finalText  = parsed.Text;
+        var tagList    = parsed.Tags.Count > 0
+                                 ? parsed.Tags.ToList()
+                                 : SplitCommaSeparated(tags);
+        var finalMood  = parsed.Mood
+                      ?? (mood is not null ? mood.Replace(@"""", "") : null);
+        var finalScore = parsed.MoodScore ?? TryParseMoodScore(moodScore);
+        var mediaList  = SplitCommaSeparated(media);
 
-        var id = _journal.AddEntryAsync(text: text
+        var id = _journal.AddEntryAsync(text: finalText
                                       , tags: tagList
-                                      , mood: mood
-                                      , moodScore: score
+                                      , mood: finalMood
+                                      , moodScore: finalScore
                                       , moodLevel: -1
                                       , mediaPaths: mediaList);
 
-        var shortenTextBy = text.Length < 25
-                                    ? text.Length
+        var shortenTextBy = finalText.Length < 25
+                                    ? finalText.Length
                                     : 25;
-        return $"Journal entry added: '{text[..shortenTextBy]}...'";
+        return $"Journal entry added: '{finalText[..shortenTextBy]}...'";
     }
 
     // ----------------------------------------------------------------------
