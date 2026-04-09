@@ -84,6 +84,26 @@ Add a test: `Parse_ReturnsNullMoodScore_WhenMoodScoreIsNonNumeric`.
 
 ---
 
+### BACK-07 — Pure display helpers in `UsageViewModel` / `TaskListParser` not directly testable
+
+**Files:**
+- `LocalAIAssistant/ViewModels/UsageViewModel.cs` — `FormatHeaderSummary`, `DeriveHeaderColor`
+- `LocalAIAssistant/CognitivePlatform/Rendering/Parsing/TaskListParser.cs`
+
+**Observation:** Both sets of logic are pure (no I/O, no MAUI platform calls), but they live inside
+the MAUI project which targets platform-specific TFMs (`net9.0-windows`, `net9.0-android`, etc.).
+The plain `net9.0` test project `UnitTestsFrontend` cannot reference the MAUI project directly, so
+the tests in `UsageDisplayFormatterTests` and `TaskListParserTests` carry local mirror
+implementations rather than testing the production code directly.
+
+**Action:** Extract `TaskListParser`/`ParsedTask` and the formatter helpers to a `netstandard2.1`
+or `net9.0` class library (e.g., add them to the existing `CP.Client.Core` package, or create a
+new `LocalAIAssistant.Core` library). Add a project reference to that library from
+`UnitTestsFrontend`, then remove the local mirror classes from the test files and replace with
+direct `using` references.
+
+---
+
 ### BACK-06 — `JournalService.EditEntry`: `if (latest is null)` branch is dead code
 
 **File:** `CognitivePlatform/Domains/Journal/JournalService.cs` — `EditEntry`
