@@ -27,7 +27,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IIdempotencyStore        _idempotencyStore;
     private readonly TelemetryContext         _telemetryContext;
 
-    private bool _isDebug  = false;
+    internal bool _isDebug  = false;
     
     public ConversationOrchestrator( IActionRegistry                                                registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
