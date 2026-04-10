@@ -180,6 +180,20 @@ public class TaskService : ITaskService
         return task;
     }
 
+    public TaskItem? UpdateDueDate(string id, DateTimeOffset? dueDate)
+    {
+        var task = Get(id);
+
+        if (task is null || task.IsDeleted)
+            return null;
+
+        task.DueDate = dueDate;
+
+        SaveInternal(task);
+
+        return task;
+    }
+
     public void Delete(Guid id)
     {
         var task = Get(id);
@@ -187,7 +201,8 @@ public class TaskService : ITaskService
         if (task == null)
             return;
 
-        task.IsDeleted = true;
+        task.IsDeleted  = true;
+        task.DeletedUtc = DateTimeOffset.UtcNow;
 
         SaveInternal(task);
     }

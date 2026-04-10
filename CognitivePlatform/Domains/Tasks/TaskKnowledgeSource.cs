@@ -68,28 +68,15 @@ public class TaskKnowledgeSource : IKnowledgeSource
         }
     }
 
-    private KnowledgeStatus GetStatus(TaskItem task)
+    private static KnowledgeStatus GetStatus(TaskItem task)
     {
-        /*
-         Status
-            Active → CompletedAt == null
-            Archived → completed + archived (or soft-deleted)
-         */
-        
-        // TODO: Logic I think can be refined.  I just can't think of it right now :-/
-        return task.CompletedAt == null 
-                       ? KnowledgeStatus.Active 
-                       : task.IsDeleted // For now Delete == Archived 
-                               ? KnowledgeStatus.Deleted 
-                               : KnowledgeStatus.Active; 
-        // More on Delete: 
-        /*
-         For v1, keep it simple:
-            - Archive = soft delete
-         Later decide:
-            - complete ≠ archive
-            - completed tasks still appear somewhere
-         */
+        if (task.IsDeleted)
+            return KnowledgeStatus.Deleted;
+
+        if (task.CompletedAt != null)
+            return KnowledgeStatus.Completed;
+
+        return KnowledgeStatus.Active;
     }
     public void Archive (Guid              id
                        , CancellationToken ct)

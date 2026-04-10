@@ -43,6 +43,18 @@ Last updated: 2026-04
 
 ---
 
+---
+
+## Backlog refinements
+
+| ID | Description | Area | Status |
+|---|---|---|---|
+| BACK-01 | `TaskItem` has no `DeletedUtc` timestamp — only a boolean `IsDeleted` | CP API / TaskItem + TaskService | **Done 2026-04-10** — added `DateTimeOffset? DeletedUtc` to `TaskItem`; `TaskService.Delete` now sets both `IsDeleted = true` and `DeletedUtc = DateTimeOffset.UtcNow`. New test `Delete_SetsDeletedUtc_WhenTaskExists`. |
+| BACK-02 | No dedicated `UpdateDueDate` method — callers do Get → mutate → Update | CP API / ITaskService + TaskService | **Done 2026-04-10** — added `TaskItem? UpdateDueDate(string id, DateTimeOffset? dueDate)` to `ITaskService` and `TaskService`. Pass `null` to clear. Four new tests in `TaskServiceTests`. |
+| BACK-03 | `TaskKnowledgeSource.GetStatus` returned `Active` for completed+non-deleted tasks | CP API / TaskKnowledgeSource | **Done 2026-04-10** — fixed to return `KnowledgeStatus.Completed` for `CompletedAt != null && !IsDeleted`. Renamed and corrected test `GetKnowledgeItems_ReturnsCompletedStatus_ForCompletedNonDeletedTask`. |
+
+---
+
 ## Notes
 
 - BUG-05 and BUG-06 were documented in Obsidian `Bug Log - Tech Debt.md` but not

@@ -12,7 +12,8 @@ public class TaskItem
     public DateTimeOffset  UpdatedAt        { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? DueDate          { get; set; }
     public DateTimeOffset? CompletedAt      { get; set; }
-    public bool            IsDeleted        { get; set; } = false;
+    public bool             IsDeleted        { get; set; } = false;
+    public DateTimeOffset?  DeletedUtc       { get; set; }
     public HashSet<string> Tags             { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool            IsImportant      { get; set; }
     public bool            IsUrgent         { get; set; }

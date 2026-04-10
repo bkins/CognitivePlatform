@@ -45,7 +45,7 @@ public class TaskKnowledgeSourceTests
     }
 
     [Fact]
-    public void GetKnowledgeItems_ReturnsActiveStatus_ForCompletedNonDeletedTask()
+    public void GetKnowledgeItems_ReturnsCompletedStatus_ForCompletedNonDeletedTask()
     {
         var task = MakeTask(completed: true, deleted: false);
         SetupTaskList(task);
@@ -53,7 +53,7 @@ public class TaskKnowledgeSourceTests
         var result = _source.GetKnowledgeItems(new KnowledgeQuery(), CancellationToken.None).ToList();
 
         Assert.Single(result);
-        Assert.Equal(KnowledgeStatus.Active, result[0].Status);
+        Assert.Equal(KnowledgeStatus.Completed, result[0].Status);
     }
 
     // ================================================================

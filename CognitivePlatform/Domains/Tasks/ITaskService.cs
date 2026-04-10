@@ -63,6 +63,13 @@ public interface ITaskService
                             , bool?         isUrgent );
 
     /// <summary>
+    /// Updates the due date of an existing task.
+    /// Pass null to clear the due date.
+    /// Returns the updated task, or null if the task was not found or is deleted.
+    /// </summary>
+    TaskItem? UpdateDueDate(string id, DateTimeOffset? dueDate);
+
+    /// <summary>
     /// Persists changes made to an already-retrieved TaskItem. The caller is
     /// responsible for mutating the fields it wants to change. UpdatedAt is
     /// always refreshed by the service regardless of what the caller sets.

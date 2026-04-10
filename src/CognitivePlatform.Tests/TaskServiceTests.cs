@@ -354,6 +354,22 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public void Delete_SetsDeletedUtc_WhenTaskExists()
+    {
+        var id     = Guid.NewGuid();
+        var task   = new TaskItem { Id = id.ToString("N") };
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        _service.Delete(id);
+
+        Assert.NotNull(task.DeletedUtc);
+        Assert.True(task.DeletedUtc >= before);
+    }
+
+    [Fact]
     public void Delete_DoesNotThrow_WhenTaskNotFound()
     {
         var id = Guid.NewGuid();
@@ -364,5 +380,67 @@ public class TaskServiceTests
         var exception = Record.Exception(() => _service.Delete(id));
 
         Assert.Null(exception);
+    }
+
+    // ================================================================
+    // UPDATE DUE DATE
+    // ================================================================
+
+    [Fact]
+    public void UpdateDueDate_SetsDueDate_WhenTaskExists()
+    {
+        var id      = Guid.NewGuid();
+        var task    = new TaskItem { Id = id.ToString("N") };
+        var dueDate = DateTimeOffset.UtcNow.AddDays(3);
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        var result = _service.UpdateDueDate(id.ToString("N"), dueDate);
+
+        Assert.NotNull(result);
+        Assert.Equal(dueDate, result!.DueDate);
+    }
+
+    [Fact]
+    public void UpdateDueDate_ClearsDueDate_WhenNullIsPassed()
+    {
+        var id   = Guid.NewGuid();
+        var task = new TaskItem { Id = id.ToString("N"), DueDate = DateTimeOffset.UtcNow.AddDays(1) };
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        var result = _service.UpdateDueDate(id.ToString("N"), null);
+
+        Assert.NotNull(result);
+        Assert.Null(result!.DueDate);
+    }
+
+    [Fact]
+    public void UpdateDueDate_ReturnsNull_WhenTaskNotFound()
+    {
+        var id = Guid.NewGuid();
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns((TaskItem?)null);
+
+        var result = _service.UpdateDueDate(id.ToString("N"), DateTimeOffset.UtcNow);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void UpdateDueDate_ReturnsNull_WhenTaskIsDeleted()
+    {
+        var id   = Guid.NewGuid();
+        var task = new TaskItem { Id = id.ToString("N"), IsDeleted = true };
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        var result = _service.UpdateDueDate(id.ToString("N"), DateTimeOffset.UtcNow);
+
+        Assert.Null(result);
     }
 }
