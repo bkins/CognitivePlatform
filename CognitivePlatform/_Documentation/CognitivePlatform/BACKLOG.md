@@ -12,7 +12,7 @@ Last updated: 2026-04
 |---|---|---|---|
 | BUG-01 | UI bubble stuck at "Thinking ⏱" after FastPath execution | LAA / ChatViewModel | **Fixed 2026-04-10** — multi-core race: thinking frame `BeginInvokeOnMainThread` callback was posting unconditionally; late-queued frame overwrote the response. Added `if (!token.IsCancellationRequested)` guard inside the callback in `StartThinkingAsync`. |
 | BUG-02 | Unhelpful fallback message: "I'm not sure what to do next" | CP API / Orchestrator | **Fixed 2026-04-08** — three distinct messages for Exception, MissingParams (no clarification), and no-action-recognized cases |
-| BUG-03 | `/journal list` output renders as a single concatenated line | LAA / MarkdownView | Open |
+| BUG-03 | `/journal list` output renders as a single concatenated line | LAA / MarkdownView | **Fixed 2026-04-10** — single `\n` between entries was parsed by Markdig as a soft break (rendered as nothing); changed to `\n\n` (blank line) so each entry becomes its own Markdown paragraph block. |
 | BUG-04 | Colon-prefix multiline param block: `dueDateText` not applied | CP API / FastPathResolver | **Fixed 2026-04-08** — remap `DueDate` → `dueDateText` after `ParseToDictionary` in task colon-prefix block |
 | BUG-05 | Clear-vs-null ambiguity: cannot explicitly clear Tags or MoodScore via edit | CP API / JournalService | Open |
 | BUG-06 | `Journal:` prefix persisted in entry text (not stripped at ingestion boundary) | CP API / JournalCommandParser | **Fixed 2026-04-07** — resolved in FastPath Grammar Refinement milestone |

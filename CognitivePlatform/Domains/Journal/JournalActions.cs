@@ -125,7 +125,7 @@ public sealed class JournalActions
               .Append(entryWithRevision.LatestRevision.Text);
 
             AppendCommonMetadata(sb, entryWithRevision, includeId: true);
-            sb.AppendLine();
+            sb.AppendLine().AppendLine();
         }
 
         return sb.ToString().TrimEnd();
@@ -221,7 +221,7 @@ public sealed class JournalActions
               .Append(entryWithRevision.LatestRevision.Text);
 
             AppendCommonMetadata(sb, entryWithRevision, includeId: true);
-            sb.AppendLine();
+            sb.AppendLine().AppendLine();
         }
 
         return sb.ToString().TrimEnd();
