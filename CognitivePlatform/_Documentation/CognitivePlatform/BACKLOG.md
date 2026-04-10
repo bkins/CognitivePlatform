@@ -26,7 +26,7 @@ Last updated: 2026-04
 | ID | Description | Area | Status |
 |---|---|---|---|
 | UX-01 | Navigating away from app immediately submits active prompt | LAA | Open |
-| UX-02 | Chat does not scroll to bottom after new response | LAA / ChatView | Open |
+| UX-02 | Chat does not scroll to bottom after new response | LAA / ChatView | **Fixed 2026-04-10** — `CollectionChanged` only fires on message add, not on in-place content change. Added `OnChatViewModelPropertyChanged` in `MainPage.xaml.cs` that watches `IsTyping`: when it goes `true → false` (turn complete), waits 100 ms for layout then calls `ScrollTo(lastMessage, End)`. |
 | UX-03 | Assistant message bubbles grow but never shrink | LAA / MarkdownView | Open |
 
 ---
@@ -38,7 +38,7 @@ Last updated: 2026-04
 | ENH-01 | FastPath badge on assistant responses | LAA / ChatViewModel | Open |
 | ENH-02 | Groq usage / rate-limit status indicator in shell header | LAA + CP API | **Done** |
 | ENH-03 | Google Gemini API as fallback LLM provider | CP API / LlmClientFactory | Open |
-| ENH-04 | "Show my tasks" — clarify: active only vs all (exclude deleted) | CP API / TaskActions | Open |
+| ENH-04 | "Show my tasks" — clarify: active only vs all (exclude deleted) | CP API / TaskActions | **Fixed 2026-04-10** — `QueryTasks` called `_store.List<TaskItem>()` which returns all records including soft-deleted ones. Added `task.IsDeleted.Not()` filter as the first clause. |
 | ENH-05 | Natural language due date parsing (relative dates: "tomorrow", "next Friday") | CP API / FastPathResolver | Open |
 
 ---

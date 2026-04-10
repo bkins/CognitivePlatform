@@ -76,7 +76,8 @@ public class TaskService : ITaskService
         var normalizedTag = tag is null || tag.HasNoValue() ? null : tag.Trim();
 
         return _store.List<TaskItem>()
-                     .Where(task => (includeCompleted == true || task.CompletedAt == null)
+                     .Where(task => task.IsDeleted.Not()
+                                 && (includeCompleted == true || task.CompletedAt == null)
                                  && (onlyUrgent       != true || task.IsUrgent)
                                  && (onlyImportant    != true || task.IsImportant)
                                  && (normalizedTag    == null || task.Tags.Contains(normalizedTag)));

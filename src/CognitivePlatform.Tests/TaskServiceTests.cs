@@ -282,6 +282,27 @@ public class TaskServiceTests
         Assert.Equal(2, results.Count);
     }
 
+    // ENH-04: ListTasks must never surface deleted tasks regardless of filters.
+    [Fact]
+    public void QueryTasks_ExcludesDeletedTasks_Unconditionally()
+    {
+        var active  = new TaskItem { Id = Guid.NewGuid().ToString("N"), IsDeleted = false };
+        var deleted = new TaskItem { Id = Guid.NewGuid().ToString("N"), IsDeleted = true };
+
+        _storeMock.Setup(store => store.List<TaskItem>(It.IsAny<string?>()
+                                                     , It.IsAny<DateTimeOffset?>()
+                                                     , It.IsAny<DateTimeOffset?>()))
+                  .Returns(new List<TaskItem> { active, deleted });
+
+        var results = _service.QueryTasks(includeCompleted: true   // even with all filters relaxed
+                                        , onlyUrgent:       null
+                                        , onlyImportant:    null
+                                        , tag:              null).ToList();
+
+        Assert.Single(results);
+        Assert.Equal(active.Id, results[0].Id);
+    }
+
     // ================================================================
     // COMPLETE
     // ================================================================
