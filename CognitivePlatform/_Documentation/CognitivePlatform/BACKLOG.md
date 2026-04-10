@@ -10,7 +10,7 @@ Last updated: 2026-04
 
 | ID | Description | Area | Status |
 |---|---|---|---|
-| BUG-01 | UI bubble stuck at "Thinking ⏱" after FastPath execution | LAA / ChatViewModel | Open |
+| BUG-01 | UI bubble stuck at "Thinking ⏱" after FastPath execution | LAA / ChatViewModel | **Fixed 2026-04-10** — multi-core race: thinking frame `BeginInvokeOnMainThread` callback was posting unconditionally; late-queued frame overwrote the response. Added `if (!token.IsCancellationRequested)` guard inside the callback in `StartThinkingAsync`. |
 | BUG-02 | Unhelpful fallback message: "I'm not sure what to do next" | CP API / Orchestrator | **Fixed 2026-04-08** — three distinct messages for Exception, MissingParams (no clarification), and no-action-recognized cases |
 | BUG-03 | `/journal list` output renders as a single concatenated line | LAA / MarkdownView | Open |
 | BUG-04 | Colon-prefix multiline param block: `dueDateText` not applied | CP API / FastPathResolver | **Fixed 2026-04-08** — remap `DueDate` → `dueDateText` after `ParseToDictionary` in task colon-prefix block |
