@@ -92,12 +92,15 @@ public sealed class JournalService : IJournalService
 
 
     public JournalRevision EditEntry(string                 entryId
-                                   , string?                text       = null
-                                   , IReadOnlyList<string>? tags       = null
-                                   , string?                mood       = null
-                                   , int?                   moodScore  = null
-                                   , int?                   moodLevel  = null
-                                   , IReadOnlyList<string>? mediaPaths = null)
+                                   , string?                text           = null
+                                   , IReadOnlyList<string>? tags           = null
+                                   , bool                   clearTags      = false
+                                   , string?                mood           = null
+                                   , bool                   clearMood      = false
+                                   , int?                   moodScore      = null
+                                   , bool                   clearMoodScore = false
+                                   , int?                   moodLevel      = null
+                                   , IReadOnlyList<string>? mediaPaths     = null)
     {
         var entry = _store.Get<JournalEntry>(entryId);
         if (entry is null) throw new KeyNotFoundException($"Entry with Id '{entryId}' not found.");
@@ -110,12 +113,12 @@ public sealed class JournalService : IJournalService
                                   RevisionId = Guid.NewGuid().ToString("N")
                                 , EntryId    = entryId
                                 , CreatedUtc = DateTimeOffset.UtcNow
-                                , Text       = text       ?? latest.Text
-                                , Tags       = tags       ?? latest.Tags
-                                , Mood       = mood       ?? latest.Mood
-                                , MoodScore  = moodScore  ?? latest.MoodScore
-                                , MoodLevel  = moodLevel  ?? latest.MoodLevel
-                                , MediaPaths = mediaPaths ?? latest.MediaPaths
+                                , Text       = text                          ?? latest.Text
+                                , Tags       = clearTags      ? []           : tags      ?? latest.Tags
+                                , Mood       = clearMood      ? null         : mood      ?? latest.Mood
+                                , MoodScore  = clearMoodScore ? null         : moodScore ?? latest.MoodScore
+                                , MoodLevel  = moodLevel                     ?? latest.MoodLevel
+                                , MediaPaths = mediaPaths                    ?? latest.MediaPaths
                           };
         _store.Save(newRevision
                   , newRevision.RevisionId);

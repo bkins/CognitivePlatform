@@ -62,25 +62,19 @@ the test together.
 
 ### BACK-04 — `JournalCommandParser.ExtractIntValue` throws on non-numeric `MoodScore`
 
-**File:** `CognitivePlatform/Domains/Journal/JournalCommandParser.cs` — `ExtractIntValue`
+**Fixed 2026-04-10**
 
-**Observation:** `int.Parse(input.Trim())` throws `FormatException` if the value is
-not a valid integer (e.g. `MoodScore: great`). Out-of-range integers (0, 6) are handled
-gracefully by returning `null`, but malformed values crash the parser.
-
-**Action:** Replace `int.Parse` with `int.TryParse`. Return `null` when parsing fails.
-Add a test: `Parse_ReturnsNullMoodScore_WhenMoodScoreIsNonNumeric`.
+`ExtractIntValue` already uses `int.TryParse`; malformed values return `null`.
+Test `Parse_ReturnsNullMoodScore_WhenMoodScoreIsNonNumeric` in `JournalCommandParserTests` confirms the behaviour.
 
 ---
 
 ### BACK-05 — Duplicate `Microsoft.AspNetCore.OpenApi` reference in `CognitivePlatform.Api.csproj`
 
-**File:** `CognitivePlatform/CognitivePlatform.Api.csproj`
+**Fixed (prior session)**
 
-**Observation:** A `NU1504` warning fires on every build:
-> Duplicate 'PackageReference' items found: Microsoft.AspNetCore.OpenApi 10.0.0
-
-**Action:** Remove one of the two identical `<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />` lines from the project file.
+`CognitivePlatform.Api.csproj` contains only one `Microsoft.AspNetCore.OpenApi` reference;
+the NU1504 duplicate warning no longer fires.
 
 ---
 
@@ -100,11 +94,7 @@ files; tests now exercise production code directly. 26/26 pass.
 
 ### BACK-06 — `JournalService.EditEntry`: `if (latest is null)` branch is dead code
 
-**File:** `CognitivePlatform/Domains/Journal/JournalService.cs` — `EditEntry`
+**Fixed (prior session)**
 
-**Observation:** `GetLatestRevision` either returns a `JournalRevision` or throws
-`InvalidOperationException`. It never returns `null`. The `if (latest is null) throw`
-guard on the line after the call is therefore unreachable.
-
-**Action:** Remove the dead null-check to keep the code honest. The exception from
-`GetLatestRevision` is the correct signal for "no revisions found".
+The dead null-check after `GetLatestRevision` has been removed. The method throws
+`InvalidOperationException` directly when no revisions exist — no null guard needed.

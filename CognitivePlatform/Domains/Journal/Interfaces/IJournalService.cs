@@ -12,12 +12,15 @@ public interface IJournalService
                               , IReadOnlyList<string> mediaPaths);
 
     JournalRevision EditEntry (string                 entryId
-                             , string?                text       = null
-                             , IReadOnlyList<string>? tags       = null
-                             , string?                mood       = null
-                             , int?                   moodScore  = null
-                             , int?                   moodLevel  = null
-                             , IReadOnlyList<string>? mediaPaths = null);
+                             , string?                text           = null
+                             , IReadOnlyList<string>? tags           = null
+                             , bool                   clearTags      = false
+                             , string?                mood           = null
+                             , bool                   clearMood      = false
+                             , int?                   moodScore      = null
+                             , bool                   clearMoodScore = false
+                             , int?                   moodLevel      = null
+                             , IReadOnlyList<string>? mediaPaths     = null);
 
     IReadOnlyList<JournalEntryWithRevision> ListEntries (DateTimeOffset? fromUtc = null
                                                        , DateTimeOffset? toUtc   = null);

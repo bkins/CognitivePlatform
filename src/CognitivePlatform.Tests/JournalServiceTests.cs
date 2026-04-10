@@ -137,6 +137,56 @@ public class JournalServiceTests
         Assert.Throws<InvalidOperationException>(() => _service.EditEntry(entryId, text: "x"));
     }
 
+    // BUG-05: null could not distinguish "don't change" from "explicitly clear".
+    // clear* flags resolve the ambiguity without changing the default no-op behaviour.
+    [Fact]
+    public void EditEntry_ClearsTags_WhenClearTagsIsTrue()
+    {
+        var entryId  = Guid.NewGuid().ToString("N");
+        var entry    = MakeEntry(entryId);
+        var original = MakeRevision(entryId, "Text", new[] { "tag1", "tag2" }, "Happy", 4);
+
+        _storeMock.Setup(store => store.Get<JournalEntry>(entryId, null)).Returns(entry);
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entryId))
+                         .Returns(new List<JournalRevision> { original });
+
+        var result = _service.EditEntry(entryId, clearTags: true);
+
+        Assert.Empty(result.Tags);
+    }
+
+    [Fact]
+    public void EditEntry_ClearsMood_WhenClearMoodIsTrue()
+    {
+        var entryId  = Guid.NewGuid().ToString("N");
+        var entry    = MakeEntry(entryId);
+        var original = MakeRevision(entryId, "Text", mood: "Happy");
+
+        _storeMock.Setup(store => store.Get<JournalEntry>(entryId, null)).Returns(entry);
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entryId))
+                         .Returns(new List<JournalRevision> { original });
+
+        var result = _service.EditEntry(entryId, clearMood: true);
+
+        Assert.Null(result.Mood);
+    }
+
+    [Fact]
+    public void EditEntry_ClearsMoodScore_WhenClearMoodScoreIsTrue()
+    {
+        var entryId  = Guid.NewGuid().ToString("N");
+        var entry    = MakeEntry(entryId);
+        var original = MakeRevision(entryId, "Text", moodScore: 4);
+
+        _storeMock.Setup(store => store.Get<JournalEntry>(entryId, null)).Returns(entry);
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entryId))
+                         .Returns(new List<JournalRevision> { original });
+
+        var result = _service.EditEntry(entryId, clearMoodScore: true);
+
+        Assert.Null(result.MoodScore);
+    }
+
     [Fact]
     public void EditEntry_Throws_InvalidOperationException_WhenEntryHasNoRevisions()
     {
