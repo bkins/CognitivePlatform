@@ -104,7 +104,6 @@ public sealed class JournalService : IJournalService
         if (entry.DeletedUtc is not null) throw new InvalidOperationException($"Journal entry with Id '{entryId}' has already been deleted.");
 
         var latest = GetLatestRevision(entryId);
-        if (latest is null) throw  new InvalidOperationException($"Entry with Id '{entryId}' does not have a revision.");
 
         var newRevision = new JournalRevision
                           {

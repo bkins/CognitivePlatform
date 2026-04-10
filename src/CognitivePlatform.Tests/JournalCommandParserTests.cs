@@ -232,4 +232,19 @@ public class JournalCommandParserTests
         Assert.Equal("Focused",                  result.Mood);
         Assert.Equal(4,                          result.MoodScore);
     }
+
+    // BACK-04 — ExtractIntValue used int.Parse which throws on non-numeric input;
+    // replaced with int.TryParse so malformed values return null gracefully.
+    [Fact]
+    public void Parse_ReturnsNullMoodScore_WhenMoodScoreIsNonNumeric()
+    {
+        var input = """
+                    Had a good day.
+                    MoodScore: great
+                    """;
+
+        var result = _parser.Parse(input);
+
+        Assert.Null(result.MoodScore);
+    }
 }

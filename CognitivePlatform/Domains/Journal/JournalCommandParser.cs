@@ -116,11 +116,12 @@ public sealed class JournalCommandParser : IJournalCommandParser
     
     private static int? ExtractIntValue(string input)
     {
-        var score = int.Parse(input.Trim());
-        
-        if ( score is >= 1 and <= 5)
+        if (!int.TryParse(input.Trim(), out var score))
+            return null;
+
+        if (score is >= 1 and <= 5)
             return score;
-        
+
         return null;
     }
     
