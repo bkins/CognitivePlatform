@@ -33,6 +33,8 @@ public class LlmClientFactory
                                                       , _usageTracker)
               , LlmProvider.Ollama => new OllamaLlmClient(_httpFactory.CreateClient("Ollama")
                                                         , options)
+              , LlmProvider.Gemini => new GeminiLlmClient(_httpFactory.CreateClient("Gemini")
+                                                        , options)
               , _ => throw new InvalidOperationException(
                          $"Unknown LLM provider: {_settings.Provider}")
         };

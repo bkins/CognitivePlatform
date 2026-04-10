@@ -10,6 +10,7 @@ public enum LlmProvider
 {
     Ollama
   , Groq
+  , Gemini
 }
 
 // Bound to the "LlmClient" section in appsettings.json.
@@ -56,7 +57,31 @@ public class LlmClientSettings
     // Groq settings
     // ----------------------------------------------------------------
 
-    public GroqSettings Groq { get; set; } = new();
+    public GroqSettings   Groq   { get; set; } = new();
+    public GeminiSettings Gemini { get; set; } = new();
+}
+
+public class GeminiSettings
+{
+    /// <summary>
+    /// Google AI Studio API key. Load from user-secrets or environment — never commit.
+    /// Obtain from https://aistudio.google.com/app/apikey
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gemini model to use. Google exposes an OpenAI-compatible endpoint so the
+    /// same request/response schema as Groq applies.
+    /// Recommended: "gemini-2.0-flash" (fast, free tier) or "gemini-1.5-pro-002".
+    /// Full list: https://ai.google.dev/gemini-api/docs/models
+    /// </summary>
+    public string Model { get; set; } = "gemini-2.0-flash";
+
+    /// <summary>
+    /// Google's OpenAI-compatible base URL.
+    /// Unlikely to change but kept configurable.
+    /// </summary>
+    public string Endpoint { get; set; } = "https://generativelanguage.googleapis.com/v1beta/openai";
 }
 
 public class GroqSettings
