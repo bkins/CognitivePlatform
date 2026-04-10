@@ -219,7 +219,8 @@ public class TaskService : ITaskService
         if (task == null)
             return;
 
-        task.IsDeleted = false;
+        task.IsDeleted  = false;
+        task.DeletedUtc = null;
 
         SaveInternal(task);
     }

@@ -45,6 +45,18 @@ public class TaskKnowledgeSourceTests
     }
 
     [Fact]
+    public void GetKnowledgeItems_ReturnsDeletedStatus_ForNonCompletedDeletedTask()
+    {
+        var task = MakeTask(completed: false, deleted: true);
+        SetupTaskList(task);
+
+        var result = _source.GetKnowledgeItems(new KnowledgeQuery(), CancellationToken.None).ToList();
+
+        Assert.Single(result);
+        Assert.Equal(KnowledgeStatus.Deleted, result[0].Status);
+    }
+
+    [Fact]
     public void GetKnowledgeItems_ReturnsCompletedStatus_ForCompletedNonDeletedTask()
     {
         var task = MakeTask(completed: true, deleted: false);

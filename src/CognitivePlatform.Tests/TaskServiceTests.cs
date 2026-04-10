@@ -383,6 +383,30 @@ public class TaskServiceTests
     }
 
     // ================================================================
+    // UN-DELETE
+    // ================================================================
+
+    [Fact]
+    public void UnDelete_ClearsIsDeletedAndDeletedUtc_WhenTaskExists()
+    {
+        var id   = Guid.NewGuid();
+        var task = new TaskItem
+                   {
+                           Id         = id.ToString("N")
+                         , IsDeleted  = true
+                         , DeletedUtc = DateTimeOffset.UtcNow.AddDays(-1)
+                   };
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        _service.UnDelete(id);
+
+        Assert.False(task.IsDeleted);
+        Assert.Null(task.DeletedUtc);
+    }
+
+    // ================================================================
     // UPDATE DUE DATE
     // ================================================================
 
