@@ -17,7 +17,7 @@ Last updated: 2026-04
 | BUG-05 | Clear-vs-null ambiguity: cannot explicitly clear Tags or MoodScore via edit | CP API / JournalService | Open |
 | BUG-06 | `Journal:` prefix persisted in entry text (not stripped at ingestion boundary) | CP API / JournalCommandParser | **Fixed 2026-04-07** — resolved in FastPath Grammar Refinement milestone |
 | BUG-07 | Groq API 400 error: `JsonContent.Create(JsonOptions)` serializes options object instead of request body | CP API / GroqLlmClient | **Fixed 2026-04-08** — `JsonContent.Create(requestBody, options: JsonOptions)` |
-| BUG-08 | LAA crashes silently after "complete task" response — no error message shown | LAA / NativeMarkdownView or ChatViewModel | Open — needs stack trace; suspected WinUI threading issue or unobserved exception in `OnConversationTurnCompletedAsync` |
+| BUG-08 | LAA crashes silently after "complete task" response — no error message shown | LAA / NativeMarkdownView or ChatViewModel | **Fixed 2026-04-10** — WinUI cross-thread exception: `catch`/`finally` blocks in `ChatViewModel.SendAsync` and all `[ObservableProperty]` assignments in `UsageViewModel.ApplySnapshot` were running on a thread-pool thread after `ConfigureAwait(false)`. Wrapped all three sites in `MainThread.BeginInvokeOnMainThread`. |
 
 ---
 
