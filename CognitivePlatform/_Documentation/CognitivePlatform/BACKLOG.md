@@ -25,9 +25,9 @@ Last updated: 2026-04
 
 | ID | Description | Area | Status |
 |---|---|---|---|
-| UX-01 | Navigating away from app immediately submits active prompt | LAA | Open |
+| UX-01 | Navigating away from app immediately submits active prompt | LAA | **Fixed 2026-04-10** — added `_isPageActive` flag set in `OnAppearing`/`OnDisappearing` in `MainPage.xaml.cs`. `OnEntryCompleted` returns early when the page is inactive, preventing keyboard-dismiss events fired during navigation from submitting the active prompt. |
 | UX-02 | Chat does not scroll to bottom after new response | LAA / ChatView | **Fixed 2026-04-10** — `CollectionChanged` only fires on message add, not on in-place content change. Added `OnChatViewModelPropertyChanged` in `MainPage.xaml.cs` that watches `IsTyping`: when it goes `true → false` (turn complete), waits 100 ms for layout then calls `ScrollTo(lastMessage, End)`. |
-| UX-03 | Assistant message bubbles grow but never shrink | LAA / MarkdownView | Open |
+| UX-03 | Assistant message bubbles grow but never shrink | LAA / MarkdownView | **Fixed 2026-04-10** — added `InvalidateMeasure()` at the end of `NativeMarkdownView.Render()`. MAUI's CollectionView caches item heights after first measurement; the explicit call propagates a re-measure up the visual tree so shorter responses shrink the bubble. |
 
 ---
 
@@ -35,11 +35,11 @@ Last updated: 2026-04
 
 | ID | Description | Area | Status |
 |---|---|---|---|
-| ENH-01 | FastPath badge on assistant responses | LAA / ChatViewModel | Open |
+| ENH-01 | FastPath badge on assistant responses | LAA / ChatViewModel | **Done** — `⚡` label overlaid on message bubble with `IsVisible="{Binding WasFastPath}"`. `Message.WasFastPath` set from `response.WasFastPath` in `ChatViewModel.SendAsync`. |
 | ENH-02 | Groq usage / rate-limit status indicator in shell header | LAA + CP API | **Done** |
-| ENH-03 | Google Gemini API as fallback LLM provider | CP API / LlmClientFactory | Open |
+| ENH-03 | Google Gemini API as fallback LLM provider | CP API / LlmClientFactory | **Done 2026-04-10** — `GeminiLlmClient` added using Google's OpenAI-compatible endpoint. `LlmProvider.Gemini` enum value, `GeminiSettings` config class, `"Gemini"` named HttpClient. Activate via `LlmClient:Provider = "Gemini"` and `LlmClient:Gemini:ApiKey = "..."` in appsettings / user-secrets. |
 | ENH-04 | "Show my tasks" — clarify: active only vs all (exclude deleted) | CP API / TaskActions | **Fixed 2026-04-10** — `QueryTasks` called `_store.List<TaskItem>()` which returns all records including soft-deleted ones. Added `task.IsDeleted.Not()` filter as the first clause. |
-| ENH-05 | Natural language due date parsing (relative dates: "tomorrow", "next Friday") | CP API / FastPathResolver | Open |
+| ENH-05 | Natural language due date parsing (relative dates: "tomorrow", "next Friday") | CP API / TaskActions | **Done 2026-04-10** — `TryParseDate` in `TaskActions` extended to handle: today/tomorrow/yesterday, named weekdays (mon–sun), "next \<weekday\>", "next week", "end of week / month", "in N days/weeks/months". Falls back to `DateTimeOffset.TryParse` for absolute formats. |
 
 ---
 
