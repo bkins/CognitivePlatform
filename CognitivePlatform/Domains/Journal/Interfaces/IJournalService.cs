@@ -25,6 +25,14 @@ public interface IJournalService
     IReadOnlyList<JournalEntryWithRevision> ListEntries (DateTimeOffset? fromUtc = null
                                                        , DateTimeOffset? toUtc   = null);
 
+    /// <summary>
+    /// Returns entries whose latest revision text, tags, or mood contain the keyword
+    /// (case-insensitive). Both fromUtc and toUtc are optional date bounds.
+    /// </summary>
+    IReadOnlyList<JournalEntryWithRevision> SearchEntries (string          keyword
+                                                         , DateTimeOffset? fromUtc = null
+                                                         , DateTimeOffset? toUtc   = null);
+
     public JournalEntry? GetEntry (string id);
 
     public bool DeleteEntry (string id, string reason);

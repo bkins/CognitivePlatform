@@ -621,4 +621,93 @@ public class JournalServiceTests
                  , Mood       = mood
                  , MoodScore  = moodScore
            };
+
+    // ================================================================
+    // SEARCH ENTRIES
+    // ================================================================
+
+    [Fact]
+    public void SearchEntries_ReturnsMatchingEntries_WhenKeywordInText()
+    {
+        var match   = MakeEntry(Guid.NewGuid().ToString("N"));
+        var noMatch = MakeEntry(Guid.NewGuid().ToString("N"));
+        var revMatch   = MakeRevision(match.Id,   "I spoke with Jake today.");
+        var revNoMatch = MakeRevision(noMatch.Id, "Had a productive morning.");
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { match, noMatch });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(match.Id))
+                         .Returns(new List<JournalRevision> { revMatch });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(noMatch.Id))
+                         .Returns(new List<JournalRevision> { revNoMatch });
+
+        var results = _service.SearchEntries("Jake");
+
+        Assert.Single(results);
+        Assert.Equal(match.Id, results[0].Entry.Id);
+    }
+
+    [Fact]
+    public void SearchEntries_IsCaseInsensitive()
+    {
+        var entry = MakeEntry(Guid.NewGuid().ToString("N"));
+        var rev   = MakeRevision(entry.Id, "Felt ANXIOUS this morning.");
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { entry });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entry.Id))
+                         .Returns(new List<JournalRevision> { rev });
+
+        var results = _service.SearchEntries("anxious");
+
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public void SearchEntries_MatchesKeyword_InTags()
+    {
+        var entry = MakeEntry(Guid.NewGuid().ToString("N"));
+        var rev   = MakeRevision(entry.Id, "Regular day.", tags: new[] { "focus", "work" });
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { entry });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entry.Id))
+                         .Returns(new List<JournalRevision> { rev });
+
+        var results = _service.SearchEntries("focus");
+
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public void SearchEntries_MatchesKeyword_InMood()
+    {
+        var entry = MakeEntry(Guid.NewGuid().ToString("N"));
+        var rev   = MakeRevision(entry.Id, "Ordinary day.", mood: "anxious but hopeful");
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { entry });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entry.Id))
+                         .Returns(new List<JournalRevision> { rev });
+
+        var results = _service.SearchEntries("hopeful");
+
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public void SearchEntries_ReturnsEmpty_WhenNoMatch()
+    {
+        var entry = MakeEntry(Guid.NewGuid().ToString("N"));
+        var rev   = MakeRevision(entry.Id, "Nothing relevant here.");
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { entry });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entry.Id))
+                         .Returns(new List<JournalRevision> { rev });
+
+        var results = _service.SearchEntries("Jake");
+
+        Assert.Empty(results);
+    }
 }

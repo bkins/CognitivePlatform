@@ -160,6 +160,32 @@ public sealed class JournalService : IJournalService
                       .ToList()!;
     }
     
+    public IReadOnlyList<JournalEntryWithRevision> SearchEntries (string          keyword
+                                                                , DateTimeOffset? fromUtc = null
+                                                                , DateTimeOffset? toUtc   = null)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+            return ListEntries(fromUtc, toUtc);
+
+        var needle = keyword.Trim();
+
+        return ListEntries(fromUtc, toUtc)
+               .Where(ewr => ContainsKeyword(ewr.LatestRevision, needle))
+               .ToList();
+    }
+
+    private static bool ContainsKeyword(JournalRevision revision, string keyword)
+    {
+        if (revision.Text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (revision.Mood is not null
+         && revision.Mood.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return revision.Tags.Any(tag => tag.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+    }
+
     public JournalEntry? GetEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))

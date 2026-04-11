@@ -3,6 +3,7 @@ using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Domains.Journal;
@@ -12,11 +13,13 @@ public sealed class JournalActions
 {
     private readonly IJournalService       _journal;
     private readonly IJournalCommandParser _parser;
+    private readonly ILlmClient            _llmClient;
 
-    public JournalActions(IJournalService journal, IJournalCommandParser parser)
+    public JournalActions(IJournalService journal, IJournalCommandParser parser, ILlmClient llmClient)
     {
-        _journal = journal ?? throw new ArgumentNullException(nameof(journal));
-        _parser  = parser  ?? throw new ArgumentNullException(nameof(parser));
+        _journal   = journal    ?? throw new ArgumentNullException(nameof(journal));
+        _parser    = parser     ?? throw new ArgumentNullException(nameof(parser));
+        _llmClient = llmClient  ?? throw new ArgumentNullException(nameof(llmClient));
     }
 
     // ----------------------------------------------------------------------
@@ -225,6 +228,115 @@ public sealed class JournalActions
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    // ----------------------------------------------------------------------
+    // 5. SearchJournalEntries
+    // ----------------------------------------------------------------------
+    [FastPath]
+    [NaturalLanguageAction(Description = "Searches journal entries for a keyword, optionally within a date range. Matches against entry text, tags, and mood."
+                         , Examples = new[]
+                                      {
+                                              "Search my journal for 'Jake'."
+                                            , "Find journal entries mentioning work."
+                                            , "Search for entries tagged 'focus' last month."
+                                            , "Did I write anything about the project deadline?"
+                                      }
+                         , Category = "journal")]
+    public string SearchJournalEntries ([NaturalLanguageParam(Description = "The keyword or phrase to search for."
+                                                            , AllowEmpty = false)]
+                                        string keyword
+                                      , [NaturalLanguageParam(Description = "Start date (optional)."
+                                                            , Optional = true
+                                                            , DefaultValue = "")]
+                                        string? fromDate = null
+                                      , [NaturalLanguageParam(Description = "End date (optional)."
+                                                            , Optional = true
+                                                            , DefaultValue = "")]
+                                        string? toDate = null)
+    {
+        var results = _journal.SearchEntries(keyword
+                                           , ParseDate(fromDate)
+                                           , ParseDate(toDate));
+
+        if (results.Count == 0)
+            return $"No journal entries found containing '{keyword}'.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Found {results.Count} journal {(results.Count == 1 ? "entry" : "entries")} containing '{keyword}':");
+        sb.AppendLine();
+
+        foreach (var ewr in results)
+        {
+            sb.Append('[')
+              .Append(ewr.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
+              .Append("] ")
+              .Append(ewr.LatestRevision.Text);
+
+            AppendCommonMetadata(sb, ewr, includeId: true);
+            sb.AppendLine().AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // ----------------------------------------------------------------------
+    // 6. AnalyzeJournal
+    // ----------------------------------------------------------------------
+    [NaturalLanguageAction(Description = "Answers a question about your journal by reading your entries and reasoning over them using AI. Use this for questions that require understanding meaning, not just finding a keyword."
+                         , Examples = new[]
+                                      {
+                                              "What was I frustrated about last week?"
+                                            , "How has my mood trended this month?"
+                                            , "What themes keep coming up in my journal?"
+                                            , "Summarize what I've been working on this week."
+                                            , "What patterns do you notice in my entries?"
+                                      }
+                         , Category = "journal")]
+    public async Task<string> AnalyzeJournal ([NaturalLanguageParam(Description = "The question or analysis request about your journal entries."
+                                                                   , AllowEmpty = false)]
+                                              string question
+                                            , [NaturalLanguageParam(Description = "Start date — limit analysis to entries from this date onwards (optional)."
+                                                                   , Optional = true
+                                                                   , DefaultValue = "")]
+                                              string? fromDate = null
+                                            , [NaturalLanguageParam(Description = "End date — limit analysis to entries up to this date (optional)."
+                                                                   , Optional = true
+                                                                   , DefaultValue = "")]
+                                              string? toDate = null)
+    {
+        var entries = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
+
+        if (entries.Count == 0)
+            return "No journal entries found for the specified date range.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("The following are journal entries belonging to the user. Answer the user's question based only on what is written here. Be honest if the entries do not contain enough information to answer well.");
+        sb.AppendLine();
+
+        foreach (var ewr in entries)
+        {
+            sb.Append('[').Append(ewr.Entry.CreatedUtc.ToString("yyyy-MM-dd")).Append("] ");
+            sb.Append(ewr.LatestRevision.Text);
+
+            if (ewr.LatestRevision.Mood is not null)
+                sb.Append($" [mood: {ewr.LatestRevision.Mood}]");
+
+            if (ewr.LatestRevision.MoodScore.HasValue)
+                sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
+
+            if (ewr.LatestRevision.Tags is { Count: > 0 })
+                sb.Append($" [tags: {string.Join(", ", ewr.LatestRevision.Tags)}]");
+
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"User's question: {question}");
+
+        var prompt = sb.ToString();
+
+        return await _llmClient.SendAsync(prompt);
     }
 
     // ----------------------------------------------------------------------
