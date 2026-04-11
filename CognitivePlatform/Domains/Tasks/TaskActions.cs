@@ -459,6 +459,7 @@ public class TaskActions
     }
 
     [FastPath]
+    [DestructiveAction]
     [NaturalLanguageAction(Description = "Soft delete a task. Accepts a task position number (from the list) or a full task id."
                          , Examples =
                            [

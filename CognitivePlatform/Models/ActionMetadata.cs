@@ -40,6 +40,13 @@ public class ActionMetadata
     /// when required parameters are missing.
     /// </summary>
     public bool AllowsClarification { get; init; }
-    
+
     public bool IsFastPath { get; init; }
+
+    /// <summary>
+    /// True when the action is decorated with [DestructiveAction].
+    /// The orchestrator will require user confirmation before executing
+    /// any action with this flag set.
+    /// </summary>
+    public bool IsDestructive { get; init; }
 }
