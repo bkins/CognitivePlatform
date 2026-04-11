@@ -4,8 +4,10 @@ using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Insights;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Orchestrator;
@@ -65,6 +67,7 @@ public partial class Program
         });
         
 // Core services
+        builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
         builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
         builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
@@ -137,7 +140,12 @@ public partial class Program
 // Actions
         builder.Services.AddTransient<JournalActions>();
         builder.Services.AddTransient<TaskActions>();
+        builder.Services.AddTransient<TaskReasonerActions>();
+        builder.Services.AddTransient<InsightsActions>();
         builder.Services.AddTransient<DebugFastPath>();
+
+    // Daily Brief
+        builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
 
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();

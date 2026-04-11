@@ -160,19 +160,19 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 if (IsNegative(input).Not())
                     return new ConverseResponse
                            {
-                                   Message         = "Please confirm or cancel the deletion."
-                                 , Debug           = "Awaiting delete confirmation."
-                                 , ExecutionResult = "User has not yet confirmed or cancelled the delete action."
+                                   Message         = "Please confirm or cancel."
+                                 , Debug           = $"Awaiting confirmation for '{pending.ActionName}'."
+                                 , ExecutionResult = $"User has not yet confirmed or cancelled '{pending.ActionName}'."
                                  , WasFastPath     = true
                            };
-                
+
                 context.PendingAction = null;
 
                 var response = new ConverseResponse
                                {
-                                       Message         = "Deletion cancelled."
-                                     , Debug           = "Delete cancelled by user."
-                                     , ExecutionResult = "User cancelled the delete action during confirmation step."
+                                       Message         = "Cancelled."
+                                     , Debug           = $"'{pending.ActionName}' cancelled by user."
+                                     , ExecutionResult = $"User cancelled '{pending.ActionName}' during confirmation step."
                                      , WasFastPath     = true
                                };
                 return await FinalizeAsync(request
@@ -550,38 +550,28 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         }
 
-        if (selectedAction.Name == "DeleteJournalEntry"
-         && context.HasConfirmedDelete
-                   .Not())
+        // Generic confirmation gate: any action decorated with [DestructiveAction]
+        // requires explicit user confirmation before execution.
+        if (selectedAction.IsDestructive)
         {
-            var parameters = interpretation.ExtractedParameters;
-
-            // Build a human-readable review prompt
-            var reason = parameters.TryGetValue("reason", out var value)
-                                 ? value
-                                 : "(no reason provided)";
-
-            var reviewMessage = "Delete journal entry?\n\n"
-                              + $"Reason: {reason}\n\n"
-                              + "This entry will be marked as deleted and hidden from your journal, "
-                              + "but its history will be preserved.\n\n"
-                              + "Please confirm or cancel.";
+            var confirmationMessage = BuildDestructiveConfirmationPrompt(selectedAction
+                                                                       , interpretation.ExtractedParameters);
 
             context.PendingAction = new PendingAction
                                     {
-                                            ActionName = selectedAction.Name
-                                          , CollectedParameters = new Dictionary<string, string>(parameters
-                                                                                               , StringComparer.OrdinalIgnoreCase)
+                                            ActionName           = selectedAction.Name
+                                          , CollectedParameters  = new Dictionary<string, string>(interpretation.ExtractedParameters
+                                                                                                , StringComparer.OrdinalIgnoreCase)
                                           , RemainingParameters  = new List<string>()
                                           , ConfirmationRequired = true
-                                          , ConfirmationPrompt   = reviewMessage
+                                          , ConfirmationPrompt   = confirmationMessage
                                     };
 
             var response = new ConverseResponse
                            {
-                                   Message         = reviewMessage
-                                 , Debug           = "Delete action requires confirmation."
-                                 , ExecutionResult = "Awaiting user confirmation for delete action."
+                                   Message         = confirmationMessage
+                                 , Debug           = $"Destructive action '{selectedAction.Name}' requires confirmation."
+                                 , ExecutionResult = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
                            };
             return await FinalizeAsync(request, response, sw, ct);
         }
@@ -625,6 +615,18 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                
                        };
         return response;
+    }
+
+    private static string BuildDestructiveConfirmationPrompt( ActionMetadata               action
+                                                             , IDictionary<string, string> parameters )
+    {
+        var paramSummary = parameters.Count > 0
+                                   ? string.Join(", ", parameters.Select(p => $"{p.Key}: {p.Value}"))
+                                   : "(no parameters)";
+
+        return $"You are about to run '{action.Name}'. This action cannot be undone.\n\n"
+             + $"Parameters: {paramSummary}\n\n"
+             + "Please confirm or cancel.";
     }
 
     private bool IsNegative (string? input)

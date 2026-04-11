@@ -56,8 +56,9 @@ public class ActionRegistry : IActionRegistry
                                        })
                                        .ToList();
 
-                // Detect [FastPath]
-                var isFastPath = method.GetCustomAttribute<FastPathAttribute>() != null;
+                // Detect [FastPath] and [DestructiveAction]
+                var isFastPath    = method.GetCustomAttribute<FastPathAttribute>()        != null;
+                var isDestructive = method.GetCustomAttribute<DestructiveActionAttribute>() != null;
 
                 var meta = new ActionMetadata
                            {
@@ -68,6 +69,7 @@ public class ActionRegistry : IActionRegistry
                                  , Parameters          = parameters
                                  , AllowsClarification = nla.AllowsClarification
                                  , IsFastPath          = isFastPath
+                                 , IsDestructive       = isDestructive
                            };
 
                 _actions.Add(meta);

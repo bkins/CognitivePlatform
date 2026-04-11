@@ -167,6 +167,7 @@ public sealed class JournalActions
     // 4. DeleteJournalEntry
     // ----------------------------------------------------------------------
     [FastPath]
+    [DestructiveAction]
     [NaturalLanguageAction(Description = "Deletes a journal entry by ID. And a reason must be provided"
                          , Examples = new[]
                                       {

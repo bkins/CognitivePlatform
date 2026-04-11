@@ -1,4 +1,5 @@
 using System.Reflection;
+using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Telemetry;
@@ -10,15 +11,18 @@ public class ExecutionEngine : IExecutionEngine
 {
     private readonly ITelemetrySink   _telemetry;
     private readonly TelemetryContext _telemetryContext;
+    private readonly IAuditLog        _auditLog;
     private static   IServiceProvider _serviceProvider;
 
     public ExecutionEngine( ITelemetrySink   telemetry
                           , IServiceProvider serviceProvider
-                          , TelemetryContext telemetryContext )
+                          , TelemetryContext telemetryContext
+                          , IAuditLog        auditLog )
     {
         _telemetry        = telemetry;
         _serviceProvider  = serviceProvider;
         _telemetryContext = telemetryContext;
+        _auditLog         = auditLog;
     }
 
     public string Execute( ActionMetadata              action
@@ -29,6 +33,8 @@ public class ExecutionEngine : IExecutionEngine
                                                        {
                                                                ActionName = action.Name
                                                        }));
+
+        var paramSummary = string.Join(", ", arguments.Select(p => $"{p.Key}={p.Value}"));
 
         try
         {
@@ -47,8 +53,7 @@ public class ExecutionEngine : IExecutionEngine
                 var parameter = parameters[i];
                 var paramName = parameter.Name ?? $"arg{i}";
 
-                if (arguments.TryGetValue(paramName
-                                        , out var stringValue).Not())
+                if (arguments.TryGetValue(paramName, out var stringValue).Not())
                 {
                     if (parameter.HasDefaultValue)
                     {
@@ -63,21 +68,24 @@ public class ExecutionEngine : IExecutionEngine
                     continue;
                 }
 
-                args[i] = ConvertStringToType(stringValue
-                                            , parameter.ParameterType);
+                args[i] = ConvertStringToType(stringValue, parameter.ParameterType);
             }
 
             object? result;
 
             try
             {
-                result = methodInfo.Invoke(target
-                                         , args);
+                result = methodInfo.Invoke(target, args);
             }
             catch (TargetInvocationException tie) when (tie.InnerException is not null)
             {
                 throw tie.InnerException;
             }
+
+            // Unwrap Task / Task<T> so async actions work through the standard
+            // execution path. When ExecutionEngine is made fully async (see
+            // DEFERRED.md), replace this with a proper await.
+            result = UnwrapTaskResult(result);
 
             var formatted = FormatResult(result);
 
@@ -88,11 +96,20 @@ public class ExecutionEngine : IExecutionEngine
                                                                  , Output     = formatted
                                                            }));
 
+            _auditLog.Append(new AuditEvent
+                             {
+                                     ActionName  = action.Name
+                                   , Parameters  = paramSummary
+                                   , Outcome     = AuditOutcome.Success
+                                   , Meta        = { ["sessionId"] = sessionId }
+                             });
+
             return formatted;
         }
         catch (Exception ex)
         {
             var message = $"Failed to execute action: {ex.Message}";
+
             _telemetry.Track(_telemetryContext.CreateEvent(new ExecutionCompletedEvent
                                                            {
                                                                    ActionName = action.Name
@@ -100,9 +117,56 @@ public class ExecutionEngine : IExecutionEngine
                                                                  , Error      = ex.Message
                                                            }));
 
+            _auditLog.Append(new AuditEvent
+                             {
+                                     ActionName   = action.Name
+                                   , Parameters   = paramSummary
+                                   , Outcome      = AuditOutcome.Failure
+                                   , ErrorMessage = ex.Message
+                                   , Meta         = { ["sessionId"] = sessionId }
+                             });
+
             return message;
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Async unwrapping
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// If <paramref name="result"/> is a <see cref="Task"/> or <see cref="Task{T}"/>,
+    /// waits for it to complete and returns the inner value (or null for non-generic Task).
+    /// Non-task results pass through unchanged.
+    ///
+    /// Uses GetAwaiter().GetResult() because Execute is currently synchronous.
+    /// When Execute is made async, replace with a proper await (see DEFERRED.md).
+    /// </summary>
+    private static object? UnwrapTaskResult(object? result)
+    {
+        if (result is not Task task)
+            return result;
+
+        task.GetAwaiter().GetResult();
+
+        var taskType = task.GetType();
+
+        if (!taskType.IsGenericType)
+            return null;
+
+        // VoidTaskResult is .NET's internal void-equivalent used by Task.CompletedTask
+        // and async Task (non-generic) methods. Treat as no meaningful return value.
+        var typeArg = taskType.GetGenericArguments()[0];
+        if (typeArg.Name == "VoidTaskResult")
+            return null;
+
+        var resultProperty = taskType.GetProperty("Result");
+        return resultProperty?.GetValue(task);
+    }
+
+    // -----------------------------------------------------------------------
+    // Type conversion
+    // -----------------------------------------------------------------------
 
     private static object? ConvertStringToType( string value
                                               , Type   targetType )
@@ -112,88 +176,56 @@ public class ExecutionEngine : IExecutionEngine
 
         if (targetType == typeof(int)
          || targetType == typeof(int?))
-            return int.TryParse(value
-                              , out var i)
-                           ? i
-                           : default(int?);
+            return int.TryParse(value, out var i) ? i : default(int?);
 
         if (targetType == typeof(long)
          || targetType == typeof(long?))
-            return long.TryParse(value
-                               , out var l)
-                           ? l
-                           : default(long?);
+            return long.TryParse(value, out var l) ? l : default(long?);
 
         if (targetType == typeof(bool)
          || targetType == typeof(bool?))
-            return bool.TryParse(value
-                               , out var b)
-                           ? b
-                           : default(bool?);
+            return bool.TryParse(value, out var b) ? b : default(bool?);
 
         // Handle Nullable<TEnum> — e.g. TaskPriority?
-        // Nullable.GetUnderlyingType returns the inner type for nullable value types.
-        // Without this check, IsEnum returns false for Nullable<TEnum> and the value
-        // falls through to Convert.ChangeType which cannot handle enum conversion.
         var underlyingType = Nullable.GetUnderlyingType(targetType);
         if (underlyingType is not null && underlyingType.IsEnum)
         {
             if (string.IsNullOrWhiteSpace(value))
                 return null;
 
-            try
-            {
-                return Enum.Parse(underlyingType
-                                , value
-                                , ignoreCase: true);
-            }
-            catch
-            {
-                return null;
-            }
+            try   { return Enum.Parse(underlyingType, value, ignoreCase: true); }
+            catch { return null; }
         }
 
-        // Handle non-nullable enums — e.g. TaskPriority (with a default value)
+        // Handle non-nullable enums
         if (targetType.IsEnum)
         {
-            try
-            {
-                return Enum.Parse(targetType
-                                , value
-                                , ignoreCase: true);
-            }
-            catch
-            {
-                return Activator.CreateInstance(targetType);
-            }
+            try   { return Enum.Parse(targetType, value, ignoreCase: true); }
+            catch { return Activator.CreateInstance(targetType); }
         }
 
         try
         {
-            return Convert.ChangeType(value
-                                    , targetType);
+            return Convert.ChangeType(value, targetType);
         }
         catch
         {
-            return targetType.IsValueType
-                           ? Activator.CreateInstance(targetType)
-                           : null;
+            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
     }
 
-    private static object? CreateTargetInstance( MethodInfo methodInfo )
+    private static object? CreateTargetInstance(MethodInfo methodInfo)
     {
         if (methodInfo.IsStatic) return null;
 
         var declaringType = methodInfo.DeclaringType;
-        
+
         return declaringType is null
                        ? null
                        : _serviceProvider.GetRequiredService(declaringType);
-
     }
 
-    private static string FormatResult( object? result )
+    private static string FormatResult(object? result)
     {
         if (result is null)
             return "Action executed successfully (no return value).";

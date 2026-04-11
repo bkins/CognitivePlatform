@@ -8,11 +8,14 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/tasks")]
 public sealed class TaskController : ControllerBase
 {
-    private readonly ITaskService _service;
+    private readonly ITaskService       _service;
+    private readonly IDailyBriefService _brief;
 
-    public TaskController( ITaskService service )
+    public TaskController( ITaskService       service
+                         , IDailyBriefService brief )
     {
         _service = service;
+        _brief   = brief;
     }
 
     [HttpGet("{id:guid}")]
@@ -46,6 +49,12 @@ public sealed class TaskController : ControllerBase
         _service.Delete(id);
 
         return Ok($"Task '{task.ShortDescription}' deleted ({task.Id}).");
+    }
+
+    [HttpGet("brief")]
+    public ActionResult<string> GetBrief()
+    {
+        return Ok(_brief.GetBrief());
     }
 
     [HttpPut("{id:guid}")]
