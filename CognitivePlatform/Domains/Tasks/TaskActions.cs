@@ -10,11 +10,14 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 
 public class TaskActions
 {
-    private readonly ITaskService _taskService;
+    private readonly ITaskService       _taskService;
+    private readonly IDailyBriefService _dailyBrief;
 
-    public TaskActions(ITaskService taskService)
+    public TaskActions( ITaskService       taskService
+                      , IDailyBriefService dailyBrief )
     {
-        _taskService = taskService;
+        _taskService = taskService ?? throw new ArgumentNullException(nameof(taskService));
+        _dailyBrief  = dailyBrief  ?? throw new ArgumentNullException(nameof(dailyBrief));
     }
 
     [FastPath]
@@ -500,6 +503,23 @@ public class TaskActions
         var result   = reasoner.Analyze(tasks);
 
         return result.ToHumanReadableString();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(Description = "Shows the daily brief: the most urgent tasks (Important & Urgent) and anything due today or overdue."
+                         , Examples =
+                           [
+                                   "Give me my daily brief."
+                                 , "What's on my plate today?"
+                                 , "Show me today's priorities."
+                                 , "Daily brief."
+                                 , "What do I need to do today?"
+                                 , "Morning briefing."
+                           ]
+                         , AllowsClarification = false)]
+    public string GetDailyBrief()
+    {
+        return _dailyBrief.GetBrief();
     }
 
     // --- Private helpers ----------------------------------------------------
