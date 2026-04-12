@@ -1,27 +1,31 @@
 using System.Text;
+using CognitivePlatform.Api.Integrations.Calendar;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
 /// <summary>
-/// Pre-formats a daily brief from two independent data slices:
+/// Pre-formats a daily brief from three independent data slices:
 ///
 ///   1. Do It Now — tasks that are both Important and Urgent (Eisenhower Q1).
 ///   2. Due Today or Overdue — any active task whose due date is today or earlier.
+///   3. Today's Calendar — events from the connected Google Calendar for the current day.
+///      The calendar section is omitted entirely when <see cref="ICalendarProvider.IsConnected"/>
+///      is false, keeping the brief clean for users who have not set up calendar access.
 ///
-/// These two sections are intentionally kept separate. A task can appear in both
-/// (e.g. an Important+Urgent task due today), which is a useful signal to the user.
-///
-/// Calendar section is planned as a follow-on once calendar integration exists.
-/// See DEFERRED.md — Phase 5: Calendar in DailyBrief.
+/// Sections 1 and 2 are always present. A task can appear in both (e.g. an Important+Urgent
+/// task due today), which is a useful signal to the user.
 /// </summary>
 public class DailyBriefService : IDailyBriefService
 {
     private readonly ITaskService       _taskService;
+    private readonly ICalendarProvider  _calendar;
     private readonly EisenhowerReasoner _eisenhower = new();
 
-    public DailyBriefService(ITaskService taskService)
+    public DailyBriefService( ITaskService      taskService
+                             , ICalendarProvider calendarProvider )
     {
-        _taskService = taskService ?? throw new ArgumentNullException(nameof(taskService));
+        _taskService = taskService      ?? throw new ArgumentNullException(nameof(taskService));
+        _calendar    = calendarProvider ?? throw new ArgumentNullException(nameof(calendarProvider));
     }
 
     public string GetBrief()
@@ -31,11 +35,10 @@ public class DailyBriefService : IDailyBriefService
 
         var eisenhower = _eisenhower.Analyze(active);
 
-        var dueToday = active
-            .Where(t => t.DueDate.HasValue && t.DueDate.Value.UtcDateTime.Date <= today)
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.CreatedAt)
-            .ToList();
+        var dueToday = active.Where(t => t.DueDate.HasValue && t.DueDate.Value.UtcDateTime.Date <= today)
+                             .OrderBy(t => t.DueDate)
+                             .ThenBy(t => t.CreatedAt)
+                             .ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine($"=== Daily Brief — {DateTimeOffset.UtcNow:yyyy-MM-dd} ===");
@@ -74,6 +77,47 @@ public class DailyBriefService : IDailyBriefService
                 var isOverdue = task.DueDate!.Value.UtcDateTime.Date < today;
                 var label     = isOverdue ? " [OVERDUE]" : string.Empty;
                 sb.AppendLine($"• {task.ShortDescription} (due {task.DueDate:yyyy-MM-dd}){label}");
+            }
+        }
+
+        // ---- Today's Calendar ----
+        if (_calendar.IsConnected)
+        {
+            var todayStart = new DateTimeOffset(today,          TimeSpan.Zero);
+            var todayEnd   = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
+
+            // Sync bridge: DailyBrief is intentionally sync; async promotion tracked in DEFERRED.md
+            var calEvents = _calendar.GetEventsAsync(todayStart, todayEnd)
+                                     .GetAwaiter()
+                                     .GetResult();
+
+            sb.AppendLine();
+            sb.AppendLine("--- Today's Calendar ---");
+
+            if (calEvents.Count == 0)
+            {
+                sb.AppendLine("  (no events)");
+            }
+            else
+            {
+                foreach (var evt in calEvents)
+                {
+                    if (evt.IsAllDay)
+                    {
+                        sb.Append($"• (all day) — {evt.Title}");
+                    }
+                    else
+                    {
+                        var evtStart = evt.StartUtc.ToLocalTime();
+                        var evtEnd   = evt.EndUtc.ToLocalTime();
+                        sb.Append($"• {evtStart:HH:mm}–{evtEnd:HH:mm} — {evt.Title}");
+                    }
+
+                    if (evt.Location is not null)
+                        sb.Append($" @ {evt.Location}");
+
+                    sb.AppendLine();
+                }
             }
         }
 

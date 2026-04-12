@@ -64,6 +64,7 @@ Complete these steps once before implementing `GoogleCalendarProvider` (see DEFE
 7. A dialog appears with your **Client ID** and **Client Secret**. Copy both — you will
    need them in the next step.
 
+
 ---
 
 ## Step 5 — Store Credentials in the API

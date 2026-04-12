@@ -1,16 +1,19 @@
 using Moq;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Calendar;
 
 namespace CognitivePlatform.Tests;
 
 public class DailyBriefServiceTests
 {
-    private readonly Mock<ITaskService> _tasksMock = new();
-    private readonly DailyBriefService  _service;
+    private readonly Mock<ITaskService>      _tasksMock    = new();
+    private readonly Mock<ICalendarProvider> _calendarMock = new();
+    private readonly DailyBriefService       _service;
 
     public DailyBriefServiceTests()
     {
-        _service = new DailyBriefService(_tasksMock.Object);
+        _service = new DailyBriefService(_tasksMock.Object
+                                       , _calendarMock.Object);
     }
 
     // ================================================================
@@ -23,9 +26,12 @@ public class DailyBriefServiceTests
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>
                            {
-                                   new() { ShortDescription = "Fix production bug"
+                                   new()
+                                   {
+                                           ShortDescription = "Fix production bug"
                                          , IsImportant      = true
-                                         , IsUrgent         = true }
+                                         , IsUrgent         = true
+                                   }
                            });
 
         var result = _service.GetBrief();
@@ -40,15 +46,18 @@ public class DailyBriefServiceTests
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>
                            {
-                                   new() { ShortDescription = "Read a book"
+                                   new()
+                                   {
+                                           ShortDescription = "Read a book"
                                          , IsImportant      = false
-                                         , IsUrgent         = false }
+                                         , IsUrgent         = false
+                                   }
                            });
 
         var result = _service.GetBrief();
 
-        Assert.Contains("Do It Now",  result);
-        Assert.Contains("(none)",     result);
+        Assert.Contains("Do It Now", result);
+        Assert.Contains("(none)", result);
     }
 
     // ================================================================
@@ -62,14 +71,17 @@ public class DailyBriefServiceTests
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>
                            {
-                                   new() { ShortDescription = "Submit invoice"
-                                         , DueDate          = new DateTimeOffset(today, TimeSpan.Zero) }
+                                   new()
+                                   {
+                                           ShortDescription = "Submit invoice"
+                                         , DueDate          = new DateTimeOffset(today, TimeSpan.Zero)
+                                   }
                            });
 
         var result = _service.GetBrief();
 
-        Assert.Contains("Submit invoice",    result);
-        Assert.Contains("Due Today",         result);
+        Assert.Contains("Submit invoice", result);
+        Assert.Contains("Due Today",      result);
     }
 
     [Fact]
@@ -78,8 +90,11 @@ public class DailyBriefServiceTests
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>
                            {
-                                   new() { ShortDescription = "Pay bill"
-                                         , DueDate          = DateTimeOffset.UtcNow.AddDays(-3) }
+                                   new()
+                                   {
+                                           ShortDescription = "Pay bill"
+                                         , DueDate          = DateTimeOffset.UtcNow.AddDays(-3)
+                                   }
                            });
 
         var result = _service.GetBrief();
@@ -94,15 +109,20 @@ public class DailyBriefServiceTests
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>
                            {
-                                   new() { ShortDescription = "Future task"
-                                         , DueDate          = DateTimeOffset.UtcNow.AddDays(5) }
+                                   new()
+                                   {
+                                           ShortDescription = "Future task"
+                                         , DueDate          = DateTimeOffset.UtcNow.AddDays(5)
+                                   }
                            });
 
         var result = _service.GetBrief();
 
         // Future task should not appear under Due Today, but Due Today section should show (none)
-        var dueTodaySection = result.Substring(result.IndexOf("Due Today", StringComparison.Ordinal));
-        Assert.Contains("(none)", dueTodaySection);
+        var dueTodaySection = result.Substring(result.IndexOf("Due Today"
+                                                            , StringComparison.Ordinal));
+        Assert.Contains("(none)"
+                      , dueTodaySection);
     }
 
     // ================================================================
@@ -117,8 +137,8 @@ public class DailyBriefServiceTests
 
         var result = _service.GetBrief();
 
-        Assert.Contains("Do It Now",                  result);
-        Assert.Contains("Due Today or Overdue",       result);
-        Assert.Contains("Daily Brief",                result);
+        Assert.Contains("Do It Now", result);
+        Assert.Contains("Due Today or Overdue", result);
+        Assert.Contains("Daily Brief", result);
     }
 }

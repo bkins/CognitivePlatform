@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
+using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.Models.SystemInfo;
@@ -71,7 +72,6 @@ public partial class Program
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
         builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
         builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
-
         
         builder.Services.AddScoped<ITelemetrySink, ConsoleTelemetrySink>();
         builder.Services.AddScoped<TelemetryContext>();
@@ -149,6 +149,8 @@ public partial class Program
 
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
+        
+        builder.Services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
 
 // Scalar setup
         builder.Services.AddEndpointsApiExplorer();
