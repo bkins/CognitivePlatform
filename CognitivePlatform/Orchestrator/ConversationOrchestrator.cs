@@ -308,21 +308,20 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
         //              "Interpreter should not run after FastPath resolution.");
-
-        // 5. Interpret with context
-        var interpretation = await _interpreter.InterpretWithContext(request.Input
-                                                                       , context);
+        var interpretation = await _interpreter.InterpretWithContext(request.Input, context);
+       
         
         // 5a. By default, clear any pending action; clarification will set it again
         context.PendingAction = null;
 
         // 5b. Persist interpreter decision (success or failure) into context
-        context.LastUserMessage       = request.Input;
-        context.LastActionName        = interpretation.ActionName;
-        context.LastInterpreterReason = interpretation.Reason;
-        context.LastInterpreterDebug  = interpretation.DebugInfo;
-        context.LastFailureType       = interpretation.FailureType;
-
+        context.LastUserMessage          = request.Input;
+        context.LastActionName           = interpretation.ActionName;
+        context.LastInterpreterReason    = interpretation.Reason;
+        context.LastInterpreterDebug     = interpretation.DebugInfo;
+        context.LastFailureType          = interpretation.FailureType;
+        context.LastInterpreterException = interpretation.Exception;
+        
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
             var message = "Something went wrong while processing your request. Please try again.";
@@ -334,6 +333,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                           You are getting this because:
                           ```csharp
                           interpretation.FailureType == InterpreterFailureType.Exception
+                          {interpretation.Exception?.ToString() ?? "No exception details available."}
                           ```
                           Is `true`
                           The exception is:

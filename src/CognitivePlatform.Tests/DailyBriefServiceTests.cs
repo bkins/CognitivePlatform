@@ -137,8 +137,8 @@ public class DailyBriefServiceTests
 
         var result = _service.GetBrief();
 
-        Assert.Contains("Do It Now", result);
+        Assert.Contains("Do It Now",            result);
         Assert.Contains("Due Today or Overdue", result);
-        Assert.Contains("Daily Brief", result);
+        Assert.Contains("Daily Brief",          result);
     }
 }

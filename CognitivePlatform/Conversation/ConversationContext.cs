@@ -32,6 +32,8 @@ public class ConversationContext
     public Dictionary<string, string> Metadata              { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string?                    LastInterpreterReason { get; set; }
 
+    public Exception? LastInterpreterException { get; set; } = null;
+    
     /// <summary>
     /// Optional: a short debug summary captured from the interpreter
     /// (e.g. "LlmInterpreter completed. UserInput: ... ModelActionName: ...").

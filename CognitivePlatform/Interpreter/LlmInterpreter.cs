@@ -121,15 +121,16 @@ public class LlmInterpreter : IInterpreter
                              });
 
             var errorResult = new InterpreterResult
-                   {
-                           ActionName          = null
-                         , ExtractedParameters = new()
-                         , DebugInfo           = message
-                         , Reason              = ex.GetType().Name
-                         , FailureType         = InterpreterFailureType.Exception
-                         , CandidateActions    = null
-                         , MissingParameters   = null
-                   };
+                              {
+                                      ActionName          = null
+                                    , ExtractedParameters = new()
+                                    , DebugInfo           = message
+                                    , Reason              = ex.GetType().Name
+                                    , FailureType         = InterpreterFailureType.Exception
+                                    , Exception           = ex
+                                    , CandidateActions    = null
+                                    , MissingParameters   = null
+                              };
             
             _telemetry.Track(errorResult.ToEvent());
             

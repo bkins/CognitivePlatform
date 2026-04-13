@@ -45,6 +45,11 @@ public class InterpreterResult
     public InterpreterFailureType     FailureType         { get; init; } = InterpreterFailureType.None;
 
     /// <summary>
+    /// Exception details if the interpreter encountered an error during processing.
+    /// </summary>
+    public Exception ? Exception { get; init; } = null;
+    
+    /// <summary>
     /// Candidate actions, if the interpreter considered multiple possibilities.
     /// </summary>
     public IReadOnlyList<string>?     CandidateActions    { get; init; }

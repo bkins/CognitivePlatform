@@ -31,8 +31,8 @@ public class FastPathResolverTests
             , MakeAction("UpdateTaskDueDate")
         };
 
-        _registryMock.Setup(reg => reg.Actions).Returns(actions);
-        _registryMock.Setup(reg => reg.FastPathActions).Returns(new List<ActionMetadata>());
+        _registryMock.Setup(registry => registry.Actions).Returns(actions);
+        _registryMock.Setup(registry => registry.FastPathActions).Returns(new List<ActionMetadata>());
 
         _resolver = new FastPathResolver(_registryMock.Object);
     }
@@ -300,13 +300,17 @@ public class FastPathResolverTests
     public void TryResolve_ResolvesViaFastPathAction_WhenSignalMatchesAndActionConfigured()
     {
         var fastPathAction = new ActionMetadata
-        {
-                Name       = "AddQuickNote"
-              , Parameters = new List<ParameterMetadata>
                              {
-                                     new() { Name = "text", IsOptional = false }
-                             }
-        };
+                                     Name = "AddQuickNote"
+                                   , Parameters = new List<ParameterMetadata>
+                                                  {
+                                                          new()
+                                                          {
+                                                                  Name = "text"
+                                                                , IsOptional = false
+                                                          }
+                                                  }
+                             };
         _registryMock.Setup(reg => reg.FastPathActions)
                      .Returns(new List<ActionMetadata> { fastPathAction });
 

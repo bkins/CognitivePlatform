@@ -34,8 +34,8 @@ public class ExecutionEngineTests
 
         _engine.Execute(action, new Dictionary<string, string>(), "session-1");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(e => e.Outcome    == AuditOutcome.Success
-                                                                 && e.ActionName == "ReturnOk"))
+        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome    == AuditOutcome.Success
+                                                                         && auditEvent.ActionName == "ReturnOk"))
                         , Times.Once);
     }
 
@@ -46,9 +46,9 @@ public class ExecutionEngineTests
 
         _engine.Execute(action, new Dictionary<string, string>(), "session-1");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(e => e.Outcome       == AuditOutcome.Failure
-                                                                 && e.ErrorMessage  != null
-                                                                 && e.ActionName    == "ThrowBoom"))
+        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome      == AuditOutcome.Failure
+                                                                         && auditEvent.ErrorMessage != null
+                                                                         && auditEvent.ActionName   == "ThrowBoom"))
                         , Times.Once);
     }
 
@@ -59,7 +59,7 @@ public class ExecutionEngineTests
 
         _engine.Execute(action, new Dictionary<string, string>(), "session-abc");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(e => e.Meta["sessionId"] == "session-abc"))
+        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Meta["sessionId"] == "session-abc"))
                         , Times.Once);
     }
 

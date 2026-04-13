@@ -5,8 +5,7 @@ namespace CognitivePlatform.Tests;
 
 public class JournalCommandParserTests
 {
-    private readonly IJournalCommandParser _parser =
-            new JournalCommandParser();
+    private readonly IJournalCommandParser _parser = new JournalCommandParser();
 
     [Fact]
     public void Parses_Text_Only()

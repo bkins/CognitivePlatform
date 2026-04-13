@@ -73,18 +73,18 @@ public class ObjectStoreAuditLogTests
         var from = DateTimeOffset.UtcNow.AddDays(-7);
         var to   = DateTimeOffset.UtcNow;
 
-        _storeMock.Setup(s => s.List<AuditEvent>(null, from, to))
+        _storeMock.Setup(store => store.List<AuditEvent>(null, from, to))
                   .Returns(new List<AuditEvent>());
 
         _log.List(fromUtc: from, toUtc: to);
 
-        _storeMock.Verify(s => s.List<AuditEvent>(null, from, to), Times.Once);
+        _storeMock.Verify(store => store.List<AuditEvent>(null, from, to), Times.Once);
     }
 
     [Fact]
     public void List_ReturnsEmpty_WhenNoEventsExist()
     {
-        _storeMock.Setup(s => s.List<AuditEvent>(null, null, null))
+        _storeMock.Setup(store => store.List<AuditEvent>(null, null, null))
                   .Returns(new List<AuditEvent>());
 
         var result = _log.List();

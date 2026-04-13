@@ -43,12 +43,13 @@ public class JournalActionsTests
     [Fact]
     public void SearchJournalEntries_UsesPlural_WhenMultipleMatchesFound()
     {
-        var e1 = MakeEntryWithRevision("Talked to Jake.");
-        var e2 = MakeEntryWithRevision("Jake called again.");
+        var entryWithRevision        = MakeEntryWithRevision("Talked to Jake.");
+        var anotherEntryWithRevision = MakeEntryWithRevision("Jake called again.");
+        
         _journalMock.Setup(svc => svc.SearchEntries("Jake"
                                                    , It.IsAny<DateTimeOffset?>()
                                                    , It.IsAny<DateTimeOffset?>()))
-                    .Returns(new List<JournalEntryWithRevision> { e1, e2 });
+                    .Returns(new List<JournalEntryWithRevision> { entryWithRevision, anotherEntryWithRevision });
 
         var result = _actions.SearchJournalEntries("Jake");
 
@@ -58,9 +59,9 @@ public class JournalActionsTests
     [Fact]
     public void SearchJournalEntries_ReturnsNoMatchMessage_WhenEmpty()
     {
-        _journalMock.Setup(svc => svc.SearchEntries("Jake"
-                                                   , It.IsAny<DateTimeOffset?>()
-                                                   , It.IsAny<DateTimeOffset?>()))
+        _journalMock.Setup(service => service.SearchEntries("Jake"
+                                                          , It.IsAny<DateTimeOffset?>()
+                                                          , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
 
         var result = _actions.SearchJournalEntries("Jake");
@@ -71,16 +72,16 @@ public class JournalActionsTests
     [Fact]
     public void SearchJournalEntries_PassesDateRange_ToService()
     {
-        _journalMock.Setup(svc => svc.SearchEntries(It.IsAny<string>()
-                                                   , It.IsAny<DateTimeOffset?>()
-                                                   , It.IsAny<DateTimeOffset?>()))
+        _journalMock.Setup(service => service.SearchEntries(It.IsAny<string>()
+                                                          , It.IsAny<DateTimeOffset?>()
+                                                          , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
 
         _actions.SearchJournalEntries("Jake", fromDate: "2026-01-01", toDate: "2026-01-31");
 
-        _journalMock.Verify(svc => svc.SearchEntries("Jake"
-                                                    , It.Is<DateTimeOffset?>(d => d != null)
-                                                    , It.Is<DateTimeOffset?>(d => d != null))
+        _journalMock.Verify(service => service.SearchEntries("Jake"
+                                                           , It.Is<DateTimeOffset?>(offset => offset != null)
+                                                           , It.Is<DateTimeOffset?>(offset => offset != null))
                           , Times.Once);
     }
 
@@ -92,7 +93,7 @@ public class JournalActionsTests
     public async Task AnalyzeJournal_ReturnsLlmResponse_WhenEntriesExist()
     {
         var entry = MakeEntryWithRevision("Felt frustrated with the project today.");
-        _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
                                                  , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision> { entry });
 
@@ -127,7 +128,7 @@ public class JournalActionsTests
     {
         var entry = MakeEntryWithRevision("Felt frustrated with the project today.");
         _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
-                                                 , It.IsAny<DateTimeOffset?>()))
+                                                , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision> { entry });
 
         string? capturedPrompt = null;

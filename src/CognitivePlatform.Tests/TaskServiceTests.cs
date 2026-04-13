@@ -266,7 +266,11 @@ public class TaskServiceTests
     [Fact]
     public void QueryTasks_DoesNotFilterByTag_WhenTagIsNull()
     {
-        var task1 = new TaskItem { Id = Guid.NewGuid().ToString("N"), Tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "work" } };
+        var task1 = new TaskItem
+                    {
+                            Id   = Guid.NewGuid().ToString("N")
+                          , Tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "work" }
+                    };
         var task2 = new TaskItem { Id = Guid.NewGuid().ToString("N") };
 
         _storeMock.Setup(store => store.List<TaskItem>(It.IsAny<string?>()

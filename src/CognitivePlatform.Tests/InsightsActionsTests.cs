@@ -31,8 +31,8 @@ public class InsightsActionsTests
         SetupWithTask("Finish report");
 
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
-                                           , It.IsAny<string?>()
-                                           , It.IsAny<CancellationToken>()))
+                                          , It.IsAny<string?>()
+                                          , It.IsAny<CancellationToken>()))
                 .ReturnsAsync("You are very productive.");
 
         var result = await _actions.AnalyzePatterns();
@@ -67,7 +67,7 @@ public class InsightsActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
-                .Callback<string, string?, CancellationToken>((p, _, _) => capturedPrompt = p)
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
                 .ReturnsAsync("Response.");
 
         await _actions.AnalyzePatterns();
@@ -87,7 +87,7 @@ public class InsightsActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
-                .Callback<string, string?, CancellationToken>((p, _, _) => capturedPrompt = p)
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
                 .ReturnsAsync("Response.");
 
         await _actions.AnalyzePatterns(focus: "work-life balance");

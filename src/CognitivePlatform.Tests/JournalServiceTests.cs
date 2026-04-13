@@ -82,12 +82,11 @@ public class JournalServiceTests
                                    , moodLevel:  null
                                    , mediaPaths: Array.Empty<string>());
 
-        _loggerMock.Verify(logger => logger.Log(
-                               LogLevel.Warning
-                             , It.IsAny<EventId>()
-                             , It.IsAny<It.IsAnyType>()
-                             , It.IsAny<Exception?>()
-                             , It.IsAny<Func<It.IsAnyType, Exception?, string>>())
+        _loggerMock.Verify(logger => logger.Log(LogLevel.Warning
+                                              , It.IsAny<EventId>()
+                                              , It.IsAny<It.IsAnyType>()
+                                              , It.IsAny<Exception?>()
+                                              , It.IsAny<Func<It.IsAnyType, Exception?, string>>())
                          , Times.Once);
     }
 
@@ -334,15 +333,15 @@ public class JournalServiceTests
     {
         var active  = MakeEntry(Guid.NewGuid().ToString("N"));
         var deleted = MakeEntry(Guid.NewGuid().ToString("N"), deletedUtc: DateTimeOffset.UtcNow);
-        var revA    = MakeRevision(active.Id,  "Active.");
-        var revD    = MakeRevision(deleted.Id, "Deleted.");
+        var revisionA    = MakeRevision(active.Id,  "Active.");
+        var revisionD    = MakeRevision(deleted.Id, "Deleted.");
 
         _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
                   .Returns(new List<JournalEntry> { active, deleted });
         _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(active.Id))
-                         .Returns(new List<JournalRevision> { revA });
+                         .Returns(new List<JournalRevision> { revisionA });
         _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(deleted.Id))
-                         .Returns(new List<JournalRevision> { revD });
+                         .Returns(new List<JournalRevision> { revisionD });
 
         var results = _service.ListEntries();
 
@@ -355,12 +354,12 @@ public class JournalServiceTests
     {
         var withRevision    = MakeEntry(Guid.NewGuid().ToString("N"));
         var withoutRevision = MakeEntry(Guid.NewGuid().ToString("N"));
-        var rev             = MakeRevision(withRevision.Id, "Has text.");
+        var revision        = MakeRevision(withRevision.Id, "Has text.");
 
         _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
                   .Returns(new List<JournalEntry> { withRevision, withoutRevision });
         _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(withRevision.Id))
-                         .Returns(new List<JournalRevision> { rev });
+                         .Returns(new List<JournalRevision> { revision });
         _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(withoutRevision.Id))
                          .Returns(new List<JournalRevision>());
 

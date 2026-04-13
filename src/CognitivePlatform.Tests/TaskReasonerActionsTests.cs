@@ -28,14 +28,14 @@ public class TaskReasonerActionsTests
     [Fact]
     public async Task ReasonAboutTasks_ReturnsLlmResponse_WhenTasksExist()
     {
-        _tasksMock.Setup(svc => svc.GetActive())
+        _tasksMock.Setup(service => service.GetActive())
                   .Returns(new List<TaskItem> { MakeTask("Finish report") });
-        _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
-                                                 , It.IsAny<DateTimeOffset?>()))
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                        , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
-                                           , It.IsAny<string?>()
-                                           , It.IsAny<CancellationToken>()))
+                                          , It.IsAny<string?>()
+                                          , It.IsAny<CancellationToken>()))
                 .ReturnsAsync("Focus on Finish report.");
 
         var result = await _actions.ReasonAboutTasks("What should I do next?");
@@ -46,9 +46,9 @@ public class TaskReasonerActionsTests
     [Fact]
     public async Task ReasonAboutTasks_IncludesTaskInPrompt()
     {
-        _tasksMock.Setup(svc => svc.GetActive())
+        _tasksMock.Setup(service => service.GetActive())
                   .Returns(new List<TaskItem> { MakeTask("Finish report", isImportant: true, isUrgent: true) });
-        _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
                                                  , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
 
@@ -56,7 +56,7 @@ public class TaskReasonerActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
-                .Callback<string, string?, CancellationToken>((p, _, _) => capturedPrompt = p)
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
                 .ReturnsAsync("Response.");
 
         await _actions.ReasonAboutTasks("What should I do next?");
@@ -71,7 +71,7 @@ public class TaskReasonerActionsTests
     [Fact]
     public async Task ReasonAboutTasks_IncludesJournalContext_WhenEntriesExist()
     {
-        _tasksMock.Setup(svc => svc.GetActive())
+        _tasksMock.Setup(service => service.GetActive())
                   .Returns(new List<TaskItem>());
         _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
                                                  , It.IsAny<DateTimeOffset?>()))
@@ -81,7 +81,7 @@ public class TaskReasonerActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
-                .Callback<string, string?, CancellationToken>((p, _, _) => capturedPrompt = p)
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
                 .ReturnsAsync("Response.");
 
         await _actions.ReasonAboutTasks("How am I doing?");
@@ -97,9 +97,9 @@ public class TaskReasonerActionsTests
     [Fact]
     public async Task ReasonAboutTasks_ReturnsNoDataMessage_WhenBothEmpty()
     {
-        _tasksMock.Setup(svc => svc.GetActive())
+        _tasksMock.Setup(service => service.GetActive())
                   .Returns(new List<TaskItem>());
-        _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
                                                  , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
 
