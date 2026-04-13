@@ -16,6 +16,7 @@ using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -146,6 +147,12 @@ public partial class Program
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
+
+    // Calendar
+        builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection("GoogleCalendar"));
+        builder.Services.AddHttpClient("GoogleCalendar");
+        builder.Services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
+        builder.Services.AddTransient<CalendarActions>();
 
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
