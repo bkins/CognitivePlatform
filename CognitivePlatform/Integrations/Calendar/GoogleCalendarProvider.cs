@@ -21,8 +21,9 @@ namespace CognitivePlatform.Api.Integrations.Calendar;
 /// </summary>
 public class GoogleCalendarProvider : ICalendarProvider
 {
-    private const string TokenUrl  = "https://oauth2.googleapis.com/token";
-    private const string EventsUrl = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    private const string TokenUrl        = "https://oauth2.googleapis.com/token";
+    private const string CalendarListUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+    private const string EventsBaseUrl   = "https://www.googleapis.com/calendar/v3/calendars";
 
     private readonly GoogleCalendarSettings  _settings;
     private readonly IObjectStore            _store;
@@ -139,10 +140,70 @@ public class GoogleCalendarProvider : ICalendarProvider
             return [];
         }
 
-        var url = EventsUrl
-                + $"?timeMin={Uri.EscapeDataString(fromUtc.ToString("O"))}"
-                + $"&timeMax={Uri.EscapeDataString(toUtc.ToString("O"))}"
-                + "&singleEvents=true&orderBy=startTime";
+        var calendarIds = await GetCalendarIdsAsync(accessToken, ct);
+
+        // Fan out in parallel — one request per calendar
+        var fetchTasks = calendarIds
+            .Select(calId => FetchEventsForCalendarAsync(calId, accessToken, fromUtc, toUtc, ct));
+
+        var results = await Task.WhenAll(fetchTasks);
+
+        return results.SelectMany(events => events)
+                      .OrderBy(evt => evt.StartUtc)
+                      .ToList();
+    }
+
+    /// <summary>
+    /// Returns all calendar IDs visible to the authenticated user via the calendarList API.
+    /// Falls back to ["primary"] if the list cannot be fetched, so the caller always gets
+    /// at least one calendar to query.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> GetCalendarIdsAsync( string            accessToken
+                                                                  , CancellationToken ct )
+    {
+        using var client  = _http.CreateClient("GoogleCalendar");
+        using var request = new HttpRequestMessage(HttpMethod.Get, CalendarListUrl);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to fetch calendar list ({Status}) — falling back to primary", response.StatusCode);
+            return ["primary"];
+        }
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+
+        if (!doc.RootElement.TryGetProperty("items", out var items))
+            return ["primary"];
+
+        var ids = items.EnumerateArray()
+                       .Select(cal => cal.TryGetProperty("id", out var idProp)
+                                             ? idProp.GetString()
+                                             : null)
+                       .Where(id => id is not null)
+                       .Select(id => id!)
+                       .ToList();
+
+        return ids.Count > 0 ? ids : ["primary"];
+    }
+
+    /// <summary>
+    /// Fetches events from a single calendar by its ID. Returns an empty list on any error
+    /// so a problem with one shared calendar does not suppress the others.
+    /// </summary>
+    private async Task<IReadOnlyList<CalendarEvent>> FetchEventsForCalendarAsync( string            calendarId
+                                                                                 , string            accessToken
+                                                                                 , DateTimeOffset    fromUtc
+                                                                                 , DateTimeOffset    toUtc
+                                                                                 , CancellationToken ct )
+    {
+        var encodedId = Uri.EscapeDataString(calendarId);
+        var url       = $"{EventsBaseUrl}/{encodedId}/events"
+                      + $"?timeMin={Uri.EscapeDataString(fromUtc.ToString("O"))}"
+                      + $"&timeMax={Uri.EscapeDataString(toUtc.ToString("O"))}"
+                      + "&singleEvents=true&orderBy=startTime";
 
         using var client  = _http.CreateClient("GoogleCalendar");
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -152,7 +213,7 @@ public class GoogleCalendarProvider : ICalendarProvider
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Calendar events fetch failed ({Status})", response.StatusCode);
+            _logger.LogWarning("Failed to fetch events for calendar '{CalendarId}' ({Status})", calendarId, response.StatusCode);
             return [];
         }
 
@@ -182,7 +243,7 @@ public class GoogleCalendarProvider : ICalendarProvider
                    };
 
         using var client  = _http.CreateClient("GoogleCalendar");
-        using var request = new HttpRequestMessage(HttpMethod.Post, EventsUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{EventsBaseUrl}/primary/events");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = JsonContent.Create(body);
 
