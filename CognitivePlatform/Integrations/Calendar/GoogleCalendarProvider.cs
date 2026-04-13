@@ -140,11 +140,11 @@ public class GoogleCalendarProvider : ICalendarProvider
             return [];
         }
 
-        var calendarIds = await GetCalendarIdsAsync(accessToken, ct);
+        var calendars = await GetCalendarListAsync(accessToken, ct);
 
         // Fan out in parallel — one request per calendar
-        var fetchTasks = calendarIds
-            .Select(calId => FetchEventsForCalendarAsync(calId, accessToken, fromUtc, toUtc, ct));
+        var fetchTasks = calendars
+            .Select(cal => FetchEventsForCalendarAsync(cal.Id, cal.Name, accessToken, fromUtc, toUtc, ct));
 
         var results = await Task.WhenAll(fetchTasks);
 
@@ -153,13 +153,14 @@ public class GoogleCalendarProvider : ICalendarProvider
                       .ToList();
     }
 
+    private record CalendarInfo(string Id, string Name);
+
     /// <summary>
-    /// Returns all calendar IDs visible to the authenticated user via the calendarList API.
-    /// Falls back to ["primary"] if the list cannot be fetched, so the caller always gets
-    /// at least one calendar to query.
+    /// Returns all calendars visible to the authenticated user (ID + display name).
+    /// Falls back to a single primary calendar entry if the list cannot be fetched.
     /// </summary>
-    private async Task<IReadOnlyList<string>> GetCalendarIdsAsync( string            accessToken
-                                                                  , CancellationToken ct )
+    private async Task<IReadOnlyList<CalendarInfo>> GetCalendarListAsync( string            accessToken
+                                                                         , CancellationToken ct )
     {
         using var client  = _http.CreateClient("GoogleCalendar");
         using var request = new HttpRequestMessage(HttpMethod.Get, CalendarListUrl);
@@ -170,30 +171,34 @@ public class GoogleCalendarProvider : ICalendarProvider
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("Failed to fetch calendar list ({Status}) — falling back to primary", response.StatusCode);
-            return ["primary"];
+            return [new CalendarInfo("primary", "Primary")];
         }
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
 
         if (!doc.RootElement.TryGetProperty("items", out var items))
-            return ["primary"];
+            return [new CalendarInfo("primary", "Primary")];
 
-        var ids = items.EnumerateArray()
-                       .Select(cal => cal.TryGetProperty("id", out var idProp)
-                                             ? idProp.GetString()
-                                             : null)
-                       .Where(id => id is not null)
-                       .Select(id => id!)
-                       .ToList();
+        var calendars = items.EnumerateArray()
+                             .Select(cal =>
+                             {
+                                 var id   = cal.TryGetProperty("id",      out var idProp)   ? idProp.GetString()   : null;
+                                 var name = cal.TryGetProperty("summary", out var nameProp) ? nameProp.GetString() : null;
+                                 return id is not null ? new CalendarInfo(id, name ?? id) : null;
+                             })
+                             .Where(cal => cal is not null)
+                             .Select(cal => cal!)
+                             .ToList();
 
-        return ids.Count > 0 ? ids : ["primary"];
+        return calendars.Count > 0 ? calendars : [new CalendarInfo("primary", "Primary")];
     }
 
     /// <summary>
-    /// Fetches events from a single calendar by its ID. Returns an empty list on any error
-    /// so a problem with one shared calendar does not suppress the others.
+    /// Fetches events from a single calendar. Returns an empty list on any error
+    /// so a problem with one shared calendar cannot suppress the others.
     /// </summary>
     private async Task<IReadOnlyList<CalendarEvent>> FetchEventsForCalendarAsync( string            calendarId
+                                                                                 , string            calendarName
                                                                                  , string            accessToken
                                                                                  , DateTimeOffset    fromUtc
                                                                                  , DateTimeOffset    toUtc
@@ -218,7 +223,7 @@ public class GoogleCalendarProvider : ICalendarProvider
         }
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        return ParseEventList(doc.RootElement);
+        return ParseEventList(doc.RootElement, calendarName);
     }
 
     // -----------------------------------------------------------------------
@@ -257,7 +262,7 @@ public class GoogleCalendarProvider : ICalendarProvider
         }
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        return ParseSingleEvent(doc.RootElement);
+        return ParseSingleEvent(doc.RootElement, "Primary");
     }
 
     // -----------------------------------------------------------------------
@@ -321,25 +326,25 @@ public class GoogleCalendarProvider : ICalendarProvider
     // JSON parsing
     // -----------------------------------------------------------------------
 
-    private static IReadOnlyList<CalendarEvent> ParseEventList(JsonElement root)
+    private static IReadOnlyList<CalendarEvent> ParseEventList(JsonElement root, string calendarName)
     {
         if (!root.TryGetProperty("items", out var items))
             return [];
 
         return items.EnumerateArray()
-                    .Select(ParseSingleEvent)
+                    .Select(item => ParseSingleEvent(item, calendarName))
                     .Where(evt => evt is not null)
                     .Select(evt => evt!)
                     .ToList();
     }
 
-    private static CalendarEvent? ParseSingleEvent(JsonElement item)
+    private static CalendarEvent? ParseSingleEvent(JsonElement item, string calendarName)
     {
         try
         {
-            var id      = item.TryGetProperty("id",       out var idProp)      ? idProp.GetString()      ?? string.Empty : string.Empty;
-            var title   = item.TryGetProperty("summary",  out var summaryProp) ? summaryProp.GetString() ?? "(No title)" : "(No title)";
-            var location = item.TryGetProperty("location", out var locProp)    ? locProp.GetString()     : null;
+            var id       = item.TryGetProperty("id",       out var idProp)      ? idProp.GetString()      ?? string.Empty : string.Empty;
+            var title    = item.TryGetProperty("summary",  out var summaryProp) ? summaryProp.GetString() ?? "(No title)" : "(No title)";
+            var location = item.TryGetProperty("location", out var locProp)     ? locProp.GetString()     : null;
 
             var start = item.GetProperty("start");
             var end   = item.GetProperty("end");
@@ -363,12 +368,13 @@ public class GoogleCalendarProvider : ICalendarProvider
 
             return new CalendarEvent
                    {
-                           Id       = id
-                         , Title    = title
-                         , StartUtc = startUtc
-                         , EndUtc   = endUtc
-                         , IsAllDay = isAllDay
-                         , Location = location
+                           Id           = id
+                         , Title        = title
+                         , StartUtc     = startUtc
+                         , EndUtc       = endUtc
+                         , IsAllDay     = isAllDay
+                         , Location     = location
+                         , CalendarName = calendarName
                    };
         }
         catch

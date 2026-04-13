@@ -116,6 +116,9 @@ public class DailyBriefService : IDailyBriefService
                     if (evt.Location is not null)
                         sb.Append($" @ {evt.Location}");
 
+                    if (evt.CalendarName is not null)
+                        sb.Append($" [{evt.CalendarName}]");
+
                     sb.AppendLine();
                 }
             }
