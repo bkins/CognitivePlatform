@@ -47,16 +47,25 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
         if (commandType == DailyCommandType.Unknown)
             return new ParsedDailyCommand();
 
-        var bodyBuilder = new StringBuilder(bodyOnFirstLine);
+        // If the user typed everything on one line (e.g. Enter submits in the chat UI),
+        // directives like "Tasks:" may be embedded in the first-line body rather than on
+        // their own lines.  Split them out so the normal line-processing loop handles them.
+        var (cleanFirstLineBody, syntheticDirectiveLines) = ExtractInlineDirectives(bodyOnFirstLine);
+
+        var bodyBuilder = new StringBuilder(cleanFirstLineBody);
         var tasks       = new List<string>();
         var tags        = new List<string>();
         string? mood    = null;
         int?    moodScore = null;
         bool inTasksBlock = false;
 
-        for (var index = 1; index < lines.Count; index++)
+        // Merge synthetic directive "lines" (extracted from first-line body) with
+        // the real subsequent lines so a single unified loop handles both.
+        var allRemainingLines = syntheticDirectiveLines.Concat(lines.Skip(1)).ToList();
+
+        for (var index = 0; index < allRemainingLines.Count; index++)
         {
-            var line = lines[index];
+            var line = allRemainingLines[index];
 
             if (line.Length == 0)
             {
@@ -155,6 +164,59 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 
     // -------------------------------------------------------------------------
     // Private helpers
+
+    /// <summary>
+    /// Splits any directive keywords (Tasks:, Tags:, Mood:, MoodScore:) that are embedded
+    /// inline within the first-line body.  This handles the common case where the user types
+    /// everything on one line because Enter submits the chat input.
+    ///
+    /// E.g. "Focused day. Tasks: Fix bug, Write tests Mood: Calm"
+    ///   → cleanBody = "Focused day."
+    ///   → directiveLines = [ "Tasks: Fix bug, Write tests", "Mood: Calm" ]
+    /// </summary>
+    private static (string CleanBody, IReadOnlyList<string> DirectiveLines) ExtractInlineDirectives(string text)
+    {
+        var allDirectives = new[] { "Tasks:", "Tags:", "Mood:", "MoodScore:" };
+
+        // Find the position of the earliest directive keyword in the text.
+        var firstDirectiveIdx = text.Length;
+
+        foreach (var directive in allDirectives)
+        {
+            var idx = text.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+
+            if (idx >= 0 && idx < firstDirectiveIdx)
+                firstDirectiveIdx = idx;
+        }
+
+        // No inline directives found — return text unchanged.
+        if (firstDirectiveIdx == text.Length)
+            return (text, Array.Empty<string>());
+
+        var cleanBody      = text.Substring(0, firstDirectiveIdx).Trim();
+        var directivePart  = text.Substring(firstDirectiveIdx);
+        var directiveLines = new List<string>();
+
+        // Walk through the directive portion, splitting at each subsequent directive keyword.
+        while (directivePart.Length > 0)
+        {
+            var nextBoundary = directivePart.Length;
+
+            foreach (var directive in allDirectives)
+            {
+                // Start at index 1 to skip the directive that begins at position 0.
+                var idx = directivePart.IndexOf(directive, 1, StringComparison.OrdinalIgnoreCase);
+
+                if (idx > 0 && idx < nextBoundary)
+                    nextBoundary = idx;
+            }
+
+            directiveLines.Add(directivePart.Substring(0, nextBoundary).Trim());
+            directivePart = directivePart.Substring(nextBoundary);
+        }
+
+        return (cleanBody, directiveLines);
+    }
 
     private static (DailyCommandType Type, string BodyText) DetectPrefix(string firstLine)
     {

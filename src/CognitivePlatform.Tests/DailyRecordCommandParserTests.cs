@@ -122,6 +122,36 @@ public class DailyRecordCommandParserTests
     }
 
     [Fact]
+    public void Parse_ExtractsTasks_WhenInlineOnFirstLine()
+    {
+        var input = "Plan: Focused day. Tasks: Fix the rollover bug, Write the test plan doc, Review PR";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(DailyCommandType.Plan,        result.CommandType);
+        Assert.Equal("Focused day.",               result.BodyText);
+        Assert.Equal(3,                            result.Tasks.Count);
+        Assert.Contains("Fix the rollover bug",    result.Tasks);
+        Assert.Contains("Write the test plan doc", result.Tasks);
+        Assert.Contains("Review PR",               result.Tasks);
+    }
+
+    [Fact]
+    public void Parse_ExtractsMoodAndTasks_WhenAllInlineOnFirstLine()
+    {
+        var input = "Plan: Good morning. Tasks: Respond to emails, Finish report Mood: Calm MoodScore: 4";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Good morning.",         result.BodyText);
+        Assert.Equal(2,                       result.Tasks.Count);
+        Assert.Contains("Respond to emails",  result.Tasks);
+        Assert.Contains("Finish report",      result.Tasks);
+        Assert.Equal("Calm",                  result.Mood);
+        Assert.Equal(4,                       result.MoodScore);
+    }
+
+    [Fact]
     public void Parse_Returns_EmptyTasks_WhenNoTasksBlock()
     {
         var result = _parser.Parse("Plan: Quiet day.");
