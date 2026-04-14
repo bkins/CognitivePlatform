@@ -14,6 +14,12 @@ public class TaskItem
     public DateTimeOffset? CompletedAt      { get; set; }
     public bool             IsDeleted        { get; set; } = false;
     public DateTimeOffset?  DeletedUtc       { get; set; }
+
+    /// <summary>
+    /// The date this task was first created as part of a daily plan (via Plan: or Check:).
+    /// Null for tasks created outside the daily planning flow.
+    /// </summary>
+    public DateOnly?        OriginDate       { get; set; }
     public HashSet<string> Tags             { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool            IsImportant      { get; set; }
     public bool            IsUrgent         { get; set; }

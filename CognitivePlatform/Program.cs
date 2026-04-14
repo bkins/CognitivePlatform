@@ -16,6 +16,8 @@ using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Calendar;
+using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -132,6 +134,10 @@ public partial class Program
     //Tasks
         builder.Services.AddSingleton<ITaskService, TaskService>();
 
+    //Daily Record
+        builder.Services.AddSingleton<IDailyRecordCommandParser, DailyRecordCommandParser>();
+        builder.Services.AddSingleton<IDailyRecordService, DailyRecordService>();
+
     // Knowledge Inbox
         builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
         builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
@@ -143,9 +149,16 @@ public partial class Program
         builder.Services.AddTransient<TaskReasonerActions>();
         builder.Services.AddTransient<InsightsActions>();
         builder.Services.AddTransient<DebugFastPath>();
+        builder.Services.AddTransient<DailyRecordActions>();
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
+
+    // Calendar
+        builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection("GoogleCalendar"));
+        builder.Services.AddHttpClient("GoogleCalendar");
+        builder.Services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
+        builder.Services.AddTransient<CalendarActions>();
 
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();

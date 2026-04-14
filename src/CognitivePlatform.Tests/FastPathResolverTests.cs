@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -7,8 +8,9 @@ namespace CognitivePlatform.Tests;
 
 public class FastPathResolverTests
 {
-    private readonly Mock<IActionRegistry> _registryMock = new();
-    private readonly FastPathResolver      _resolver;
+    private readonly Mock<IActionRegistry>         _registryMock    = new();
+    private readonly Mock<IDailyRecordCommandParser> _dailyParserMock = new();
+    private readonly FastPathResolver              _resolver;
 
     private static ActionMetadata MakeAction(string name)
         => new() { Name = name, Parameters = new List<ParameterMetadata>() };
@@ -34,7 +36,7 @@ public class FastPathResolverTests
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
         _registryMock.Setup(registry => registry.FastPathActions).Returns(new List<ActionMetadata>());
 
-        _resolver = new FastPathResolver(_registryMock.Object);
+        _resolver = new FastPathResolver(_registryMock.Object, _dailyParserMock.Object);
     }
 
     // ================================================================

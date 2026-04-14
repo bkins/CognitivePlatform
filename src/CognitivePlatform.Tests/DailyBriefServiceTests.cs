@@ -12,6 +12,9 @@ public class DailyBriefServiceTests
 
     public DailyBriefServiceTests()
     {
+        // Calendar not connected by default — existing tests are unaffected
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
+
         _service = new DailyBriefService(_tasksMock.Object
                                        , _calendarMock.Object);
     }

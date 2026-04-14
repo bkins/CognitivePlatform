@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Attributes;
@@ -11,11 +12,14 @@ namespace CognitivePlatform.Api.Interpreter;
 
 public sealed class FastPathResolver : IFastPathResolver
 {
-    private readonly IActionRegistry _registry;
+    private readonly IActionRegistry           _registry;
+    private readonly IDailyRecordCommandParser _dailyRecordParser;
 
-    public FastPathResolver(IActionRegistry registry)
+    public FastPathResolver( IActionRegistry           registry
+                           , IDailyRecordCommandParser dailyRecordParser)
     {
-        _registry = registry;
+        _registry          = registry;
+        _dailyRecordParser = dailyRecordParser;
     }
 
     public bool TryResolve( string                           input
@@ -39,6 +43,17 @@ public sealed class FastPathResolver : IFastPathResolver
 
             return action != null;
         }
+
+        // ------------------------------------------------------------
+        // MODE 0.5: DAILY RECORD COMMANDS  (Plan: / Check: / EOD: / ...)
+        // Evaluated before colon-prefix so these explicit prefixes are not
+        // accidentally swallowed by the generic journal/task colon handler.
+        // ------------------------------------------------------------
+        if (TryResolveDailyRecord(input, out action, out parameters))
+            return true;
+
+        if (TryResolveClaimRolledOver(input, out action, out parameters))
+            return true;
 
         // ------------------------------------------------------------
         // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
@@ -85,6 +100,98 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         return false;
+    }
+
+    // ================================================================
+    // DAILY RECORD COMMANDS  (Plan: / Check: / EOD: / Done: / ...)
+    // ================================================================
+
+    private bool TryResolveDailyRecord( string                           input
+                                      , out ActionMetadata?             action
+                                      , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (!DailyRecordCommandParser.StartsWithKnownPrefix(input))
+            return false;
+
+        var parsed = _dailyRecordParser.Parse(input);
+
+        if (parsed.CommandType == DailyCommandType.Unknown)
+            return false;
+
+        var actionName = parsed.CommandType switch
+        {
+            DailyCommandType.Plan     => "OpenDay"
+          , DailyCommandType.Check    => "AddCheckpoint"
+          , DailyCommandType.EndOfDay => "CloseDay"
+          , _                         => string.Empty
+        };
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == actionName);
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        switch (parsed.CommandType)
+        {
+            case DailyCommandType.Plan:
+                parameters["openingText"] = parsed.BodyText;
+                if (parsed.Tasks.Count    > 0) parameters["tasks"]     = string.Join(", ", parsed.Tasks);
+                if (parsed.Mood      is not null) parameters["mood"]      = parsed.Mood;
+                if (parsed.MoodScore.HasValue)    parameters["moodScore"] = parsed.MoodScore.Value.ToString();
+                break;
+
+            case DailyCommandType.Check:
+                parameters["text"] = parsed.BodyText;
+                if (parsed.Tasks.Count    > 0) parameters["newTasks"]  = string.Join(", ", parsed.Tasks);
+                if (parsed.Mood      is not null) parameters["mood"]      = parsed.Mood;
+                if (parsed.MoodScore.HasValue)    parameters["moodScore"] = parsed.MoodScore.Value.ToString();
+                break;
+
+            case DailyCommandType.EndOfDay:
+                parameters["closingText"] = parsed.BodyText;
+                if (parsed.Mood      is not null) parameters["mood"]      = parsed.Mood;
+                if (parsed.MoodScore.HasValue)    parameters["moodScore"] = parsed.MoodScore.Value.ToString();
+                break;
+        }
+
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // ClaimRolledOverTasks
+    // "claim rolled-over tasks", "add rolled-over tasks to today", etc.
+    // ----------------------------------------------------------------
+    private static readonly string[] ClaimRolledOverSignals =
+    {
+            "claim rolled-over"
+          , "claim rolled over"
+          , "add rolled-over tasks"
+          , "add rolled over tasks"
+          , "bring forward rolled"
+          , "claim yesterday's unfinished"
+          , "claim unfinished tasks"
+    };
+
+    private bool TryResolveClaimRolledOver( string                           input
+                                           , out ActionMetadata?             action
+                                           , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant();
+
+        if (ClaimRolledOverSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ClaimRolledOverTasks");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>();
+        return true;
     }
 
     // ================================================================

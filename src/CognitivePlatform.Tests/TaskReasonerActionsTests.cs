@@ -2,6 +2,7 @@ using Moq;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 
@@ -9,16 +10,21 @@ namespace CognitivePlatform.Tests;
 
 public class TaskReasonerActionsTests
 {
-    private readonly Mock<ITaskService>    _tasksMock   = new();
-    private readonly Mock<IJournalService> _journalMock = new();
-    private readonly Mock<ILlmClient>      _llmMock     = new();
-    private readonly TaskReasonerActions   _actions;
+    private readonly Mock<ITaskService>      _tasksMock    = new();
+    private readonly Mock<IJournalService>   _journalMock  = new();
+    private readonly Mock<ILlmClient>        _llmMock      = new();
+    private readonly Mock<ICalendarProvider> _calendarMock = new();
+    private readonly TaskReasonerActions     _actions;
 
     public TaskReasonerActionsTests()
     {
+        // Calendar not connected by default — existing tests are unaffected
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
+
         _actions = new TaskReasonerActions(_tasksMock.Object
                                           , _journalMock.Object
-                                          , _llmMock.Object);
+                                          , _llmMock.Object
+                                          , _calendarMock.Object);
     }
 
     // ================================================================
