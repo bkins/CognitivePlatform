@@ -152,6 +152,21 @@ public class DailyRecordCommandParserTests
     }
 
     [Fact]
+    public void Parse_ExtractsTasks_WhenCarriageReturnLineEndings()
+    {
+        // MAUI Editor on Windows inserts \r rather than \n or \r\n.
+        var input = "Plan: Focused day.\rTasks:\r- Fix the rollover bug\r- Write the test plan doc\r- Review PR";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(DailyCommandType.Plan,        result.CommandType);
+        Assert.Equal(3,                            result.Tasks.Count);
+        Assert.Contains("Fix the rollover bug",    result.Tasks);
+        Assert.Contains("Write the test plan doc", result.Tasks);
+        Assert.Contains("Review PR",               result.Tasks);
+    }
+
+    [Fact]
     public void Parse_ExtractsTasks_WhenBlankLinesBetweenBullets()
     {
         var input = "Plan: Focused day.\n\nTasks:\n\n- Fix the rollover bug\n\n- Write the test plan doc\n\n- Review PR";

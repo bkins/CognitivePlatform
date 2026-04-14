@@ -38,7 +38,10 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
         if (input.HasValue().Not())
             return new ParsedDailyCommand();
 
-        var lines = input.Split('\n')
+        // Split on all three line-ending styles (\r\n, \n, \r) so the parser
+        // works correctly regardless of what the client platform inserts.
+        // MAUI Editor on Windows inserts bare \r characters.
+        var lines = input.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None)
                          .Select(line => line.Trim())
                          .ToList();
 
