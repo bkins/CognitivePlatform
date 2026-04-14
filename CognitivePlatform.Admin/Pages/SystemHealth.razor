@@ -1,0 +1,178 @@
+@page "/"
+@implements IDisposable
+@inject IAdminSystemClient SystemClient
+
+<PageTitle>System Health — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">System Health</MudText>
+    <MudSpacer />
+    @if (_lastRefreshed.HasValue)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Last refreshed: @_lastRefreshed.Value.ToString("HH:mm:ss")
+        </MudText>
+    }
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Refresh now"
+                   OnClick="@RefreshAsync"
+                   Disabled="@_loading" />
+</MudStack>
+
+@if (_loading && _stats is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_stats is not null)
+{
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Environment</MudText>
+                    <MudText Typo="Typo.h5">@_stats.EnvironmentName</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">LLM Provider</MudText>
+                    <MudText Typo="Typo.h5">@_stats.LlmProvider</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_stats.LlmModel</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Database</MudText>
+                    <MudText Typo="Typo.body2" Style="word-break: break-all;">@_stats.DatabasePath</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @if (_stats.GroqUsage is { HasData: true } usage)
+    {
+        <MudText Typo="Typo.h6" Class="mt-6 mb-2">Groq Rate Limits</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Requests</MudText>
+                        <MudText Typo="Typo.body2">
+                            @usage.Requests.Remaining / @usage.Requests.Limit remaining
+                            (@usage.Requests.UsagePercent.ToString("F1")% used)
+                        </MudText>
+                        <MudProgressLinear Value="@usage.Requests.UsagePercent"
+                                           Color="@UsageColor(usage.Requests.UsagePercent)"
+                                           Rounded="true"
+                                           Class="mt-2" />
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Tokens</MudText>
+                        <MudText Typo="Typo.body2">
+                            @usage.Tokens.Remaining / @usage.Tokens.Limit remaining
+                            (@usage.Tokens.UsagePercent.ToString("F1")% used)
+                        </MudText>
+                        <MudProgressLinear Value="@usage.Tokens.UsagePercent"
+                                           Color="@UsageColor(usage.Tokens.UsagePercent)"
+                                           Rounded="true"
+                                           Class="mt-2" />
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+            Captured at @(usage.CapturedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
+        </MudText>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-4">
+            No Groq usage data yet — data appears after the first LLM call.
+        </MudAlert>
+    }
+
+    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Object Store</MudText>
+    <MudDataGrid Items="@_stats.ObjectCounts"
+                 Dense="true"
+                 Hover="true"
+                 SortMode="SortMode.Single">
+        <Columns>
+            <PropertyColumn Property="@(count => count.TypeName)"    Title="Type" />
+            <PropertyColumn Property="@(count => count.Total)"       Title="Total" />
+            <PropertyColumn Property="@(count => count.SoftDeleted)" Title="Soft Deleted" />
+            <TemplateColumn Title="Active">
+                <CellTemplate>
+                    <MudText>@(context.Item.Total - context.Item.SoftDeleted)</MudText>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+@code {
+    private SystemStatsResponse?      _stats;
+    private bool                      _loading;
+    private string?                   _error;
+    private DateTime?                 _lastRefreshed;
+    private System.Threading.Timer?   _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        _refreshTimer = new System.Threading.Timer(
+            async _ =>
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+          , null
+          , TimeSpan.FromSeconds(30)
+          , TimeSpan.FromSeconds(30));
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _error   = null;
+
+        try
+        {
+            _stats         = await SystemClient.GetStatsAsync();
+            _lastRefreshed = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load stats: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static Color UsageColor(double percent) => percent switch
+    {
+        >= 90 => Color.Error
+      , >= 70 => Color.Warning
+      , _     => Color.Success
+    };
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}

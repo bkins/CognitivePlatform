@@ -1,0 +1,309 @@
+@page "/registry"
+@inject IAdminRegistryClient RegistryClient
+
+<PageTitle>Registry Browser — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Registry Browser</MudText>
+    <MudSpacer />
+    <MudText Typo="Typo.caption" Color="Color.Secondary">
+        @_actions.Count action(s) registered
+    </MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Reload registry"
+                   OnClick="@LoadAsync"
+                   Disabled="@_loading" />
+</MudStack>
+
+@if (_loading && _actions.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+<MudGrid>
+    @* ── Left panel: search + grouped action list ── *@
+    <MudItem xs="12" md="4">
+        <MudTextField @bind-Value="_search"
+                      Label="Search actions"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true"
+                      Immediate="true"
+                      DebounceInterval="200"
+                      Class="mb-3" />
+
+        @foreach (var category in GroupedActions)
+        {
+            <MudExpansionPanels Dense="true" Class="mb-1">
+                <MudExpansionPanel Text="@category.Key"
+                                   Expanded="true">
+                    <MudList Dense="true" T="ActionMetadataDto" SelectedValue="_selected"
+                             SelectedValueChanged="@OnActionSelected">
+                        @foreach (var action in category)
+                        {
+                            <MudListItem Value="@action"
+                                         Dense="true">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudText Typo="Typo.body2">@action.Name</MudText>
+                                    @if (action.IsFastPath)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.FlashOn"
+                                                 Size="Size.Small"
+                                                 Color="Color.Warning"
+                                                 Title="FastPath" />
+                                    }
+                                    @if (action.IsDestructive)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                                 Size="Size.Small"
+                                                 Color="Color.Error"
+                                                 Title="Destructive" />
+                                    }
+                                </MudStack>
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+    </MudItem>
+
+    @* ── Right panel: detail + test invoke ── *@
+    <MudItem xs="12" md="8">
+        @if (_selected is null)
+        {
+            <MudPaper Elevation="0" Class="pa-8 d-flex justify-center align-center" Style="min-height:300px;">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.TouchApp" Size="Size.Large" Color="Color.Tertiary" />
+                    <MudText Typo="Typo.body1" Color="Color.Secondary">Select an action to view details</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    @* Header *@
+                    <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2" Class="mb-2">
+                        <MudText Typo="Typo.h5" Style="flex:1">@_selected.Name</MudText>
+                        @if (_selected.IsFastPath)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
+                        }
+                        @if (_selected.IsDestructive)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">Destructive</MudChip>
+                        }
+                        @if (_selected.AllowsClarification)
+                        {
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.HelpOutline">Clarification</MudChip>
+                        }
+                    </MudStack>
+
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">@_selected.Category</MudText>
+                    <MudText Typo="Typo.body1" Class="mb-4">@_selected.Description</MudText>
+
+                    @* Examples *@
+                    @if (_selected.Examples is { Length: > 0 })
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-1">Examples</MudText>
+                        <MudList Dense="true" T="string">
+                            @foreach (var example in _selected.Examples)
+                            {
+                                <MudListItem Dense="true" Icon="@Icons.Material.Filled.FormatQuote">
+                                    <MudText Typo="Typo.body2" Style="font-style:italic">@example</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+
+                    @* Parameters *@
+                    @if (_selected.Parameters is { Count: > 0 })
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Parameters</MudText>
+                        <MudDataGrid Items="@_selected.Parameters"
+                                     Dense="true"
+                                     Hover="true"
+                                     SortMode="SortMode.None"
+                                     Elevation="0">
+                            <Columns>
+                                <PropertyColumn Property="@(parameter => parameter.Name)"        Title="Name" />
+                                <PropertyColumn Property="@(parameter => parameter.TypeName)"    Title="Type" />
+                                <PropertyColumn Property="@(parameter => parameter.Description)" Title="Description" />
+                                <TemplateColumn Title="Optional">
+                                    <CellTemplate>
+                                        @if (context.Item.IsOptional)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
+                                        }
+                                    </CellTemplate>
+                                </TemplateColumn>
+                                <TemplateColumn Title="Default">
+                                    <CellTemplate>
+                                        <MudText Typo="Typo.caption">@(context.Item.DefaultValue ?? "—")</MudText>
+                                    </CellTemplate>
+                                </TemplateColumn>
+                            </Columns>
+                        </MudDataGrid>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">No parameters</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            @* ── Test Invoke ── *@
+            <MudCard Elevation="2" Class="mt-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle1" Class="mb-3">Test Invoke</MudText>
+
+                    <MudTextField @bind-Value="_invokeInput"
+                                  Label="Natural language input"
+                                  HelperText="Sent to POST /api/conversation/converse"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Send"
+                                  OnAdornmentClick="@InvokeAsync"
+                                  OnKeyDown="@OnInvokeKeyDown"
+                                  Disabled="@_invoking"
+                                  FullWidth="true"
+                                  Class="mb-3" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="@InvokeAsync"
+                               Disabled="@(string.IsNullOrWhiteSpace(_invokeInput) || _invoking)"
+                               StartIcon="@Icons.Material.Filled.PlayArrow">
+                        Send
+                    </MudButton>
+
+                    @if (_invoking)
+                    {
+                        <MudProgressLinear Indeterminate="true" Class="mt-3" />
+                    }
+
+                    @if (_invokeResult is not null)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudStack Spacing="1">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudText Typo="Typo.subtitle2">Result</MudText>
+                                @if (_invokeResult.Success)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Success</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
+                                }
+                                @if (_invokeResult.WasFastPath)
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
+                                }
+                            </MudStack>
+
+                            @if (_invokeResult.SelectedAction is not null)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Action: <strong>@_invokeResult.SelectedAction</strong>
+                                </MudText>
+                            }
+                            @if (_invokeResult.Message is not null)
+                            {
+                                <MudText Typo="Typo.body2">@_invokeResult.Message</MudText>
+                            }
+                            @if (_invokeResult.ExecutionResult is not null)
+                            {
+                                <MudText Typo="Typo.subtitle2" Class="mt-2">Execution Result</MudText>
+                                <MudPaper Elevation="0" Class="pa-2" Style="background:var(--mud-palette-background-grey);white-space:pre-wrap;font-family:monospace;font-size:0.8rem;">
+                                    @_invokeResult.ExecutionResult
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<ActionMetadataDto> _actions  = [];
+    private ActionMetadataDto?      _selected;
+    private bool                    _loading;
+    private string?                 _error;
+    private string                  _search   = string.Empty;
+
+    private string          _invokeInput  = string.Empty;
+    private bool            _invoking;
+    private ConverseResultDto? _invokeResult;
+
+    private IEnumerable<IGrouping<string, ActionMetadataDto>> GroupedActions =>
+        _actions.Where(action => string.IsNullOrWhiteSpace(_search)
+                              || action.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                              || action.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                              || action.Category.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(action => action.Category);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error   = null;
+
+        try
+        {
+            var result = await RegistryClient.GetActionsAsync();
+            _actions   = [..result];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load registry: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnActionSelected(ActionMetadataDto? action)
+    {
+        _selected     = action;
+        _invokeResult = null;
+        _invokeInput  = string.Empty;
+    }
+
+    private async Task InvokeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_invokeInput) || _invoking) return;
+
+        _invoking     = true;
+        _invokeResult = null;
+
+        try
+        {
+            _invokeResult = await RegistryClient.TestInvokeAsync(_invokeInput);
+        }
+        catch (Exception ex)
+        {
+            _invokeResult = new ConverseResultDto { Success = false, Message = ex.Message };
+        }
+        finally
+        {
+            _invoking = false;
+        }
+    }
+
+    private async Task OnInvokeKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") await InvokeAsync();
+    }
+}

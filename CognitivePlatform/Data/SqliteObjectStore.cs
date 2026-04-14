@@ -282,6 +282,159 @@ public class SqliteObjectStore : IObjectStore
     }
 
     // ---------------------------------------------------------------------
+    // Admin operations — not on IObjectStore; admin surface only
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Permanently removes a record from the store. Admin use only.
+    /// This bypasses the soft-delete invariant by design.
+    /// </summary>
+    public bool HardDelete<T> (string  id
+                              , string? partitionKey = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DELETE FROM Objects
+            WHERE Id            = $id
+              AND Type          = $type
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+            """;
+
+        command.Parameters.AddWithValue("$id",           id);
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+
+        var rowsAffected = command.ExecuteNonQuery();
+
+        return rowsAffected > 0;
+    }
+
+    /// <summary>
+    /// Same as List&lt;T&gt; but includes soft-deleted records. Admin use only.
+    /// </summary>
+    public IReadOnlyList<T> ListIncludingDeleted<T> (string?         partitionKey = null
+                                                    , DateTimeOffset? fromUtc      = null
+                                                    , DateTimeOffset? toUtc        = null)
+    {
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Json
+            FROM Objects
+            WHERE Type = $type
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey)
+              AND ($fromUtc IS NULL OR CreatedUtc >= $fromUtc)
+              AND ($toUtc   IS NULL OR CreatedUtc <= $toUtc)
+            ORDER BY CreatedUtc;
+            """;
+
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+        command.Parameters.AddWithValue("$fromUtc",      fromUtc?.ToString("O") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$toUtc",        toUtc?.ToString("O") ?? (object)DBNull.Value);
+
+        using var reader = command.ExecuteReader();
+        var         list = new List<T>();
+
+        while (reader.Read())
+        {
+            var json  = reader.GetString(0);
+            var value = JsonSerializer.Deserialize<T>(json
+                                                    , _jsonOptions);
+
+            if (value is not null)
+                list.Add(value);
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Returns row counts grouped by type — total and soft-deleted. Admin use only.
+    /// </summary>
+    public IReadOnlyList<ObjectTypeCount> GetObjectTypeCounts()
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT   Type
+                   , COUNT(*)                                                 AS Total
+                   , SUM(CASE WHEN DeletedUtc IS NOT NULL THEN 1 ELSE 0 END) AS SoftDeleted
+            FROM Objects
+            GROUP BY Type
+            ORDER BY Type;
+            """;
+
+        using var reader = command.ExecuteReader();
+        var         list = new List<ObjectTypeCount>();
+
+        while (reader.Read())
+        {
+            list.Add(new ObjectTypeCount
+                     {
+                             TypeName    = reader.GetString(0)
+                           , Total       = reader.GetInt32(1)
+                           , SoftDeleted = reader.GetInt32(2)
+                     });
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Clears DeletedUtc, restoring the record as an active object. Admin use only.
+    /// </summary>
+    public bool Undelete<T> (string  id
+                            , string? partitionKey = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Objects
+            SET DeletedUtc = NULL
+            WHERE Id   = $id
+              AND Type = $type
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+            """;
+
+        command.Parameters.AddWithValue("$id",           id);
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+
+        var rowsAffected = command.ExecuteNonQuery();
+
+        return rowsAffected > 0;
+    }
+
+    // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
     private static string ResolveAndApplyId<T> (T      value

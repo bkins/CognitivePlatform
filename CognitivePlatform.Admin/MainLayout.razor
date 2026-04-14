@@ -1,0 +1,49 @@
+@inherits LayoutComponentBase
+@inject AdminSessionService SessionService
+@inject NavigationManager   NavManager
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (SessionService.IsAuthenticated)
+{
+    <MudLayout>
+        <MudAppBar Elevation="1" Color="Color.Dark">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@ToggleDrawer" />
+            <MudText Typo="Typo.h6" Class="ml-3">CP Admin</MudText>
+            <MudSpacer />
+            <MudText Typo="Typo.caption" Color="Color.Default">Developer access only</MudText>
+        </MudAppBar>
+
+        <MudDrawer @bind-Open="_drawerOpen"
+                   ClipMode="DrawerClipMode.Always"
+                   Elevation="2">
+            <NavMenu />
+        </MudDrawer>
+
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-6">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _drawerOpen = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender.Not()) return;
+
+        if (SessionService.IsAuthenticated.Not())
+            NavManager.NavigateTo("/login");
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

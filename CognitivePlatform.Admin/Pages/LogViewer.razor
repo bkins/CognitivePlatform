@@ -1,0 +1,227 @@
+@page "/logs"
+@implements IDisposable
+@inject IAdminLogsClient LogsClient
+
+<PageTitle>Log Viewer — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Log Viewer</MudText>
+    <MudSpacer />
+    @if (_lastRefreshed.HasValue)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            @_entries.Count entries — last refreshed @_lastRefreshed.Value.ToString("HH:mm:ss")
+        </MudText>
+    }
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Refresh now"
+                   OnClick="@RefreshAsync"
+                   Disabled="@_loading" />
+</MudStack>
+
+@* ── Toolbar ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+
+        @* Level filter *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Level:</MudText>
+            @foreach (var lvl in _levelFilters)
+            {
+                <MudChip T="string"
+                         Color="@(lvl == _levelFilter ? LevelColor(lvl) : Color.Default)"
+                         Variant="@(lvl == _levelFilter ? Variant.Filled : Variant.Outlined)"
+                         Size="Size.Small"
+                         OnClick="@(() => SetLevel(lvl))">
+                    @(lvl ?? "ALL")
+                </MudChip>
+            }
+        </MudStack>
+
+        @* Search *@
+        <MudTextField @bind-Value="_search"
+                      Label="Search"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true"
+                      Immediate="true"
+                      DebounceInterval="400"
+                      Style="min-width:200px" />
+
+        @* Take *@
+        <MudSelect @bind-Value="_take"
+                   Label="Show"
+                   Style="min-width:90px">
+            <MudSelectItem Value="50">50</MudSelectItem>
+            <MudSelectItem Value="100">100</MudSelectItem>
+            <MudSelectItem Value="200">200</MudSelectItem>
+            <MudSelectItem Value="500">500</MudSelectItem>
+        </MudSelect>
+
+        @* Auto-refresh *@
+        <MudSwitch @bind-Value="_autoRefresh"
+                   Label="Auto-refresh (5s)"
+                   Color="Color.Primary" />
+
+        <MudSpacer />
+
+        @* Clear *@
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.DeleteSweep"
+                   OnClick="@ClearAsync">
+            Clear
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_loading && _entries.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_entries.Count == 0 && !_loading)
+{
+    <MudAlert Severity="Severity.Info">
+        No log entries yet — entries appear after the first API activity.
+    </MudAlert>
+}
+else
+{
+    <MudDataGrid Items="@_entries"
+                 Dense="true"
+                 Hover="true"
+                 SortMode="SortMode.None"
+                 FixedHeader="true"
+                 Height="600px">
+        <Columns>
+            <TemplateColumn Title="Time" InitialDirection="SortDirection.None">
+                <CellTemplate>
+                    <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                        @context.Item.TimestampUtc.ToLocalTime().ToString("HH:mm:ss.ff")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Lvl">
+                <CellTemplate>
+                    <MudChip T="string"
+                             Color="@LevelColor(context.Item.Level)"
+                             Size="Size.Small"
+                             Style="min-width:36px;font-family:monospace">
+                        @context.Item.Level
+                    </MudChip>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Category">
+                <CellTemplate>
+                    <MudText Typo="Typo.caption"
+                             Style="white-space:nowrap"
+                             title="@context.Item.Category">
+                        @ShortCategory(context.Item.Category)
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="@(entry => entry.Message)"
+                            Title="Message" />
+        </Columns>
+    </MudDataGrid>
+}
+
+@code {
+    private List<LogEntryDto>        _entries       = [];
+    private bool                     _loading;
+    private string?                  _error;
+    private DateTime?                _lastRefreshed;
+    private System.Threading.Timer?  _timer;
+
+    private string? _levelFilter;
+    private string  _search      = string.Empty;
+    private int     _take        = 200;
+    private bool    _autoRefresh = true;
+
+    private static readonly string?[] _levelFilters = [null, "INF", "WRN", "ERR", "CRT", "DBG", "TRC"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        _timer = new System.Threading.Timer(
+            async _ =>
+            {
+                if (_autoRefresh)
+                {
+                    await RefreshAsync();
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+          , null
+          , TimeSpan.FromSeconds(5)
+          , TimeSpan.FromSeconds(5));
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _error   = null;
+
+        try
+        {
+            var result     = await LogsClient.GetLogsAsync(_take, _levelFilter, _search);
+            _entries       = [..result];
+            _lastRefreshed = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load logs: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        try
+        {
+            await LogsClient.ClearAsync();
+            _entries = [];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to clear logs: {ex.Message}";
+        }
+    }
+
+    private async Task SetLevel(string? level)
+    {
+        _levelFilter = level;
+        await RefreshAsync();
+    }
+
+    private static string ShortCategory(string category)
+    {
+        var lastDot = category.LastIndexOf('.');
+        return lastDot >= 0 ? category[(lastDot + 1)..] : category;
+    }
+
+    private static Color LevelColor(string? level) => level switch
+    {
+        "ERR" => Color.Error
+      , "CRT" => Color.Error
+      , "WRN" => Color.Warning
+      , "INF" => Color.Info
+      , "DBG" => Color.Secondary
+      , "TRC" => Color.Tertiary
+      , _     => Color.Default
+    };
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

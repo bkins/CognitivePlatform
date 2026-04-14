@@ -1,0 +1,35 @@
+namespace CognitivePlatform.Admin.CpAdminClients;
+
+/// <summary>Response from GET /api/admin/system/stats.</summary>
+public sealed record SystemStatsResponse
+{
+    public string                        EnvironmentName { get; init; } = string.Empty;
+    public string                        DatabasePath    { get; init; } = string.Empty;
+    public string                        LlmProvider     { get; init; } = string.Empty;
+    public string                        LlmModel        { get; init; } = string.Empty;
+    public GroqUsageDto?                 GroqUsage       { get; init; }
+    public IReadOnlyList<ObjectCountDto> ObjectCounts    { get; init; } = [];
+}
+
+public sealed record GroqUsageDto
+{
+    public bool            HasData    { get; init; }
+    public DateTimeOffset? CapturedAt { get; init; }
+    public GroqRateDto     Requests   { get; init; } = new();
+    public GroqRateDto     Tokens     { get; init; } = new();
+}
+
+public sealed record GroqRateDto
+{
+    public int    Limit        { get; init; }
+    public int    Remaining    { get; init; }
+    public int    Used         { get; init; }
+    public double UsagePercent { get; init; }
+}
+
+public sealed record ObjectCountDto
+{
+    public string TypeName    { get; init; } = string.Empty;
+    public int    Total       { get; init; }
+    public int    SoftDeleted { get; init; }
+}

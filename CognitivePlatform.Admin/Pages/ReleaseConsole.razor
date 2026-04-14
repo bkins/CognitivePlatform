@@ -1,0 +1,254 @@
+@page "/release"
+@using System.Diagnostics
+@implements IAsyncDisposable
+@inject IConfiguration Configuration
+@inject IJSRuntime Js
+
+<PageTitle>Release Console — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Release Console</MudText>
+    <MudSpacer />
+    @if (_running)
+    {
+        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle">Running…</MudChip>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Stop"
+                   OnClick="@Abort">
+            Abort
+        </MudButton>
+    }
+    else if (_exitCode.HasValue)
+    {
+        @if (_exitCode == 0)
+        {
+            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">Exit 0 — OK</MudChip>
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_exitCode — Failed</MudChip>
+        }
+    }
+</MudStack>
+
+@* ── Working directory ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudTextField @bind-Value="_workingDirectory"
+                  Label="Working directory"
+                  HelperText="Absolute path used as CWD for all commands. Leave empty to use the Admin app's directory."
+                  FullWidth="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Folder" />
+</MudPaper>
+
+@* ── Quick commands ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Quick Commands</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    @foreach (var step in QuickSteps)
+    {
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="@_running"
+                   OnClick="@(() => RunStepAsync(step))">
+            @step.Name
+        </MudButton>
+    }
+</MudStack>
+
+@* ── Custom command ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Custom Command</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="2" Wrap="Wrap.Wrap">
+        <MudTextField @bind-Value="_customExe"
+                      Label="Executable"
+                      Placeholder="dotnet, git, cmd …"
+                      Style="min-width:120px" />
+        <MudTextField @bind-Value="_customArgs"
+                      Label="Arguments"
+                      Placeholder="build, status, /c dir …"
+                      Style="min-width:300px" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="@(string.IsNullOrWhiteSpace(_customExe) || _running)"
+                   OnClick="@RunCustomAsync">
+            Run
+        </MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   Disabled="@_running"
+                   OnClick="@ClearOutput">
+            Clear
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@* ── Terminal output ── *@
+@if (_runError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_runError</MudAlert>
+}
+
+<MudPaper Elevation="4"
+          Style="background:#1e1e1e;padding:16px;height:500px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
+    @if (_output.Count == 0)
+    {
+        <span style="color:#6b7280;font-style:italic">Run a command to see output here…</span>
+    }
+    else
+    {
+        @foreach (var line in _output)
+        {
+            <div style="color:@(line.IsError ? "#ff6b6b" : "#d4d4d4");white-space:pre-wrap;line-height:1.55">@line.Text</div>
+        }
+    }
+    <div id="terminal-end"></div>
+</MudPaper>
+
+@code {
+    private sealed record ReleaseStep(string Name, string Exe, string Args);
+    private sealed record OutputLine(string Text, bool IsError);
+
+    private static readonly ReleaseStep[] QuickSteps =
+    [
+        new("Git Status",  "git",    "status")
+      , new("Git Pull",    "git",    "pull")
+      , new("Build API",   "dotnet", "build CognitivePlatform/CognitivePlatform.Api.csproj")
+      , new("Run Tests",   "dotnet", "test src/CognitivePlatform.Tests/CognitivePlatform.Tests.csproj")
+      , new("Publish API", "dotnet", "publish CognitivePlatform/CognitivePlatform.Api.csproj -c Release --no-build")
+    ];
+
+    private string                   _workingDirectory = string.Empty;
+    private string                   _customExe        = string.Empty;
+    private string                   _customArgs       = string.Empty;
+    private bool                     _running;
+    private int?                     _exitCode;
+    private string?                  _runError;
+    private readonly List<OutputLine> _output          = [];
+    private CancellationTokenSource? _cts;
+    private Process?                 _process;
+
+    protected override void OnInitialized()
+    {
+        _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
+    }
+
+    private Task RunStepAsync(ReleaseStep step) => RunAsync(step.Exe, step.Args);
+
+    private Task RunCustomAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_customExe)) return Task.CompletedTask;
+        return RunAsync(_customExe.Trim(), _customArgs.Trim());
+    }
+
+    private async Task RunAsync(string exe, string args)
+    {
+        if (_running) return;
+
+        _running  = true;
+        _exitCode = null;
+        _runError = null;
+        _output.Clear();
+        _cts = new CancellationTokenSource();
+
+        _output.Add(new($"$ {exe} {args}", false));
+        _output.Add(new(string.Empty, false));
+        StateHasChanged();
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName               = exe
+              , Arguments              = args
+              , WorkingDirectory       = _workingDirectory
+              , RedirectStandardOutput = true
+              , RedirectStandardError  = true
+              , UseShellExecute        = false
+              , CreateNoWindow         = true
+            };
+
+            _process = new Process { StartInfo = startInfo };
+
+            _process.OutputDataReceived += async (_, eventArgs) =>
+            {
+                if (eventArgs.Data is null) return;
+                _output.Add(new(eventArgs.Data, false));
+                await InvokeAsync(StateHasChanged);
+                await ScrollToBottomAsync();
+            };
+
+            _process.ErrorDataReceived += async (_, eventArgs) =>
+            {
+                if (eventArgs.Data is null) return;
+                _output.Add(new(eventArgs.Data, true));
+                await InvokeAsync(StateHasChanged);
+                await ScrollToBottomAsync();
+            };
+
+            _process.Start();
+            _process.BeginOutputReadLine();
+            _process.BeginErrorReadLine();
+
+            await _process.WaitForExitAsync(_cts.Token);
+            _exitCode = _process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            _output.Add(new("[Aborted by user]", true));
+        }
+        catch (Exception ex)
+        {
+            _runError = ex.Message;
+            _output.Add(new($"[Error: {ex.Message}]", true));
+        }
+        finally
+        {
+            _running = false;
+            _process?.Dispose();
+            _process = null;
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottomAsync();
+        }
+    }
+
+    private void Abort()
+    {
+        _cts?.Cancel();
+        try { _process?.Kill(entireProcessTree: true); }
+        catch { /* process may have already exited */ }
+    }
+
+    private void ClearOutput()
+    {
+        _output.Clear();
+        _exitCode = null;
+        _runError = null;
+    }
+
+    private async Task ScrollToBottomAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("eval"
+                                   , "var el=document.getElementById('terminal-end');if(el)el.scrollIntoView({behavior:'instant'});");
+        }
+        catch
+        {
+            // Ignore errors during disposal or when the DOM is not ready
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        try { _process?.Kill(entireProcessTree: true); }
+        catch { /* ignore */ }
+        _process?.Dispose();
+    }
+}
