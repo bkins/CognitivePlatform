@@ -222,7 +222,7 @@ public class DailyRecordService : IDailyRecordService
     // --- Private helpers ---------------------------------------------------------
 
     private static string TodayKey()
-        => DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        => DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
 
     private DailyRecord RequireOpenRecord()
     {

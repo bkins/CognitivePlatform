@@ -14,7 +14,7 @@ public class DailyRecordServiceTests
     private readonly DailyRecordService    _service;
 
     private static readonly string TodayKey
-        = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
 
     public DailyRecordServiceTests()
     {
