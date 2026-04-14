@@ -74,7 +74,7 @@ User Input
 
 ## What this system is not (yet)
 
-- Not a general-purpose AI assistant — it executes defined, registered actions only.
+- Not a general-purpose AI assistant — it executes defined, registered actions only. (however, in the future this will not be true -- TODO: detail plan for the AI assistant features)
 - No calendar integration (planned Phase 5).
 - No proactive suggestions (Insight Engine — spec complete, implementation deferred).
 - No multi-user support or auth layer.

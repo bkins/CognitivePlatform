@@ -40,8 +40,27 @@ Last updated: 2026-04
 | ENH-03 | Google Gemini API as fallback LLM provider | CP API / LlmClientFactory | **Done 2026-04-10** — `GeminiLlmClient` added using Google's OpenAI-compatible endpoint. `LlmProvider.Gemini` enum value, `GeminiSettings` config class, `"Gemini"` named HttpClient. Activate via `LlmClient:Provider = "Gemini"` and `LlmClient:Gemini:ApiKey = "..."` in appsettings / user-secrets. |
 | ENH-04 | "Show my tasks" — clarify: active only vs all (exclude deleted) | CP API / TaskActions | **Fixed 2026-04-10** — `QueryTasks` called `_store.List<TaskItem>()` which returns all records including soft-deleted ones. Added `task.IsDeleted.Not()` filter as the first clause. |
 | ENH-05 | Natural language due date parsing (relative dates: "tomorrow", "next Friday") | CP API / TaskActions | **Done 2026-04-10** — `TryParseDate` in `TaskActions` extended to handle: today/tomorrow/yesterday, named weekdays (mon–sun), "next \<weekday\>", "next week", "end of week / month", "in N days/weeks/months". Falls back to `DateTimeOffset.TryParse` for absolute formats. |
+| ENH-06 | Add other free AI APIs as fallback LLM providers | CP API / LlmClientFactory | TODO -- Groq and Gemini are in place, but others to consider: GitHub, OpenRouter, Nvidia (NIM), Hugging Face, Cerebras Systems, Together AI, SiliconFlow, Fireworks AI, Mistral AI, DeepSeek AI, Cohere, others? |
 
 ---
+
+## Daily Record Domain
+
+| ID | Description | Area | Status |
+|---|---|---|---|
+| DR-01 | Phase D.1 — DailyRecord domain: open/checkpoint/close lifecycle, rollover | CP API / DailyRecord | **Done 2026-04-13** — Full domain implemented: `DailyRecord`, `DailyCheckpoint`, `DailyRecordService`, `DailyRecordCommandParser`, `DailyRecordActions`. FastPath routes `Plan:/Check:/EOD:` prefixes. Roll-forward tagging and `ClaimRolledOverTasks` action included. 53 new tests (28 parser, 25 service). |
+
+---
+
+## Larger Work Items / Epics / Milestones
+
+| ID      | Description                                                  | Area              | Status / Notes                                               |
+| ------- | ------------------------------------------------------------ | ----------------- | ------------------------------------------------------------ |
+| EPIC-01 | **Rework LocalAiAssistant (LAA) UI**                         | LocalAiAssistant  | TODO --  Current UI is clunky and not well polished.  Need to plan, but a complete overhaul may be need. |
+| EPIC-02 | **System Insights (Operational Intelligence)** → “How is the platform behaving?” | New UI (Web App?) | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
+| EPIC-03 | **User Insights (Behavioral / Cognitive Intelligence)** → “What does the data say about *the user’s life, patterns, and thinking*?” | New UI (Web App?) | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
+| EPIC-04 | **AI Influence and Autonomy**                                | CP API / New UI   | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
+| EPIC-05 | Reimplement LocalAiAssistant's Personalities and Short/Long term memory |                   | TODO -- Plan                                                 |
 
 ---
 

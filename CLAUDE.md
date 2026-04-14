@@ -13,6 +13,7 @@
   - `CognitivePlatform.Api` — domain logic, orchestration, fast-path, actions, persistence
   - `CognitivePlatform.Tests` — **all unit tests live here**
   - `CP.Shared.Primitives` — zero-dependency extensions and utilities
+  - `CP.Client.Core` — Exposes extensions and utilities in the `CP.Shared.Primitives` to clients; and for client specific extensions and utilities.
   - `LocalAIAssistant` — .NET MAUI client (MVVM, no direct test coverage today)
 
   ------
@@ -212,6 +213,7 @@
   2. **New or changed logic has at least one unit test**
   3. `BACKLOG.md` updated with any out-of-scope items found during the work
   4. No build warnings introduced
+  5. Update `C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System\Developer Log.md` with what was done in this session. (see existing entries in this document for pattern of data to enter)
 
   ------
 
@@ -242,3 +244,34 @@
   ```bash
   dotnet test --collect:"XPlat Code Coverage"
   ```
+
+---
+
+# Documentation -- How and what:
+
+## Determining what to work on next & tracking what's done
+
+Read these files:
+
+* Primary source:
+  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\BACKLOG.md
+* Other files with future work:
+  * C:\Users\benho\source\repos\CognitivePlatform\BACKLOG.md
+  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\DEFERRED.md
+  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\ROADMAP.md
+* Other places to search when you cannot find documentation:
+  * C:\Users\benho\source\Application Documentation\The CP Universe\\*.md
+  * C:\Users\benho\source\repos\CP\CP.Workbench\Documentation\CP.WorkBench\\*.md
+
+## How the system works and definitions
+
+Read these files:
+
+* C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\ARCHITECTURE.md
+* C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\SYSTEM.md
+
+## Discipline Mode
+
+Read this file for what **"Discipline Mode"** is: C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System\Discipline Mode Guidelines for Claude.md
+
+If Ben does not explicitly say **"Enter Discipline Mode."**, when starting a new work effort, milestone, and/or feature, ask if "Discipline Mode" should be initiated.
