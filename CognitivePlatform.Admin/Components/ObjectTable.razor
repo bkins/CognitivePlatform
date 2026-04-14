@@ -1,0 +1,8 @@
+@* Generic data grid wrapper over MudDataGrid. Column definitions added in build step 7. *@
+@typeparam TItem
+
+<MudDataGrid Items="@Items" Filterable="true" SortMode="SortMode.Multiple" Dense="true" />
+
+@code {
+    [Parameter] public IReadOnlyList<TItem> Items { get; set; } = [];
+}

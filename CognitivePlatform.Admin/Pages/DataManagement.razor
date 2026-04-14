@@ -1,0 +1,308 @@
+@page "/data"
+@inject IAdminKnowledgeClient KnowledgeClient
+@inject IDialogService DialogService
+
+<PageTitle>Data Management — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Data Management</MudText>
+    <MudSpacer />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Refresh"
+                   OnClick="@LoadAsync"
+                   Disabled="@_loading" />
+</MudStack>
+
+@if (_loading && _items.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@* ── Summary chips ── *@
+<MudStack Row="true" Spacing="2" Class="mb-4" Wrap="Wrap.Wrap">
+    <MudChip T="string" Color="Color.Default" Icon="@Icons.Material.Filled.Dataset">
+        Total: @_items.Count
+    </MudChip>
+    <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">
+        Active: @_items.Count(item => item.Status != "Deleted")
+    </MudChip>
+    <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Delete">
+        Deleted: @_items.Count(item => item.Status == "Deleted")
+    </MudChip>
+</MudStack>
+
+@* ── Filter + search ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Show:</MudText>
+            @foreach (var filter in _statusFilters)
+            {
+                <MudChip T="string"
+                         Color="@(_statusFilter == filter ? Color.Primary : Color.Default)"
+                         Variant="@(_statusFilter == filter ? Variant.Filled : Variant.Outlined)"
+                         Size="Size.Small"
+                         OnClick="@(() => { _statusFilter = filter; })">
+                    @filter
+                </MudChip>
+            }
+        </MudStack>
+
+        <MudTextField @bind-Value="_search"
+                      Label="Search title/summary"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true"
+                      Immediate="true"
+                      DebounceInterval="300"
+                      Style="min-width:220px" />
+    </MudStack>
+</MudPaper>
+
+@* ── Items table ── *@
+<MudDataGrid Items="@FilteredItems"
+             Dense="true"
+             Hover="true"
+             SortMode="SortMode.Single"
+             FixedHeader="true"
+             Height="480px"
+             Class="mb-6">
+    <Columns>
+        <TemplateColumn Title="Status" SortBy="@(item => item.Status)">
+            <CellTemplate>
+                <MudChip T="string"
+                         Color="@StatusColor(context.Item.Status)"
+                         Size="Size.Small"
+                         Style="min-width:72px">
+                    @context.Item.Status
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Kind" SortBy="@(item => item.Kind)">
+            <CellTemplate>
+                <MudChip T="string"
+                         Color="Color.Default"
+                         Size="Size.Small"
+                         Variant="Variant.Outlined">
+                    @context.Item.Kind
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="@(item => item.Title)"   Title="Title" />
+        <PropertyColumn Property="@(item => item.Summary)" Title="Summary" />
+        <TemplateColumn Title="Modified" SortBy="@(item => item.LastModifiedAt)">
+            <CellTemplate>
+                <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                    @context.Item.LastModifiedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                </MudText>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Actions" SortBy="@(_ => string.Empty)">
+            <CellTemplate>
+                <MudStack Row="true" Spacing="1">
+                    @if (context.Item.Status == "Deleted")
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.RestoreFromTrash"
+                                       Color="Color.Success"
+                                       Size="Size.Small"
+                                       Title="Restore"
+                                       OnClick="@(() => RestoreAsync(context.Item))" />
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   Title="Hard Delete (permanent)"
+                                   OnClick="@(() => ConfirmHardDeleteAsync(context.Item))" />
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
+
+@* ── Inject new item ── *@
+<MudExpansionPanels>
+    <MudExpansionPanel Text="Inject New Knowledge Item (developer escape hatch)">
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_injectTitle"
+                              Label="Title"
+                              Required="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect @bind-Value="_injectKind" Label="Kind" FullWidth="true">
+                    <MudSelectItem Value=@("Pending")>Pending</MudSelectItem>
+                    <MudSelectItem Value=@("Journal")>Journal</MudSelectItem>
+                    <MudSelectItem Value=@("Task")>Task</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Style="height:56px"
+                           OnClick="@InjectAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_injectTitle) || _injecting)">
+                    @if (_injecting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <span>Inject</span>
+                    }
+                </MudButton>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_injectSummary"
+                              Label="Summary (optional)"
+                              FullWidth="true" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_injectMessage is not null)
+        {
+            <MudAlert Severity="@_injectSeverity" Class="mt-3">@_injectMessage</MudAlert>
+        }
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    private List<KnowledgeItemAdminDto> _items  = [];
+    private bool                        _loading;
+    private string?                     _error;
+
+    private string  _statusFilter  = "All";
+    private string  _search        = string.Empty;
+    private static readonly string[] _statusFilters = ["All", "Active", "Deleted", "Completed", "Archived"];
+
+    private string  _injectTitle   = string.Empty;
+    private string? _injectSummary;
+    private string  _injectKind    = "Pending";
+    private bool    _injecting;
+    private string? _injectMessage;
+    private Severity _injectSeverity = Severity.Success;
+
+    private IEnumerable<KnowledgeItemAdminDto> FilteredItems
+    {
+        get
+        {
+            var query = _items.AsEnumerable();
+
+            if (_statusFilter != "All")
+                query = query.Where(item => item.Status.Equals(_statusFilter, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(_search))
+                query = query.Where(item => item.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                                         || (item.Summary?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+
+            return query;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error   = null;
+
+        try
+        {
+            var result = await KnowledgeClient.GetAllAsync();
+            _items     = [..result];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load knowledge items: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ConfirmHardDeleteAsync(KnowledgeItemAdminDto item)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Hard Delete"
+          , $"Permanently delete '{item.Title}'? This cannot be undone."
+          , yesText: "Hard Delete"
+          , cancelText: "Cancel");
+
+        if (confirmed == true)
+            await DoHardDeleteAsync(item);
+    }
+
+    private async Task DoHardDeleteAsync(KnowledgeItemAdminDto item)
+    {
+        var success = await KnowledgeClient.HardDeleteAsync(item.IdString);
+        if (success)
+            _items.Remove(item);
+        else
+            _error = $"Hard delete failed for '{item.Title}'.";
+    }
+
+    private async Task RestoreAsync(KnowledgeItemAdminDto item)
+    {
+        var success = await KnowledgeClient.RestoreAsync(item.IdString);
+        if (success)
+            await LoadAsync();
+        else
+            _error = $"Restore failed for '{item.Title}'.";
+    }
+
+    private async Task InjectAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_injectTitle)) return;
+
+        _injecting     = true;
+        _injectMessage = null;
+
+        try
+        {
+            var savedId = await KnowledgeClient.InjectAsync(new InjectKnowledgeRequest
+                                                            {
+                                                                Title   = _injectTitle
+                                                              , Summary = _injectSummary
+                                                              , Kind    = _injectKind
+                                                            });
+
+            if (savedId is not null)
+            {
+                _injectMessage  = $"Injected successfully — id: {savedId}";
+                _injectSeverity = Severity.Success;
+                _injectTitle    = string.Empty;
+                _injectSummary  = null;
+                await LoadAsync();
+            }
+            else
+            {
+                _injectMessage  = "Inject returned no id — check the API logs.";
+                _injectSeverity = Severity.Warning;
+            }
+        }
+        catch (Exception ex)
+        {
+            _injectMessage  = $"Inject failed: {ex.Message}";
+            _injectSeverity = Severity.Error;
+        }
+        finally
+        {
+            _injecting = false;
+        }
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Active"    => Color.Success
+      , "Deleted"   => Color.Error
+      , "Archived"  => Color.Warning
+      , "Completed" => Color.Info
+      , _           => Color.Default
+    };
+}

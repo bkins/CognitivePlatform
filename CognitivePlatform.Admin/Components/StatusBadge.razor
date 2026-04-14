@@ -1,0 +1,8 @@
+@* Colour-coded status chip. Fleshed out in build steps 4 and 7. *@
+
+<MudChip T="string" Color="@ChipColor" Size="Size.Small">@Label</MudChip>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public Color  ChipColor { get; set; } = Color.Default;
+}

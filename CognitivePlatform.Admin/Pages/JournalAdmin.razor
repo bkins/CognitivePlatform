@@ -1,0 +1,394 @@
+@page "/journals"
+@inject IAdminJournalClient JournalClient
+
+<PageTitle>Journal Admin — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Journal Admin</MudText>
+    <MudSpacer />
+    <MudText Typo="Typo.caption" Color="Color.Secondary">
+        @_entries.Count entries (@_entries.Count(entry => entry.IsDeleted) deleted)
+    </MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Reload entries"
+                   OnClick="@LoadEntriesAsync"
+                   Disabled="@_loadingEntries" />
+</MudStack>
+
+@if (_loadingEntries && _entries.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_entriesError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_entriesError</MudAlert>
+}
+
+<MudGrid>
+    @* ── Left panel: entry list ── *@
+    <MudItem xs="12" md="4">
+        <MudTextField @bind-Value="_entrySearch"
+                      Label="Search entries"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Clearable="true"
+                      Immediate="true"
+                      DebounceInterval="200"
+                      Class="mb-2" />
+
+        <MudPaper Elevation="1" Style="max-height:720px;overflow-y:auto;">
+            <MudList Dense="true" T="JournalEntryAdminDto" SelectedValue="_selectedEntry"
+                     SelectedValueChanged="@OnEntrySelected">
+                @foreach (var entry in FilteredEntries)
+                {
+                    <MudListItem Value="@entry" Dense="true">
+                        <MudStack Spacing="0">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudText Typo="Typo.caption" Style="font-family:monospace">
+                                    @entry.Id[..8]…
+                                </MudText>
+                                @if (entry.IsDeleted)
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Style="height:16px;font-size:10px">DELETED</MudChip>
+                                }
+                                <MudSpacer />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @entry.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm")
+                                </MudText>
+                            </MudStack>
+                            @if (entry.LatestText is not null)
+                            {
+                                <MudText Typo="Typo.body2" Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">
+                                    @entry.LatestText
+                                </MudText>
+                            }
+                            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                @entry.RevisionCount revision(s)
+                            </MudText>
+                        </MudStack>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        </MudPaper>
+    </MudItem>
+
+    @* ── Right panel: revisions + correction form ── *@
+    <MudItem xs="12" md="8">
+        @if (_selectedEntry is null)
+        {
+            <MudPaper Elevation="0" Class="pa-8 d-flex justify-center align-center" Style="min-height:300px;">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.TouchApp" Size="Size.Large" Color="Color.Tertiary" />
+                    <MudText Typo="Typo.body1" Color="Color.Secondary">Select an entry to view revisions</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            @* Entry header *@
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2" Class="mb-1">
+                        <MudText Typo="Typo.subtitle2" Style="font-family:monospace;flex:1">@_selectedEntry.Id</MudText>
+                        @if (_selectedEntry.IsDeleted)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">DELETED</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">ACTIVE</MudChip>
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Created @_selectedEntry.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                    </MudText>
+                    @if (_selectedEntry.DeletedReason is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error">
+                            Deletion reason: @_selectedEntry.DeletedReason
+                        </MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            @* Revisions *@
+            @if (_loadingRevisions)
+            {
+                <MudProgressLinear Indeterminate="true" Class="mb-4" />
+            }
+            else if (_revisionsError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_revisionsError</MudAlert>
+            }
+            else if (_revisions.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-4">No revisions found for this entry.</MudAlert>
+            }
+            else
+            {
+                <MudText Typo="Typo.subtitle1" Class="mb-2">
+                    Revision History (@_revisions.Count)
+                </MudText>
+
+                <MudDataGrid Items="@_revisions"
+                             Dense="true"
+                             Hover="true"
+                             SortMode="SortMode.None"
+                             Class="mb-4">
+                    <Columns>
+                        <TemplateColumn Title="Date">
+                            <CellTemplate>
+                                <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                                    @context.Item.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")
+                                </MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="State">
+                            <CellTemplate>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@context.Item.State</MudChip>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Excerpt">
+                            <CellTemplate>
+                                <MudText Typo="Typo.body2"
+                                         Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">
+                                    @(context.Item.Text.Length > 80 ? context.Item.Text[..80] + "…" : context.Item.Text)
+                                </MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Mood">
+                            <CellTemplate>
+                                @if (context.Item.Mood is not null)
+                                {
+                                    <MudText Typo="Typo.caption">@context.Item.Mood</MudText>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="">
+                            <CellTemplate>
+                                <MudIconButton Icon="@(context.Item == _selectedRevision
+                                                       ? Icons.Material.Filled.VisibilityOff
+                                                       : Icons.Material.Filled.Visibility)"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               Title="View full text"
+                                               OnClick="@(() => _selectedRevision =
+                                                              context.Item == _selectedRevision
+                                                              ? null : context.Item)" />
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+
+                @* Selected revision full text *@
+                @if (_selectedRevision is not null)
+                {
+                    <MudCard Elevation="1" Class="mb-4">
+                        <MudCardContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                                <MudText Typo="Typo.subtitle2">Revision @_selectedRevision.RevisionId[..8]…</MudText>
+                                <MudSpacer />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @_selectedRevision.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                                </MudText>
+                            </MudStack>
+                            @if (_selectedRevision.Tags is { Length: > 0 })
+                            {
+                                <MudStack Row="true" Spacing="1" Class="mb-2">
+                                    @foreach (var tag in _selectedRevision.Tags)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@tag</MudChip>
+                                    }
+                                </MudStack>
+                            }
+                            <MudPaper Elevation="0" Class="pa-3"
+                                      Style="background:var(--mud-palette-background-grey);white-space:pre-wrap;font-size:0.9rem;">
+                                @_selectedRevision.Text
+                            </MudPaper>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            }
+
+            @* ── Add correction revision ── *@
+            <MudExpansionPanels>
+                <MudExpansionPanel Text="Add Admin Correction Revision">
+                    <MudStack Spacing="3">
+                        <MudTextField @bind-Value="_correctionText"
+                                      Label="Revision text"
+                                      Lines="6"
+                                      FullWidth="true"
+                                      Required="true" />
+
+                        <MudGrid>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_correctionTags"
+                                              Label="Tags (comma-separated, optional)"
+                                              FullWidth="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="_correctionMood"
+                                              Label="Mood (optional)"
+                                              FullWidth="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudNumericField @bind-Value="_correctionMoodScore"
+                                                 Label="Mood score (optional)"
+                                                 Min="1"
+                                                 Max="10"
+                                                 FullWidth="true" />
+                            </MudItem>
+                        </MudGrid>
+
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       OnClick="@SubmitCorrectionAsync"
+                                       Disabled="@(string.IsNullOrWhiteSpace(_correctionText) || _submittingCorrection)">
+                                @if (_submittingCorrection)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                }
+                                else
+                                {
+                                    <span>Submit Correction</span>
+                                }
+                            </MudButton>
+
+                            @if (_correctionMessage is not null)
+                            {
+                                <MudAlert Severity="@_correctionSeverity" Dense="true">@_correctionMessage</MudAlert>
+                            }
+                        </MudStack>
+                    </MudStack>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<JournalEntryAdminDto>    _entries           = [];
+    private List<JournalRevisionAdminDto> _revisions         = [];
+    private JournalEntryAdminDto?         _selectedEntry;
+    private JournalRevisionAdminDto?      _selectedRevision;
+    private bool                          _loadingEntries;
+    private bool                          _loadingRevisions;
+    private string?                       _entriesError;
+    private string?                       _revisionsError;
+    private string                        _entrySearch       = string.Empty;
+
+    private string  _correctionText      = string.Empty;
+    private string  _correctionTags      = string.Empty;
+    private string? _correctionMood;
+    private int?    _correctionMoodScore;
+    private bool    _submittingCorrection;
+    private string? _correctionMessage;
+    private Severity _correctionSeverity = Severity.Success;
+
+    private IEnumerable<JournalEntryAdminDto> FilteredEntries =>
+        string.IsNullOrWhiteSpace(_entrySearch)
+            ? _entries
+            : _entries.Where(entry =>
+                  (entry.LatestText?.Contains(_entrySearch, StringComparison.OrdinalIgnoreCase) ?? false)
+               || entry.Id.Contains(_entrySearch, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadEntriesAsync();
+
+    private async Task LoadEntriesAsync()
+    {
+        _loadingEntries = true;
+        _entriesError   = null;
+
+        try
+        {
+            var result = await JournalClient.GetEntriesAsync();
+            _entries    = [..result];
+        }
+        catch (Exception ex)
+        {
+            _entriesError = $"Failed to load entries: {ex.Message}";
+        }
+        finally
+        {
+            _loadingEntries = false;
+        }
+    }
+
+    private async Task OnEntrySelected(JournalEntryAdminDto? entry)
+    {
+        _selectedEntry    = entry;
+        _selectedRevision = null;
+        _revisions        = [];
+        _correctionMessage = null;
+
+        if (entry is null) return;
+
+        _loadingRevisions = true;
+        _revisionsError   = null;
+
+        try
+        {
+            var result  = await JournalClient.GetRevisionsAsync(entry.Id);
+            _revisions  = [..result];
+        }
+        catch (Exception ex)
+        {
+            _revisionsError = $"Failed to load revisions: {ex.Message}";
+        }
+        finally
+        {
+            _loadingRevisions = false;
+        }
+    }
+
+    private async Task SubmitCorrectionAsync()
+    {
+        if (_selectedEntry is null || string.IsNullOrWhiteSpace(_correctionText)) return;
+
+        _submittingCorrection = true;
+        _correctionMessage    = null;
+
+        try
+        {
+            var tags = _correctionTags
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var revisionId = await JournalClient.AddCorrectionAsync(
+                _selectedEntry.Id
+              , new AddCorrectionRevisionRequest
+                {
+                    Text      = _correctionText
+                  , Tags      = tags
+                  , Mood      = string.IsNullOrWhiteSpace(_correctionMood) ? null : _correctionMood
+                  , MoodScore = _correctionMoodScore
+                });
+
+            if (revisionId is not null)
+            {
+                _correctionMessage  = $"Correction revision added: {revisionId[..8]}…";
+                _correctionSeverity = Severity.Success;
+                _correctionText     = string.Empty;
+                _correctionTags     = string.Empty;
+                _correctionMood     = null;
+                _correctionMoodScore = null;
+                await OnEntrySelected(_selectedEntry);
+            }
+            else
+            {
+                _correctionMessage  = "Failed to add correction — check the API logs.";
+                _correctionSeverity = Severity.Warning;
+            }
+        }
+        catch (Exception ex)
+        {
+            _correctionMessage  = $"Error: {ex.Message}";
+            _correctionSeverity = Severity.Error;
+        }
+        finally
+        {
+            _submittingCorrection = false;
+        }
+    }
+}

@@ -2,7 +2,7 @@
 
 _Known bugs, UX issues, and planned enhancements. Ordered within each category by priority._
 
-Last updated: 2026-04
+Last updated: 2026-04-14
 
 ---
 
@@ -57,10 +57,26 @@ Last updated: 2026-04
 | ID      | Description                                                  | Area              | Status / Notes                                               |
 | ------- | ------------------------------------------------------------ | ----------------- | ------------------------------------------------------------ |
 | EPIC-01 | **Rework LocalAiAssistant (LAA) UI**                         | LocalAiAssistant  | TODO --  Current UI is clunky and not well polished.  Need to plan, but a complete overhaul may be need. |
-| EPIC-02 | **System Insights (Operational Intelligence)** → “How is the platform behaving?” | New UI (Web App?) | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
+| EPIC-02 | **System Insights (Operational Intelligence)** → “How is the platform behaving?” | New UI (Web App?) | **Partially Done 2026-04-14** — `CognitivePlatform.Admin` (Blazor Server) delivers System Health, Registry Browser, Log Viewer, Data Management, Journal Admin, and Release Console. Remaining: structured telemetry persistence, deeper analytics, charting. |
 | EPIC-03 | **User Insights (Behavioral / Cognitive Intelligence)** → “What does the data say about *the user’s life, patterns, and thinking*?” | New UI (Web App?) | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
 | EPIC-04 | **AI Influence and Autonomy**                                | CP API / New UI   | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
 | EPIC-05 | Reimplement LocalAiAssistant's Personalities and Short/Long term memory |                   | TODO -- Plan                                                 |
+
+---
+
+## CognitivePlatform.Admin — Technical Debt & Polish
+
+Items discovered during the 2026-04-14 Admin UI build session.
+
+| ID | Description | Area | Status |
+|---|---|---|---|
+| ADM-01 | `MudIconButton` uses `Title` attribute (MUD0002 analyzer warning) — should migrate to `Tooltip` | Admin / all pages | TODO — pre-existing pattern in SystemHealth.razor; affects RegistryBrowser and LogViewer too |
+| ADM-02 | 36 `CS0618` warnings: API-local `BoolExtensions.Not()` is `[Obsolete]` — callers in `FastPathResolver`, `JournalActions`, `LlmInterpreter`, `ConversationOrchestrator` should use `CP.Shared.Primitives.Avails.Extensions` | CP API | TODO — not introduced in this session; pre-existing technical debt |
+| ADM-03 | `KnowledgeItemDto.Tags` is typed as non-generic `IEnumerable` — should be `IEnumerable<string>` for type safety and consistent serialization | CP API / KnowledgeInbox | TODO |
+| ADM-04 | `JournalRevisionRepository.GetRevisionsByEntryId` loads **all** `JournalRevision` records then filters in memory — O(n) full table scan; needs a `PartitionKey` or direct SQL lookup | CP API / Journal | TODO — fine at low scale, worth addressing before data grows |
+| ADM-05 | Commented-out `/telemetry/logs` endpoint in `Program.cs` references `ConsoleTelemetrySink.InMemoryTelemetry` which never existed — remove the dead comment | CP API / Program.cs | TODO |
+| ADM-06 | `appsettings.Development.json` in the Admin project is not gitignored at the project level — contains the admin secret; ensure secret is in user-secrets or that the file is excluded before the branch is shared | CognitivePlatform.Admin | TODO |
+| ADM-07 | Release Console working directory must be manually set in `appsettings.Development.json` — consider auto-detecting solution root via `IHostEnvironment.ContentRootPath` traversal | Admin / ReleaseConsole | TODO |
 
 ---
 

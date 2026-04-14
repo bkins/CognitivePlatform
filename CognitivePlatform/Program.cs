@@ -68,7 +68,11 @@ public partial class Program
         {
             options.FormatterName = "Adaptive";
         });
-        
+
+        var logStore = new InMemoryLogStore();
+        builder.Services.AddSingleton(logStore);
+        builder.Logging.AddProvider(new InMemoryLogProvider(logStore));
+
 // Core services
         builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
@@ -347,7 +351,9 @@ public partial class Program
 
             var connectionString = $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
 
-            dataBuilder.Services.AddSingleton<IObjectStore>( _ => new SqliteObjectStore(connectionString));
+            var objectStore = new SqliteObjectStore(connectionString);
+            dataBuilder.Services.AddSingleton<IObjectStore>(objectStore);
+            dataBuilder.Services.AddSingleton<SqliteObjectStore>(objectStore);
             dataBuilder.Services.AddSingleton<StartupInvariantGuard>();
             
             dataBuilder.Services.AddSingleton<IIdempotencyStore, ObjectStoreIdempotencyStore>();
