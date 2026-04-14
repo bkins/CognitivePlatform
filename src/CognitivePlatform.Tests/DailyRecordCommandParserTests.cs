@@ -152,6 +152,19 @@ public class DailyRecordCommandParserTests
     }
 
     [Fact]
+    public void Parse_ExtractsTasks_WhenBlankLinesBetweenBullets()
+    {
+        var input = "Plan: Focused day.\n\nTasks:\n\n- Fix the rollover bug\n\n- Write the test plan doc\n\n- Review PR";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(3,                        result.Tasks.Count);
+        Assert.Contains("Fix the rollover bug",    result.Tasks);
+        Assert.Contains("Write the test plan doc", result.Tasks);
+        Assert.Contains("Review PR",               result.Tasks);
+    }
+
+    [Fact]
     public void Parse_Returns_EmptyTasks_WhenNoTasksBlock()
     {
         var result = _parser.Parse("Plan: Quiet day.");

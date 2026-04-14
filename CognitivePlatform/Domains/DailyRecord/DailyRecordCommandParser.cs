@@ -69,7 +69,8 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 
             if (line.Length == 0)
             {
-                inTasksBlock = false;
+                // Blank lines are allowed as separators inside a Tasks: block.
+                // Only reset the block when a non-blank, non-bullet line is encountered.
                 continue;
             }
 
