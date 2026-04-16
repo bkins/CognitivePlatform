@@ -222,7 +222,17 @@ public class DailyRecordService : IDailyRecordService
     // --- Private helpers ---------------------------------------------------------
 
     private static string TodayKey()
-        => DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    {
+        // Development override: set CP_DAILY_DATE=yyyy-MM-dd to simulate a different day
+        // without waiting for the real calendar to advance.
+        var envOverride = Environment.GetEnvironmentVariable("CP_DAILY_DATE");
+
+        if (!string.IsNullOrWhiteSpace(envOverride)
+         && DateOnly.TryParse(envOverride, out var overrideDate))
+            return overrideDate.ToString("yyyy-MM-dd");
+
+        return DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    }
 
     private DailyRecord RequireOpenRecord()
     {
