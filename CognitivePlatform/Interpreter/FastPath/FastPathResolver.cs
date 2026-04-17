@@ -62,6 +62,13 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 1.1b: MULTILINE JOURNAL BLOCK  ("Journal\nText\nTags: ...")
+        // Evaluated after colon-prefix so "Journal: ..." is not re-tested.
+        // ------------------------------------------------------------
+        if (TryResolveJournalMultiline(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 1.2: PREFIX COMMANDS  (/journal ..., /task ...)
         // ------------------------------------------------------------
         if (input.StartsWith("/"))
@@ -246,6 +253,60 @@ public sealed class FastPathResolver : IFastPathResolver
                     .Select(line => line.Split(':', 2, StringSplitOptions.TrimEntries))
                     .Where(parts => parts.Length == 2)
                     .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.OrdinalIgnoreCase);
+    }
+
+    // ================================================================
+    // MULTILINE JOURNAL BLOCK  ("Journal\nText\nTags: ..." ...)
+    // Handles the structured block format where "Journal" is the sole
+    // first line, followed by free-text and optional key-value lines.
+    // ================================================================
+    private bool TryResolveJournalMultiline( string                           input
+                                           , out ActionMetadata?             action
+                                           , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var lines = input.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (lines.Length < 2)                                                    return false;
+        if (!lines[0].Equals("Journal", StringComparison.OrdinalIgnoreCase))    return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AddJournalEntry");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var bodyLines = lines.Skip(1).ToList();
+
+        // First line that has no colon is the free-text body.
+        var textLine = bodyLines.FirstOrDefault(line => line.Contains(':').Not());
+        if (textLine is not null)
+            parameters["text"] = textLine;
+
+        foreach (var line in bodyLines.Where(line => line.Contains(':')))
+        {
+            var parts = line.Split(':', 2, StringSplitOptions.TrimEntries);
+            if (parts.Length != 2) continue;
+
+            var value = parts[1].Trim();
+
+            switch (parts[0].ToLowerInvariant())
+            {
+                case "tags":
+                    parameters["tags"] = string.Join(",", value.Split(',')
+                                                                .Select(tag => tag.Trim().Trim('"')));
+                    break;
+                case "mood":
+                    parameters["mood"] = value.Trim('"');
+                    break;
+                case "moodscore":
+                    parameters["moodScore"] = value.Trim('"');
+                    break;
+            }
+        }
+
+        return parameters.ContainsKey("text");
     }
 
     // ================================================================
@@ -877,6 +938,11 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant();
 
+        // Guard: inputs that open with a destructive verb must fall through to
+        // the LLM so the orchestrator's IsDestructive confirmation flow can run.
+        if (StartsWithDestructiveVerb(normalized))
+            return false;
+
         // Guard: if the input looks like a batch task list, do not fast-path it.
         // Let the LLM handle it so BatchAddTasks can be selected instead.
         if (IsBatchIntent(normalized))
@@ -914,6 +980,25 @@ public sealed class FastPathResolver : IFastPathResolver
 
         return false;
     }
+
+    // ================================================================
+    // DESTRUCTIVE VERB GUARD
+    // Inputs that begin with a destructive verb should not be resolved
+    // by the generic fast path. They fall through to the LLM so that
+    // the orchestrator's IsDestructive confirmation flow can engage.
+    // ================================================================
+    private static readonly string[] DestructiveVerbPrefixes =
+    {
+            "delete "
+          , "remove "
+          , "drop "
+          , "erase "
+          , "clear "
+          , "purge "
+    };
+
+    private static bool StartsWithDestructiveVerb(string normalized)
+        => DestructiveVerbPrefixes.Any(normalized.StartsWith);
 
     // ================================================================
     // BATCH INTENT GUARD
