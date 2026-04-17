@@ -345,4 +345,65 @@ public class FastPathResolverTests
         Assert.False(resolved);
         Assert.Null(action);
     }
+
+    // ================================================================
+    // MODE 1.1b: MULTILINE JOURNAL BLOCK
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToAddJournalEntry_ForMultilineJournalBlock()
+    {
+        var input = "Journal\nToday I felt focused and productive.\nTags: \"work\", \"deep-thought\"\nMood: \"Calm\"\nMoodScore: 4";
+
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("AddJournalEntry",                      action!.Name);
+        Assert.Equal("Today I felt focused and productive.", parameters!["text"]);
+        Assert.Equal("work,deep-thought",                    parameters["tags"]);
+        Assert.Equal("Calm",                                 parameters["mood"]);
+        Assert.Equal("4",                                    parameters["moodScore"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToAddJournalEntry_ForMultilineJournalBlock_TextOnly()
+    {
+        var input = "Journal\nShort entry with no metadata.";
+
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("AddJournalEntry",                action!.Name);
+        Assert.Equal("Short entry with no metadata.",  parameters!["text"]);
+    }
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_ForMultilineJournalBlock_MissingTextLine()
+    {
+        var input = "Journal\nTags: \"work\"\nMood: \"Calm\"";
+
+        var resolved = _resolver.TryResolve(input, out _, out _);
+
+        Assert.False(resolved);
+    }
+
+    // ================================================================
+    // DESTRUCTIVE VERB GUARD (generic fast path)
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_WhenInputStartsWithDeleteVerb()
+    {
+        var resolved = _resolver.TryResolve("delete the journal entry abc123", out _, out _);
+
+        Assert.False(resolved);
+    }
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_WhenInputStartsWithRemoveVerb()
+    {
+        var resolved = _resolver.TryResolve("remove the note I made yesterday", out _, out _);
+
+        Assert.False(resolved);
+    }
 }

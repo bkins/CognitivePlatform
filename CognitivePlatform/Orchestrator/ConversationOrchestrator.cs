@@ -105,7 +105,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
         
-        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
+        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
+            && actionMeta!.IsDestructive == false)
         {
             var response = TakeTheFastPath(actionMeta
                                          , fastParams
@@ -670,10 +671,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
 
-        // ✅ J-01.1: FastPath always wins.
-        // In streaming mode: if FastPath resolves, execute and emit a single chunk.
-        // If it doesn't resolve, fall back to normal streaming/interpreter behavior.
-        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams))
+        // ✅ J-01.1: FastPath always wins (for non-destructive actions).
+        // In streaming mode: if FastPath resolves a non-destructive action, execute
+        // and emit a single chunk. Destructive actions fall through to the interpreter.
+        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
+            && actionMeta!.IsDestructive == false)
         {
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
