@@ -215,32 +215,43 @@
   4. No build warnings introduced
   5. Update `C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System\Developer Log.md` with what was done in this session. (see existing entries in this document for pattern of data to enter)
 
-  ------
+  ---
 
+  ## Documentation
+  Doc locations and sync protocol: see Discipline Mode.
+  Vault: `C:\Users\benho\source\Application Documentation\The CP Universe\_Repo Docs\`
+  Workbench: `C:\Users\benho\source\repos\CP\CP.Workbench\Documentation\CP.WorkBench\`
+  
+  > Ask about entering Discipline Mode when: starting a complex feature, working 
+  > across multiple domains, or when meaningful work (feature, bug fix, phase) 
+  > has just been completed.
+  
+  ------
+  
   ## Soft Delete Invariant
-
+  
   Every domain object has `IsDeleted` / `DeletedUtc`. Hard deletes are never performed. Tests that exercise delete behaviour must assert soft-delete semantics, not hard removal.
-
+  
   ## Journal Append-Only Invariant
-
+  
   `JournalEntry` is immutable after creation. Mutations create a new `JournalRevision`. `LatestRevision` is always the authoritative content. Never write a test that mutates an entry directly.
-
+  
   ------
-
+  
   ## Running Tests
-
+  
   ```bash
   dotnet test src/CognitivePlatform.Tests/CognitivePlatform.Tests.csproj
   ```
-
+  
   To run a single test class:
-
+  
   ```bash
   dotnet test --filter "FullyQualifiedName~TaskServiceTests"
   ```
-
+  
   To run with coverage:
-
+  
   ```bash
   dotnet test --collect:"XPlat Code Coverage"
   ```

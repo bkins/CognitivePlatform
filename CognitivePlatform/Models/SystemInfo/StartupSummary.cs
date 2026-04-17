@@ -43,6 +43,7 @@ public record StartupSummary
                 {tab}LLM Model:      {DefaultModel}
                 {tab}Provider:       {Provider}
                 {tab}────────────────────────────────────────
+                {Urls.Where(url => url.Contains("localhost", StringComparison.CurrentCultureIgnoreCase))+"/auth/google/connect"}
                 """;
     }
 }
