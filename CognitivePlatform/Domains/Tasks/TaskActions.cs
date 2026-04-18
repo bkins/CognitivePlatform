@@ -479,7 +479,7 @@ public class TaskActions
         var task = TryResolveTaskReference(taskReference, out var resolveError);
 
         if (task is null)
-            return resolveError!;
+            throw new InvalidOperationException(resolveError!);
 
         _taskService.Delete(task.Id);
 

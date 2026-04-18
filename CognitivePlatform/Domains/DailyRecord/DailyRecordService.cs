@@ -34,6 +34,11 @@ public class DailyRecordService : IDailyRecordService
         var today  = TodayKey();
         var record = _store.Get<DailyRecord>(today);
 
+        // A soft-deleted record means the day was intentionally reset via DeleteTodayAsync.
+        // Treat it as if it doesn't exist so the user can open a fresh record for the same date.
+        if (record?.IsDeleted == true)
+            record = null;
+
         if (record is not null && record.Phase == DayPhase.Closed)
             throw new InvalidOperationException($"Day {today} is already closed and cannot be modified.");
 
@@ -200,7 +205,24 @@ public class DailyRecordService : IDailyRecordService
     }
 
     public DailyRecord? GetToday()
-        => _store.Get<DailyRecord>(TodayKey());
+    {
+        var record = _store.Get<DailyRecord>(TodayKey());
+        return record?.IsDeleted == true ? null : record;
+    }
+
+    public async Task<DailyRecord> DeleteTodayAsync()
+    {
+        var record = _store.Get<DailyRecord>(TodayKey())
+                     ?? throw new InvalidOperationException(
+                            "No daily record exists for today — nothing to delete.");
+
+        record.IsDeleted  = true;
+        record.DeletedUtc = DateTimeOffset.UtcNow;
+
+        await _store.Save(record, partitionKey: null, id: record.Id);
+
+        return record;
+    }
 
     public DailyRecord? GetByDate(DateOnly date)
         => _store.Get<DailyRecord>(date.ToString("yyyy-MM-dd"));

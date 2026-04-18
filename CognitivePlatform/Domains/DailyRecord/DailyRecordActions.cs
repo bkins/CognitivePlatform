@@ -206,6 +206,29 @@ public class DailyRecordActions
     }
 
     // =========================================================================
+    // DeleteDay — admin reset for erroneous records
+    // =========================================================================
+
+    [DestructiveAction]
+    [NaturalLanguageAction(
+          Description         = "Soft-delete today's daily record so the day can be re-opened fresh. Use only to recover from erroneous test data, an accidental day close, or a timezone glitch."
+        , Examples            =
+          [
+                  "Delete today's daily record"
+                , "Reset today's day"
+                , "Remove today's plan so I can start over"
+          ]
+        , Category            = "daily"
+        , AllowsClarification = false)]
+    public async Task<string> DeleteDay()
+    {
+        var record = await _dailyRecordService.DeleteTodayAsync();
+
+        return $"Daily record for {record.Id} has been deleted."
+             + " You can now open a fresh day with a new Plan:.";
+    }
+
+    // =========================================================================
     // Private helpers
     // =========================================================================
 

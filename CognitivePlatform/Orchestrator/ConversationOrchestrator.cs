@@ -595,26 +595,46 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                             , Dictionary<string, string>? fastParams
                                             , ConversationContext         context )
     {
-
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                        {
                                                                Details = $"FastPath.Resolved; Action={actionMeta!.Name}"
                                                        }));
 
+        if (actionMeta!.IsDestructive)
+        {
+            var confirmationMessage = BuildDestructiveConfirmationPrompt(actionMeta, fastParams!);
+
+            context.PendingAction = new PendingAction
+                                    {
+                                            ActionName           = actionMeta.Name
+                                          , CollectedParameters  = new Dictionary<string, string>(fastParams!
+                                                                                                , StringComparer.OrdinalIgnoreCase)
+                                          , RemainingParameters  = new List<string>()
+                                          , ConfirmationRequired = true
+                                          , ConfirmationPrompt   = confirmationMessage
+                                    };
+
+            return new ConverseResponse
+                   {
+                           Message         = confirmationMessage
+                         , Debug           = $"FastPath destructive action '{actionMeta.Name}' requires confirmation."
+                         , ExecutionResult = $"Awaiting user confirmation before executing '{actionMeta.Name}'."
+                         , WasFastPath     = true
+                   };
+        }
+
         var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
 
         var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}: {pair.Value}"));
 
-        var response = new ConverseResponse
-                       {
-                               Message         = result
-                             , Debug           = $"FastPath → Action={actionMeta!.Name} with Params=[{parameters}]"
-                             , ExecutionResult = $"Successfully executed FastPath-resolved action '{actionMeta.Name}'\n"
-                                               + $"                  with parameters: {parameters}"
-                             , WasFastPath     = true
-                               
-                       };
-        return response;
+        return new ConverseResponse
+               {
+                       Message         = result
+                     , Debug           = $"FastPath → Action={actionMeta!.Name} with Params=[{parameters}]"
+                     , ExecutionResult = $"Successfully executed FastPath-resolved action '{actionMeta.Name}'\n"
+                                       + $"                  with parameters: {parameters}"
+                     , WasFastPath     = true
+               };
     }
 
     private static string BuildDestructiveConfirmationPrompt( ActionMetadata               action

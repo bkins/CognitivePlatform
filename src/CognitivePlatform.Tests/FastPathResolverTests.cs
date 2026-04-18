@@ -345,4 +345,25 @@ public class FastPathResolverTests
         Assert.False(resolved);
         Assert.Null(action);
     }
+
+    // BUG-09 regression: bare "journal" signal was too broad — any sentence
+    // containing the word "journal" was matched and routed to AddJournalEntry,
+    // so "remove my most recent journal entry" created an entry with text "entry".
+    [Fact]
+    public void TryResolve_ReturnsFalse_ForRemoveJournalEntryPhrase()
+    {
+        var resolved = _resolver.TryResolve("remove my most recent journal entry", out var action, out _);
+
+        Assert.False(resolved);
+        Assert.Null(action);
+    }
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_ForDeleteJournalEntryPhrase()
+    {
+        var resolved = _resolver.TryResolve("delete my last journal entry", out var action, out _);
+
+        Assert.False(resolved);
+        Assert.Null(action);
+    }
 }
