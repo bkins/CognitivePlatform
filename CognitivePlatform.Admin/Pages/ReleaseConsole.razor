@@ -1,0 +1,467 @@
+@page "/release"
+@using System.Diagnostics
+@implements IAsyncDisposable
+@inject IConfiguration Configuration
+@inject IJSRuntime Js
+
+<PageTitle>Release Console — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Release Console</MudText>
+    <MudSpacer />
+    @if (_running)
+    {
+        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle">Running…</MudChip>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Stop"
+                   OnClick="@Abort">
+            Abort
+        </MudButton>
+    }
+    else if (_exitCode.HasValue)
+    {
+        @if (_exitCode == 0)
+        {
+            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">Exit 0 — OK</MudChip>
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_exitCode — Failed</MudChip>
+        }
+    }
+</MudStack>
+
+@* ── Working directory ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudTextField Value="_workingDirectory"
+                  ValueChanged="@((string val) => SaveWorkingDirectoryAsync(val))"
+                  Label="Working directory"
+                  HelperText="Used as CWD for Git and custom commands. Saved automatically in your browser."
+                  FullWidth="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Folder" />
+</MudPaper>
+
+@* ── Version + Environment ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="3" Wrap="Wrap.Wrap">
+        <MudTextField @bind-Value="_version"
+                      Label="Version"
+                      HelperText="Used by Build and Deploy scripts."
+                      Style="min-width:220px" />
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   Disabled="@_running"
+                   OnClick="@RegenerateVersion">
+            Regenerate
+        </MudButton>
+        <MudSpacer />
+        <MudText Typo="Typo.body2" Style="line-height:40px;padding-right:4px">Environment:</MudText>
+        @foreach (var env in new[] { "DEV", "QA", "PROD" })
+        {
+            <MudButton Variant="@(_selectedEnvironment == env ? Variant.Filled : Variant.Outlined)"
+                       Color="Color.Primary"
+                       Disabled="@_running"
+                       OnClick="@(() => _selectedEnvironment = env)">
+                @env
+            </MudButton>
+        }
+    </MudStack>
+</MudPaper>
+
+@* ── API ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">API</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Build"
+               Disabled="@_running"
+               OnClick="@BuildApiAsync">
+        Build API
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Secondary"
+               StartIcon="@Icons.Material.Filled.Upload"
+               Disabled="@_running"
+               OnClick="@DeployApiAsync">
+        Deploy API → @_selectedEnvironment
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PlayArrow"
+               Disabled="@_running"
+               OnClick="@BuildAndDeployApiAsync">
+        Build + Deploy API → @_selectedEnvironment
+    </MudButton>
+</MudStack>
+
+@* ── LAA ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Local AI Assistant (Android)</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Build"
+               Disabled="@_running"
+               OnClick="@BuildLaaAsync">
+        Build LAA
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Secondary"
+               StartIcon="@Icons.Material.Filled.PhoneAndroid"
+               Disabled="@_running"
+               OnClick="@DeployLaaAsync">
+        Deploy LAA → @_selectedEnvironment
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PlayArrow"
+               Disabled="@_running"
+               OnClick="@BuildAndDeployLaaAsync">
+        Build + Deploy LAA → @_selectedEnvironment
+    </MudButton>
+</MudStack>
+
+@* ── NuGet ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">NuGet Packages (local feed)</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Inventory"
+               Disabled="@_running"
+               OnClick="@PublishNuGetsAsync">
+        Publish All NuGets
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Inventory"
+               Disabled="@_running"
+               OnClick="@PublishNuGetPrimitivesAsync">
+        Publish Primitives
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Inventory"
+               Disabled="@_running"
+               OnClick="@PublishNuGetCoreAsync">
+        Publish Core
+    </MudButton>
+</MudStack>
+
+@* ── Git + Tests ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Git &amp; Tests</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Info"
+               Disabled="@_running"
+               OnClick="@(() => RunAsync("git", "status"))">
+        Git Status
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Download"
+               Disabled="@_running"
+               OnClick="@(() => RunAsync("git", "pull"))">
+        Git Pull
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.Science"
+               Disabled="@_running"
+               OnClick="@(() => RunAsync("dotnet", "test src/CognitivePlatform.Tests/CognitivePlatform.Tests.csproj"))">
+        Run Tests
+    </MudButton>
+</MudStack>
+
+@* ── Custom command ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Custom Command</MudText>
+    <MudStack Row="true" AlignItems="AlignItems.End" Spacing="2" Wrap="Wrap.Wrap">
+        <MudTextField @bind-Value="_customExe"
+                      Label="Executable"
+                      Placeholder="dotnet, git, pwsh …"
+                      Style="min-width:120px" />
+        <MudTextField @bind-Value="_customArgs"
+                      Label="Arguments"
+                      Placeholder="build, status, -File script.ps1 …"
+                      Style="min-width:300px" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="@(string.IsNullOrWhiteSpace(_customExe) || _running)"
+                   OnClick="@RunCustomAsync">
+            Run
+        </MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   Disabled="@_running"
+                   OnClick="@ClearOutput">
+            Clear
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@* ── Terminal output ── *@
+@if (_runError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_runError</MudAlert>
+}
+
+<MudPaper Elevation="4"
+          Style="background:#1e1e1e;padding:16px;height:500px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
+    @if (_output.Count == 0)
+    {
+        <span style="color:#6b7280;font-style:italic">Run a command to see output here…</span>
+    }
+    else
+    {
+        @foreach (var line in _output)
+        {
+            <div style="color:@(line.IsError ? "#ff6b6b" : "#d4d4d4");white-space:pre-wrap;line-height:1.55">@line.Text</div>
+        }
+    }
+    <div id="terminal-end"></div>
+</MudPaper>
+
+@code {
+    private sealed record OutputLine(string Text, bool IsError);
+
+    private static readonly string ScriptsDir    = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
+    private static readonly string StagingApiDir = @"C:\CP\Deploy\Api";
+    private static readonly string StagingLaaDir = @"C:\CP\Deploy\Laa";
+
+    private string             _workingDirectory    = string.Empty;
+    private string             _version             = GenerateVersion();
+    private string             _selectedEnvironment = "DEV";
+    private string             _customExe           = string.Empty;
+    private string             _customArgs          = string.Empty;
+    private bool               _running;
+    private int?               _exitCode;
+    private string?            _runError;
+    private readonly List<OutputLine> _output      = [];
+    private CancellationTokenSource?  _cts;
+    private Process?                  _process;
+
+    // LAA scripts use Pascal-cased environment names (Dev / QA / Prod)
+    private string LaaEnvironment => _selectedEnvironment switch
+    {
+        "DEV"  => "Dev"
+      , "PROD" => "Prod"
+      , _      => _selectedEnvironment   // "QA" stays "QA"
+    };
+
+    private static string GenerateVersion()
+    {
+        var now = DateTime.Now;
+        return $"1.0.{now:yyyyMMdd}.{now:HHmmss}";
+    }
+
+    private void RegenerateVersion() => _version = GenerateVersion();
+
+    protected override void OnInitialized()
+    {
+        _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var saved = await Js.InvokeAsync<string?>("localStorage.getItem"
+                                                 , "releaseConsole:workingDirectory");
+        if (!string.IsNullOrWhiteSpace(saved))
+        {
+            _workingDirectory = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveWorkingDirectoryAsync(string value)
+    {
+        _workingDirectory = value;
+        await Js.InvokeVoidAsync("localStorage.setItem"
+                               , "releaseConsole:workingDirectory"
+                               , value);
+    }
+
+    // ── Build / Deploy ─────────────────────────────────────────────────────────
+
+    private Task BuildApiAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""");
+
+    private Task DeployApiAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
+
+    private Task BuildAndDeployApiAsync()
+        => RunPipelineAsync(
+               ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
+             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
+
+    private Task BuildLaaAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""");
+
+    private Task DeployLaaAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
+
+    private Task BuildAndDeployLaaAsync()
+        => RunPipelineAsync(
+               ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
+             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+
+    private Task PublishNuGetsAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target All");
+
+    private Task PublishNuGetPrimitivesAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Primitives");
+
+    private Task PublishNuGetCoreAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Core");
+
+    private Task RunCustomAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_customExe)) return Task.CompletedTask;
+        return RunAsync(_customExe.Trim(), _customArgs.Trim());
+    }
+
+    // ── Core execution ─────────────────────────────────────────────────────────
+
+    private Task RunAsync(string exe, string args)
+        => RunPipelineAsync(( exe, args ));
+
+    private async Task RunPipelineAsync(params (string Exe, string Args)[] steps)
+    {
+        if (_running) return;
+
+        _running  = true;
+        _exitCode = null;
+        _runError = null;
+        _output.Clear();
+        _cts = new CancellationTokenSource();
+
+        StateHasChanged();
+
+        try
+        {
+            foreach (var (exe, args) in steps)
+            {
+                _output.Add(new($"$ {exe} {args}", false));
+                _output.Add(new(string.Empty, false));
+                await InvokeAsync(StateHasChanged);
+                await ScrollToBottomAsync();
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName               = exe
+                  , Arguments              = args
+                  , WorkingDirectory       = _workingDirectory
+                  , RedirectStandardOutput = true
+                  , RedirectStandardError  = true
+                  , UseShellExecute        = false
+                  , CreateNoWindow         = true
+                };
+
+                _process = new Process { StartInfo = startInfo };
+
+                _process.OutputDataReceived += async (_, eventArgs) =>
+                {
+                    if (eventArgs.Data is null) return;
+                    _output.Add(new(eventArgs.Data, false));
+                    await InvokeAsync(StateHasChanged);
+                    await ScrollToBottomAsync();
+                };
+
+                _process.ErrorDataReceived += async (_, eventArgs) =>
+                {
+                    if (eventArgs.Data is null) return;
+                    _output.Add(new(eventArgs.Data, true));
+                    await InvokeAsync(StateHasChanged);
+                    await ScrollToBottomAsync();
+                };
+
+                var stepAborted = false;
+                try
+                {
+                    _process.Start();
+                    _process.BeginOutputReadLine();
+                    _process.BeginErrorReadLine();
+                    await _process.WaitForExitAsync(_cts.Token);
+                    _exitCode = _process.ExitCode;
+                }
+                catch (OperationCanceledException)
+                {
+                    _output.Add(new("[Aborted by user]", true));
+                    stepAborted = true;
+                }
+                catch (Exception ex)
+                {
+                    _runError = ex.Message;
+                    _output.Add(new($"[Error: {ex.Message}]", true));
+                    stepAborted = true;
+                }
+                finally
+                {
+                    _process?.Dispose();
+                    _process = null;
+                }
+
+                if (stepAborted || _exitCode != 0) break;
+
+                // blank separator between pipeline steps
+                _output.Add(new(string.Empty, false));
+            }
+        }
+        finally
+        {
+            _running = false;
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottomAsync();
+        }
+    }
+
+    private void Abort()
+    {
+        _cts?.Cancel();
+        try { _process?.Kill(entireProcessTree: true); }
+        catch { /* process may have already exited */ }
+    }
+
+    private void ClearOutput()
+    {
+        _output.Clear();
+        _exitCode = null;
+        _runError = null;
+    }
+
+    private async Task ScrollToBottomAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("eval"
+                                   , "var el=document.getElementById('terminal-end');if(el)el.scrollIntoView({behavior:'instant'});");
+        }
+        catch
+        {
+            // Ignore errors during disposal or when the DOM is not ready
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        try { _process?.Kill(entireProcessTree: true); }
+        catch { /* ignore */ }
+        _process?.Dispose();
+    }
+}

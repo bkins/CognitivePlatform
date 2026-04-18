@@ -1,0 +1,61 @@
+@page "/login"
+@layout LoginLayout
+@inject IConfiguration      Configuration
+@inject AdminSessionService  SessionService
+@inject NavigationManager    NavManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudCard Elevation="4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5">CP Admin</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Developer access only</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudTextField T="string"
+                          Label="Admin passphrase"
+                          InputType="InputType.Password"
+                          @bind-Value="_passphrase"
+                          OnKeyDown="@HandleKeyDown"
+                          Immediate="true" />
+            @if (_failed)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">Incorrect passphrase.</MudAlert>
+            }
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="@AttemptLogin">
+                Sign in
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private string _passphrase = string.Empty;
+    private bool   _failed;
+
+    private void AttemptLogin()
+    {
+        var expectedSecret = Configuration["AdminSettings:AdminSecret"] ?? string.Empty;
+
+        if (SessionService.TryAuthenticate(_passphrase, expectedSecret))
+        {
+            NavManager.NavigateTo("/");
+            return;
+        }
+
+        _failed     = true;
+        _passphrase = string.Empty;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            AttemptLogin();
+    }
+}

@@ -101,6 +101,8 @@ A workstream is not complete until all of the following are true:
 1. **Feature works** — manual UI test or automated test passes.
 2. **BACKLOG.md updated** — any out-of-scope bugs or ideas found during the work are
    captured with an ID.
+   1. If items are completed logged in this document, then update this document to reflect that the item is done
+
 3. **ROADMAP.md updated** — the completed item is marked done; any new planned items
    are added with a status.
 4. **If a new architectural pattern was introduced**, a sentence is added to

@@ -346,24 +346,64 @@ public class FastPathResolverTests
         Assert.Null(action);
     }
 
-    // BUG-09 regression: bare "journal" signal was too broad — any sentence
-    // containing the word "journal" was matched and routed to AddJournalEntry,
-    // so "remove my most recent journal entry" created an entry with text "entry".
-    [Fact]
-    public void TryResolve_ReturnsFalse_ForRemoveJournalEntryPhrase()
-    {
-        var resolved = _resolver.TryResolve("remove my most recent journal entry", out var action, out _);
+    // ================================================================
+    // MODE 1.1b: MULTILINE JOURNAL BLOCK
+    // ================================================================
 
-        Assert.False(resolved);
-        Assert.Null(action);
+    [Fact]
+    public void TryResolve_ResolvesToAddJournalEntry_ForMultilineJournalBlock()
+    {
+        var input = "Journal\nToday I felt focused and productive.\nTags: \"work\", \"deep-thought\"\nMood: \"Calm\"\nMoodScore: 4";
+
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("AddJournalEntry",                      action!.Name);
+        Assert.Equal("Today I felt focused and productive.", parameters!["text"]);
+        Assert.Equal("work,deep-thought",                    parameters["tags"]);
+        Assert.Equal("Calm",                                 parameters["mood"]);
+        Assert.Equal("4",                                    parameters["moodScore"]);
     }
 
     [Fact]
-    public void TryResolve_ReturnsFalse_ForDeleteJournalEntryPhrase()
+    public void TryResolve_ResolvesToAddJournalEntry_ForMultilineJournalBlock_TextOnly()
     {
-        var resolved = _resolver.TryResolve("delete my last journal entry", out var action, out _);
+        var input = "Journal\nShort entry with no metadata.";
+
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("AddJournalEntry",                action!.Name);
+        Assert.Equal("Short entry with no metadata.",  parameters!["text"]);
+    }
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_ForMultilineJournalBlock_MissingTextLine()
+    {
+        var input = "Journal\nTags: \"work\"\nMood: \"Calm\"";
+
+        var resolved = _resolver.TryResolve(input, out _, out _);
 
         Assert.False(resolved);
-        Assert.Null(action);
+    }
+
+    // ================================================================
+    // DESTRUCTIVE VERB GUARD (generic fast path)
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_WhenInputStartsWithDeleteVerb()
+    {
+        var resolved = _resolver.TryResolve("delete the journal entry abc123", out _, out _);
+
+        Assert.False(resolved);
+    }
+
+    [Fact]
+    public void TryResolve_ReturnsFalse_WhenInputStartsWithRemoveVerb()
+    {
+        var resolved = _resolver.TryResolve("remove the note I made yesterday", out _, out _);
+
+        Assert.False(resolved);
     }
 }

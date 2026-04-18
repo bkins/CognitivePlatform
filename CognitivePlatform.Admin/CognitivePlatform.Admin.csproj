@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CognitivePlatform.Admin</AssemblyName>
+    <UserSecretsId>cp-admin-local-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep in sync with CognitivePlatform.Api.csproj -->
+    <PackageReference Include="CP.Shared.Primitives" Version="0.1.45" />
+    <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
+    <PackageReference Include="MudBlazor"            Version="8.3.0"  />
+  </ItemGroup>
+
+</Project>
