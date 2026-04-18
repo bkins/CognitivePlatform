@@ -231,8 +231,8 @@
     private sealed record OutputLine(string Text, bool IsError);
 
     private static readonly string ScriptsDir    = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
-    private static readonly string StagingApiDir = @"C:\CP\Staging\Api";
-    private static readonly string StagingLaaDir = @"C:\CP\Staging\Laa";
+    private static readonly string StagingApiDir = @"C:\CP\Deploy\Api";
+    private static readonly string StagingLaaDir = @"C:\CP\Deploy\Laa";
 
     private string             _workingDirectory    = string.Empty;
     private string             _version             = GenerateVersion();
