@@ -1,25 +1,34 @@
 using CognitivePlatform.Api.System;
 using CognitivePlatform.Api.SystemInfo;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Models.SystemInfo;
 
 public record StartupSummary
 {
-    public required IReadOnlyList<string> Urls         { get; init; }
-    public required SystemEnvironmentInfo EnvInfo      { get; init; }
-    public required SystemVersionInfo     VerInfo      { get; init; }
-    public required SystemService         SysInfo      { get; init; }
-    public required string                DefaultModel { get; init; }
-    public          string                Provider     { get; set; }
+    public required IReadOnlyList<string> Urls                    { get; init; }
+    public required SystemEnvironmentInfo EnvInfo                 { get; init; }
+    public required SystemVersionInfo     VerInfo                 { get; init; }
+    public required SystemService         SysInfo                 { get; init; }
+    public required string                DefaultModel            { get; init; }
+    public          string                Provider                { get; set; }
+    public          bool                  GoogleCalendarConnected { get; set; }
 
     public override string ToString()
     {
-        var indent      = "        ";
-        var tab         = "\t";
-        var urls        = string.Join("\n", Urls.Select(url => $"{tab}{indent}{url}"));
-        var scalarUrls  = string.Join("\n", Urls.Select(url => $"{tab}{indent}{url}/Scalar"));
-        var shortCommit = VerInfo.InformationalVersion?.Split('+').ElementAtOrDefault(1)?[..8] ?? "unknown";
+        var indent                     = "        ";
+        var tab                        = "\t";
+        var urls                       = string.Join("\n", Urls.Select(url => $"{tab}{indent}{url}"));
+        var scalarUrls                 = string.Join("\n", Urls.Select(url => $"{tab}{indent}{url}/Scalar"));
+        var shortCommit                = VerInfo.InformationalVersion?.Split('+').ElementAtOrDefault(1)?[..8] ?? "unknown";
+        var connectToGoogleCalendarUrl = string.Empty;
         
+        if (GoogleCalendarConnected.Not())
+        {
+            connectToGoogleCalendarUrl = Urls.Where(url => url.Contains("localhost", StringComparison.CurrentCultureIgnoreCase))
+                                             .FirstOrDefault()
+                                       + "/auth/google/connect";
+        }
         return $"""
                 {tab}Cognitive Platform API — Startup
                 {tab}────────────────────────────────────────
@@ -43,7 +52,9 @@ public record StartupSummary
                 {tab}LLM Model:      {DefaultModel}
                 {tab}Provider:       {Provider}
                 {tab}────────────────────────────────────────
-                {Urls.Where(url => url.Contains("localhost", StringComparison.CurrentCultureIgnoreCase))+"/auth/google/connect"}
+                {tab}Connect to Google Calendar: {(GoogleCalendarConnected 
+                                                           ? "Already connected" 
+                                                           : connectToGoogleCalendarUrl)}
                 """;
     }
 }

@@ -49,9 +49,10 @@ public partial class Program
                                                    });
 
 
+        var envName = builder.Environment.EnvironmentName;
         builder.Configuration
                .AddJsonFile("appsettings.json")
-               .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+               .AddJsonFile($"appsettings.{envName}.json", optional: true)
                .AddUserSecrets<Program>(optional: true);
 // Set loggers
 
@@ -159,8 +160,9 @@ public partial class Program
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
 
     // Calendar
-        builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection("GoogleCalendar"));
-        builder.Services.AddHttpClient("GoogleCalendar");
+        var googleCalendarSection = $"GoogleCalendar:{envName}";
+        builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection(googleCalendarSection));
+        builder.Services.AddHttpClient(googleCalendarSection);
         builder.Services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
         builder.Services.AddTransient<CalendarActions>();
 
@@ -282,15 +284,18 @@ public partial class Program
         SystemService         sysInfo;
         SystemVersionInfo     verInfo;
         GroqSettings          settings;
+        bool                  googleCalendarIsConnected;
         
         using (var scope = app.Services.CreateScope())
         {
-            var probe    = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
+            var probe = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
             settings = scope.ServiceProvider
                             .GetRequiredService<IOptions<GroqSettings>>()
                             .Value;
             var catalog = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
            
+            var calendarProvider = scope.ServiceProvider.GetRequiredService<ICalendarProvider>();
+            
             await StartProbe(startWithProbeFirst: true
                            , probe
                            , settings
@@ -301,16 +306,18 @@ public partial class Program
             sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
             envInfo = sysInfo.GetEnvironment();
             verInfo = sysInfo.GetVersion();
+            googleCalendarIsConnected = calendarProvider.IsConnected;
         }
 
         var summary = new StartupSummary
                       {
-                              Urls         = app.Urls.ToList()
-                            , EnvInfo      = envInfo
-                            , VerInfo      = verInfo
-                            , SysInfo      = sysInfo
-                            , DefaultModel = settings.Model
-                            , Provider     = settings.Provider
+                              Urls                    = app.Urls.ToList()
+                            , EnvInfo                 = envInfo
+                            , VerInfo                 = verInfo
+                            , SysInfo                 = sysInfo
+                            , DefaultModel            = settings.Model
+                            , Provider                = settings.Provider
+                            , GoogleCalendarConnected = googleCalendarIsConnected
                       };
 
         diagnosticsLogger.LogInformation("{StartupSummary}", summary);
@@ -362,15 +369,15 @@ public partial class Program
 
     private static async Task StartProbe( bool              startWithProbeFirst
                                         , LlmStartupProbe   probe
-                                        , GroqSettings settings
-                                        , ILogger  log )
+                                        , GroqSettings      settings
+                                        , ILogger           log )
     {
 
         if (startWithProbeFirst)
         {
             var swProbe = new Stopwatch();
             swProbe.Start();
-                
+
             await probe.RunAsync(settings.Model
                                , CancellationToken.None);
                 

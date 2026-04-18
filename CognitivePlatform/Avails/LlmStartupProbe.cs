@@ -32,8 +32,8 @@ public sealed class LlmStartupProbe
         }
     }
 
-    public async Task RunAsync( string candidateModel
-                              , CancellationToken   ct )
+    public async Task RunAsync( string            candidateModel
+                              , CancellationToken ct )
     {
         if (ShouldProbeModels)
         {

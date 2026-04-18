@@ -19,7 +19,7 @@ public sealed class CalendarController : ControllerBase
 {
     private readonly ICalendarProvider _calendar;
 
-    public CalendarController(ICalendarProvider calendar)
+    public CalendarController( ICalendarProvider      calendar)
     {
         _calendar = calendar;
     }
@@ -32,7 +32,7 @@ public sealed class CalendarController : ControllerBase
     public IActionResult Connect()
     {
         var url = _calendar.GetAuthorizationUrl();
-
+        
         if (string.IsNullOrWhiteSpace(url))
             return BadRequest("Google Calendar is not configured. Check that ClientId and ClientSecret are set in user-secrets.");
 
