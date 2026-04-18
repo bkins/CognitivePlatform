@@ -1051,7 +1051,6 @@ public sealed class FastPathResolver : IFastPathResolver
           , "create task "
           , "journal this "
           , "journal that "
-          , "journal"
     };
 
     private static bool ContainsFastPathSignal(string input)

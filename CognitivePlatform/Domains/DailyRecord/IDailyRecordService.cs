@@ -48,6 +48,13 @@ public interface IDailyRecordService
     IReadOnlyList<DailyRecord> GetRange  (DateOnly from, DateOnly to);
 
     /// <summary>
+    /// Soft-deletes today's daily record so the day can be re-opened fresh.
+    /// Use to recover from erroneous test data or an accidental day close.
+    /// Throws if no record exists for today.
+    /// </summary>
+    Task<DailyRecord> DeleteTodayAsync();
+
+    /// <summary>
     /// Returns all active (incomplete) tasks that carry a "rolled-over:" tag,
     /// regardless of which day they originated from.
     /// </summary>
