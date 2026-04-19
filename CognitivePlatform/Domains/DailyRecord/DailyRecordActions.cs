@@ -1,14 +1,18 @@
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Domains.Tasks;
 
 namespace CognitivePlatform.Api.Domains.DailyRecord;
 
 public class DailyRecordActions
 {
     private readonly IDailyRecordService _dailyRecordService;
+    private readonly ITaskService        _taskService;
 
-    public DailyRecordActions(IDailyRecordService dailyRecordService)
+    public DailyRecordActions( IDailyRecordService dailyRecordService
+                              , ITaskService        taskService )
     {
         _dailyRecordService = dailyRecordService ?? throw new ArgumentNullException(nameof(dailyRecordService));
+        _taskService        = taskService        ?? throw new ArgumentNullException(nameof(taskService));
     }
 
     // =========================================================================
@@ -48,22 +52,19 @@ public class DailyRecordActions
         var isAmendment = _dailyRecordService.GetToday() is not null;
         var taskTitles  = SplitCommaSeparated(tasks);
 
-        await _dailyRecordService.OpenDayAsync( openingText
-                                              , taskTitles
-                                              , mood
-                                              , moodScore);
+        var record = await _dailyRecordService.OpenDayAsync( openingText
+                                                           , taskTitles
+                                                           , mood
+                                                           , moodScore);
 
         if (isAmendment)
         {
-            var addedText = taskTitles.Count > 0
-                                ? $"{taskTitles.Count} task(s) added to today's plan."
-                                : "No new tasks added.";
-            return $"Day updated. {addedText}";
-        }
+            if (taskTitles.Count == 0)
+                return "Day updated. No new tasks added.";
 
-        var openedText = taskTitles.Count > 0
-                             ? $"{taskTitles.Count} task(s) planned."
-                             : "No tasks planned yet.";
+            var addedList = BuildTaskList(record.PlannedTaskIds.TakeLast(taskTitles.Count));
+            return $"Day updated. {taskTitles.Count} task(s) added to today's plan:\n{addedList}";
+        }
 
         var rolledOver = _dailyRecordService.GetRolledOverTasks();
 
@@ -72,7 +73,11 @@ public class DailyRecordActions
                                  + " Say 'claim rolled-over tasks' to add them to today's plan."
                                  : string.Empty;
 
-        return $"Day opened. {openedText}{rolledOverNote}";
+        if (taskTitles.Count == 0)
+            return $"Day opened. No tasks planned yet.{rolledOverNote}";
+
+        var taskList = BuildTaskList(record.PlannedTaskIds);
+        return $"Day opened. {taskTitles.Count} task(s) planned:\n{taskList}{rolledOverNote}";
     }
 
     // =========================================================================
@@ -129,7 +134,10 @@ public class DailyRecordActions
             parts.Add($"{checkpoint.CompletedTaskIds.Count} task(s) completed.");
 
         if (checkpoint.AddedTaskIds.Count > 0)
-            parts.Add($"{checkpoint.AddedTaskIds.Count} new task(s) added.");
+        {
+            var addedList = BuildTaskList(checkpoint.AddedTaskIds);
+            parts.Add($"{checkpoint.AddedTaskIds.Count} new task(s) added:\n{addedList}");
+        }
 
         return string.Join(' ', parts);
     }
@@ -165,8 +173,6 @@ public class DailyRecordActions
     {
         var record = await _dailyRecordService.CloseDayAsync(closingText, mood, moodScore);
 
-        var rate = (int)(record.CompletionRate * 100);
-
         var rolloverCount = record.PlannedTaskIds.Count
                           + record.ReactiveTaskIds.Count
                           - record.CompletedTaskCount;
@@ -175,8 +181,94 @@ public class DailyRecordActions
                                ? $" {rolloverCount} task(s) rolled over to tomorrow."
                                : string.Empty;
 
-        return $"Day closed. {record.CompletedTaskCount}/{record.PlannedTaskCount} planned tasks completed ({rate}%)."
-             + $" {record.ReactiveTaskCount} reactive task(s) added.{rolloverNote}";
+        var plannedSummary = record.PlannedTaskCount > 0
+                                 ? $"{record.CompletedTaskCount}/{record.PlannedTaskCount} planned tasks completed"
+                                 + $" ({(int)(record.CompletionRate * 100)}%)."
+                                 : "No planned tasks.";
+
+        var reactiveSummary = record.ReactiveTaskCount > 0
+                                  ? $" {record.ReactiveTaskCount} reactive task(s) added."
+                                  : string.Empty;
+
+        return $"Day closed. {plannedSummary}{reactiveSummary}{rolloverNote}";
+    }
+
+    // =========================================================================
+    // ListTodaysTasks — show today's task list with referenceable positions
+    // =========================================================================
+
+    [FastPath]
+    [NaturalLanguageAction(
+          Description         = "List today's planned and reactive tasks with their position numbers. Position numbers can be used to complete or delete a task (e.g. 'complete task 3')."
+        , Examples            =
+          [
+                  "What are my tasks today?"
+                , "List today's tasks"
+                , "Show me today's plan"
+                , "What's on my plate today?"
+          ]
+        , Category            = "daily"
+        , AllowsClarification = false)]
+    public string ListTodaysTasks()
+    {
+        var record = _dailyRecordService.GetToday();
+
+        if (record is null)
+            return "No plan for today yet. Submit a Plan: to start your day.";
+
+        if (record.PlannedTaskIds.Count == 0 && record.ReactiveTaskIds.Count == 0)
+            return $"Today's plan ({record.Id}) has no tasks yet.";
+
+        // Build a position map for all currently active (incomplete) tasks
+        var positionByTaskId = _taskService.GetOrderedActiveTasks()
+                                           .ToDictionary(pair => pair.Task.Id
+                                                        , pair => pair.Position);
+
+        var lines = new List<string> { $"Today's plan ({record.Id}):" };
+
+        void AppendTaskLines(IEnumerable<string> taskIds, string category)
+        {
+            foreach (var taskId in taskIds)
+            {
+                var task = _taskService.Get(taskId);
+                if (task is null || task.IsDeleted) continue;
+
+                var completed = task.CompletedAt is not null;
+                var status    = completed ? "✓" : "○";
+                var position  = !completed && positionByTaskId.TryGetValue(taskId, out var pos)
+                                    ? $"#{pos,-3}"
+                                    : "    ";
+
+                var categoryTag = category == "reactive" ? " [reactive]" : string.Empty;
+                lines.Add($"  {status} {position}  {task.ShortDescription}{categoryTag}");
+            }
+        }
+
+        if (record.PlannedTaskIds.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("  Planned:");
+            AppendTaskLines(record.PlannedTaskIds, "planned");
+        }
+
+        if (record.ReactiveTaskIds.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("  Reactive:");
+            AppendTaskLines(record.ReactiveTaskIds, "reactive");
+        }
+
+        var hasIncomplete = record.PlannedTaskIds.Concat(record.ReactiveTaskIds)
+                                  .Any(taskId =>
+                                  {
+                                      var task = _taskService.Get(taskId);
+                                      return task is not null && task.CompletedAt is null;
+                                  });
+
+        if (hasIncomplete)
+            lines.Add("\n  Use 'complete task #N' to mark a task done.");
+
+        return string.Join("\n", lines);
     }
 
     // =========================================================================
@@ -199,10 +291,11 @@ public class DailyRecordActions
         var before = _dailyRecordService.GetRolledOverTasks().Count;
         var record = await _dailyRecordService.ClaimRolledOverTasksAsync();
 
-        return before == 0
-                   ? "No rolled-over tasks found."
-                   : $"Claimed {before} rolled-over task(s) into today's plan."
-                   + $" Today now has {record.PlannedTaskIds.Count} planned task(s).";
+        if (before == 0)
+            return "No rolled-over tasks found.";
+
+        var taskList = BuildTaskList(record.PlannedTaskIds);
+        return $"Claimed {before} rolled-over task(s) into today's plan:\n{taskList}";
     }
 
     // =========================================================================
@@ -231,6 +324,34 @@ public class DailyRecordActions
     // =========================================================================
     // Private helpers
     // =========================================================================
+
+    /// <summary>
+    /// Builds a numbered task list for display. Active (incomplete) tasks show their
+    /// global position number so the user can reference them by position in follow-up
+    /// commands (e.g. "complete task 4"). Completed tasks are listed without a position.
+    /// </summary>
+    private string BuildTaskList(IEnumerable<string> taskIds)
+    {
+        var positionByTaskId = _taskService.GetOrderedActiveTasks()
+                                           .ToDictionary(pair => pair.Task.Id
+                                                        , pair => pair.Position);
+
+        var lines = taskIds
+            .Select(taskId => _taskService.Get(taskId))
+            .Where(task => task is not null && !task.IsDeleted)
+            .Select(task =>
+            {
+                var completed = task!.CompletedAt is not null;
+                var status    = completed ? "✓" : "○";
+                var position  = !completed && positionByTaskId.TryGetValue(task.Id, out var pos)
+                                    ? $"#{pos}"
+                                    : string.Empty;
+                var posLabel  = position.Length > 0 ? $"{position,-4}" : "    ";
+                return $"  {status} {posLabel}  {task.ShortDescription}";
+            });
+
+        return string.Join("\n", lines);
+    }
 
     private static IReadOnlyList<string> SplitCommaSeparated(string? input)
         => string.IsNullOrWhiteSpace(input)
