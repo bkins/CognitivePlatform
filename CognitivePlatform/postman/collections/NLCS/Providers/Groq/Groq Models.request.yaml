@@ -1,0 +1,11 @@
+$kind: http-request
+url: https://api.groq.com/openai/v1/models
+method: GET
+body:
+  type: json
+  content: ""
+auth:
+  type: bearer
+  credentials:
+    token: "{{vault:Groq}}"
+order: 2000

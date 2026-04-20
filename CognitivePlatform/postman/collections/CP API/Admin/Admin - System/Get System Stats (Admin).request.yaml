@@ -1,0 +1,7 @@
+$kind: http-request
+description: Returns environment name, DB path, LLM provider/model config, Groq rate-limit snapshot, and per-type object store counts.
+url: "{{baseUrl}}/api/admin/system/stats"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+order: 1000

@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5273/api/journals/8bb7e3a5-189a-49f7-b518-a04cf72b7c50
+method: GET
+order: 4141297586486856

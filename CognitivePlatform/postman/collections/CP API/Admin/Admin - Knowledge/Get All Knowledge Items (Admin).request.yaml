@@ -1,0 +1,7 @@
+$kind: http-request
+description: Returns all items including soft-deleted, ordered by LastModifiedAt descending.
+url: "{{baseUrl}}/api/admin/knowledge"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+order: 1000

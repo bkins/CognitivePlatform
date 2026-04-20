@@ -1,0 +1,12 @@
+$kind: collection
+description: |-
+  CognitivePlatform API — generated from source controllers.
+
+  Before use, set the following collection variables:
+  - **baseUrl** — already defaults to Dev (https://localhost:7083)
+  - **adminSecret** — value of AdminSettings:AdminSecret from your user-secrets
+  - **sessionId** — any string to identify your conversation session
+variables:
+  baseUrl: https://localhost:7083
+  adminSecret: ""
+  sessionId: dev-session-1

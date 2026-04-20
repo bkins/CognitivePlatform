@@ -1,0 +1,22 @@
+$kind: http-request
+description: Bypasses the domain service's 'entry must be active' guard. Works on soft-deleted entries too.
+url: "{{baseUrl}}/api/admin/journal/entries/:entryId/revisions"
+method: POST
+headers:
+  Content-Type: application/json
+  X-Admin-Secret: "{{adminSecret}}"
+pathVariables:
+  - key: entryId
+    value: ""
+    description: Journal entry ID (32-char hex)
+body:
+  type: json
+  content: |-
+    {
+      "text": "Admin correction: corrected journal text.",
+      "tags": ["correction"],
+      "mood": null,
+      "moodScore": null,
+      "moodLevel": null
+    }
+order: 3000

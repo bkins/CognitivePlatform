@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/conversation/converse"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sessionId": "{{sessionId}}",
+      "clientRequestId": null,
+      "input": "What tasks do I have today?",
+      "model": null,
+      "fastPath": false,
+      "streaming": false
+    }
+order: 1000

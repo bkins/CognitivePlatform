@@ -1,0 +1,30 @@
+$kind: http-request
+url: https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent
+method: POST
+headers:
+  Content-Type: application/json
+  x-goog-api-key: AIzaSyCJ7mLMpOsZQksuVO9SVTTPbveSpRFzsTU
+body:
+  type: json
+  content: "{\r
+
+    \  \"contents\": [\r
+
+    \    {\r
+
+    \      \"parts\": [\r
+
+    \        {\r
+
+    \          \"text\": \"Explain how APIs work in simple terms\"\r
+
+    \        }\r
+
+    \      ]\r
+
+    \    }\r
+
+    \  ]\r
+
+    }\r\n"
+order: 1000

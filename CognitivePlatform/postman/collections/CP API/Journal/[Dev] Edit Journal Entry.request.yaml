@@ -1,0 +1,20 @@
+$kind: http-request
+description: DEV-ONLY — forces creation of journal revisions during development. Will be removed once real edit UX exists.
+url: "{{baseUrl}}/api/journals/:journalId/edit-test"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: journalId
+    value: ""
+    description: Journal entry ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "text": "Updated journal entry text.",
+      "tags": ["reflection", "work"],
+      "mood": "content",
+      "moodScore": 7
+    }
+order: 4000

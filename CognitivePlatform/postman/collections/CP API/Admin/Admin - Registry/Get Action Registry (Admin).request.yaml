@@ -1,0 +1,7 @@
+$kind: http-request
+description: Returns all registered NL actions as DTOs, sorted by Category then Name.
+url: "{{baseUrl}}/api/admin/registry"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+order: 1000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/logs"
+method: DELETE
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+order: 2000

@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/analytics
+method: GET
+order: 1000

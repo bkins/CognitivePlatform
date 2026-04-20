@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5273/api/tasks
+method: GET
+order: 4471360402206927

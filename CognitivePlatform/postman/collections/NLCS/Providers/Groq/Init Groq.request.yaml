@@ -1,0 +1,27 @@
+$kind: http-request
+url: https://api.groq.com/openai/v1/chat/completions
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"messages\": [\r
+
+    \    {\r
+
+    \      \"role\": \"user\",\r
+
+    \      \"content\": {{GroqPrompt}}\r
+
+    \    }\r
+
+    \  ],\r
+
+    \  \"model\": \"llama-3.3-70b-versatile\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: "{{vault:Groq}}"
+order: 1000

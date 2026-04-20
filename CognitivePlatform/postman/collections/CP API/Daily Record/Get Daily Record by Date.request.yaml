@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns the DailyRecord for the specified date. Returns 404 if no record exists for that date.
+url: "{{baseUrl}}/api/daily/:date"
+method: GET
+pathVariables:
+  - key: date
+    value: 2026-04-19
+    description: Date in yyyy-MM-dd format (e.g. 2026-04-19)
+order: 2000

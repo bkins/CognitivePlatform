@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/estimationquality/estimation-trends
+method: GET
+order: 3000

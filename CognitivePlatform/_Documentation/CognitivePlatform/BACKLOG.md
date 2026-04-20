@@ -2,7 +2,7 @@
 
 _Known bugs, UX issues, and planned enhancements. Ordered within each category by priority._
 
-Last updated: 2026-04-14
+Last updated: 2026-04-19
 
 ---
 
@@ -77,6 +77,16 @@ Items discovered during the 2026-04-14 Admin UI build session.
 | ADM-05 | Commented-out `/telemetry/logs` endpoint in `Program.cs` references `ConsoleTelemetrySink.InMemoryTelemetry` which never existed — remove the dead comment | CP API / Program.cs | TODO |
 | ADM-06 | `appsettings.Development.json` in the Admin project is not gitignored at the project level — contains the admin secret; ensure secret is in user-secrets or that the file is excluded before the branch is shared | CognitivePlatform.Admin | TODO |
 | ADM-07 | Release Console working directory must be manually set in `appsettings.Development.json` — consider auto-detecting solution root via `IHostEnvironment.ContentRootPath` traversal | Admin / ReleaseConsole | TODO |
+
+---
+
+## Porting / Integration follow-ups
+
+| ID | Description | Area | Status |
+|---|---|---|---|
+| PORT-01 | Migrate `LocalAIAssistant.Services.EnvironmentGuardHandler` to use the canonical `CP.Client.Core.Web.EnvironmentGuardHandler` — update `MauiProgram.cs` DI registration and remove the LAA copy | LAA / MauiProgram.cs | TODO — LAA copy left in place for now to avoid MAUI DI complexity with typed descriptors |
+| PORT-02 | Wire `TelemetryAggregatorService` to a real structured event store — currently returns empty list; requires adding `DurationMs` / `OperationName` to execution events and an `ITelemetryEventStore` accumulator | CP API / Telemetry | TODO — forward-compatible stub added; full wiring planned as part of EPIC-02 operational intelligence work |
+| PORT-03 | Migrate LAA to use `CP.Client.Core.Web.ApiEnvironmentDescriptor` POCO for handler construction — keep MAUI `ObservableObject`-derived class for UI binding only | LAA | TODO — depends on PORT-01 |
 
 ---
 

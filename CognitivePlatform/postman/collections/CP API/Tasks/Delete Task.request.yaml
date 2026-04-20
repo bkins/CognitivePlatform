@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/api/tasks/:id"
+method: DELETE
+pathVariables:
+  - key: id
+    value: ""
+    description: Task ID (GUID)
+order: 4000

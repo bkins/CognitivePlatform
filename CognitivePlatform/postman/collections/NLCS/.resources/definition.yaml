@@ -1,0 +1,6 @@
+$kind: collection
+name: NLCS
+variables:
+  GroqPrompt: ""
+  baseUrl: ""
+  adminSecret: ""

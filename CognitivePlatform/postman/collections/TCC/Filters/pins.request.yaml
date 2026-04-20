@@ -1,0 +1,6 @@
+$kind: http-request
+url: http://localhost:5001/api/filters/pins?ownerId={{MyOwnerId}}
+method: GET
+queryParams:
+  ownerId: "{{MyOwnerId}}"
+order: 3000

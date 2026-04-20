@@ -1,0 +1,24 @@
+$kind: http-request
+name: Add Correction Revision (Admin)
+description: Bypasses the domain service's 'entry must be active' guard. Works on soft-deleted entries too.
+url: "{{baseUrl}}/api/admin/journal/entries/:entryId/revisions"
+method: POST
+headers:
+  Content-Type: application/json
+  X-Admin-Secret: "{{adminSecret}}"
+pathVariables:
+  - key: entryId
+    value: 0f26804a7d804bbe992b109b218d2d21
+    description: Journal entry ID (32-char hex)
+    $type: ""
+body:
+  type: json
+  content: |-
+    {
+      "text": "Admin correction: corrected journal text.",
+      "tags": ["correction"],
+      "mood": null,
+      "moodScore": null,
+      "moodLevel": null
+    }
+order: 3000

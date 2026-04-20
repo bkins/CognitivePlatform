@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/api/journals/:journalId/revisions"
+method: GET
+pathVariables:
+  - key: journalId
+    value: ""
+    description: Journal entry ID (GUID)
+order: 3000

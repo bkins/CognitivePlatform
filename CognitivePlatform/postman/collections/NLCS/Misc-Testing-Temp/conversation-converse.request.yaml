@@ -1,0 +1,16 @@
+$kind: http-request
+url: http://localhost:5273/api/conversation/converse
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\r
+
+    \  \"sessionId\": \"test-bug09-01\",\r
+
+    \  \"input\": \"Journal\\nToday I felt focused and productive.\\nTags:
+    \\\"work\\\", \\\"deep-thought\\\"\\nMood: \\\"Calm\\\"\\nMoodScore: 4\"\r
+
+    }"
+order: 1776450790390

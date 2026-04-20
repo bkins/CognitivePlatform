@@ -1,0 +1,22 @@
+$kind: http-request
+name: Get Recent Logs (Admin)
+url: "{{baseUrl}}/api/admin/logs?take=2000"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+queryParams:
+  - key: take
+    value: "2000"
+    description: "Max entries to return (default: 200)"
+    $type: ""
+  - key: level
+    value: ""
+    disabled: true
+    description: Filter by level abbreviation (e.g. INF, WRN, ERR)
+    $type: ""
+  - key: search
+    value: ""
+    disabled: true
+    description: Filter by message or category text
+    $type: ""
+order: 1000

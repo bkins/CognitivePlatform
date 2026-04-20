@@ -1,0 +1,11 @@
+$kind: http-request
+description: Clears the soft-delete marker, restoring the item to active visibility.
+url: "{{baseUrl}}/api/admin/knowledge/:id/restore"
+method: POST
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+pathVariables:
+  - key: id
+    value: ""
+    description: Knowledge item ID
+order: 3000

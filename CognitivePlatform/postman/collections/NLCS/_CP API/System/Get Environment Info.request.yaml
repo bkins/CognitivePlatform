@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/system/environment"
+method: GET
+order: 2000

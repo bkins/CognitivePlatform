@@ -1,0 +1,5 @@
+$kind: collection
+description: "Handles the Google Calendar OAuth 2.0 flow. Step 1: hit /connect
+  in a browser. Step 2: approve access on Google. Step 3: Google redirects to
+  /callback. Step 4: check /status."
+order: 4501290873066402

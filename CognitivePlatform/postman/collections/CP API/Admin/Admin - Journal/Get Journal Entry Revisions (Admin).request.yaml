@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/journal/entries/:entryId/revisions"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+pathVariables:
+  - key: entryId
+    value: ""
+    description: Journal entry ID (32-char hex, e.g. from Get All Entries response)
+order: 2000

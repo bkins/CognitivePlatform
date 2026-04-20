@@ -1,0 +1,20 @@
+$kind: http-request
+description: "Returns a server-sent event (SSE) stream. Each event arrives as
+  'data: <chunk>\\n\\n'."
+url: "{{baseUrl}}/api/conversation/converse/stream"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: text/event-stream
+body:
+  type: json
+  content: |-
+    {
+      "sessionId": "{{sessionId}}",
+      "clientRequestId": null,
+      "input": "What tasks do I have today?",
+      "model": null,
+      "fastPath": false,
+      "streaming": true
+    }
+order: 3000

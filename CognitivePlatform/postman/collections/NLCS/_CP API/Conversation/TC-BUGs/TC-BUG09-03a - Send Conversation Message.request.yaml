@@ -1,0 +1,15 @@
+$kind: http-request
+name: TC-BUG09-03a - Send Conversation Message
+url: "{{baseUrl}}/api/conversation/converse"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sessionId": "test-bug09-03",
+      "input": "Delete the journal entry '6f448e5f39f3453c97381bf5690371cc'"
+    }
+order: 2500838854317397

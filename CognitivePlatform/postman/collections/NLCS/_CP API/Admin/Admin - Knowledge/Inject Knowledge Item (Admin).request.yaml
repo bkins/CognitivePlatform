@@ -1,0 +1,16 @@
+$kind: http-request
+description: Developer escape hatch — directly injects a knowledge item bypassing normal ingestion.
+url: "{{baseUrl}}/api/admin/knowledge"
+method: POST
+headers:
+  Content-Type: application/json
+  X-Admin-Secret: "{{adminSecret}}"
+body:
+  type: json
+  content: |-
+    {
+      "title": "Sample knowledge item title",
+      "summary": "A brief description of this knowledge item.",
+      "kind": "Pending"
+    }
+order: 2000

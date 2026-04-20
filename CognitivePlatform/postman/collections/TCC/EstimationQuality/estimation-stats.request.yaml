@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/estimationquality/estimation-stats
+method: GET
+order: 2000

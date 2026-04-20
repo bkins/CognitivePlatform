@@ -1,0 +1,3 @@
+$kind: collection
+description: All admin endpoints require the X-Admin-Secret header. Set {{adminSecret}} in collection variables before use.
+order: 9000

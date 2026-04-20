@@ -1,0 +1,5 @@
+$kind: http-request
+name: tasks by id
+url: http://localhost:5273/api/tasks/819b0afbf84b42e197821bfa31d677b2
+method: DELETE
+order: 4288071689624143

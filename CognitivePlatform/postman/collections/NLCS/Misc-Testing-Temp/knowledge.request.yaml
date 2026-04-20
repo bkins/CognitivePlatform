@@ -1,0 +1,9 @@
+$kind: http-request
+url: http://localhost:5273/api/knowledge
+method: GET
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: ""
+order: 2954104722728082

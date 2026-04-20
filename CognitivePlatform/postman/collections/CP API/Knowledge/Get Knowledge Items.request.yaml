@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/knowledge"
+method: GET
+queryParams:
+  - key: kind
+    value: null
+    disabled: true
+    description: Filter by kind (e.g. Pending, Fact, Goal, Task)
+  - key: status
+    value: null
+    disabled: true
+    description: Filter by status (e.g. Active, Archived)
+  - key: tag
+    value: null
+    disabled: true
+    description: Filter by tag string
+  - key: search
+    value: null
+    disabled: true
+    description: Full-text search against title / summary
+order: 1000

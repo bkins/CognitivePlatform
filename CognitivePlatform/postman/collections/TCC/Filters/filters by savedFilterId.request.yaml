@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/filters/options
+method: GET
+order: 2000

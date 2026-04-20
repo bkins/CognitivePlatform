@@ -1,0 +1,7 @@
+$kind: http-request
+description: Returns all entries including soft-deleted, newest first. Each includes a text excerpt and revision count.
+url: "{{baseUrl}}/api/admin/journal/entries"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+order: 1000

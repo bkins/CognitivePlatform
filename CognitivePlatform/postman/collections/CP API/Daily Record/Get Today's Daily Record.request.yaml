@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns the DailyRecord for today. Creates one if none exists yet.
+url: "{{baseUrl}}/api/daily/today"
+method: GET
+order: 1000

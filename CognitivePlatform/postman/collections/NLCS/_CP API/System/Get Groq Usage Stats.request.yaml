@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/api/system/usage"
+method: GET
+order: 3000

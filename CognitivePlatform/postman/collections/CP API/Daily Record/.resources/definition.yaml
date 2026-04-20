@@ -1,0 +1,3 @@
+$kind: collection
+description: Daily record endpoints — open/close a day, retrieve daily summaries by date or range.
+order: 2000

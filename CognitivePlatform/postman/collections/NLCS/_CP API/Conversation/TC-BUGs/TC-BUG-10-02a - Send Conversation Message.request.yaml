@@ -1,0 +1,14 @@
+$kind: http-request
+name: TC-BUG-10-02a - Send Conversation Message
+url: "{{baseUrl}}/api/conversation/converse"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sessionId": "test-TC-BUG-10-02",
+      "input": "Delete task 00000000-0000-0000-0000-000000000099"
+    }
+order: 4503599075078117

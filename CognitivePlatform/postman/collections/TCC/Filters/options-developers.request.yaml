@@ -1,0 +1,5 @@
+$kind: http-request
+name: options/developers
+url: http://localhost:5001/api/filters/options/developers
+method: GET
+order: 4000

@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/dashboard/projects
+method: GET
+order: 5000

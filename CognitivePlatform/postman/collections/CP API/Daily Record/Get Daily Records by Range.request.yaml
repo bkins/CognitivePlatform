@@ -1,0 +1,12 @@
+$kind: http-request
+description: Returns all DailyRecords whose date falls within [from, to]. Both params are required.
+url: "{{baseUrl}}/api/daily?from=2026-04-01&to=2026-04-19"
+method: GET
+queryParams:
+  - key: from
+    value: 2026-04-01
+    description: Start date (inclusive), yyyy-MM-dd
+  - key: to
+    value: 2026-04-19
+    description: End date (inclusive), yyyy-MM-dd
+order: 3000

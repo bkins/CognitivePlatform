@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/api/knowledge/:id/archive"
+method: POST
+pathVariables:
+  - key: id
+    value: ""
+    description: Knowledge item ID (GUID)
+order: 2000

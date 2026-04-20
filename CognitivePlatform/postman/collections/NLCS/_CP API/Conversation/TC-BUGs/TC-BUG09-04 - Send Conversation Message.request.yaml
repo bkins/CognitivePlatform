@@ -1,0 +1,14 @@
+$kind: http-request
+name: TC-BUG09-04 - Send Conversation Message
+url: "{{baseUrl}}/api/conversation/converse"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sessionId": "test-bug09-04",
+      "input": "Can you help me think through my priorities for the week?"
+    }
+order: 4471999532018163

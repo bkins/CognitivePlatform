@@ -1,0 +1,11 @@
+$kind: http-request
+url: https://generativelanguage.googleapis.com/v1/models?key=AIzaSyCJ7mLMpOsZQksuVO9SVTTPbveSpRFzsTU
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  key: AIzaSyCJ7mLMpOsZQksuVO9SVTTPbveSpRFzsTU
+body:
+  type: json
+  content: ""
+order: 2000

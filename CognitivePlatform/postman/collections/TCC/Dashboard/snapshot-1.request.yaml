@@ -1,0 +1,10 @@
+$kind: http-request
+name: snapshot
+url: http://localhost:5001/api/dashboard/snapshot
+method: POST
+body:
+  type: json
+  content: "[]"
+settings:
+  disabledSystemHeaders: []
+order: 2000

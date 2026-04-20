@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/logs?take=200"
+method: GET
+headers:
+  X-Admin-Secret: "{{adminSecret}}"
+queryParams:
+  - key: take
+    value: "200"
+    description: "Max entries to return (default: 200)"
+  - key: level
+    value: null
+    disabled: true
+    description: Filter by level abbreviation (e.g. INF, WRN, ERR)
+  - key: search
+    value: null
+    disabled: true
+    description: Filter by message or category text
+order: 1000

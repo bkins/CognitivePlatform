@@ -1,0 +1,6 @@
+$kind: http-request
+url: http://localhost:5001/api/dashboard/workload?filterId=20
+method: GET
+queryParams:
+  filterId: "20"
+order: 4000

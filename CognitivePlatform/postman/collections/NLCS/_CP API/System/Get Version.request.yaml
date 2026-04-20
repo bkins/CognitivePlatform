@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get Version
+url: "{{baseUrl}}/api/system/version"
+method: GET
+order: 1910
