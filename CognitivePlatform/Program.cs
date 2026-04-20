@@ -82,6 +82,7 @@ public partial class Program
         
         builder.Services.AddScoped<ITelemetrySink, ConsoleTelemetrySink>();
         builder.Services.AddScoped<TelemetryContext>();
+        builder.Services.AddScoped<ITelemetryAggregatorService, TelemetryAggregatorService>();
         
         builder.Services.AddSingleton<ConversationContextStore>();
 
