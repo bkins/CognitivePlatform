@@ -9,14 +9,17 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/[controller]")]
 public class SystemController : ControllerBase
 {
-    private readonly ITelemetrySink      _telemetry;
-    private readonly IGroqUsageTracker   _usageTracker;
+    private readonly ITelemetrySink              _telemetry;
+    private readonly IGroqUsageTracker           _usageTracker;
+    private readonly ITelemetryAggregatorService _telemetryAggregator;
 
-    public SystemController( ITelemetrySink     telemetrySink
-                           , IGroqUsageTracker  usageTracker )
+    public SystemController( ITelemetrySink              telemetrySink
+                           , IGroqUsageTracker            usageTracker
+                           , ITelemetryAggregatorService  telemetryAggregator )
     {
-        _telemetry    = telemetrySink;
-        _usageTracker = usageTracker;
+        _telemetry           = telemetrySink;
+        _usageTracker        = usageTracker;
+        _telemetryAggregator = telemetryAggregator;
     }
 
     [HttpGet("environment")]
@@ -84,6 +87,23 @@ public class SystemController : ControllerBase
         _telemetry.Track(systemEvent);
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Returns aggregated telemetry metrics grouped by operation name.
+    /// Returns an empty list until a structured event store is wired up.
+    /// </summary>
+    [HttpGet("telemetry")]
+    public async Task<IActionResult> GetTelemetry()
+    {
+        var metrics = await _telemetryAggregator.GetAggregatedMetricsAsync();
+
+        _telemetry.Track(new SystemControllerEvent
+                         {
+                             Message = "Telemetry endpoint was hit"
+                         });
+
+        return Ok(metrics);
     }
 
     // ----------------------------------------------------------------
