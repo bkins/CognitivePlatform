@@ -233,4 +233,68 @@ public class CalendarActionsTests
 
         Assert.Contains("Failed", result);
     }
+
+    // ================================================================
+    // FindFreeTime
+    // ================================================================
+
+    [Fact]
+    public async Task FindFreeTime_ReturnsNotConnected_WhenCalendarNotConnected()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
+
+        var result = await _actions.FindFreeTime("2026-04-20", 60);
+
+        Assert.Contains("not connected", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task FindFreeTime_ReturnsParseError_WhenDateIsInvalid()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+
+        var result = await _actions.FindFreeTime("not-a-date", 60);
+
+        Assert.Contains("couldn't parse", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task FindFreeTime_ReturnsFreeSlots_WhenDayIsEmpty()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>());
+
+        var result = await _actions.FindFreeTime("2026-04-20", 60);
+
+        Assert.Contains("Free slots", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task FindFreeTime_ReturnsNoSlots_WhenDayIsFullyBooked()
+    {
+        // Block the entire working-hours window with a single event
+        var day   = new DateTimeOffset(2026, 4, 20, 0, 0, 0, TimeSpan.Zero);
+        var start = day.AddHours(8);
+        var end   = day.AddHours(18);
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>
+                                   {
+                                       new() { Id       = "1"
+                                             , Title    = "All-day Block"
+                                             , StartUtc = start
+                                             , EndUtc   = end
+                                             , IsAllDay = false }
+                                   });
+
+        var result = await _actions.FindFreeTime("2026-04-20", 60);
+
+        Assert.Contains("No free slots", result, StringComparison.OrdinalIgnoreCase);
+    }
 }

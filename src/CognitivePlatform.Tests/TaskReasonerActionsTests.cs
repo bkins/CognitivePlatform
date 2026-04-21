@@ -97,6 +97,36 @@ public class TaskReasonerActionsTests
     }
 
     // ================================================================
+    // CALENDAR CONTEXT
+    // ================================================================
+
+    [Fact]
+    public async Task ReasonAboutTasks_OmitsCalendarSection_WhenProviderIsNull()
+    {
+        _tasksMock.Setup(service => service.GetActive())
+                  .Returns(new List<TaskItem> { MakeTask("Write tests") });
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                         , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision>());
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                           , It.IsAny<string?>()
+                                           , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        var actionsNoCalendar = new TaskReasonerActions(_tasksMock.Object
+                                                       , _journalMock.Object
+                                                       , _llmMock.Object);
+
+        await actionsNoCalendar.ReasonAboutTasks("What should I do?");
+
+        Assert.NotNull(capturedPrompt);
+        Assert.DoesNotContain("Calendar", capturedPrompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ================================================================
     // EMPTY DATA
     // ================================================================
 
