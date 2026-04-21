@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Conversation;
@@ -71,6 +72,12 @@ public class ConversationContext
     public bool    ClarificationModeEnabled  { get; set; }
     public string? ClarificationForAction    { get; set; }
     public string? ClarificationForParameter { get; set; }
+
+    /// <summary>
+    /// Insights emitted on the previous turn. Used to detect follow-through
+    /// (InsightOutcome.ActedOn) when the user's next action matches a SuggestedAction.
+    /// </summary>
+    public IReadOnlyList<EmittedInsightRef> LastEmittedInsights { get; set; } = [];
 
     public ConversationContext (string sessionId)
     {

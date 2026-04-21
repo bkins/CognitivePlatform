@@ -144,4 +144,64 @@ public class DailyBriefServiceTests
         Assert.Contains("Due Today or Overdue", result);
         Assert.Contains("Daily Brief",          result);
     }
+
+    // ================================================================
+    // CALENDAR SECTION
+    // ================================================================
+
+    [Fact]
+    public void GetBrief_IncludesCalendarSection_WhenProviderIsConnectedAndHasEvents()
+    {
+        var start = new DateTimeOffset(2026, 4, 20, 9, 0, 0, TimeSpan.Zero);
+        var end   = start.AddHours(1);
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>
+                                   {
+                                       new() { Id       = "1"
+                                             , Title    = "Sprint Planning"
+                                             , StartUtc = start
+                                             , EndUtc   = end
+                                             , IsAllDay = false }
+                                   });
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.Contains("Today's Calendar", result);
+        Assert.Contains("Sprint Planning",  result);
+    }
+
+    [Fact]
+    public void GetBrief_OmitsCalendarSection_WhenProviderIsNull()
+    {
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.DoesNotContain("Today's Calendar", result);
+    }
+
+    [Fact]
+    public void GetBrief_OmitsCalendarSection_WhenProviderThrows()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ThrowsAsync(new InvalidOperationException("Calendar unavailable"));
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+
+        // Should not throw, and should omit the section
+        var result = service.GetBrief();
+
+        Assert.DoesNotContain("Today's Calendar", result);
+    }
 }

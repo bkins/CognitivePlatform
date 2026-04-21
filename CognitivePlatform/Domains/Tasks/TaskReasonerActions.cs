@@ -105,7 +105,7 @@ public class TaskReasonerActions
             sb.AppendLine();
         }
 
-        if (_calendar.IsConnected)
+        if (_calendar is not null && _calendar.IsConnected)
         {
             var fromUtc = DateTimeOffset.UtcNow;
             var toUtc   = fromUtc.AddDays(7);

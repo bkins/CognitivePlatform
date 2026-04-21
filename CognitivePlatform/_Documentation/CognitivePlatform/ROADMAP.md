@@ -2,7 +2,7 @@
 
 _Current state of development. This document reflects reality, not aspiration._
 
-Last updated: 2026-04
+Last updated: 2026-04-20
 
 ---
 
@@ -82,11 +82,43 @@ structured input for the Insight Engine.
 
 ---
 
-### Phase 5 — Assistant intelligence
-- Insight Engine (proactive read-only reasoning layer) — **spec complete**, ready to build
-  once UX Honesty is stable. See Obsidian: `CP Universe / Milestones / Insight Engine Plan.md`.
-- Calendar awareness (Google Calendar + Outlook providers)
-- `TaskReasoner` module (cross-domain prioritization)
+### Phase 5 — Assistant intelligence 🔄
+
+**DB path hardening (ADM-08) ✅ — 2026-04-20**
+`platform.db` moved to `C:\CP\Data\{env}\` outside the deploy tree. Clean-wipes
+of the deploy folder are now safe. `Program.cs`, `API-Deploy.ps1`, `SYSTEM.md` updated.
+
+**Calendar — Phase 5 items ✅ — 2026-04-20**
+- `DailyBriefService.GetBrief()` — calendar section already implemented; constructor
+  made nullable (`ICalendarProvider?`) with graceful null/throw handling.
+- `CalendarActions.AddCalendarEvent` — write action implemented with `startDateTime`/
+  `endDateTime` parameters and `ICalendarProvider.AddEventAsync`.
+- `CalendarActions.FindFreeTime` — new action; finds free working-hours slots for a
+  given day and required duration. Algorithmic (no LLM).
+- `TaskReasonerActions.ReasonAboutTasks` — calendar context already implemented;
+  `ICalendarProvider?` made nullable with null guard.
+
+**Insight Engine — Phase A 🔄 — 2026-04-20**
+Core engine built and wired. Phase A scope (no Object Store dependency):
+- Data models: `Insight`, `InsightPolicy`, `InsightPriority`, `InsightCategory`,
+  `InsightOutcome`, `InsightReasoning`, `EvidenceReference`, `InsightHistoryItem`,
+  `EmittedInsightRef`
+- Interfaces: `IInsightProvider`, `IInsightEngine`, `IInsightHistoryStore`
+- `InsightEngine` — concurrent provider execution, fault isolation, action validation,
+  dedup via `IInsightHistoryStore`, priority ranking, `MaxPerTurn` cap
+- `ConversationReflectionInsightProvider` — detects stress/emotion language, suggests
+  journaling
+- `NoOpInsightHistoryStore` — Phase A stub; replaced by Object Store in Phase B
+- Wired into `ConversationOrchestrator` after execution; LLM weave pass only when
+  insights exist (skipped on empty list)
+- `ConversationContext.LastEmittedInsights` added for next-turn follow-through detection
+- DI registered in `Program.cs`
+- 8 new unit tests in `InsightEngineTests.cs` (289 total, all passing)
+
+**Remaining Phase 5:**
+- Insight Engine Phase B — `ObjectStoreInsightHistoryStore`, cross-session dedup
+- Insight Engine Phase C — `JournalActivityInsightProvider`, `TaskAwarenessInsightProvider`
+- Insight Engine Phase D+ — `InsightPolicy` tuning, WhyInsight, NotificationEngine
 
 ### Phase 6 — Safety and permissions hardening
 - Risk classification attributes on actions
