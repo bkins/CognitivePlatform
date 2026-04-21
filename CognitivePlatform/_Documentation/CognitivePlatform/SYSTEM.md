@@ -29,7 +29,8 @@ User Input
   → Clarification Loop     (missing / ambiguous parameters)
   → Safety Gateway         (validation, type coercion, permission checks)
   → Execution Engine       (reflective invocation via ActionRegistry)
-  → Response Formatting    (human-friendly output)
+  → Insight Engine         (concurrent providers → ranked, deduped insights)
+  → Response Formatting    (human-friendly output, optional insight weave pass)
 ```
 
 ---
@@ -48,12 +49,14 @@ User Input
 
 ## Domains currently implemented
 
-| Domain    | Actions / Services                                        |
-|-----------|-----------------------------------------------------------|
-| Tasks     | Add, list, complete, delete, update due date (Eisenhower) |
-| Journals  | Add, list, edit (append-only revisions), search           |
-| Knowledge | Cross-domain inbox aggregating tasks + journals           |
-| System    | Health, version, environment info, LLM usage (Groq)       |
+| Domain       | Actions / Services                                                          |
+|--------------|-----------------------------------------------------------------------------|
+| Tasks        | Add, list, complete, delete, update due date (Eisenhower), task reasoning   |
+| Journals     | Add, list, edit (append-only revisions), search                             |
+| Daily Record | Open/checkpoint/close day lifecycle, rollover tracking                      |
+| Calendar     | Get today's events, get events for date, add event, find free time          |
+| Knowledge    | Cross-domain inbox aggregating tasks + journals                              |
+| System       | Health, version, environment info, LLM usage (Groq)                         |
 
 ---
 
@@ -72,13 +75,34 @@ User Input
 
 ---
 
+## Key infrastructure components (Phase 5+)
+
+| Component | Location | Status |
+|---|---|---|
+| `InsightEngine` | `CognitivePlatform/Insights/InsightEngine.cs` | Phase A complete |
+| `IInsightProvider` | `CognitivePlatform/Insights/IInsightProvider.cs` | Interface |
+| `IInsightHistoryStore` | `CognitivePlatform/Insights/IInsightHistoryStore.cs` | NoOp stub (Phase A) |
+| `ConversationReflectionInsightProvider` | `CognitivePlatform/Insights/` | Stress/emotion detection |
+| `DailyBriefService` | `CognitivePlatform/Domains/Tasks/DailyBriefService.cs` | Calendar-aware |
+| `CalendarActions` | `CognitivePlatform/Domains/Calendar/CalendarActions.cs` | Events + free-time search |
+
+## Persistence
+
+```
+C:\CP\Data\
+  Development\platform.db
+  QA\platform.db
+  Prod\platform.db
+```
+
+Path is set in `Program.cs` (`BuildDataPersistenceLayer`) so clean-wipes of the deploy tree can never destroy production data. See ADM-08.
+
 ## What this system is not (yet)
 
 - Not a general-purpose AI assistant — it executes defined, registered actions only. (however, in the future this will not be true -- TODO: detail plan for the AI assistant features)
-- No calendar integration (planned Phase 5).
-- No proactive suggestions (Insight Engine — spec complete, implementation deferred).
 - No multi-user support or auth layer.
 - No real-time push to clients.
+- Insight Engine Phase B (cross-session dedup via Object Store) and later phases remain.
 
 ---
 

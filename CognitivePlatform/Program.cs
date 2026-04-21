@@ -5,6 +5,8 @@ using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Insights;
+using CognitivePlatform.Api.Insights;
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Audit;
@@ -157,6 +159,12 @@ public partial class Program
         builder.Services.AddTransient<DebugFastPath>();
         builder.Services.AddTransient<DailyRecordActions>();
 
+    // Insight Engine (Phase A — no Object Store dependency)
+        builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
+        builder.Services.AddScoped<IInsightEngine, InsightEngine>();
+        builder.Services.AddSingleton<InsightPolicy>(new InsightPolicy());
+        builder.Services.AddScoped<IInsightHistoryStore, NoOpInsightHistoryStore>();
+
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
 
@@ -180,12 +188,10 @@ public partial class Program
         {
             var environment = sp.GetRequiredService<IHostEnvironment>();
 
-            // Reuse existing resolved paths
-            var dataRoot = Path.Combine(environment.ContentRootPath
-                                      , "Data"
-                                      , environment.EnvironmentName);
-            var dbPath = Path.Combine(dataRoot
-                                    , "platform.db");
+            // DB lives outside the deploy tree so clean-deploys never touch it.
+            // See ADM-05 and BuildDataPersistenceLayer below.
+            var dataRoot = Path.Combine(@"C:\CP\Data", environment.EnvironmentName);
+            var dbPath   = Path.Combine(dataRoot, "platform.db");
 
             return new SystemService(environment
                                    , dataRoot
@@ -349,9 +355,9 @@ public partial class Program
 
         void BuildDataPersistenceLayer(WebApplicationBuilder dataBuilder)
         {
-            var dataDirectory = Path.Combine(dataBuilder.Environment.ContentRootPath
-                                           , "Data"
-                                           , dataBuilder.Environment.EnvironmentName);
+            // ADM-05: DB lives at C:\CP\Data\{env}\ — outside the deploy tree so
+            // that a clean-wipe of the deploy folder can never destroy production data.
+            var dataDirectory = Path.Combine(@"C:\CP\Data", dataBuilder.Environment.EnvironmentName);
 
             Directory.CreateDirectory(dataDirectory);
 

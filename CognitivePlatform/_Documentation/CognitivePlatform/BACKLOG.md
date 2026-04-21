@@ -2,7 +2,7 @@
 
 _Known bugs, UX issues, and planned enhancements. Ordered within each category by priority._
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ---
 
@@ -61,6 +61,7 @@ Last updated: 2026-04-19
 | EPIC-03 | **User Insights (Behavioral / Cognitive Intelligence)** → “What does the data say about *the user’s life, patterns, and thinking*?” | New UI (Web App?) | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
 | EPIC-04 | **AI Influence and Autonomy**                                | CP API / New UI   | TODO -- Plan details out.  After planning there may be overlap between EPIC-02, EPIC-03, and EPIC-04.  See conversation with ChatGPT: https://chatgpt.com/share/69dd359c-1f84-83e8-aa42-2b2ddd36e4f1 |
 | EPIC-05 | Reimplement LocalAiAssistant's Personalities and Short/Long term memory |                   | TODO -- Plan                                                 |
+| EPIC-06 | **Insight Engine** — proactive read-only reasoning layer; surfaces suggestions woven into natural language responses | CP API / Insights | **Phase A In Progress 2026-04-20** — Models, interfaces, `InsightEngine`, `ConversationReflectionInsightProvider`, `NoOpInsightHistoryStore` built. Wired into `ConversationOrchestrator`. Phase B (Object Store persistence) and later phases remain. |
 
 ---
 
@@ -77,6 +78,7 @@ Items discovered during the 2026-04-14 Admin UI build session.
 | ADM-05 | Commented-out `/telemetry/logs` endpoint in `Program.cs` references `ConsoleTelemetrySink.InMemoryTelemetry` which never existed — remove the dead comment | CP API / Program.cs | TODO |
 | ADM-06 | `appsettings.Development.json` in the Admin project is not gitignored at the project level — contains the admin secret; ensure secret is in user-secrets or that the file is excluded before the branch is shared | CognitivePlatform.Admin | TODO |
 | ADM-07 | Release Console working directory must be manually set in `appsettings.Development.json` — consider auto-detecting solution root via `IHostEnvironment.ContentRootPath` traversal | Admin / ReleaseConsole | TODO |
+| ADM-08 | `platform.db` lived inside the deploy tree (`$deployPath\Data\{env}\platform.db`) — a clean-wipe before deploy would permanently destroy data | CP API / Program.cs + API-Deploy.ps1 | **Fixed 2026-04-20** — DB path moved to `C:\CP\Data\{env}\platform.db` (outside deploy tree). `BuildDataPersistenceLayer` and `SystemService` updated in `Program.cs`. `API-Deploy.ps1` comments updated. `SYSTEM.md` updated. |
 
 ---
 
