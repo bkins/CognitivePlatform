@@ -125,35 +125,4 @@ public sealed class LlmStartupProbe
         }
 
     }
-    // private void LogSummary (IEnumerable<LlmModelInfo> models)
-    // {
-    //     var sb = new StringBuilder();
-    //
-    //     sb.AppendLine("LLM Startup Probe Summary:");
-    //     sb.AppendLine("--------------------------------");
-    //
-    //     foreach (var model in models.OrderBy(m => m.Name))
-    //     {
-    //         if (model.IsUsable)
-    //         {
-    //             sb.AppendLine($"✔ {model.Name} [OK]");
-    //         }
-    //         else
-    //         {
-    //             sb.AppendLine($"✖ {model.Name} [FAILED] — {model.FailureReason}");
-    //         }
-    //     }
-    //
-    //     sb.AppendLine("--------------------------------");
-    //     
-    //     _log.LogInformation("LLM Startup Probe Summary {@Models}"
-    //                       , models.Select(model => new
-    //                                                {
-    //                                                        model.Name
-    //                                                      , model.IsUsable
-    //                                                      , model.FailureReason
-    //                                                }));
-    //
-    // }
-
 }

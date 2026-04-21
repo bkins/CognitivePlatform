@@ -50,6 +50,7 @@ public sealed class AdminKnowledgeController : AdminControllerBase
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
         var deleted = _store.HardDelete<KnowledgeItemDto>(id);
+        
         return deleted ? Ok() : NotFound();
     }
 
@@ -60,6 +61,7 @@ public sealed class AdminKnowledgeController : AdminControllerBase
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
         var restored = _store.Undelete<KnowledgeItemDto>(id);
+        
         return restored ? Ok() : NotFound();
     }
 
@@ -69,7 +71,7 @@ public sealed class AdminKnowledgeController : AdminControllerBase
     {
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
-        if (string.IsNullOrWhiteSpace(request.Title))
+        if (request.Title.HasNoValue())
             return BadRequest("Title is required.");
 
         if (Enum.TryParse<KnowledgeKind>(request.Kind, ignoreCase: true, out var kind).Not())
@@ -87,6 +89,7 @@ public sealed class AdminKnowledgeController : AdminControllerBase
                    };
 
         var savedId = await _store.Save(item, id: item.IdString);
+        
         return Ok(new { id = savedId });
     }
 }

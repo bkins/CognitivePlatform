@@ -345,25 +345,28 @@ else if (_entriesError is not null)
 
     private async Task SubmitCorrectionAsync()
     {
-        if (_selectedEntry is null || string.IsNullOrWhiteSpace(_correctionText)) return;
+        if (_selectedEntry is null 
+         || _correctionText.HasNoValue()) return;
 
         _submittingCorrection = true;
         _correctionMessage    = null;
 
         try
         {
-            var tags = _correctionTags
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var tags = _correctionTags.Split(','
+                                           , StringSplitOptions.RemoveEmptyEntries 
+                                           | StringSplitOptions.TrimEntries);
 
-            var revisionId = await JournalClient.AddCorrectionAsync(
-                _selectedEntry.Id
-              , new AddCorrectionRevisionRequest
-                {
-                    Text      = _correctionText
-                  , Tags      = tags
-                  , Mood      = string.IsNullOrWhiteSpace(_correctionMood) ? null : _correctionMood
-                  , MoodScore = _correctionMoodScore
-                });
+            var revisionId = await JournalClient.AddCorrectionAsync(_selectedEntry.Id
+                                                                  , new AddCorrectionRevisionRequest
+                                                                    {
+                                                                            Text      = _correctionText
+                                                                          , Tags      = tags
+                                                                          , Mood      = _correctionMood?.HasNoValue() ?? true 
+                                                                                                ? null 
+                                                                                                : _correctionMood
+                                                                          , MoodScore = _correctionMoodScore
+                                                                    });
 
             if (revisionId is not null)
             {
@@ -373,6 +376,7 @@ else if (_entriesError is not null)
                 _correctionTags     = string.Empty;
                 _correctionMood     = null;
                 _correctionMoodScore = null;
+                
                 await OnEntrySelected(_selectedEntry);
             }
             else

@@ -1,9 +1,9 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Actions;
 
@@ -126,7 +126,7 @@ public static class MetaActions
         if (_registry is null)
             return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
 
-        if (string.IsNullOrWhiteSpace(actionName))
+        if (actionName.HasNoValue())
             return "Please specify the name of the action you want described.";
 
         var action = _registry.FindByName(actionName);
@@ -215,6 +215,7 @@ public static class MetaActions
             {
                 sb.AppendLine();
                 sb.AppendLine("Candidate actions:");
+                
                 foreach (var name in result.CandidateActions)
                     sb.AppendLine($" - {name}");
             }
@@ -223,8 +224,8 @@ public static class MetaActions
             {
                 sb.AppendLine();
                 sb.AppendLine("Missing parameters:");
-                foreach (var p in result.MissingParameters)
-                    sb.AppendLine($" - {p}");
+                foreach (var parameter in result.MissingParameters)
+                    sb.AppendLine($" - {parameter}");
             }
         }
 

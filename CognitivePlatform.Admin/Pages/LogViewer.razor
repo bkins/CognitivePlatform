@@ -84,7 +84,8 @@ else if (_error is not null)
     <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
 }
 
-@if (_entries.Count == 0 && !_loading)
+@if (_entries.Count == 0 
+  && _loading.Not())
 {
     <MudAlert Severity="Severity.Info">
         No log entries yet — entries appear after the first API activity.
@@ -149,18 +150,16 @@ else
     {
         await RefreshAsync();
 
-        _timer = new System.Threading.Timer(
-            async _ =>
-            {
-                if (_autoRefresh)
-                {
-                    await RefreshAsync();
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-          , null
-          , TimeSpan.FromSeconds(5)
-          , TimeSpan.FromSeconds(5));
+        _timer = new Timer(async _ =>
+                           {
+                               if (_autoRefresh.Not()) return;
+                
+                               await RefreshAsync();
+                               await InvokeAsync(StateHasChanged);
+                           }
+                         , null
+                         , TimeSpan.FromSeconds(5)
+                         , TimeSpan.FromSeconds(5));
     }
 
     private async Task RefreshAsync()
@@ -200,12 +199,14 @@ else
     private async Task SetLevel(string? level)
     {
         _levelFilter = level;
+        
         await RefreshAsync();
     }
 
     private static string ShortCategory(string category)
     {
         var lastDot = category.LastIndexOf('.');
+        
         return lastDot >= 0 ? category[(lastDot + 1)..] : category;
     }
 

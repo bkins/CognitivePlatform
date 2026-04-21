@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Integrations.Calendar;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -33,7 +34,7 @@ public sealed class CalendarController : ControllerBase
     {
         var url = _calendar.GetAuthorizationUrl();
         
-        if (string.IsNullOrWhiteSpace(url))
+        if (url.HasNoValue())
             return BadRequest("Google Calendar is not configured. Check that ClientId and ClientSecret are set in user-secrets.");
 
         return Redirect(url);
@@ -50,7 +51,7 @@ public sealed class CalendarController : ControllerBase
         if (error is not null)
             return BadRequest($"Google denied access: {error}. Visit /auth/google/connect to try again.");
 
-        if (string.IsNullOrWhiteSpace(code))
+        if (code?.HasNoValue() ?? true)
             return BadRequest("No authorisation code received.");
 
         var success = await _calendar.ExchangeCodeAsync(code);

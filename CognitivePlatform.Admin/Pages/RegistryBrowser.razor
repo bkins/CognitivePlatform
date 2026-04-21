@@ -15,7 +15,8 @@
                    Disabled="@_loading" />
 </MudStack>
 
-@if (_loading && _actions.Count == 0)
+@if (_loading 
+  && _actions.Count == 0)
 {
     <MudProgressLinear Indeterminate="true" />
 }
@@ -92,15 +93,24 @@ else if (_error is not null)
                         <MudText Typo="Typo.h5" Style="flex:1">@_selected.Name</MudText>
                         @if (_selected.IsFastPath)
                         {
-                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
+                            <MudChip T="string" 
+                                     Color="Color.Warning" 
+                                     Size="Size.Small" 
+                                     Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
                         }
                         @if (_selected.IsDestructive)
                         {
-                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">Destructive</MudChip>
+                            <MudChip T="string" 
+                                     Color="Color.Error" 
+                                     Size="Size.Small" 
+                                     Icon="@Icons.Material.Filled.Warning">Destructive</MudChip>
                         }
                         @if (_selected.AllowsClarification)
                         {
-                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.HelpOutline">Clarification</MudChip>
+                            <MudChip T="string" 
+                                     Color="Color.Info" 
+                                     Size="Size.Small" 
+                                     Icon="@Icons.Material.Filled.HelpOutline">Clarification</MudChip>
                         }
                     </MudStack>
 
@@ -194,15 +204,22 @@ else if (_error is not null)
                                 <MudText Typo="Typo.subtitle2">Result</MudText>
                                 @if (_invokeResult.Success)
                                 {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Success</MudChip>
+                                    <MudChip T="string" 
+                                             Color="Color.Success" 
+                                             Size="Size.Small">Success</MudChip>
                                 }
                                 else
                                 {
-                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Failed</MudChip>
+                                    <MudChip T="string" 
+                                             Color="Color.Error" 
+                                             Size="Size.Small">Failed</MudChip>
                                 }
                                 @if (_invokeResult.WasFastPath)
                                 {
-                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
+                                    <MudChip T="string" 
+                                             Color="Color.Warning" 
+                                             Size="Size.Small" 
+                                             Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
                                 }
                             </MudStack>
 
@@ -283,7 +300,8 @@ else if (_error is not null)
 
     private async Task InvokeAsync()
     {
-        if (string.IsNullOrWhiteSpace(_invokeInput) || _invoking) return;
+        if (_invokeInput.HasNoValue() 
+         || _invoking) return;
 
         _invoking     = true;
         _invokeResult = null;

@@ -34,37 +34,35 @@ public sealed class AdminJournalController : AdminControllerBase
         var entries      = _store.ListIncludingDeleted<JournalEntry>();
         var allRevisions = _store.List<JournalRevision>();
 
-        var latestByEntry = allRevisions
-            .GroupBy(revision => revision.EntryId)
-            .ToDictionary(group => group.Key
-                        , group => group.OrderByDescending(revision => revision.CreatedUtc).First());
+        var latestByEntry = allRevisions.GroupBy(revision => revision.EntryId)
+                                        .ToDictionary(group => group.Key
+                                                    , group => group.OrderByDescending(revision => revision.CreatedUtc)
+                                                                    .FirstOrDefault());
 
-        var revisionCountByEntry = allRevisions
-            .GroupBy(revision => revision.EntryId)
-            .ToDictionary(group => group.Key
-                        , group => group.Count());
+        var revisionCountByEntry = allRevisions.GroupBy(revision => revision.EntryId)
+                                               .ToDictionary(group => group.Key
+                                                           , group => group.Count());
 
-        var result = entries
-            .Select(entry =>
-            {
-                latestByEntry.TryGetValue(entry.Id, out var latest);
-                revisionCountByEntry.TryGetValue(entry.Id, out var count);
+        var result = entries.Select(entry =>
+                             {
+                                 latestByEntry.TryGetValue(entry.Id, out var latest);
+                                 revisionCountByEntry.TryGetValue(entry.Id, out var count);
 
-                return new
-                {
-                    entry.Id
-                  , entry.CreatedUtc
-                  , IsDeleted     = entry.DeletedUtc is not null
-                  , entry.DeletedReason
-                  , LatestText    = latest?.Text is { Length: > 0 } text
-                                    ? text[..Math.Min(text.Length, 120)]
-                                    : null
-                  , LatestRevisionAt = latest?.CreatedUtc
-                  , RevisionCount    = count
-                };
-            })
-            .OrderByDescending(entry => entry.CreatedUtc)
-            .ToList();
+                                 return new
+                                        {
+                                                entry.Id
+                                              , entry.CreatedUtc
+                                              , IsDeleted     = entry.DeletedUtc is not null
+                                              , entry.DeletedReason
+                                              , LatestText    = latest?.Text is { Length: > 0 } text
+                                                                        ? text[..Math.Min(text.Length, 120)]
+                                                                        : null
+                                              , LatestRevisionAt = latest?.CreatedUtc
+                                              , RevisionCount    = count
+                                        };
+                             })
+                            .OrderByDescending(entry => entry.CreatedUtc)
+                            .ToList();
 
         return Ok(result);
     }
@@ -103,7 +101,7 @@ public sealed class AdminJournalController : AdminControllerBase
     {
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
-        if (string.IsNullOrWhiteSpace(request.Text))
+        if (request.Text.HasNoValue())
             return BadRequest("Text is required.");
 
         // Accept correction even if entry is soft-deleted
@@ -127,6 +125,7 @@ public sealed class AdminJournalController : AdminControllerBase
                        };
 
         var savedId = await _store.Save(revision, id: revision.RevisionId);
+        
         return Ok(new { revisionId = savedId });
     }
 }

@@ -54,11 +54,6 @@ public sealed class KnowledgeController : ControllerBase
         return Ok(_knowledgeService.GetKnowledge(query, ct));
     }
     
-    /*
-     * POST /api/knowledge/{id}/archive
-     * POST /api/knowledge/{id}/delete
-     */
-    
     [HttpPost("{id:guid}/archive")]
     public IActionResult Archive(Guid id, CancellationToken ct)
     {

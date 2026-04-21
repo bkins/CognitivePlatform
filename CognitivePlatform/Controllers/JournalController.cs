@@ -27,16 +27,13 @@ public sealed class JournalController : ControllerBase
     public ActionResult<JournalEntryDto> GetById(Guid id, CancellationToken ct)
     {
         var entryRevision = _journalService.GetById(id.ToString("N"));
-
-        //var entry = _journalService.GetById(id);
-
         var tags = entryRevision.LatestRevision.Tags is { Count: > 0 }
                            ? entryRevision.LatestRevision.Tags
                            : Array.Empty<string>();
 
             var journalEntry = new JournalEntryDto
                                {
-                                       Id        = entryRevision.Entry.Id.ToGuid() // <- This is the same as -> Guid.ParseExact(entryRevision.Entry.Id, "N")
+                                       Id        = entryRevision.Entry.Id.ToGuid()
                                      , Text      = entryRevision.LatestRevision.Text
                                      , CreatedAt = entryRevision.Entry.CreatedUtc
                                      , Tags      = tags

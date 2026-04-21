@@ -16,6 +16,7 @@ public class InterceptingWriter : TextWriter
     public override void Write(string? value)
     {
         var stack = Environment.StackTrace;
+        
         _original.WriteLine($"[RAW WRITE] {value}");
         _original.WriteLine(stack);
         _original.WriteLine(); 
@@ -24,6 +25,7 @@ public class InterceptingWriter : TextWriter
     public override void WriteLine(string? value)
     {
         var stack = Environment.StackTrace;
+        
         _original.WriteLine($"[RAW WRITELINE] {value}");
         _original.WriteLine(stack);
         _original.WriteLine(); 

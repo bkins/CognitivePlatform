@@ -1,6 +1,7 @@
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -44,32 +45,32 @@ public class SystemController : ControllerBase
         var snapshot = _usageTracker.Current;
 
         var response = new
-        {
-                HasData          = snapshot.HasData
-              , CapturedAt       = snapshot.CapturedAt
+                       {
+                               HasData    = snapshot.HasData
+                             , CapturedAt = snapshot.CapturedAt
 
-              , Requests = new
-                           {
-                                   Limit            = snapshot.RequestLimit
-                                 , Remaining        = snapshot.RequestsRemaining
-                                 , Used             = snapshot.RequestsUsed
-                                 , UsagePercent     = snapshot.RequestUsagePercent
-                                 , ResetRaw         = snapshot.RequestsResetRaw
-                                 , ResetApproxLocal = FormatResetTime(snapshot.RequestsResetRaw
-                                                                    , snapshot.RequestsResetAt)
-                           }
+                             , Requests = new
+                                          {
+                                                  Limit        = snapshot.RequestLimit
+                                                , Remaining    = snapshot.RequestsRemaining
+                                                , Used         = snapshot.RequestsUsed
+                                                , UsagePercent = snapshot.RequestUsagePercent
+                                                , ResetRaw     = snapshot.RequestsResetRaw
+                                                , ResetApproxLocal = FormatResetTime(snapshot.RequestsResetRaw
+                                                                                   , snapshot.RequestsResetAt)
+                                          }
 
-              , Tokens = new
-                         {
-                                 Limit            = snapshot.TokenLimit
-                               , Remaining        = snapshot.TokensRemaining
-                               , Used             = snapshot.TokensUsed
-                               , UsagePercent     = snapshot.TokenUsagePercent
-                               , ResetRaw         = snapshot.TokensResetRaw
-                               , ResetApproxLocal = FormatResetTime(snapshot.TokensResetRaw
-                                                                   , snapshot.TokensResetAt)
-                         }
-        };
+                             , Tokens = new
+                                        {
+                                                Limit        = snapshot.TokenLimit
+                                              , Remaining    = snapshot.TokensRemaining
+                                              , Used         = snapshot.TokensUsed
+                                              , UsagePercent = snapshot.TokenUsagePercent
+                                              , ResetRaw     = snapshot.TokensResetRaw
+                                              , ResetApproxLocal = FormatResetTime(snapshot.TokensResetRaw
+                                                                                 , snapshot.TokensResetAt)
+                                        }
+                       };
 
         var systemEvent = new SystemControllerEvent
                           {
@@ -80,7 +81,8 @@ public class SystemController : ControllerBase
                                                , { "CapturedAt", snapshot.CapturedAt }
                                                , { "RequestsRemaining", snapshot.RequestsRemaining }
                                                , { "TokensRemaining", snapshot.TokensRemaining }
-                                               , { "Resets", $"{response.Requests.ResetApproxLocal} (Requests), {response.Tokens.ResetApproxLocal} (Tokens)" }
+                                               , { "Resets", $"{response.Requests.ResetApproxLocal} (Requests)"
+                                                           + $", {response.Tokens.ResetApproxLocal} (Tokens)" }
                                          }
                           };
         
@@ -116,13 +118,14 @@ public class SystemController : ControllerBase
     /// </summary>
     private static string FormatResetTime(string raw, DateTimeOffset? resetAt)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
             return string.Empty;
 
         if (resetAt is null)
             return raw;
 
         var localTime = resetAt.Value.ToLocalTime().ToString("h:mm tt");
+        
         return $"{raw} (~{localTime})";
     }
 }

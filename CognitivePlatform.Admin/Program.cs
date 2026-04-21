@@ -1,6 +1,7 @@
 using CognitivePlatform.Admin;
 using CognitivePlatform.Admin.CpAdminClients;
 using CognitivePlatform.Admin.Services;
+using CP.Shared.Primitives.Avails.Extensions;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,7 +44,7 @@ builder.Services
 
 var app = builder.Build();
 
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment().Not())
 {
     app.UseExceptionHandler("/Error");
     app.UseHsts();

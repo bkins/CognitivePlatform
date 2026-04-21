@@ -13,10 +13,10 @@ public sealed class AdminSystemController : AdminControllerBase
     private readonly IGroqUsageTracker   _usageTracker;
 
     public AdminSystemController( IConfiguration      configuration
-                                , SqliteObjectStore    store
-                                , IWebHostEnvironment  hostEnvironment
-                                , IGroqUsageTracker    usageTracker)
-        : base(configuration)
+                                , SqliteObjectStore   store
+                                , IWebHostEnvironment hostEnvironment
+                                , IGroqUsageTracker   usageTracker )
+            : base(configuration)
     {
         _store           = store;
         _hostEnvironment = hostEnvironment;

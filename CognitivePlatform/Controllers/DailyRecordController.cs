@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.DailyRecord;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -30,7 +31,8 @@ public sealed class DailyRecordController : ControllerBase
     [HttpGet("{date}")]
     public ActionResult<DailyRecord> GetByDate([FromRoute] string date)
     {
-        if (!DateOnly.TryParse(date, out var dateOnly))
+        if (DateOnly.TryParse(date, out var dateOnly)
+                    .Not())
             return BadRequest("Date must be in yyyy-MM-dd format (e.g. 2026-04-19).");
 
         var record = _dailyRecordService.GetByDate(dateOnly);
@@ -49,13 +51,16 @@ public sealed class DailyRecordController : ControllerBase
     public ActionResult<IReadOnlyList<DailyRecord>> GetRange( [FromQuery] string? from
                                                              , [FromQuery] string? to )
     {
-        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+        var noFrom = from?.HasNoValue() ?? true;
+        var noTo   = to?.HasNoValue()   ?? true;
+        
+        if (noFrom || noTo)
             return BadRequest("Both 'from' and 'to' query parameters are required (yyyy-MM-dd).");
 
-        if (!DateOnly.TryParse(from, out var fromDate))
+        if (DateOnly.TryParse(from, out var fromDate).Not())
             return BadRequest("'from' must be in yyyy-MM-dd format.");
 
-        if (!DateOnly.TryParse(to, out var toDate))
+        if (DateOnly.TryParse(to, out var toDate).Not())
             return BadRequest("'to' must be in yyyy-MM-dd format.");
 
         if (fromDate > toDate)

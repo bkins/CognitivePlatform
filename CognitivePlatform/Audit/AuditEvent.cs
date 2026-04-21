@@ -35,6 +35,6 @@ public sealed class AuditEvent
 
 public enum AuditOutcome
 {
-    Success,
-    Failure
+    Success
+  , Failure
 }

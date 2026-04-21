@@ -14,8 +14,7 @@ public class ObjectStoreIdempotencyStore : IIdempotencyStore
 
     public Task<ConverseResponse?> TryGetAsync(Guid clientRequestId, CancellationToken ct)
     {
-        var id = clientRequestId.ToString("N");
-
+        var id     = clientRequestId.ToString("N");
         var record = _store.Get<ProcessedRequest>(id);
 
         if (record is null)
@@ -29,12 +28,11 @@ public class ObjectStoreIdempotencyStore : IIdempotencyStore
     public Task StoreAsync(Guid clientRequestId, ConverseResponse response, CancellationToken ct)
     {
         var id = clientRequestId.ToString("N");
-
         var record = new ProcessedRequest
                      {
-                             Id = id
+                             Id           = id
                            , ResponseJson = JsonSerializer.Serialize(response)
-                           , CreatedUtc = DateTimeOffset.UtcNow
+                           , CreatedUtc   = DateTimeOffset.UtcNow
                      };
 
         _store.Save(record);

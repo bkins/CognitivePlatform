@@ -133,11 +133,12 @@ public class DailyRecordActions
         if (checkpoint.CompletedTaskIds.Count > 0)
             parts.Add($"{checkpoint.CompletedTaskIds.Count} task(s) completed.");
 
-        if (checkpoint.AddedTaskIds.Count > 0)
-        {
-            var addedList = BuildTaskList(checkpoint.AddedTaskIds);
-            parts.Add($"{checkpoint.AddedTaskIds.Count} new task(s) added:\n{addedList}");
-        }
+        if (checkpoint.AddedTaskIds.Count <= 0)
+            return string.Join(' ', parts);
+        
+        var addedList = BuildTaskList(checkpoint.AddedTaskIds);
+        
+        parts.Add($"{checkpoint.AddedTaskIds.Count} new task(s) added:\n{addedList}");
 
         return string.Join(' ', parts);
     }
@@ -157,30 +158,28 @@ public class DailyRecordActions
           ]
         , Category            = "daily"
         , AllowsClarification = false)]
-    public async Task<string> CloseDay(
-          [NaturalLanguageParam(Description = "The closing text — the user's reflection on the day."
-                              , Optional    = false
-                              , AllowEmpty  = false)]
-          string closingText
+    public async Task<string> CloseDay( [NaturalLanguageParam(Description = "The closing text — the user's reflection on the day."
+                                                            , Optional    = false
+                                                            , AllowEmpty  = false)]
+                                        string closingText
 
-        , [NaturalLanguageParam(Description = "The user's end-of-day mood label."
-                              , Optional    = true)]
-          string? mood = null
+                                      , [NaturalLanguageParam(Description = "The user's end-of-day mood label."
+                                                            , Optional    = true)]
+                                        string? mood = null
 
-        , [NaturalLanguageParam(Description = "Mood score from 1 (lowest) to 5 (highest)."
-                              , Optional    = true)]
-          int? moodScore = null)
+                                      , [NaturalLanguageParam(Description = "Mood score from 1 (lowest) to 5 (highest)."
+                                                            , Optional    = true)]
+                                        int? moodScore = null)
     {
         var record = await _dailyRecordService.CloseDayAsync(closingText, mood, moodScore);
-
         var rolloverCount = record.PlannedTaskIds.Count
                           + record.ReactiveTaskIds.Count
                           - record.CompletedTaskCount;
-
+        
         var rolloverNote = rolloverCount > 0
                                ? $" {rolloverCount} task(s) rolled over to tomorrow."
                                : string.Empty;
-
+        
         var plannedSummary = record.PlannedTaskCount > 0
                                  ? $"{record.CompletedTaskCount}/{record.PlannedTaskCount} planned tasks completed"
                                  + $" ({(int)(record.CompletionRate * 100)}%)."
@@ -198,17 +197,16 @@ public class DailyRecordActions
     // =========================================================================
 
     [FastPath]
-    [NaturalLanguageAction(
-          Description         = "List today's planned and reactive tasks with their position numbers. Position numbers can be used to complete or delete a task (e.g. 'complete task 3')."
-        , Examples            =
-          [
-                  "What are my tasks today?"
-                , "List today's tasks"
-                , "Show me today's plan"
-                , "What's on my plate today?"
-          ]
-        , Category            = "daily"
-        , AllowsClarification = false)]
+    [NaturalLanguageAction(Description         = "List today's planned and reactive tasks with their position numbers. Position numbers can be used to complete or delete a task (e.g. 'complete task 3')."
+                         , Examples            =
+                           [
+                                   "What are my tasks today?"
+                                 , "List today's tasks"
+                                 , "Show me today's plan"
+                                 , "What's on my plate today?"
+                           ]
+                         , Category            = "daily"
+                         , AllowsClarification = false)]
     public string ListTodaysTasks()
     {
         var record = _dailyRecordService.GetToday();
@@ -216,7 +214,8 @@ public class DailyRecordActions
         if (record is null)
             return "No plan for today yet. Submit a Plan: to start your day.";
 
-        if (record.PlannedTaskIds.Count == 0 && record.ReactiveTaskIds.Count == 0)
+        if (record.PlannedTaskIds.Count == 0 
+         && record.ReactiveTaskIds.Count == 0)
             return $"Today's plan ({record.Id}) has no tasks yet.";
 
         // Build a position map for all currently active (incomplete) tasks
@@ -239,7 +238,10 @@ public class DailyRecordActions
                                     ? $"#{pos,-3}"
                                     : "    ";
 
-                var categoryTag = category == "reactive" ? " [reactive]" : string.Empty;
+                var categoryTag = category == "reactive" 
+                                          ? " [reactive]" 
+                                          : string.Empty;
+                
                 lines.Add($"  {status} {position}  {task.ShortDescription}{categoryTag}");
             }
         }

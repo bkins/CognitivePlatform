@@ -1,3 +1,5 @@
+using CP.Shared.Primitives.Avails.Extensions;
+
 namespace CognitivePlatform.Admin.Services;
 
 /// <summary>
@@ -10,8 +12,8 @@ public sealed class AdminSessionService
 
     public bool TryAuthenticate(string passphrase, string expectedSecret)
     {
-        if (string.IsNullOrWhiteSpace(passphrase)
-         || string.IsNullOrWhiteSpace(expectedSecret))
+        if (passphrase.HasNoValue()
+         || expectedSecret.HasNoValue())
             return false;
 
         IsAuthenticated = string.Equals(passphrase

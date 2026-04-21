@@ -21,8 +21,7 @@ public sealed class AdminSecretHandler : DelegatingHandler
     {
         var secret = _configuration["AdminSettings:AdminSecret"];
 
-        if (string.IsNullOrWhiteSpace(secret).Not())
-            request.Headers.TryAddWithoutValidation("X-Admin-Secret", secret);
+        if (secret.HasValue()) request.Headers.TryAddWithoutValidation("X-Admin-Secret", secret);
 
         return base.SendAsync(request, ct);
     }

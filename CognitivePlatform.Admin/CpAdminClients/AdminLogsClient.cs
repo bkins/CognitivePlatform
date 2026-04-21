@@ -18,13 +18,11 @@ public sealed class AdminLogsClient : IAdminLogsClient
     {
         var url = $"api/admin/logs?take={take}";
 
-        if (string.IsNullOrWhiteSpace(level).Not())
-            url += $"&level={Uri.EscapeDataString(level!)}";
-
-        if (string.IsNullOrWhiteSpace(search).Not())
-            url += $"&search={Uri.EscapeDataString(search!)}";
+        if (level.HasValue()) url += $"&level={Uri.EscapeDataString(level!)}";
+        if (search.HasValue()) url += $"&search={Uri.EscapeDataString(search!)}";
 
         var result = await _http.GetFromJsonAsync<List<LogEntryDto>>(url, ct);
+        
         return result ?? [];
     }
 

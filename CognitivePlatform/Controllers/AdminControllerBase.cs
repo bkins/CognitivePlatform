@@ -1,3 +1,4 @@
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -29,7 +30,7 @@ public abstract class AdminControllerBase : ControllerBase
     {
         var expectedSecret = _configuration["AdminSettings:AdminSecret"];
 
-        if (string.IsNullOrWhiteSpace(expectedSecret))
+        if (expectedSecret.HasNoValue())
             return false;
 
         Request.Headers.TryGetValue("X-Admin-Secret", out var providedSecret);

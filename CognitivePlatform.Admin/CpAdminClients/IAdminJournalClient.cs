@@ -6,12 +6,12 @@ namespace CognitivePlatform.Admin.CpAdminClients;
 /// </summary>
 public interface IAdminJournalClient
 {
-    Task<IReadOnlyList<JournalEntryAdminDto>> GetEntriesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<JournalEntryAdminDto>> GetEntriesAsync( CancellationToken ct = default );
 
     Task<IReadOnlyList<JournalRevisionAdminDto>> GetRevisionsAsync( string            entryId
-                                                                   , CancellationToken ct = default);
+                                                                  , CancellationToken ct = default );
 
-    Task<string?> AddCorrectionAsync( string                     entryId
+    Task<string?> AddCorrectionAsync( string                       entryId
                                     , AddCorrectionRevisionRequest request
-                                    , CancellationToken            ct = default);
+                                    , CancellationToken            ct = default );
 }

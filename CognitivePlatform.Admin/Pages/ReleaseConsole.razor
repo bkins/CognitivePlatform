@@ -346,7 +346,9 @@
         _running  = true;
         _exitCode = null;
         _runError = null;
+        
         _output.Clear();
+        
         _cts = new CancellationTokenSource();
 
         StateHasChanged();
@@ -357,6 +359,7 @@
             {
                 _output.Add(new($"$ {exe} {args}", false));
                 _output.Add(new(string.Empty, false));
+                
                 await InvokeAsync(StateHasChanged);
                 await ScrollToBottomAsync();
 
@@ -376,7 +379,9 @@
                 _process.OutputDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
+                    
                     _output.Add(new(eventArgs.Data, false));
+                    
                     await InvokeAsync(StateHasChanged);
                     await ScrollToBottomAsync();
                 };
@@ -384,7 +389,9 @@
                 _process.ErrorDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
+                    
                     _output.Add(new(eventArgs.Data, true));
+                    
                     await InvokeAsync(StateHasChanged);
                     await ScrollToBottomAsync();
                 };
@@ -395,18 +402,22 @@
                     _process.Start();
                     _process.BeginOutputReadLine();
                     _process.BeginErrorReadLine();
+                    
                     await _process.WaitForExitAsync(_cts.Token);
+                    
                     _exitCode = _process.ExitCode;
                 }
                 catch (OperationCanceledException)
                 {
                     _output.Add(new("[Aborted by user]", true));
+                    
                     stepAborted = true;
                 }
                 catch (Exception ex)
                 {
                     _runError = ex.Message;
                     _output.Add(new($"[Error: {ex.Message}]", true));
+                    
                     stepAborted = true;
                 }
                 finally
@@ -415,7 +426,8 @@
                     _process = null;
                 }
 
-                if (stepAborted || _exitCode != 0) break;
+                if (stepAborted 
+                 || _exitCode != 0) break;
 
                 // blank separator between pipeline steps
                 _output.Add(new(string.Empty, false));
@@ -432,6 +444,7 @@
     private void Abort()
     {
         _cts?.Cancel();
+        
         try { _process?.Kill(entireProcessTree: true); }
         catch { /* process may have already exited */ }
     }
@@ -450,18 +463,17 @@
             await Js.InvokeVoidAsync("eval"
                                    , "var el=document.getElementById('terminal-end');if(el)el.scrollIntoView({behavior:'instant'});");
         }
-        catch
-        {
-            // Ignore errors during disposal or when the DOM is not ready
-        }
+        catch { /* Ignore errors during disposal or when the DOM is not ready*/ }
     }
 
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();
         _cts?.Dispose();
+        
         try { _process?.Kill(entireProcessTree: true); }
         catch { /* ignore */ }
+        
         _process?.Dispose();
     }
 }

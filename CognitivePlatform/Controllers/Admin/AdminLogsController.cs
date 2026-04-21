@@ -29,6 +29,7 @@ public sealed class AdminLogsController : AdminControllerBase
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
         var entries = _logStore.GetRecent(take, level, search);
+        
         return Ok(entries);
     }
 
@@ -39,6 +40,7 @@ public sealed class AdminLogsController : AdminControllerBase
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
         _logStore.Clear();
+        
         return NoContent();
     }
 }

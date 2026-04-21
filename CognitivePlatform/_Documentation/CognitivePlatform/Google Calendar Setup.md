@@ -1,4 +1,5 @@
 # Google Calendar Setup — Step-by-Step Guide
+>This has been done. Kept for prosperity
 
 This guide covers everything needed to connect the Cognitive Platform to Google Calendar.
 Complete these steps once before implementing `GoogleCalendarProvider` (see DEFERRED.md item 1).

@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\..\Application Documentation\The CP Universe\Complete Universe.md">
+    <Content Include="..\..\..\Application Documentation\The CP Universe\_Core\Complete Universe.md">
       <Link>_Documentation\Complete Universe.md</Link>
     </Content>
   </ItemGroup>

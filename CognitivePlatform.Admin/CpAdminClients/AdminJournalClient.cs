@@ -14,6 +14,7 @@ public sealed class AdminJournalClient : IAdminJournalClient
     public async Task<IReadOnlyList<JournalEntryAdminDto>> GetEntriesAsync(CancellationToken ct = default)
     {
         var result = await _http.GetFromJsonAsync<List<JournalEntryAdminDto>>("api/admin/journal/entries", ct);
+        
         return result ?? [];
     }
 
@@ -37,6 +38,7 @@ public sealed class AdminJournalClient : IAdminJournalClient
         if (response.IsSuccessStatusCode.Not()) return null;
 
         var result = await response.Content.ReadFromJsonAsync<CorrectionResultDto>(cancellationToken: ct);
+        
         return result?.RevisionId;
     }
 

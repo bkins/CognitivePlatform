@@ -1,5 +1,7 @@
 using System.Text;
 using CognitivePlatform.Api.Integrations.Calendar;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
@@ -9,23 +11,26 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 ///   1. Do It Now — tasks that are both Important and Urgent (Eisenhower Q1).
 ///   2. Due Today or Overdue — any active task whose due date is today or earlier.
 ///   3. Today's Calendar — events from the connected Google Calendar for the current day.
-///      The calendar section is omitted entirely when <see cref="ICalendarProvider.IsConnected"/>
-///      is false, keeping the brief clean for users who have not set up calendar access.
+///      The calendar section is omitted when <see cref="ICalendarProvider"/> is null,
+///      <see cref="ICalendarProvider.IsConnected"/> is false, or the provider throws.
 ///
 /// Sections 1 and 2 are always present. A task can appear in both (e.g. an Important+Urgent
 /// task due today), which is a useful signal to the user.
 /// </summary>
 public class DailyBriefService : IDailyBriefService
 {
-    private readonly ITaskService       _taskService;
-    private readonly ICalendarProvider  _calendar;
-    private readonly EisenhowerReasoner _eisenhower = new();
+    private readonly ITaskService               _taskService;
+    private readonly ICalendarProvider?         _calendar;
+    private readonly ILogger<DailyBriefService> _logger;
+    private readonly EisenhowerReasoner         _eisenhower = new();
 
-    public DailyBriefService( ITaskService      taskService
-                             , ICalendarProvider calendarProvider )
+    public DailyBriefService( ITaskService                  taskService
+                             , ICalendarProvider?             calendarProvider = null
+                             , ILogger<DailyBriefService>?   logger           = null )
     {
-        _taskService = taskService      ?? throw new ArgumentNullException(nameof(taskService));
-        _calendar    = calendarProvider ?? throw new ArgumentNullException(nameof(calendarProvider));
+        _taskService = taskService ?? throw new ArgumentNullException(nameof(taskService));
+        _calendar    = calendarProvider;
+        _logger      = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
     public string GetBrief()
@@ -81,46 +86,53 @@ public class DailyBriefService : IDailyBriefService
         }
 
         // ---- Today's Calendar ----
-        if (_calendar.IsConnected)
+        if (_calendar is not null && _calendar.IsConnected)
         {
-            var todayStart = new DateTimeOffset(today,          TimeSpan.Zero);
-            var todayEnd   = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
-
-            // Sync bridge: DailyBrief is intentionally sync; async promotion tracked in DEFERRED.md
-            var calEvents = _calendar.GetEventsAsync(todayStart, todayEnd)
-                                     .GetAwaiter()
-                                     .GetResult();
-
-            sb.AppendLine();
-            sb.AppendLine("--- Today's Calendar ---");
-
-            if (calEvents.Count == 0)
+            try
             {
-                sb.AppendLine("  (no events)");
-            }
-            else
-            {
-                foreach (var evt in calEvents)
+                var todayStart = new DateTimeOffset(today,            TimeSpan.Zero);
+                var todayEnd   = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
+
+                // Sync bridge: DailyBrief is intentionally sync; async promotion tracked in DEFERRED.md
+                var calEvents = _calendar.GetEventsAsync(todayStart, todayEnd)
+                                         .GetAwaiter()
+                                         .GetResult();
+
+                sb.AppendLine();
+                sb.AppendLine("--- Today's Calendar ---");
+
+                if (calEvents.Count == 0)
                 {
-                    if (evt.IsAllDay)
-                    {
-                        sb.Append($"• (all day) — {evt.Title}");
-                    }
-                    else
-                    {
-                        var evtStart = evt.StartUtc.ToLocalTime();
-                        var evtEnd   = evt.EndUtc.ToLocalTime();
-                        sb.Append($"• {evtStart:HH:mm}–{evtEnd:HH:mm} — {evt.Title}");
-                    }
-
-                    if (evt.Location is not null)
-                        sb.Append($" @ {evt.Location}");
-
-                    if (evt.CalendarName is not null)
-                        sb.Append($" [{evt.CalendarName}]");
-
-                    sb.AppendLine();
+                    sb.AppendLine("  (no events)");
                 }
+                else
+                {
+                    foreach (var evt in calEvents)
+                    {
+                        if (evt.IsAllDay)
+                        {
+                            sb.Append($"• (all day) — {evt.Title}");
+                        }
+                        else
+                        {
+                            var evtStart = evt.StartUtc.ToLocalTime();
+                            var evtEnd   = evt.EndUtc.ToLocalTime();
+                            sb.Append($"• {evtStart:HH:mm}–{evtEnd:HH:mm} — {evt.Title}");
+                        }
+
+                        if (evt.Location is not null)
+                            sb.Append($" @ {evt.Location}");
+
+                        if (evt.CalendarName is not null)
+                            sb.Append($" [{evt.CalendarName}]");
+
+                        sb.AppendLine();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Today's Calendar section omitted: calendar provider threw");
             }
         }
 

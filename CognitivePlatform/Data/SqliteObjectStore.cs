@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json;
-using CognitivePlatform.Api.Avails.Extensions;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Data.Sqlite;
 
 namespace CognitivePlatform.Api.Data;
@@ -80,9 +80,8 @@ public class SqliteObjectStore : IObjectStore
         var typeName = type.FullName ?? type.Name;
         var objectId = ResolveAndApplyId(value, id);
 
-        var nowString = DateTimeOffset
-                       .UtcNow
-                       .ToString("O");
+        var nowString = DateTimeOffset.UtcNow
+                                      .ToString("O");
 
         var json = JsonSerializer.Serialize(value
                                            , _jsonOptions);
@@ -121,7 +120,7 @@ public class SqliteObjectStore : IObjectStore
     public T? Get<T> (string id
                     , string? partitionKey = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("Value cannot be null or whitespace."
                                       , nameof(id));
 
@@ -162,7 +161,7 @@ public class SqliteObjectStore : IObjectStore
     public T? GetDeleted<T> (string  id
                     , string? partitionKey = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("Value cannot be null or whitespace."
                                       , nameof(id));
 
@@ -230,7 +229,8 @@ public class SqliteObjectStore : IObjectStore
                                       , toUtc?.ToString("O") ?? (object)DBNull.Value);
 
         using var reader = command.ExecuteReader();
-        var         list = new List<T>();
+
+        var list = new List<T>();
 
         while (reader.Read())
         {
@@ -248,15 +248,14 @@ public class SqliteObjectStore : IObjectStore
     public bool SoftDelete<T> (string id
                              , string? partitionKey = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("Value cannot be null or whitespace."
                                       , nameof(id));
 
         var type     = typeof(T);
         var typeName = type.FullName ?? type.Name;
-        var now      = DateTimeOffset
-                      .UtcNow
-                      .ToString("O");
+        var now      = DateTimeOffset.UtcNow
+                                     .ToString("O");
 
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
@@ -292,7 +291,7 @@ public class SqliteObjectStore : IObjectStore
     public bool HardDelete<T> (string  id
                               , string? partitionKey = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
 
         var type     = typeof(T);
@@ -350,7 +349,8 @@ public class SqliteObjectStore : IObjectStore
         command.Parameters.AddWithValue("$toUtc",        toUtc?.ToString("O") ?? (object)DBNull.Value);
 
         using var reader = command.ExecuteReader();
-        var         list = new List<T>();
+
+        var list = new List<T>();
 
         while (reader.Read())
         {
@@ -406,7 +406,7 @@ public class SqliteObjectStore : IObjectStore
     public bool Undelete<T> (string  id
                             , string? partitionKey = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
 
         var type     = typeof(T);
@@ -445,21 +445,20 @@ public class SqliteObjectStore : IObjectStore
 
         var effectiveId = explicitId;
 
-        if (effectiveId.DoesNotHaveValueOrIsNullOrEmpty()
+        if (effectiveId?.HasNoValue() ?? true
          && idProperty is not null)
         {
-            var current = idProperty.GetValue(value) as string;
+            var current = idProperty?.GetValue(value) as string;
             
             if (current.HasValue()) effectiveId = current;
         }
 
-        if (string.IsNullOrWhiteSpace(effectiveId))
+        if (effectiveId?.HasNoValue() ?? true)
             effectiveId = Guid.NewGuid()
                               .ToString("N");
 
-        if (idProperty is not null)
-            idProperty.SetValue(value
-                               , effectiveId);
+        idProperty?.SetValue(value
+                           , effectiveId);
 
         return effectiveId;
     }
@@ -467,8 +466,8 @@ public class SqliteObjectStore : IObjectStore
     private static PropertyInfo? GetIdProperty(Type type)
     {
         return IdPropertyCache.GetOrAdd(type
-                                      , t => t.GetProperty("Id"
-                                                          , BindingFlags.Public
-                                                          | BindingFlags.Instance));
+                                      , theType => theType.GetProperty("Id"
+                                                                     , BindingFlags.Public
+                                                                     | BindingFlags.Instance));
     }
 }

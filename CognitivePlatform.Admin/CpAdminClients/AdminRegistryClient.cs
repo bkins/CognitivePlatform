@@ -14,6 +14,7 @@ public sealed class AdminRegistryClient : IAdminRegistryClient
     public async Task<IReadOnlyList<ActionMetadataDto>> GetActionsAsync(CancellationToken ct = default)
     {
         var result = await _http.GetFromJsonAsync<List<ActionMetadataDto>>("api/admin/registry", ct);
+        
         return result ?? [];
     }
 

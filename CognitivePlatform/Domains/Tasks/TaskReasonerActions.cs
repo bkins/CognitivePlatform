@@ -22,20 +22,20 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public class TaskReasonerActions
 {
-    private readonly ITaskService       _taskService;
-    private readonly IJournalService    _journalService;
-    private readonly ILlmClient         _llmClient;
-    private readonly ICalendarProvider  _calendar;
+    private readonly ITaskService        _taskService;
+    private readonly IJournalService     _journalService;
+    private readonly ILlmClient          _llmClient;
+    private readonly ICalendarProvider?  _calendar;
 
-    public TaskReasonerActions( ITaskService      taskService
-                              , IJournalService   journalService
-                              , ILlmClient        llmClient
-                              , ICalendarProvider calendarProvider )
+    public TaskReasonerActions( ITaskService       taskService
+                              , IJournalService    journalService
+                              , ILlmClient         llmClient
+                              , ICalendarProvider? calendarProvider = null )
     {
-        _taskService    = taskService      ?? throw new ArgumentNullException(nameof(taskService));
-        _journalService = journalService   ?? throw new ArgumentNullException(nameof(journalService));
-        _llmClient      = llmClient        ?? throw new ArgumentNullException(nameof(llmClient));
-        _calendar       = calendarProvider ?? throw new ArgumentNullException(nameof(calendarProvider));
+        _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
+        _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
+        _llmClient      = llmClient      ?? throw new ArgumentNullException(nameof(llmClient));
+        _calendar       = calendarProvider;
     }
 
     [NaturalLanguageAction(

@@ -20,7 +20,9 @@ public sealed class DebugFastPath
     [NaturalLanguageAction(Description = "Shows diagnostic information about all FastPath-enabled actions."
                          , Examples = new[]
                                       {
-                                              "Show fast path diagnostics.", "Debug fast path actions.", "What actions support fast-path?"
+                                              "Show fast path diagnostics."
+                                            , "Debug fast path actions."
+                                            , "What actions support fast-path?"
                                       }
                          , AllowsClarification = false
                          , Category = "debug")]

@@ -19,7 +19,8 @@
                    Disabled="@_loading" />
 </MudStack>
 
-@if (_loading && _stats is null)
+@if (_loading 
+  && _stats is null)
 {
     <MudProgressLinear Indeterminate="true" />
 }
@@ -123,25 +124,24 @@ else if (_error is not null)
 }
 
 @code {
-    private SystemStatsResponse?      _stats;
-    private bool                      _loading;
-    private string?                   _error;
-    private DateTime?                 _lastRefreshed;
-    private System.Threading.Timer?   _refreshTimer;
+    private SystemStatsResponse? _stats;
+    private bool                 _loading;
+    private string?              _error;
+    private DateTime?            _lastRefreshed;
+    private Timer?               _refreshTimer;
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
 
-        _refreshTimer = new System.Threading.Timer(
-            async _ =>
-            {
-                await RefreshAsync();
-                await InvokeAsync(StateHasChanged);
-            }
-          , null
-          , TimeSpan.FromSeconds(30)
-          , TimeSpan.FromSeconds(30));
+        _refreshTimer = new Timer(async _ =>
+                                  {
+                                      await RefreshAsync();
+                                      await InvokeAsync(StateHasChanged);
+                                  }
+                                , null
+                                , TimeSpan.FromSeconds(30)
+                                , TimeSpan.FromSeconds(30));
     }
 
     private async Task RefreshAsync()
