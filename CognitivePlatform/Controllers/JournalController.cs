@@ -40,7 +40,7 @@ public sealed class JournalController : ControllerBase
                                      , Mood      = entryRevision.LatestRevision.Mood
                                      , MoodScore = entryRevision.LatestRevision.MoodScore
                                      , State     = entryRevision.LatestRevision.State
-
+                                     , IsEdited  = entryRevision.IsEdited
                                };
         return Ok(journalEntry);
 
