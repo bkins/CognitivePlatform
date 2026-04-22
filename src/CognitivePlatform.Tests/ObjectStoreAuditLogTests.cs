@@ -20,11 +20,11 @@ public class ObjectStoreAuditLogTests
     }
 
     // ================================================================
-    // APPEND
+    // APPEND ASYNC
     // ================================================================
 
     [Fact]
-    public void Append_CallsStoreSave_WithEventAndId()
+    public async Task AppendAsync_CallsStoreSave_WithEventAndId()
     {
         var evt = new AuditEvent
                   {
@@ -32,17 +32,17 @@ public class ObjectStoreAuditLogTests
                         , Outcome    = AuditOutcome.Success
                   };
 
-        _log.Append(evt);
+        await _log.AppendAsync(evt);
 
         _storeMock.Verify(s => s.Save(evt, null, evt.Id), Times.Once);
     }
 
     [Fact]
-    public void Append_DoesNotThrow_WhenStoreSucceeds()
+    public async Task AppendAsync_DoesNotThrow_WhenStoreSucceeds()
     {
         var evt = new AuditEvent { ActionName = "TestAction", Outcome = AuditOutcome.Failure };
 
-        var exception = Record.Exception(() => _log.Append(evt));
+        var exception = await Record.ExceptionAsync(() => _log.AppendAsync(evt));
 
         Assert.Null(exception);
     }

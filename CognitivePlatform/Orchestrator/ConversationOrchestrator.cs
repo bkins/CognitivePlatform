@@ -122,9 +122,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive == false)
         {
-            var response = TakeTheFastPath(actionMeta
-                                         , fastParams
-                                         , context);
+            var response = await TakeTheFastPath(actionMeta
+                                              , fastParams
+                                              , context
+                                              , ct);
 
             return await FinalizeAsync(request, response, sw, ct);
         }
@@ -164,7 +165,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                        , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
-                    var result     = _execution.Execute(confirmedAction, execParams, context.SessionId);
+                    var result     = await _execution.ExecuteAsync(confirmedAction, execParams, context.SessionId, ct);
 
                     var confirmationResponse = new ConverseResponse
                                                {
@@ -236,7 +237,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = null;
 
                 var finalParameters = ApplyDefaultValues(action, pending.CollectedParameters);
-                var execOutput      = _execution.Execute(action, finalParameters, context.SessionId);
+                var execOutput      = await _execution.ExecuteAsync(action, finalParameters, context.SessionId, ct);
 
                 _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                        {
@@ -302,7 +303,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.PendingAction = null;
 
             var parameters  = ApplyDefaultValues(action, pending.CollectedParameters);
-            var finalOutput = _execution.Execute(action, parameters, context.SessionId);
+            var finalOutput = await _execution.ExecuteAsync(action, parameters, context.SessionId, ct);
 
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
@@ -596,9 +597,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
             return await FinalizeAsync(request, response, sw, ct);
         }
         
-        // 9. Execute (sync) with whatever parameters we have (including defaults for optionals)
+        // 9. Execute with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
-        var execOutputFinal = _execution.Execute(selectedAction, execParameters, context.SessionId);
+        var execOutputFinal = await _execution.ExecuteAsync(selectedAction, execParameters, context.SessionId, ct);
 
         // Insight Engine — runs after execution; only pays LLM cost when insights exist
         var insights = await _insightEngine.GenerateInsightsAsync(context, ct);
@@ -632,9 +633,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         return await FinalizeAsync(request, finalResponse, sw, ct);
     }
 
-    private ConverseResponse TakeTheFastPath( ActionMetadata?             actionMeta
-                                            , Dictionary<string, string>? fastParams
-                                            , ConversationContext         context )
+    private async Task<ConverseResponse> TakeTheFastPath( ActionMetadata?             actionMeta
+                                                        , Dictionary<string, string>? fastParams
+                                                        , ConversationContext         context
+                                                        , CancellationToken           ct = default )
     {
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                        {
@@ -664,7 +666,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                    };
         }
 
-        var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+        var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
 
         var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}: {pair.Value}"));
 
@@ -769,7 +771,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //     await _journalDraftRepository.AddAsync(draft, ct);
             // }
             
-            var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+            var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
                                                            Details = $"FastPath.Executed.Stream; Action={actionMeta.Name}; Result {result}\n"

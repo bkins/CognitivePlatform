@@ -5,10 +5,10 @@ namespace CognitivePlatform.Api.Execution;
 public interface IExecutionEngine
 {
     /// <summary>
-    /// Executes the given action and returns a human-readable result.
-    /// Phase 1: no parameter binding, no DI, no safety.
+    /// Executes the given action asynchronously and returns a human-readable result.
     /// </summary>
-    string Execute( ActionMetadata              action
-                  , IDictionary<string, string> arguments
-                  , string                      sessionId );
+    Task<string> ExecuteAsync( ActionMetadata              action
+                             , IDictionary<string, string> arguments
+                             , string                      sessionId
+                             , CancellationToken           ct = default );
 }

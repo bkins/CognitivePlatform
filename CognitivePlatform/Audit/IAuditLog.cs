@@ -5,15 +5,14 @@ namespace CognitivePlatform.Api.Audit;
 /// results in exactly one AuditEvent being written here.
 ///
 /// Future evolution (see DEFERRED.md):
-/// - Add async AppendAsync for when ExecutionEngine is made async
 /// - Add filtering by ActionName, Outcome, SessionId
 /// - Add /audit/list HTTP endpoint
 /// - Add retention / rotation policy
 /// </summary>
 public interface IAuditLog
 {
-    /// <summary>Records one audit event synchronously.</summary>
-    void Append(AuditEvent auditEvent);
+    /// <summary>Records one audit event asynchronously.</summary>
+    Task AppendAsync(AuditEvent auditEvent);
 
     /// <summary>
     /// Lists audit events in descending chronological order.
