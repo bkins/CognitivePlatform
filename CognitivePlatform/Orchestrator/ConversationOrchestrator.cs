@@ -31,6 +31,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly TelemetryContext         _telemetryContext;
     private readonly IInsightEngine           _insightEngine;
     private readonly IInsightHistoryStore     _insightHistory;
+    private readonly LlmModelCatalog          _modelCatalog;
 
     internal bool _isDebug  = false;
 
@@ -44,7 +45,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IIdempotencyStore                                              idempotencyStore
                                    , TelemetryContext                                               telemetryContext
                                    , IInsightEngine                                                 insightEngine
-                                   , IInsightHistoryStore                                           insightHistory )
+                                   , IInsightHistoryStore                                           insightHistory
+                                   , LlmModelCatalog                                               modelCatalog )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -57,6 +59,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _telemetryContext = telemetryContext  ?? throw new ArgumentNullException(nameof(telemetryContext));
         _insightEngine    = insightEngine    ?? throw new ArgumentNullException(nameof(insightEngine));
         _insightHistory   = insightHistory   ?? throw new ArgumentNullException(nameof(insightHistory));
+        _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
 
 #if DEBUG
         _isDebug = true;
@@ -110,6 +113,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Wire meta-actions FIRST
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.LlmActions.SetContext(context);
+        Actions.LlmActions.SetCatalog(_modelCatalog);
 
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
@@ -124,14 +129,19 @@ public class ConversationOrchestrator : IConversationOrchestrator
             return await FinalizeAsync(request, response, sw, ct);
         }
 
-        // Persist client-selected model (if provided) into session metadata
+        // Persist model into the per-request "model" slot used by LlmInterpreter.
+        // Priority: explicit request model > user-set session model > nothing.
         if (request.Model.HasValue())
         {
-            context.Metadata["model"] = request.Model?.Trim() ?? string.Empty;
+            context.Metadata["model"] = request.Model!.Trim();
+        }
+        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
+                 && sessionModel.HasValue())
+        {
+            context.Metadata["model"] = sessionModel;
         }
         else
         {
-            // Prevent a prior request model from leaking into this turn
             context.Metadata.Remove("model");
         }
 
@@ -710,16 +720,27 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Get or create session context
         var context = _contextStore.GetOrCreate(request.SessionId);
 
-        // Persist model choice if supplied
+        // Persist model into the per-request "model" slot (same priority as ConverseAsync)
         if (request.Model.HasValue())
+        {
             context.Metadata["model"] = request.Model.Trim();
+        }
+        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
+                 && sessionModel.HasValue())
+        {
+            context.Metadata["model"] = sessionModel;
+        }
         else
+        {
             context.Metadata.Remove("model");
+        }
 
         // Wire context (same as ConverseAsync)
         Actions.TestActions.SetContext(context);
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.LlmActions.SetContext(context);
+        Actions.LlmActions.SetCatalog(_modelCatalog);
 
         // ✅ J-01.1: FastPath always wins (for non-destructive actions).
         // In streaming mode: if FastPath resolves a non-destructive action, execute
