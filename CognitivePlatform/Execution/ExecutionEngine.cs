@@ -12,7 +12,7 @@ public class ExecutionEngine : IExecutionEngine
     private readonly ITelemetrySink   _telemetry;
     private readonly TelemetryContext _telemetryContext;
     private readonly IAuditLog        _auditLog;
-    private static   IServiceProvider _serviceProvider;
+    private readonly IServiceProvider _serviceProvider;
 
     public ExecutionEngine( ITelemetrySink   telemetry
                           , IServiceProvider serviceProvider
@@ -25,9 +25,10 @@ public class ExecutionEngine : IExecutionEngine
         _auditLog         = auditLog;
     }
 
-    public string Execute( ActionMetadata              action
-                         , IDictionary<string, string> arguments
-                         , string                      sessionId )
+    public async Task<string> ExecuteAsync( ActionMetadata              action
+                                          , IDictionary<string, string> arguments
+                                          , string                      sessionId
+                                          , CancellationToken           ct = default )
     {
         _telemetry.Track(_telemetryContext.CreateEvent(new ExecutionStartedEvent
                                                        {
@@ -71,21 +72,39 @@ public class ExecutionEngine : IExecutionEngine
                 args[i] = ConvertStringToType(stringValue, parameter.ParameterType);
             }
 
-            object? result;
+            object? rawResult;
 
             try
             {
-                result = methodInfo.Invoke(target, args);
+                rawResult = methodInfo.Invoke(target, args);
             }
             catch (TargetInvocationException tie) when (tie.InnerException is not null)
             {
                 throw tie.InnerException;
             }
 
-            // Unwrap Task / Task<T> so async actions work through the standard
-            // execution path. When ExecutionEngine is made fully async (see
-            // DEFERRED.md), replace this with a proper await.
-            result = UnwrapTaskResult(result);
+            // Await async action results. Reflected Invoke always returns the Task object
+            // itself (not the awaited value), so we await it here and then read .Result.
+            var result = rawResult;
+            if (rawResult is Task task)
+            {
+                await task.ConfigureAwait(false);
+
+                var taskType = task.GetType();
+
+                if (taskType.IsGenericType)
+                {
+                    // VoidTaskResult is .NET's internal void-equivalent; treat as no value.
+                    var typeArg = taskType.GetGenericArguments()[0];
+                    result = typeArg.Name == "VoidTaskResult"
+                                     ? null
+                                     : taskType.GetProperty("Result")?.GetValue(task);
+                }
+                else
+                {
+                    result = null;
+                }
+            }
 
             var formatted = FormatResult(result);
 
@@ -96,13 +115,13 @@ public class ExecutionEngine : IExecutionEngine
                                                                  , Output     = formatted
                                                            }));
 
-            _auditLog.Append(new AuditEvent
-                             {
-                                     ActionName  = action.Name
-                                   , Parameters  = paramSummary
-                                   , Outcome     = AuditOutcome.Success
-                                   , Meta        = { ["sessionId"] = sessionId }
-                             });
+            await _auditLog.AppendAsync(new AuditEvent
+                                        {
+                                                ActionName  = action.Name
+                                              , Parameters  = paramSummary
+                                              , Outcome     = AuditOutcome.Success
+                                              , Meta        = { ["sessionId"] = sessionId }
+                                        }).ConfigureAwait(false);
 
             return formatted;
         }
@@ -117,51 +136,17 @@ public class ExecutionEngine : IExecutionEngine
                                                                  , Error      = ex.Message
                                                            }));
 
-            _auditLog.Append(new AuditEvent
-                             {
-                                     ActionName   = action.Name
-                                   , Parameters   = paramSummary
-                                   , Outcome      = AuditOutcome.Failure
-                                   , ErrorMessage = ex.Message
-                                   , Meta         = { ["sessionId"] = sessionId }
-                             });
+            await _auditLog.AppendAsync(new AuditEvent
+                                        {
+                                                ActionName   = action.Name
+                                              , Parameters   = paramSummary
+                                              , Outcome      = AuditOutcome.Failure
+                                              , ErrorMessage = ex.Message
+                                              , Meta         = { ["sessionId"] = sessionId }
+                                        }).ConfigureAwait(false);
 
             return message;
         }
-    }
-
-    // -----------------------------------------------------------------------
-    // Async unwrapping
-    // -----------------------------------------------------------------------
-
-    /// <summary>
-    /// If <paramref name="result"/> is a <see cref="Task"/> or <see cref="Task{T}"/>,
-    /// waits for it to complete and returns the inner value (or null for non-generic Task).
-    /// Non-task results pass through unchanged.
-    ///
-    /// Uses GetAwaiter().GetResult() because Execute is currently synchronous.
-    /// When Execute is made async, replace with a proper await (see DEFERRED.md).
-    /// </summary>
-    private static object? UnwrapTaskResult(object? result)
-    {
-        if (result is not Task task)
-            return result;
-
-        task.GetAwaiter().GetResult();
-
-        var taskType = task.GetType();
-
-        if (!taskType.IsGenericType)
-            return null;
-
-        // VoidTaskResult is .NET's internal void-equivalent used by Task.CompletedTask
-        // and async Task (non-generic) methods. Treat as no meaningful return value.
-        var typeArg = taskType.GetGenericArguments()[0];
-        if (typeArg.Name == "VoidTaskResult")
-            return null;
-
-        var resultProperty = taskType.GetProperty("Result");
-        return resultProperty?.GetValue(task);
     }
 
     // -----------------------------------------------------------------------
@@ -214,7 +199,7 @@ public class ExecutionEngine : IExecutionEngine
         }
     }
 
-    private static object? CreateTargetInstance(MethodInfo methodInfo)
+    private object? CreateTargetInstance(MethodInfo methodInfo)
     {
         if (methodInfo.IsStatic) return null;
 

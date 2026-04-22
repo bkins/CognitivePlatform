@@ -17,6 +17,9 @@ public class ExecutionEngineTests
 
     public ExecutionEngineTests()
     {
+        _auditMock.Setup(log => log.AppendAsync(It.IsAny<AuditEvent>()))
+                  .Returns(Task.CompletedTask);
+
         _engine = new ExecutionEngine(_telemetryMock.Object
                                     , _providerMock.Object
                                     , _telemetryCtx
@@ -28,38 +31,38 @@ public class ExecutionEngineTests
     // ================================================================
 
     [Fact]
-    public void Execute_AppendsAuditEvent_WithSuccessOutcome_OnSuccess()
+    public async Task ExecuteAsync_AppendsAuditEvent_WithSuccessOutcome_OnSuccess()
     {
         var action = MakeAction(nameof(FakeActions.ReturnOk));
 
-        _engine.Execute(action, new Dictionary<string, string>(), "session-1");
+        await _engine.ExecuteAsync(action, new Dictionary<string, string>(), "session-1");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome    == AuditOutcome.Success
-                                                                         && auditEvent.ActionName == "ReturnOk"))
+        _auditMock.Verify(log => log.AppendAsync(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome    == AuditOutcome.Success
+                                                                              && auditEvent.ActionName == "ReturnOk"))
                         , Times.Once);
     }
 
     [Fact]
-    public void Execute_AppendsAuditEvent_WithFailureOutcome_OnException()
+    public async Task ExecuteAsync_AppendsAuditEvent_WithFailureOutcome_OnException()
     {
         var action = MakeAction(nameof(FakeActions.ThrowBoom));
 
-        _engine.Execute(action, new Dictionary<string, string>(), "session-1");
+        await _engine.ExecuteAsync(action, new Dictionary<string, string>(), "session-1");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome      == AuditOutcome.Failure
-                                                                         && auditEvent.ErrorMessage != null
-                                                                         && auditEvent.ActionName   == "ThrowBoom"))
+        _auditMock.Verify(log => log.AppendAsync(It.Is<AuditEvent>(auditEvent => auditEvent.Outcome      == AuditOutcome.Failure
+                                                                              && auditEvent.ErrorMessage != null
+                                                                              && auditEvent.ActionName   == "ThrowBoom"))
                         , Times.Once);
     }
 
     [Fact]
-    public void Execute_IncludesSessionId_InAuditEventMeta()
+    public async Task ExecuteAsync_IncludesSessionId_InAuditEventMeta()
     {
         var action = MakeAction(nameof(FakeActions.ReturnOk));
 
-        _engine.Execute(action, new Dictionary<string, string>(), "session-abc");
+        await _engine.ExecuteAsync(action, new Dictionary<string, string>(), "session-abc");
 
-        _auditMock.Verify(log => log.Append(It.Is<AuditEvent>(auditEvent => auditEvent.Meta["sessionId"] == "session-abc"))
+        _auditMock.Verify(log => log.AppendAsync(It.Is<AuditEvent>(auditEvent => auditEvent.Meta["sessionId"] == "session-abc"))
                         , Times.Once);
     }
 
@@ -68,21 +71,21 @@ public class ExecutionEngineTests
     // ================================================================
 
     [Fact]
-    public void Execute_UnwrapsTaskT_AndReturnsInnerValue()
+    public async Task ExecuteAsync_UnwrapsTaskT_AndReturnsInnerValue()
     {
         var action = MakeAction(nameof(FakeActions.ReturnAsyncString));
 
-        var result = _engine.Execute(action, new Dictionary<string, string>(), "s");
+        var result = await _engine.ExecuteAsync(action, new Dictionary<string, string>(), "s");
 
         Assert.Equal("async-result", result);
     }
 
     [Fact]
-    public void Execute_UnwrapsNonGenericTask_AndReturnsNoReturnValueMessage()
+    public async Task ExecuteAsync_UnwrapsNonGenericTask_AndReturnsNoReturnValueMessage()
     {
         var action = MakeAction(nameof(FakeActions.ReturnCompletedTask));
 
-        var result = _engine.Execute(action, new Dictionary<string, string>(), "s");
+        var result = await _engine.ExecuteAsync(action, new Dictionary<string, string>(), "s");
 
         Assert.Contains("no return value", result);
     }

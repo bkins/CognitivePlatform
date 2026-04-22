@@ -31,6 +31,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly TelemetryContext         _telemetryContext;
     private readonly IInsightEngine           _insightEngine;
     private readonly IInsightHistoryStore     _insightHistory;
+    private readonly LlmModelCatalog          _modelCatalog;
 
     internal bool _isDebug  = false;
 
@@ -44,7 +45,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IIdempotencyStore                                              idempotencyStore
                                    , TelemetryContext                                               telemetryContext
                                    , IInsightEngine                                                 insightEngine
-                                   , IInsightHistoryStore                                           insightHistory )
+                                   , IInsightHistoryStore                                           insightHistory
+                                   , LlmModelCatalog                                               modelCatalog )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -57,6 +59,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _telemetryContext = telemetryContext  ?? throw new ArgumentNullException(nameof(telemetryContext));
         _insightEngine    = insightEngine    ?? throw new ArgumentNullException(nameof(insightEngine));
         _insightHistory   = insightHistory   ?? throw new ArgumentNullException(nameof(insightHistory));
+        _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
 
 #if DEBUG
         _isDebug = true;
@@ -110,6 +113,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Wire meta-actions FIRST
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.LlmActions.SetContext(context);
+        Actions.LlmActions.SetCatalog(_modelCatalog);
 
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
@@ -117,21 +122,27 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive == false)
         {
-            var response = TakeTheFastPath(actionMeta
-                                         , fastParams
-                                         , context);
+            var response = await TakeTheFastPath(actionMeta
+                                              , fastParams
+                                              , context
+                                              , ct);
 
             return await FinalizeAsync(request, response, sw, ct);
         }
 
-        // Persist client-selected model (if provided) into session metadata
+        // Persist model into the per-request "model" slot used by LlmInterpreter.
+        // Priority: explicit request model > user-set session model > nothing.
         if (request.Model.HasValue())
         {
-            context.Metadata["model"] = request.Model?.Trim() ?? string.Empty;
+            context.Metadata["model"] = request.Model!.Trim();
+        }
+        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
+                 && sessionModel.HasValue())
+        {
+            context.Metadata["model"] = sessionModel;
         }
         else
         {
-            // Prevent a prior request model from leaking into this turn
             context.Metadata.Remove("model");
         }
 
@@ -154,7 +165,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                        , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
-                    var result     = _execution.Execute(confirmedAction, execParams, context.SessionId);
+                    var result     = await _execution.ExecuteAsync(confirmedAction, execParams, context.SessionId, ct);
 
                     var confirmationResponse = new ConverseResponse
                                                {
@@ -226,7 +237,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = null;
 
                 var finalParameters = ApplyDefaultValues(action, pending.CollectedParameters);
-                var execOutput      = _execution.Execute(action, finalParameters, context.SessionId);
+                var execOutput      = await _execution.ExecuteAsync(action, finalParameters, context.SessionId, ct);
 
                 _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                        {
@@ -292,7 +303,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.PendingAction = null;
 
             var parameters  = ApplyDefaultValues(action, pending.CollectedParameters);
-            var finalOutput = _execution.Execute(action, parameters, context.SessionId);
+            var finalOutput = await _execution.ExecuteAsync(action, parameters, context.SessionId, ct);
 
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
@@ -586,9 +597,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
             return await FinalizeAsync(request, response, sw, ct);
         }
         
-        // 9. Execute (sync) with whatever parameters we have (including defaults for optionals)
+        // 9. Execute with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
-        var execOutputFinal = _execution.Execute(selectedAction, execParameters, context.SessionId);
+        var execOutputFinal = await _execution.ExecuteAsync(selectedAction, execParameters, context.SessionId, ct);
 
         // Insight Engine — runs after execution; only pays LLM cost when insights exist
         var insights = await _insightEngine.GenerateInsightsAsync(context, ct);
@@ -622,9 +633,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         return await FinalizeAsync(request, finalResponse, sw, ct);
     }
 
-    private ConverseResponse TakeTheFastPath( ActionMetadata?             actionMeta
-                                            , Dictionary<string, string>? fastParams
-                                            , ConversationContext         context )
+    private async Task<ConverseResponse> TakeTheFastPath( ActionMetadata?             actionMeta
+                                                        , Dictionary<string, string>? fastParams
+                                                        , ConversationContext         context
+                                                        , CancellationToken           ct = default )
     {
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                        {
@@ -654,7 +666,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                    };
         }
 
-        var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+        var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
 
         var parameters = string.Join(", ", fastParams!.Select(pair => $"{pair.Key}: {pair.Value}"));
 
@@ -710,16 +722,27 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Get or create session context
         var context = _contextStore.GetOrCreate(request.SessionId);
 
-        // Persist model choice if supplied
+        // Persist model into the per-request "model" slot (same priority as ConverseAsync)
         if (request.Model.HasValue())
+        {
             context.Metadata["model"] = request.Model.Trim();
+        }
+        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
+                 && sessionModel.HasValue())
+        {
+            context.Metadata["model"] = sessionModel;
+        }
         else
+        {
             context.Metadata.Remove("model");
+        }
 
         // Wire context (same as ConverseAsync)
         Actions.TestActions.SetContext(context);
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.LlmActions.SetContext(context);
+        Actions.LlmActions.SetCatalog(_modelCatalog);
 
         // ✅ J-01.1: FastPath always wins (for non-destructive actions).
         // In streaming mode: if FastPath resolves a non-destructive action, execute
@@ -748,7 +771,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //     await _journalDraftRepository.AddAsync(draft, ct);
             // }
             
-            var result = _execution.Execute(actionMeta!, fastParams!, context.SessionId);
+            var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
                                                            Details = $"FastPath.Executed.Stream; Action={actionMeta.Name}; Result {result}\n"

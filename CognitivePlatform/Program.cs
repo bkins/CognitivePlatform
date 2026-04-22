@@ -102,6 +102,8 @@ public partial class Program
         builder.Services.AddHttpClient("Ollama");
         builder.Services.AddHttpClient("Groq");
         builder.Services.AddHttpClient("Gemini");
+        builder.Services.AddHttpClient("OpenRouter");
+        builder.Services.AddHttpClient("Cerebras");
  
         // Settings
         builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));

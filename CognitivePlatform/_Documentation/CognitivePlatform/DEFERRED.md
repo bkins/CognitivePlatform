@@ -40,36 +40,21 @@ Each entry has enough detail to pick up and implement with minimal ramp-up discu
 
 ## 2. ExecutionEngine Async Promotion
 
-**Status:** `Execute` is synchronous. `UnwrapTaskResult` bridges async actions via
-`GetAwaiter().GetResult()`.
-
-**Why deferred:** No deadlock risk in the current ASP.NET Core context
-(no SynchronizationContext), but blocking a thread pool thread is wasteful under load.
-
-**How to implement:**
-1. Change `IExecutionEngine.Execute` signature to `Task<string> ExecuteAsync(...)`.
-2. Replace `UnwrapTaskResult` with a direct `await` on the reflected task result.
-3. Update `ConversationOrchestrator` to `await _execution.ExecuteAsync(...)`.
-4. Update `TakeTheFastPath` to be async or inline into the main path.
-5. Remove `UnwrapTaskResult` — it is no longer needed once Execute is async.
-6. Verify `ObjectStoreAuditLog.Append` is promoted to `AppendAsync` (see item 3 below).
+**Status:** ✅ **Done 2026-04-21.**
+`IExecutionEngine.Execute` → `Task<string> ExecuteAsync(...)` with `CancellationToken`.
+`UnwrapTaskResult` deleted; reflected `Task`/`Task<T>` results are now properly awaited.
+`TakeTheFastPath` promoted to `async Task<ConverseResponse>`.
+All 6 `_execution.Execute` call sites in `ConversationOrchestrator` updated.
+Zero `GetAwaiter().GetResult()` calls remain in the CP API project.
 
 ---
 
 ## 3. IAuditLog Async Promotion
 
-**Status:** `IAuditLog.Append` is synchronous, bridged with `GetAwaiter().GetResult()`
-in `ObjectStoreAuditLog` because `IObjectStore.Save` is async.
-
-**Depends on:** Item 2 (ExecutionEngine async promotion).
-
-**How to implement:**
-1. Add `Task AppendAsync(AuditEvent auditEvent)` to `IAuditLog`.
-2. Implement in `ObjectStoreAuditLog` with a proper `await _store.Save(...)`.
-3. Remove the `GetAwaiter().GetResult()` call.
-4. Update `ExecutionEngine.ExecuteAsync` to `await _auditLog.AppendAsync(...)`.
-5. Keep `void Append(AuditEvent)` with a deprecation note if any sync callers exist,
-   or remove it if none do.
+**Status:** ✅ **Done 2026-04-21** (bundled with item 2).
+`IAuditLog.Append` removed; `AppendAsync(AuditEvent): Task` is the only write method.
+`ObjectStoreAuditLog.AppendAsync` uses a proper `await _store.Save(...)`.
+No sync callers existed; `Append` was deleted without a deprecation shim.
 
 ---
 
