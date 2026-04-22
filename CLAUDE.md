@@ -265,11 +265,11 @@
 Read these files:
 
 * Primary source:
-  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\BACKLOG.md
+  * C:\Users\benho\source\Application Documentation\The CP Universe\_Repo Docs\BACKLOG.md
 * Other files with future work:
   * C:\Users\benho\source\repos\CognitivePlatform\BACKLOG.md
-  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\DEFERRED.md
-  * C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\ROADMAP.md
+  * C:\Users\benho\source\Application Documentation\The CP Universe\_Repo Docs\DEFERRED.md
+  * C:\Users\benho\source\Application Documentation\The CP Universe\_Repo Docs\ROADMAP.md
 * Other places to search when you cannot find documentation:
   * C:\Users\benho\source\Application Documentation\The CP Universe\\*.md
   * C:\Users\benho\source\repos\CP\CP.Workbench\Documentation\CP.WorkBench\\*.md
@@ -278,8 +278,7 @@ Read these files:
 
 Read these files:
 
-* C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\ARCHITECTURE.md
-* C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\_Documentation\CognitivePlatform\SYSTEM.md
+* C:\Users\benho\source\Application Documentation\The CP Universe\_Repo Docs\SYSTEM.md
 
 ## Discipline Mode
 
