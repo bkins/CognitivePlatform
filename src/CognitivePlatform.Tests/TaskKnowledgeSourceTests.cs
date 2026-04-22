@@ -132,10 +132,12 @@ public class TaskKnowledgeSourceTests
     // HELPERS
     // ================================================================
 
-    private static TaskItem MakeTask( bool     completed
-                                    , bool     deleted
-                                    , Guid?    id        = null
-                                    , string[]? tags     = null)
+    private static TaskItem MakeTask( bool            completed
+                                    , bool            deleted
+                                    , Guid?           id        = null
+                                    , string[]?       tags      = null
+                                    , DateTimeOffset? createdAt = null
+                                    , DateTimeOffset? updatedAt = null)
     {
         var taskId = (id ?? Guid.NewGuid()).ToString("N");
         return new TaskItem
@@ -144,6 +146,8 @@ public class TaskKnowledgeSourceTests
                      , ShortDescription = "A task"
                      , CompletedAt      = completed ? DateTimeOffset.UtcNow : null
                      , IsDeleted        = deleted
+                     , CreatedAt        = createdAt ?? DateTimeOffset.UtcNow
+                     , UpdatedAt        = updatedAt ?? DateTimeOffset.UtcNow
                      , Tags             = tags is { Length: > 0 }
                                                   ? new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase)
                                                   : new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -156,5 +160,57 @@ public class TaskKnowledgeSourceTests
                                                      , It.IsAny<DateTimeOffset?>()
                                                      , It.IsAny<bool>()))
                         .Returns(tasks.ToList());
+    }
+
+    // ================================================================
+    // ListHeaders
+    // ================================================================
+
+    [Fact]
+    public void ListHeaders_ExcludesDeletedTasks()
+    {
+        var active  = MakeTask(completed: false, deleted: false);
+        var deleted = MakeTask(completed: false, deleted: true);
+        SetupTaskList(active, deleted);
+
+        var results = _source.ListHeaders(fromUtc: null, toUtc: null);
+
+        Assert.Single(results);
+        Assert.Equal(active.Id, results[0].Id);
+    }
+
+    [Fact]
+    public void ListHeaders_IncludesCompletedTasks()
+    {
+        var completed = MakeTask(completed: true, deleted: false);
+        SetupTaskList(completed);
+
+        var results = _source.ListHeaders(fromUtc: null, toUtc: null);
+
+        Assert.Single(results);
+        Assert.Equal(completed.Id, results[0].Id);
+    }
+
+    [Fact]
+    public void ListHeaders_SetsTaskTypeOnHeader()
+    {
+        var task = MakeTask(completed: false, deleted: false);
+        SetupTaskList(task);
+
+        var results = _source.ListHeaders(fromUtc: null, toUtc: null);
+
+        Assert.Equal("Task", results[0].Type);
+    }
+
+    [Fact]
+    public void ListHeaders_PassesDateRangeToTaskService()
+    {
+        var from = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var to   = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        SetupTaskList();
+
+        _source.ListHeaders(from, to);
+
+        _taskServiceMock.Verify(service => service.List(from, to, true), Times.Once);
     }
 }

@@ -68,6 +68,19 @@ public class TaskKnowledgeSource : IKnowledgeSource
         }
     }
 
+    public IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
+                                                   , DateTimeOffset? toUtc)
+    {
+        return _taskService.List(fromUtc, toUtc, includeCompleted: true)
+                           .Where(task => !task.IsDeleted)
+                           .Select(task => new ObjectHeader(
+                                       task.Id
+                                     , KnowledgeKind.Task.ToString()
+                                     , task.CreatedAt
+                                     , task.UpdatedAt))
+                           .ToList();
+    }
+
     private static KnowledgeStatus GetStatus(TaskItem task)
     {
         if (task.IsDeleted)

@@ -66,6 +66,18 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
         }
     }
 
+    public IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
+                                                   , DateTimeOffset? toUtc)
+    {
+        return _journalService.ListEntries(fromUtc, toUtc)
+                              .Select(entryWithRevision => new ObjectHeader(
+                                          entryWithRevision.Entry.Id
+                                        , KnowledgeKind.Journal.ToString()
+                                        , entryWithRevision.Entry.CreatedUtc
+                                        , entryWithRevision.LatestRevision.CreatedUtc))
+                              .ToList();
+    }
+
     public void Archive(Guid id, CancellationToken ct)
     {
         // NOTE: For journals, "archive" is currently implemented

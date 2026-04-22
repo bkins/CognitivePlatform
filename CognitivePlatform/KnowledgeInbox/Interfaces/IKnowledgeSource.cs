@@ -7,6 +7,9 @@ public interface IKnowledgeSource
     IEnumerable<KnowledgeItemDto> GetKnowledgeItems (KnowledgeQuery    query
                                                    , CancellationToken ct);
 
+    IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
+                                            , DateTimeOffset? toUtc);
+
     void Archive (Guid              id
                 , CancellationToken ct);
 

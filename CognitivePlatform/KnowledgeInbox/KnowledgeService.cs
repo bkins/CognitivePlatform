@@ -42,8 +42,13 @@ public sealed class KnowledgeService : IKnowledgeService
                                                   , DateTimeOffset? fromUtc = null
                                                   , DateTimeOffset? toUtc   = null)
     {
-        // TODO: Consider implementing this: This is an optimization, and should only be added if profiling demands it
-        throw new NotImplementedException();
+        return _sources
+               .Where(source => string.IsNullOrEmpty(type)
+                             || source.Kind.ToString().Equals(type, StringComparison.OrdinalIgnoreCase))
+               .SelectMany(source => source.ListHeaders(fromUtc, toUtc))
+               .OrderByDescending(header => header.CreatedUtc)
+               .ThenBy(header => header.Id)
+               .ToList();
     }
 
     public void Archive(Guid id, CancellationToken ct)
