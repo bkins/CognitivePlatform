@@ -12,9 +12,7 @@ public class ExecutionEngine : IExecutionEngine
     private readonly ITelemetrySink   _telemetry;
     private readonly TelemetryContext _telemetryContext;
     private readonly IAuditLog        _auditLog;
-    // Static provider is a bootstrap convenience — scoped action instances are resolved here.
-    // Flagged as suspect (DEFERRED: introduce proper scoped DI for action classes).
-    private static   IServiceProvider _serviceProvider;
+    private readonly IServiceProvider _serviceProvider;
 
     public ExecutionEngine( ITelemetrySink   telemetry
                           , IServiceProvider serviceProvider
@@ -201,7 +199,7 @@ public class ExecutionEngine : IExecutionEngine
         }
     }
 
-    private static object? CreateTargetInstance(MethodInfo methodInfo)
+    private object? CreateTargetInstance(MethodInfo methodInfo)
     {
         if (methodInfo.IsStatic) return null;
 
