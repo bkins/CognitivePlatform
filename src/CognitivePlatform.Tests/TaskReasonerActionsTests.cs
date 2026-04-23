@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -146,6 +147,105 @@ public class TaskReasonerActionsTests
                                             , It.IsAny<string?>()
                                             , It.IsAny<CancellationToken>())
                       , Times.Never);
+    }
+
+    // ================================================================
+    // ACTIVITY CONTEXT
+    // ================================================================
+
+    [Fact]
+    public async Task ReasonAboutTasks_IncludesActivitySection_WhenEventsExist()
+    {
+        _tasksMock.Setup(service => service.GetActive())
+                  .Returns(new List<TaskItem> { MakeTask("Write tests") });
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                         , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision>());
+
+        var activityMock = new Mock<IActivityLog>();
+        activityMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                              , It.IsAny<DateTimeOffset?>()
+                                              , It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((IReadOnlyList<ActivityEvent>)new List<ActivityEvent>
+                                                                {
+                                                                        new() { ActivityType = "run", Duration = 30, Unit = "minutes", OccurredUtc = DateTimeOffset.UtcNow }
+                                                                });
+
+        var actions = new TaskReasonerActions(_tasksMock.Object
+                                             , _journalMock.Object
+                                             , _llmMock.Object
+                                             , _calendarMock.Object
+                                             , activityMock.Object);
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                           , It.IsAny<string?>()
+                                           , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await actions.ReasonAboutTasks("What should I do?");
+
+        Assert.NotNull(capturedPrompt);
+        Assert.Contains("=== Recent Activities ===", capturedPrompt);
+        Assert.Contains("run",                        capturedPrompt);
+        Assert.Contains("30 minutes",                 capturedPrompt);
+    }
+
+    [Fact]
+    public async Task ReasonAboutTasks_OmitsActivitySection_WhenActivityLogIsNull()
+    {
+        _tasksMock.Setup(service => service.GetActive())
+                  .Returns(new List<TaskItem> { MakeTask("Write tests") });
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                         , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision>());
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                           , It.IsAny<string?>()
+                                           , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await _actions.ReasonAboutTasks("What should I do?");
+
+        Assert.NotNull(capturedPrompt);
+        Assert.DoesNotContain("Recent Activities", capturedPrompt);
+    }
+
+    [Fact]
+    public async Task ReasonAboutTasks_OmitsActivitySection_WhenLogIsEmpty()
+    {
+        _tasksMock.Setup(service => service.GetActive())
+                  .Returns(new List<TaskItem> { MakeTask("Write tests") });
+        _journalMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                         , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision>());
+
+        var activityMock = new Mock<IActivityLog>();
+        activityMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                              , It.IsAny<DateTimeOffset?>()
+                                              , It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>());
+
+        var actions = new TaskReasonerActions(_tasksMock.Object
+                                             , _journalMock.Object
+                                             , _llmMock.Object
+                                             , _calendarMock.Object
+                                             , activityMock.Object);
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                           , It.IsAny<string?>()
+                                           , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await actions.ReasonAboutTasks("What should I do?");
+
+        Assert.NotNull(capturedPrompt);
+        Assert.DoesNotContain("Recent Activities", capturedPrompt);
     }
 
     // ================================================================

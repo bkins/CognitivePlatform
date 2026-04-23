@@ -1,5 +1,6 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Interpreter;
@@ -8,29 +9,33 @@ using CP.Shared.Primitives.Avails.Extensions;
 namespace CognitivePlatform.Api.Domains.Insights;
 
 /// <summary>
-/// Cross-domain AI analysis: spans tasks and journal to surface patterns, trends,
-/// and holistic wellbeing/productivity insights.
+/// Cross-domain AI analysis: spans tasks, journal entries, and explicit activity events to
+/// surface patterns, trends, and holistic wellbeing/productivity insights.
 ///
 /// Design decisions:
 /// - Uses the same LLM-over-data pattern as AnalyzeJournal.
 /// - Tasks include completed and deleted entries so patterns like "I keep starting
 ///   tasks I never finish" or "I delete a lot of work tasks" are visible.
-/// - LogActivity (explicit habit/activity logging) is deferred — see DEFERRED.md.
-/// - Calendar data will be added here once calendar integration exists.
+/// - Activity events (DEFERRED #4) are included as a third context section after
+///   journal entries when an <see cref="IActivityLog"/> is wired in and contains
+///   events for the window. Absent/empty activity data is omitted, not stubbed.
 /// </summary>
 public class InsightsActions
 {
     private readonly ITaskService    _taskService;
     private readonly IJournalService _journalService;
     private readonly ILlmClient      _llmClient;
+    private readonly IActivityLog?   _activityLog;
 
     public InsightsActions( ITaskService    taskService
                           , IJournalService journalService
-                          , ILlmClient      llmClient )
+                          , ILlmClient      llmClient
+                          , IActivityLog?   activityLog = null )
     {
         _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
         _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
         _llmClient      = llmClient      ?? throw new ArgumentNullException(nameof(llmClient));
+        _activityLog    = activityLog;
     }
 
     [NaturalLanguageAction(
@@ -61,16 +66,19 @@ public class InsightsActions
         var from = ParseDate(fromDate);
         var to   = ParseDate(toDate);
 
-        var tasks   = _taskService.List(from, to, includeCompleted: true);
-        var entries = _journalService.ListEntries(from, to);
+        var tasks      = _taskService.List(from, to, includeCompleted: true);
+        var entries    = _journalService.ListEntries(from, to);
+        var activities = _activityLog is not null
+                                 ? await _activityLog.ListAsync(from, to)
+                                 : (IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>();
 
-        if (tasks.Count == 0 && entries.Count == 0)
+        if (tasks.Count == 0 && entries.Count == 0 && activities.Count == 0)
             return "No tasks or journal entries found for the specified date range.";
 
         var focusLabel = focus.HasValue() ? focus! : "general patterns and trends";
 
         var sb = new StringBuilder();
-        sb.AppendLine("You are a personal productivity and wellbeing assistant. Analyze the data below and identify patterns, trends, and actionable insights.");
+        sb.AppendLine("You are a personal productivity and wellbeing assistant. Analyze the tasks, journal entries, and logged activities below and identify patterns, trends, and actionable insights.");
         sb.AppendLine($"Focus area: {focusLabel}");
         sb.AppendLine();
 
@@ -107,6 +115,29 @@ public class InsightsActions
                     sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
                 if (ewr.LatestRevision.Tags is { Count: > 0 })
                     sb.Append($" [tags: {string.Join(", ", ewr.LatestRevision.Tags)}]");
+                sb.AppendLine();
+            }
+            sb.AppendLine();
+        }
+
+        if (activities.Count > 0)
+        {
+            sb.AppendLine("=== Recent Activities ===");
+            // Cap at 50 events to keep prompt size reasonable
+            foreach (var activityEvent in activities.Take(50))
+            {
+                sb.Append($"[{activityEvent.OccurredUtc:yyyy-MM-dd}] {activityEvent.ActivityType}");
+                if (activityEvent.Duration.HasValue)
+                {
+                    sb.Append($" ({activityEvent.Duration.Value}");
+                    if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
+                        sb.Append($" {activityEvent.Unit}");
+                    sb.Append(')');
+                }
+                if (!string.IsNullOrWhiteSpace(activityEvent.Notes))
+                    sb.Append($" — {activityEvent.Notes}");
+                if (activityEvent.Tags.Count > 0)
+                    sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
                 sb.AppendLine();
             }
             sb.AppendLine();
