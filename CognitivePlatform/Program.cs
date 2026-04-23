@@ -20,6 +20,7 @@ using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Domains.DailyRecord;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -144,6 +145,9 @@ public partial class Program
     //Tasks
         builder.Services.AddSingleton<ITaskService, TaskService>();
 
+    //Activity
+        builder.Services.AddSingleton<IActivityLog, ObjectStoreActivityLog>();
+
     //Daily Record
         builder.Services.AddSingleton<IDailyRecordCommandParser, DailyRecordCommandParser>();
         builder.Services.AddSingleton<IDailyRecordService, DailyRecordService>();
@@ -158,6 +162,7 @@ public partial class Program
         builder.Services.AddTransient<TaskActions>();
         builder.Services.AddTransient<TaskReasonerActions>();
         builder.Services.AddTransient<InsightsActions>();
+        builder.Services.AddTransient<ActivityActions>();
         builder.Services.AddTransient<DebugFastPath>();
         builder.Services.AddTransient<DailyRecordActions>();
 

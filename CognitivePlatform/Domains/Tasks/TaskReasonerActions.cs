@@ -1,5 +1,6 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Interpreter;
@@ -26,16 +27,19 @@ public class TaskReasonerActions
     private readonly IJournalService     _journalService;
     private readonly ILlmClient          _llmClient;
     private readonly ICalendarProvider?  _calendar;
+    private readonly IActivityLog?       _activityLog;
 
     public TaskReasonerActions( ITaskService       taskService
                               , IJournalService    journalService
                               , ILlmClient         llmClient
-                              , ICalendarProvider? calendarProvider = null )
+                              , ICalendarProvider? calendarProvider = null
+                              , IActivityLog?      activityLog      = null )
     {
         _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
         _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
         _llmClient      = llmClient      ?? throw new ArgumentNullException(nameof(llmClient));
         _calendar       = calendarProvider;
+        _activityLog    = activityLog;
     }
 
     [NaturalLanguageAction(
@@ -69,7 +73,7 @@ public class TaskReasonerActions
             return "You have no active tasks and no journal entries for the specified date range.";
 
         var sb = new StringBuilder();
-        sb.AppendLine("You are a personal productivity assistant. The user's task list and recent journal entries are provided below. Answer the user's question based on this data. Be honest if the data does not contain enough information.");
+        sb.AppendLine("You are a personal productivity assistant. The user's task list and any available supporting context (recent journal entries, logged activities, upcoming events) are provided below. Answer the user's question based on this data. Be honest if the data does not contain enough information.");
         sb.AppendLine();
 
         if (tasks.Count > 0)
@@ -103,6 +107,32 @@ public class TaskReasonerActions
                 sb.AppendLine();
             }
             sb.AppendLine();
+        }
+
+        if (_activityLog is not null)
+        {
+            var activities = await _activityLog.ListAsync(ParseDate(fromDate), ParseDate(toDate));
+            if (activities.Count > 0)
+            {
+                sb.AppendLine("=== Recent Activities ===");
+                foreach (var activityEvent in activities.Take(30))
+                {
+                    sb.Append($"[{activityEvent.OccurredUtc:yyyy-MM-dd}] {activityEvent.ActivityType}");
+                    if (activityEvent.Duration.HasValue)
+                    {
+                        sb.Append($" ({activityEvent.Duration.Value}");
+                        if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
+                            sb.Append($" {activityEvent.Unit}");
+                        sb.Append(')');
+                    }
+                    if (!string.IsNullOrWhiteSpace(activityEvent.Notes))
+                        sb.Append($" — {activityEvent.Notes}");
+                    if (activityEvent.Tags.Count > 0)
+                        sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
+                    sb.AppendLine();
+                }
+                sb.AppendLine();
+            }
         }
 
         if (_calendar is not null && _calendar.IsConnected)

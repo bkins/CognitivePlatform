@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Insights;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -9,16 +10,23 @@ namespace CognitivePlatform.Tests;
 
 public class InsightsActionsTests
 {
-    private readonly Mock<ITaskService>    _tasksMock   = new();
-    private readonly Mock<IJournalService> _journalMock = new();
-    private readonly Mock<ILlmClient>      _llmMock     = new();
+    private readonly Mock<ITaskService>    _tasksMock    = new();
+    private readonly Mock<IJournalService> _journalMock  = new();
+    private readonly Mock<ILlmClient>      _llmMock      = new();
+    private readonly Mock<IActivityLog>    _activityMock = new();
     private readonly InsightsActions       _actions;
 
     public InsightsActionsTests()
     {
+        _activityMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                               , It.IsAny<DateTimeOffset?>()
+                                               , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync((IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>());
+
         _actions = new InsightsActions(_tasksMock.Object
                                       , _journalMock.Object
-                                      , _llmMock.Object);
+                                      , _llmMock.Object
+                                      , _activityMock.Object);
     }
 
     // ================================================================
@@ -118,6 +126,90 @@ public class InsightsActionsTests
                                             , It.IsAny<string?>()
                                             , It.IsAny<CancellationToken>())
                       , Times.Never);
+    }
+
+    // ================================================================
+    // ACTIVITY CONTEXT
+    // ================================================================
+
+    [Fact]
+    public async Task AnalyzePatterns_IncludesActivitySection_WhenEventsExist()
+    {
+        SetupWithTask("Write code");
+
+        _activityMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                               , It.IsAny<DateTimeOffset?>()
+                                               , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync((IReadOnlyList<ActivityEvent>)new List<ActivityEvent>
+                                                                {
+                                                                        new()
+                                                                        {
+                                                                                ActivityType = "run"
+                                                                              , Duration     = 30
+                                                                              , Unit         = "minutes"
+                                                                              , OccurredUtc  = DateTimeOffset.UtcNow
+                                                                        }
+                                                                });
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                          , It.IsAny<string?>()
+                                          , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await _actions.AnalyzePatterns();
+
+        Assert.NotNull(capturedPrompt);
+        Assert.Contains("=== Recent Activities ===", capturedPrompt);
+        Assert.Contains("run",                        capturedPrompt);
+        Assert.Contains("30 minutes",                 capturedPrompt);
+    }
+
+    [Fact]
+    public async Task AnalyzePatterns_OmitsActivitySection_WhenNoEvents()
+    {
+        SetupWithTask("Write code");
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                          , It.IsAny<string?>()
+                                          , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await _actions.AnalyzePatterns();
+
+        Assert.NotNull(capturedPrompt);
+        Assert.DoesNotContain("Recent Activities", capturedPrompt);
+    }
+
+    [Fact]
+    public async Task AnalyzePatterns_OmitsActivitySection_WhenActivityLogIsNull()
+    {
+        _tasksMock.Setup(svc => svc.List(It.IsAny<DateTimeOffset?>()
+                                        , It.IsAny<DateTimeOffset?>()
+                                        , true))
+                  .Returns(new List<TaskItem> { new() { ShortDescription = "Only task" } });
+        _journalMock.Setup(svc => svc.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                 , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision>());
+
+        var actionsNoActivity = new InsightsActions(_tasksMock.Object
+                                                   , _journalMock.Object
+                                                   , _llmMock.Object);
+
+        string? capturedPrompt = null;
+        _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
+                                          , It.IsAny<string?>()
+                                          , It.IsAny<CancellationToken>()))
+                .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
+                .ReturnsAsync("Response.");
+
+        await actionsNoActivity.AnalyzePatterns();
+
+        Assert.NotNull(capturedPrompt);
+        Assert.DoesNotContain("Recent Activities", capturedPrompt);
     }
 
     // ================================================================
