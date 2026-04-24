@@ -49,4 +49,27 @@ public class TaskActionsTests
         Assert.Contains("Buy milk", result);
         _taskServiceMock.Verify(service => service.Delete(task.Id), Times.Once);
     }
+
+    // BUG-12 NL follow-through: GetDailyBrief must supply the user's local date to
+    // the brief service. Without this, the server falls back to UtcNow.Date and the
+    // calendar-window / due-today bug fixed in BUG-12 keeps biting every NL caller.
+    [Fact]
+    public void GetDailyBrief_PassesTodaysLocalDate_ToBriefService()
+    {
+        DateOnly? capturedDate = null;
+        _dailyBriefMock.Setup(brief => brief.GetBrief(It.IsAny<DateOnly?>()))
+                       .Callback<DateOnly?>(date => capturedDate = date)
+                       .Returns("brief");
+
+        var before = DateOnly.FromDateTime(DateTime.Now);
+        _actions.GetDailyBrief();
+        var after  = DateOnly.FromDateTime(DateTime.Now);
+
+        Assert.NotNull(capturedDate);
+
+        // Midnight-crossing tolerance: the action could have captured either the
+        // date it was before the call, or after — if the wall clock rolled over.
+        Assert.True(capturedDate == before || capturedDate == after
+                  , $"Captured {capturedDate}, expected {before} or {after}.");
+    }
 }

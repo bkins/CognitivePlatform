@@ -519,7 +519,11 @@ public class TaskActions
                          , AllowsClarification = false)]
     public string GetDailyBrief()
     {
-        return _dailyBrief.GetBrief();
+        // Pass today's local date to the brief service so the calendar window and
+        // due-today filter key off the user's "today" rather than the server's UTC day.
+        // Single-user/same-machine assumption holds today; when multi-client or multi-tz
+        // becomes real, source this from ConversationContext metadata instead.
+        return _dailyBrief.GetBrief(DateOnly.FromDateTime(DateTime.Now));
     }
 
     // --- Private helpers ----------------------------------------------------
