@@ -2,6 +2,7 @@ using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Interpreter;
 
 namespace CognitivePlatform.Tests;
 
@@ -152,5 +153,144 @@ public class LlmActionsTests
         var result = LlmActions.ListModels();
 
         Assert.Contains("empty", result);
+    }
+
+    // ----------------------------------------------------------------
+    // SetProvider / ListProviders — DEFERRED #10
+    // ----------------------------------------------------------------
+
+    private static LlmProviderDefaults DefaultsWithAll() =>
+        new()
+        {
+                Groq       = "llama-3.3-70b-versatile"
+              , OpenRouter = "anthropic/claude-3.5-sonnet"
+              , Gemini     = "gemini-2.0-flash"
+              , Ollama     = "llama3.1:8b"
+              , Cerebras   = "llama3.1-8b"
+        };
+
+    [Fact]
+    public void SessionProviderKey_HasStableLiteral()
+    {
+        Assert.Equal("session_provider", LlmActions.SessionProviderKey);
+    }
+
+    [Fact]
+    public void SetProvider_WritesBothKeys_AndReturnsConfirmation()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.SetProvider("OpenRouter");
+
+        Assert.Contains("Switched to OpenRouter",                result);
+        Assert.Contains("anthropic/claude-3.5-sonnet",           result);
+        Assert.Equal("OpenRouter",                                context.Metadata[LlmActions.SessionProviderKey]);
+        Assert.Equal("anthropic/claude-3.5-sonnet",               context.Metadata[LlmActions.SessionModelKey]);
+    }
+
+    [Fact]
+    public void SetProvider_IsCaseInsensitive()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.SetProvider("openrouter");
+
+        Assert.Contains("Switched to OpenRouter", result);
+        Assert.Equal("OpenRouter", context.Metadata[LlmActions.SessionProviderKey]);
+    }
+
+    [Fact]
+    public void SetProvider_RejectsUnknownProvider_AndListsAvailable()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.SetProvider("NotAProvider");
+
+        Assert.Contains("Unknown provider", result);
+        Assert.Contains("Groq",             result);
+        Assert.Contains("OpenRouter",       result);
+        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionProviderKey));
+    }
+
+    [Fact]
+    public void SetProvider_ReturnsError_WhenProviderIsEmpty()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.SetProvider(string.Empty);
+
+        Assert.Contains("provide a provider name", result);
+    }
+
+    [Fact]
+    public void SetProvider_ReturnsError_WhenNoDefaultConfigured()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(new LlmProviderDefaults());
+
+        var result = LlmActions.SetProvider("Gemini");
+
+        Assert.Contains("no default model configured", result);
+        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionProviderKey));
+    }
+
+    [Fact]
+    public void ListProviders_IncludesAllKnownProviders()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.ListProviders();
+
+        Assert.Contains("Groq",       result);
+        Assert.Contains("Gemini",     result);
+        Assert.Contains("Ollama",     result);
+        Assert.Contains("OpenRouter", result);
+        Assert.Contains("Cerebras",   result);
+    }
+
+    [Fact]
+    public void ListProviders_MarksCurrentSessionProvider()
+    {
+        var context = MakeContext();
+        context.SetLlmSession("Gemini", "gemini-2.0-flash");
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(DefaultsWithAll());
+
+        var result = LlmActions.ListProviders();
+
+        Assert.Contains("Gemini (current)", result);
+    }
+
+    [Fact]
+    public void ListProviders_AnnotatesUnconfiguredProviders()
+    {
+        var context = MakeContext();
+
+        LlmActions.SetContext(context);
+        LlmActions.SetProviderDefaults(new LlmProviderDefaults { Groq = "llama-3.3-70b-versatile" });
+
+        var result = LlmActions.ListProviders();
+
+        Assert.Contains("Groq",                    result);
+        Assert.Contains("llama-3.3-70b-versatile", result);
+        Assert.Contains("not configured",          result);
     }
 }

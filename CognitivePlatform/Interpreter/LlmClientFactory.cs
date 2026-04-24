@@ -4,11 +4,22 @@ using Microsoft.Extensions.Options;
 namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
+/// Abstraction over LlmClientFactory so router-style consumers can mock
+/// provider dispatch in tests.
+/// </summary>
+public interface ILlmClientFactory
+{
+    LlmProvider DefaultProvider { get; }
+    ILlmClient  Create();
+    ILlmClient  Create(LlmProvider provider);
+}
+
+/// <summary>
 /// Resolves the active ILlmClient implementation at runtime based on
 /// LlmClientSettings.Provider. This keeps Program.cs clean and makes
 /// it trivial to add further providers later.
 /// </summary>
-public class LlmClientFactory
+public class LlmClientFactory : ILlmClientFactory
 {
     private readonly IHttpClientFactory _httpFactory;
     private readonly LlmClientSettings  _settings;
@@ -23,11 +34,26 @@ public class LlmClientFactory
         _usageTracker = usageTracker;
     }
 
-    public ILlmClient Create()
+    /// <summary>
+    /// The provider configured as the system-wide default via LlmClient:Provider.
+    /// Used as fallback when a session has not chosen a provider.
+    /// </summary>
+    public LlmProvider DefaultProvider => _settings.Provider;
+
+    /// <summary>
+    /// Creates the client for the configured default provider.
+    /// </summary>
+    public ILlmClient Create() => Create(_settings.Provider);
+
+    /// <summary>
+    /// Creates the client for a specific provider, independent of the configured default.
+    /// Used by ILlmRouter to honour session-scoped provider selection.
+    /// </summary>
+    public ILlmClient Create(LlmProvider provider)
     {
         var options = Options.Create(_settings);
 
-        return _settings.Provider switch
+        return provider switch
         {
                 LlmProvider.Groq   => new GroqLlmClient(_httpFactory.CreateClient("Groq")
                                                       , options
@@ -49,7 +75,7 @@ public class LlmClientFactory
                                                 , _settings.Cerebras.Model
                                                 , _settings.Timeout)
               , _ => throw new InvalidOperationException(
-                         $"Unknown LLM provider: {_settings.Provider}")
+                         $"Unknown LLM provider: {provider}")
         };
     }
 }

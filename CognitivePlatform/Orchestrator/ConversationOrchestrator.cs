@@ -26,12 +26,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ConversationContextStore _contextStore;
     private readonly ITelemetrySink           _telemetry;
     private readonly IFastPathResolver        _fastPath;
-    private readonly ILlmClient               _llmClient;
+    private readonly ILlmRouter               _llmRouter;
     private readonly IIdempotencyStore        _idempotencyStore;
     private readonly TelemetryContext         _telemetryContext;
     private readonly IInsightEngine           _insightEngine;
     private readonly IInsightHistoryStore     _insightHistory;
     private readonly LlmModelCatalog          _modelCatalog;
+    private readonly LlmProviderDefaults      _providerDefaults;
 
     internal bool _isDebug  = false;
 
@@ -41,12 +42,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , ConversationContextStore                                       contextStore
                                    , ITelemetrySink                                                 telemetry
                                    , IFastPathResolver                                              fastPathResolver
-                                   , ILlmClient                                                     llmClient
+                                   , ILlmRouter                                                     llmRouter
                                    , IIdempotencyStore                                              idempotencyStore
                                    , TelemetryContext                                               telemetryContext
                                    , IInsightEngine                                                 insightEngine
                                    , IInsightHistoryStore                                           insightHistory
-                                   , LlmModelCatalog                                               modelCatalog )
+                                   , LlmModelCatalog                                                modelCatalog
+                                   , LlmProviderDefaults                                            providerDefaults )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -54,12 +56,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _contextStore     = contextStore     ?? throw new ArgumentNullException(nameof(contextStore));
         _telemetry        = telemetry        ?? throw new ArgumentNullException(nameof(telemetry));
         _fastPath         = fastPathResolver ?? throw new ArgumentNullException(nameof(fastPathResolver));
-        _llmClient        = llmClient        ?? throw new ArgumentNullException(nameof(llmClient));
+        _llmRouter        = llmRouter        ?? throw new ArgumentNullException(nameof(llmRouter));
         _idempotencyStore = idempotencyStore ?? throw new ArgumentNullException(nameof(idempotencyStore));
         _telemetryContext = telemetryContext  ?? throw new ArgumentNullException(nameof(telemetryContext));
         _insightEngine    = insightEngine    ?? throw new ArgumentNullException(nameof(insightEngine));
         _insightHistory   = insightHistory   ?? throw new ArgumentNullException(nameof(insightHistory));
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
+        _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
 
 #if DEBUG
         _isDebug = true;
@@ -115,6 +118,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetContext(context);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
+        Actions.LlmActions.SetProviderDefaults(_providerDefaults);
 
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
@@ -143,7 +147,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         else
         {
-            context.Metadata.Remove("model");
+            context.Metadata.TryRemove("model", out _);
         }
 
         // 3. If we are in a clarification flow, consume this turn
@@ -614,7 +618,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                         , insight.SuggestedAction))
                 .ToList();
 
-            finalMessage = await WeaveInsightsAsync(execOutputFinal, insights, ct);
+            finalMessage = await WeaveInsightsAsync(execOutputFinal, insights, context, ct);
         }
         else
         {
@@ -734,7 +738,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         else
         {
-            context.Metadata.Remove("model");
+            context.Metadata.TryRemove("model", out _);
         }
 
         // Wire context (same as ConverseAsync)
@@ -743,6 +747,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetContext(context);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
+        Actions.LlmActions.SetProviderDefaults(_providerDefaults);
 
         // ✅ J-01.1: FastPath always wins (for non-destructive actions).
         // In streaming mode: if FastPath resolves a non-destructive action, execute
@@ -755,22 +760,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                            Details = $"FastPath.Resolved.Stream; Action={actionMeta!.Name}"
                                                    }));
 
-            // Mirror ConverseAsync J-03 behavior for journal fast-path:
-            // if (actionMeta.Name.Equals("AddJournalEntry", StringComparison.OrdinalIgnoreCase))
-            // {
-            //     var parsed = _journalParser.Parse(request.Input);
-            //
-            //     var draft = new JournalDraft
-            //                 {
-            //                         Text = parsed.Text
-            //                       , Tags = parsed.Tags
-            //                       , Mood = parsed.Mood
-            //                       , State = JournalDraftState.Local
-            //                 };
-            //
-            //     await _journalDraftRepository.AddAsync(draft, ct);
-            // }
-            
             var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
@@ -799,9 +788,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
             yield break;
         }
 
-        // 🔥 Stream directly from the LLM
-        await foreach (var chunk in _llmClient.StreamAsync(request.Input
-                                                         , request.Model
+        // 🔥 Stream directly from the LLM.
+        // Router reads context.Metadata to pick the active provider + model —
+        // the "model" key was already populated above based on request/session priority.
+        await foreach (var chunk in _llmRouter.StreamAsync(request.Input
+                                                         , context
                                                          , ct))
         {
             yield return chunk;
@@ -813,6 +804,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
     private async Task<string> WeaveInsightsAsync( string                 execOutput
                                                   , IReadOnlyList<Insight> insights
+                                                  , ConversationContext    context
                                                   , CancellationToken      ct )
     {
         var insightMessages = string.Join("\n", insights.Select(insight => $"- {insight.Message}"));
@@ -827,7 +819,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         prompt.AppendLine("Suggestions to weave in:");
         prompt.AppendLine(insightMessages);
 
-        return await _llmClient.SendAsync(prompt.ToString(), cancellationToken: ct);
+        return await _llmRouter.SendAsync(prompt.ToString(), context, ct);
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action

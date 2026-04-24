@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
@@ -15,19 +16,19 @@ public class LlmInterpreter : IInterpreter
 {
     private readonly IActionRegistry   _registry;
     private readonly ITelemetrySink    _telemetry;
-    private readonly ILlmClient        _llmClient;
+    private readonly ILlmRouter        _llmRouter;
     private readonly LlmModelCatalog   _modelCatalog;
     private readonly LlmClientSettings _settings;
 
     public LlmInterpreter( IActionRegistry   registry
                          , ITelemetrySink    telemetry
-                         , ILlmClient        llmClient
+                         , ILlmRouter        llmRouter
                          , LlmModelCatalog   modelCatalog
                          , LlmClientSettings settings )
     {
         _registry     = registry;
         _telemetry    = telemetry;
-        _llmClient    = llmClient;
+        _llmRouter    = llmRouter;
         _modelCatalog = modelCatalog;
         _settings     = settings;
     }
@@ -69,45 +70,60 @@ public class LlmInterpreter : IInterpreter
         {
             context.Metadata.TryGetValue("model", out var requestedModel);
 
-            // Resolve which model to actually use:
-            //   1. Use the requested model if it exists in the catalog and is usable.
-            //   2. Otherwise fall back to the settings default.
-            //   3. If the default is also missing from the catalog, use any usable model.
-            // This handles the Groq provider case where the catalog only contains the
-            // probed Groq model but the client may send an Ollama model name.
-            model = ResolveModel(requestedModel);
+            // Catalog-usability pre-flight only applies when the session is using the
+            // default (probed) provider. A mid-session SetProvider switch targets a
+            // provider the catalog never probed, so the router handles dispatch and
+            // the target provider's client is trusted to surface model errors.
+            var usesDefaultProvider = UsesDefaultProvider(context);
 
-            var modelInfo = _modelCatalog.AvailableModels
-                                         .FirstOrDefault(info => info.Name.Equals(model
-                                                                                , StringComparison.OrdinalIgnoreCase));
-
-            if (modelInfo is null || modelInfo.IsUsable.Not())
+            if (usesDefaultProvider)
             {
-                var noModelResult= new InterpreterResult
-                       {
-                               ActionName          = null
-                             , ExtractedParameters = new()
-                             , DebugInfo           = $"No usable model found. Requested: '{requestedModel}', Resolved: '{model}'."
-                             , CandidateActions    = null
-                             , MissingParameters   = null
-                             , FailureType         = InterpreterFailureType.NoMatchingAction
-                             , Reason              = $"Model '{model}' is not usable on this system."
-                       };
-                
-                _telemetry.Track(noModelResult.ToEvent());
+                // Resolve which model to actually use:
+                //   1. Use the requested model if it exists in the catalog and is usable.
+                //   2. Otherwise fall back to the settings default.
+                //   3. If the default is also missing from the catalog, use any usable model.
+                model = ResolveModel(requestedModel);
 
-                return noModelResult;
+                var modelInfo = _modelCatalog.AvailableModels
+                                             .FirstOrDefault(info => info.Name.Equals(model
+                                                                                    , StringComparison.OrdinalIgnoreCase));
+
+                if (modelInfo is null || modelInfo.IsUsable.Not())
+                {
+                    var noModelResult= new InterpreterResult
+                           {
+                                   ActionName          = null
+                                 , ExtractedParameters = new()
+                                 , DebugInfo           = $"No usable model found. Requested: '{requestedModel}', Resolved: '{model}'."
+                                 , CandidateActions    = null
+                                 , MissingParameters   = null
+                                 , FailureType         = InterpreterFailureType.NoMatchingAction
+                                 , Reason              = $"Model '{model}' is not usable on this system."
+                           };
+
+                    _telemetry.Track(noModelResult.ToEvent());
+
+                    return noModelResult;
+                }
+
+                // Reflect the catalog-resolved model back into Metadata so the router
+                // picks it up; the same key ("model") is where the router looks first.
+                context.Metadata["model"] = model;
             }
+            else
+            {
+                model = requestedModel ?? string.Empty;
+            }
+
             _telemetry.Track(new LlmInterpreterProgressEvent()
                              {
                                      Details = $" : InterpretWithContext : RequestedModel: {requestedModel}, ResolvedModel: {model}"
                              });
-            
-            // Pass the resolved model name to the client so each provider
-            // receives its own model identifier (e.g. "llama-3.3-70b-versatile"
-            // for Groq rather than the Ollama name the LAA sent).
-            rawResponse = await _llmClient.SendAsync(prompt
-                                                   , model
+
+            // Route through ILlmRouter so mid-session provider switches take effect
+            // on this turn. The router re-reads context.Metadata for every call.
+            rawResponse = await _llmRouter.SendAsync(prompt
+                                                   , context
                                                    , CancellationToken.None);
         }
         catch (Exception ex)
@@ -162,6 +178,25 @@ public class LlmInterpreter : IInterpreter
         _telemetry.Track(results.ToEvent());
 
         return results;
+    }
+
+    // ---------------------------------------------------------------------
+    // Session provider check
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// True when the session has not switched away from the configured default
+    /// provider. Determines whether the catalog-usability pre-flight applies.
+    /// </summary>
+    private bool UsesDefaultProvider(ConversationContext context)
+    {
+        if (context.Metadata.TryGetValue(LlmActions.SessionProviderKey, out var raw).Not())
+            return true;
+
+        if (Enum.TryParse<LlmProvider>(raw, ignoreCase: true, out var parsed).Not())
+            return true;
+
+        return parsed == _settings.Provider;
     }
 
     // ---------------------------------------------------------------------

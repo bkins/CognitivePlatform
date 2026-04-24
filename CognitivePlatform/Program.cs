@@ -108,15 +108,22 @@ public partial class Program
  
         // Settings
         builder.Services.Configure<LlmClientSettings>(builder.Configuration.GetSection("LlmClient"));
- 
+        builder.Services.Configure<LlmProviderDefaults>(builder.Configuration.GetSection("Llm:Defaults"));
+        builder.Services.AddSingleton<LlmProviderDefaults>(sp => sp.GetRequiredService<IOptions<LlmProviderDefaults>>().Value);
+
         // Usage tracker — must be registered before LlmClientFactory
         builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
 
 // Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();
- 
+        builder.Services.AddSingleton<ILlmClientFactory>(sp => sp.GetRequiredService<LlmClientFactory>());
+
         // ILlmClient — resolved via factory so swapping providers is a config change
         builder.Services.AddSingleton<ILlmClient>(sp => sp.GetRequiredService<LlmClientFactory>().Create());
+
+        // ILlmRouter — session-aware dispatcher in front of the factory.
+        // Every call re-reads context.Metadata so SetProvider takes effect next turn.
+        builder.Services.AddSingleton<ILlmRouter, LlmRouter>();
  
         builder.Services.AddSingleton<LlmModelCatalog>();
         builder.Services.AddSingleton<LlmStartupProbe>();
@@ -125,7 +132,7 @@ public partial class Program
                .AddKeyedScoped<IInterpreter>(KeyedServices.LlmInterpreter
                                            , (sp, _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
                                                                          , sp.GetRequiredService<ITelemetrySink>()
-                                                                         , sp.GetRequiredService<ILlmClient>()
+                                                                         , sp.GetRequiredService<ILlmRouter>()
                                                                          , sp.GetRequiredService<LlmModelCatalog>()
                                                                          , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
 

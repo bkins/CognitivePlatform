@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Models;
 
@@ -29,9 +30,30 @@ public class ConversationContext
     /// </summary>
     public string? LastInterpreterRawReply { get; set; }
 
-    public Dictionary<string, string> LastParameters        { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public Dictionary<string, string> Metadata              { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public string?                    LastInterpreterReason { get; set; }
+    public Dictionary<string, string>             LastParameters        { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public ConcurrentDictionary<string, string>   Metadata              { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public string?                                LastInterpreterReason { get; set; }
+
+    /// <summary>
+    /// Guards atomic two-key writes (provider + model) during mid-session LLM switches.
+    /// Readers on the router path read each key independently without taking this lock —
+    /// the writer here ensures a reader never sees a torn pair (new provider, old model).
+    /// </summary>
+    private readonly object _llmSessionLock = new();
+
+    /// <summary>
+    /// Atomically writes the session's LLM provider and its default model.
+    /// Prevents the router from seeing a stale model paired with a new provider
+    /// if two threads race the metadata.
+    /// </summary>
+    public void SetLlmSession(string provider, string model)
+    {
+        lock (_llmSessionLock)
+        {
+            Metadata[Actions.LlmActions.SessionProviderKey] = provider;
+            Metadata[Actions.LlmActions.SessionModelKey]    = model;
+        }
+    }
 
     public Exception? LastInterpreterException { get; set; } = null;
     
