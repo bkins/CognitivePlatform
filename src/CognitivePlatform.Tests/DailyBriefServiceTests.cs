@@ -204,4 +204,116 @@ public class DailyBriefServiceTests
 
         Assert.DoesNotContain("Today's Calendar", result);
     }
+
+    // ================================================================
+    // BUG-12: explicit local date honours client "today"
+    // ================================================================
+
+    [Fact]
+    public void GetBrief_UsesExplicitLocalDate_InHeader()
+    {
+        var explicitDate = new DateOnly(2026, 1, 15);
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var result = _service.GetBrief(explicitDate);
+
+        Assert.Contains("Daily Brief — 2026-01-15", result);
+    }
+
+    [Fact]
+    public void GetBrief_FallsBackToUtcDate_InHeader_WhenLocalDateIsNull()
+    {
+        var utcToday = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var result = _service.GetBrief();
+
+        Assert.Contains($"Daily Brief — {utcToday}", result);
+    }
+
+    [Fact]
+    public void GetBrief_IncludesDueTask_WhenDueDateMatchesExplicitLocalDate()
+    {
+        // Pin the task's due date three days into the future — it would NOT appear
+        // under Due Today against today's UTC date, but SHOULD appear when we pass
+        // that future date as the client's local date.
+        var futureDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(3));
+        var futureDue  = new DateTimeOffset(futureDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+        _tasksMock.Setup(svc => svc.GetActive())
+                  .Returns(new List<TaskItem>
+                           {
+                                   new()
+                                   {
+                                           ShortDescription = "Submit future invoice"
+                                         , DueDate          = futureDue
+                                   }
+                           });
+
+        var result = _service.GetBrief(futureDate);
+
+        Assert.Contains("Submit future invoice", result);
+
+        var dueTodaySection = result.Substring(result.IndexOf("Due Today", StringComparison.Ordinal));
+        Assert.Contains("Submit future invoice", dueTodaySection);
+    }
+
+    [Fact]
+    public void GetBrief_AnchorsCalendarWindowToLocalMidnight_OfExplicitDate()
+    {
+        var explicitDate  = new DateOnly(2026, 4, 24);
+        var expectedStart = new DateTimeOffset(explicitDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local));
+        var expectedEnd   = expectedStart.AddDays(1);
+
+        DateTimeOffset capturedStart = default;
+        DateTimeOffset capturedEnd   = default;
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .Callback<DateTimeOffset, DateTimeOffset, CancellationToken>((start, end, _) =>
+                      {
+                          capturedStart = start;
+                          capturedEnd   = end;
+                      })
+                     .ReturnsAsync(new List<CalendarEvent>());
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+
+        service.GetBrief(explicitDate);
+
+        Assert.Equal(expectedStart, capturedStart);
+        Assert.Equal(expectedEnd,   capturedEnd);
+    }
+
+    [Fact]
+    public void GetBrief_PassesLocalDateAnchoredWindow_ThatDiffersFromUtcMidnight_WhenServerIsNotUtc()
+    {
+        // Regression guard against the pre-fix calendar window which used
+        // new DateTimeOffset(date, TimeSpan.Zero) — i.e. UTC midnight, regardless of
+        // the server's local offset. When the server's offset is non-zero, the fixed
+        // local-midnight anchor and the old UTC-midnight anchor differ; assert the
+        // new code produces the local-offset anchor. On a UTC server this test is a
+        // no-op (both anchors coincide), which is acceptable.
+        var explicitDate  = new DateOnly(2026, 4, 24);
+        var expectedStart = new DateTimeOffset(explicitDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local));
+
+        DateTimeOffset capturedStart = default;
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .Callback<DateTimeOffset, DateTimeOffset, CancellationToken>((start, _, _) => capturedStart = start)
+                     .ReturnsAsync(new List<CalendarEvent>());
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+
+        service.GetBrief(explicitDate);
+
+        Assert.Equal(expectedStart.Offset, capturedStart.Offset);
+    }
 }

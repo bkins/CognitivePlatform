@@ -11,6 +11,13 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public interface IDailyBriefService
 {
-    /// <summary>Returns the formatted daily brief for the current moment in time.</summary>
-    string GetBrief();
+    /// <summary>
+    /// Returns the formatted daily brief.
+    ///
+    /// <paramref name="localDate"/> is the user's local calendar date. When supplied,
+    /// the calendar window and the "due today / overdue" filter are keyed to that date.
+    /// When null, the brief falls back to <c>DateTimeOffset.UtcNow.Date</c> — preserving
+    /// the pre-BUG-12 behaviour for callers that do not yet pass a date.
+    /// </summary>
+    string GetBrief(DateOnly? localDate = null);
 }
