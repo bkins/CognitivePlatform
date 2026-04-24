@@ -33,20 +33,25 @@ public class DailyBriefService : IDailyBriefService
         _logger      = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
-    public string GetBrief()
+    public string GetBrief(DateOnly? localDate = null)
     {
-        var today  = DateTimeOffset.UtcNow.Date;
-        var active = _taskService.GetActive();
+        // BUG-12: "today" is a client concern — when the caller supplies the user's
+        // local calendar date, key all date-dependent logic off that value instead of
+        // the server's UTC date. Fallback preserves pre-fix behaviour.
+        var effectiveDate = localDate ?? DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
+        var today         = effectiveDate.ToDateTime(TimeOnly.MinValue).Date;
+        var active        = _taskService.GetActive();
 
         var eisenhower = _eisenhower.Analyze(active);
 
-        var dueToday = active.Where(t => t.DueDate.HasValue && t.DueDate.Value.UtcDateTime.Date <= today)
-                             .OrderBy(t => t.DueDate)
-                             .ThenBy(t => t.CreatedAt)
+        var dueToday = active.Where(item => item.DueDate.HasValue
+                                         && item.DueDate.Value.UtcDateTime.Date <= today)
+                             .OrderBy(item => item.DueDate)
+                             .ThenBy(item => item.CreatedAt)
                              .ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"=== Daily Brief — {DateTimeOffset.UtcNow:yyyy-MM-dd} ===");
+        sb.AppendLine($"=== Daily Brief — {effectiveDate:yyyy-MM-dd} ===");
 
         // ---- Do It Now ----
         sb.AppendLine();
@@ -90,8 +95,13 @@ public class DailyBriefService : IDailyBriefService
         {
             try
             {
-                var todayStart = new DateTimeOffset(today,            TimeSpan.Zero);
-                var todayEnd   = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
+                // Anchor the calendar window to the user's local midnight so we fetch
+                // events for the user's calendar day rather than the UTC day. We assume
+                // client-timezone == server-timezone (single-machine dev setup). Future
+                // multi-tz deployments will need an explicit tz offset parameter.
+                var localMidnight = effectiveDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
+                var todayStart    = new DateTimeOffset(localMidnight);
+                var todayEnd      = todayStart.AddDays(1);
 
                 // Sync bridge: DailyBrief is intentionally sync; async promotion tracked in DEFERRED.md
                 var calEvents = _calendar.GetEventsAsync(todayStart, todayEnd)

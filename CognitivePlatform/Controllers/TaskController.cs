@@ -52,9 +52,15 @@ public sealed class TaskController : ControllerBase
     }
 
     [HttpGet("brief")]
-    public ActionResult<string> GetBrief()
+    public ActionResult<string> GetBrief( [FromQuery] string? date = null )
     {
-        return Ok(_brief.GetBrief());
+        if (date.HasNoValue())
+            return Ok(_brief.GetBrief());
+
+        if (DateOnly.TryParse(date, out var localDate).Not())
+            return BadRequest("Date must be in yyyy-MM-dd format (e.g. 2026-04-24).");
+
+        return Ok(_brief.GetBrief(localDate));
     }
 
     [HttpPut("{id:guid}")]
