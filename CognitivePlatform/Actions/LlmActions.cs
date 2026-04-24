@@ -2,12 +2,13 @@ using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Interpreter;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Actions;
 
 /// <summary>
-/// Session-scoped LLM model actions.
+/// Session-scoped LLM model and provider actions.
 ///
 /// SetContext and SetCatalog must be called once per request by the orchestrator
 /// before any action in this class can be invoked.
@@ -15,16 +16,24 @@ namespace CognitivePlatform.Api.Actions;
 /// Model preference is stored in context.Metadata["session_model"] so it
 /// survives across conversation turns. The orchestrator reads this key and
 /// propagates it into the per-request "model" slot used by LlmInterpreter.
+///
+/// Provider preference is stored in context.Metadata["session_provider"] and
+/// consumed by ILlmRouter when dispatching a turn.
 /// </summary>
 public static class LlmActions
 {
-    public const string SessionModelKey = "session_model";
+    public const string SessionModelKey    = "session_model";
+    public const string SessionProviderKey = "session_provider";
 
-    private static ConversationContext? _context;
-    private static LlmModelCatalog?     _catalog;
+    private static ConversationContext?  _context;
+    private static LlmModelCatalog?      _catalog;
+    private static LlmProviderDefaults?  _providerDefaults;
 
     public static void SetContext (ConversationContext context) => _context = context;
-    public static void SetCatalog (LlmModelCatalog    catalog) => _catalog = catalog;
+    public static void SetCatalog (LlmModelCatalog     catalog) => _catalog = catalog;
+
+    public static void SetProviderDefaults (LlmProviderDefaults defaults) =>
+        _providerDefaults = defaults;
 
     [NaturalLanguageAction(
         Description = "Sets the LLM model to use for the remainder of this session. "
@@ -108,6 +117,88 @@ public static class LlmActions
                 sb.AppendLine($"  {info.Name}{marker}");
             else
                 sb.AppendLine($"  {info.Name} [unavailable: {info.FailureReason ?? "unknown"}]");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // ----------------------------------------------------------------
+    // SetProvider / ListProviders — DEFERRED #10
+    // ----------------------------------------------------------------
+
+    [NaturalLanguageAction(
+        Description = "Switches the LLM provider for the remainder of this session "
+                    + "(Groq, Gemini, Ollama, OpenRouter, or Cerebras). "
+                    + "The session's model resets to that provider's configured default; "
+                    + "use 'set model X' afterwards to pick something non-default."
+      , Examples =
+        [
+                "Switch to OpenRouter"
+              , "Use provider Groq"
+              , "Set provider to Gemini"
+        ]
+      , Category = "interpreter"
+    )]
+    public static string SetProvider (string provider)
+    {
+        if (_context is null)
+            return "Session context is not available. SetContext was not called.";
+
+        if (provider.HasNoValue())
+            return "Please provide a provider name. Say 'list providers' to see what is available.";
+
+        var trimmed = provider.Trim();
+
+        if (Enum.TryParse<LlmProvider>(trimmed, ignoreCase: true, out var parsed).Not())
+        {
+            var available = string.Join(", ", Enum.GetNames<LlmProvider>());
+            return $"Unknown provider '{trimmed}'. Available providers: {available}.";
+        }
+
+        var defaultModel = _providerDefaults?.For(parsed);
+
+        if (string.IsNullOrWhiteSpace(defaultModel))
+        {
+            return $"Provider '{parsed}' has no default model configured. "
+                 + $"Set one under 'Llm:Defaults:{parsed}' in configuration.";
+        }
+
+        _context.SetLlmSession(parsed.ToString(), defaultModel);
+
+        return $"Switched to {parsed} (default model: {defaultModel}). "
+             + "Use 'set model X' to pick a different model.";
+    }
+
+    [NaturalLanguageAction(
+        Description = "Lists the LLM providers known to the system, marks the active session "
+                    + "provider, and notes which ones have a default model configured."
+      , Examples =
+        [
+                "List providers"
+              , "What providers are available?"
+              , "Show me the available LLM providers"
+        ]
+      , Category = "interpreter"
+    )]
+    public static string ListProviders()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Available providers:");
+
+        var currentProvider = _context?.Metadata.GetValueOrDefault(SessionProviderKey);
+
+        foreach (var provider in Enum.GetValues<LlmProvider>())
+        {
+            var defaultModel = _providerDefaults?.For(provider);
+            var isCurrent    = provider.ToString().Equals(currentProvider
+                                                        , StringComparison.OrdinalIgnoreCase);
+
+            var marker = isCurrent ? " (current)" : string.Empty;
+
+            if (defaultModel.HasValue())
+                sb.AppendLine($"  {provider}{marker} — default model: {defaultModel}");
+            else
+                sb.AppendLine($"  {provider}{marker} — not configured");
         }
 
         return sb.ToString().TrimEnd();
