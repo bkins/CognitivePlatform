@@ -30,7 +30,7 @@ public class LlmActionsTests
     // ----------------------------------------------------------------
 
     [Fact]
-    public void SetModel_StoresSessionModelKey_WhenModelIsUsable()
+    public void SetModel_StoresInSessionSnapshot_WhenModelIsUsable()
     {
         var context = MakeContext();
         var catalog = CatalogWith(Usable("llama3.1-8b"));
@@ -41,7 +41,7 @@ public class LlmActionsTests
         var result = LlmActions.SetModel("llama3.1-8b");
 
         Assert.Contains("llama3.1-8b", result);
-        Assert.Equal("llama3.1-8b", context.Metadata[LlmActions.SessionModelKey]);
+        Assert.Equal("llama3.1-8b", context.CurrentLlmSession.Model);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class LlmActionsTests
         var result = LlmActions.SetModel("llama3.1-8b");
 
         Assert.Contains("LLaMa3.1-8B", result);
-        Assert.Equal("LLaMa3.1-8B", context.Metadata[LlmActions.SessionModelKey]);
+        Assert.Equal("LLaMa3.1-8B", context.CurrentLlmSession.Model);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class LlmActionsTests
         Assert.Contains("Unknown model", result);
         Assert.Contains("llama3.1-8b",   result);
         Assert.Contains("gpt-4o-mini",   result);
-        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionModelKey));
+        Assert.False(context.CurrentLlmSession.HasModel);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class LlmActionsTests
         var result = LlmActions.SetModel("broken-model");
 
         Assert.Contains("not usable", result);
-        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionModelKey));
+        Assert.False(context.CurrentLlmSession.HasModel);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class LlmActionsTests
     public void ListModels_MarksCurrentModel()
     {
         var context = MakeContext();
-        context.Metadata[LlmActions.SessionModelKey] = "model-a";
+        context.SetLlmModel("model-a");
         var catalog = CatalogWith(Usable("model-a"), Usable("model-b"));
 
         LlmActions.SetContext(context);
@@ -176,7 +176,7 @@ public class LlmActionsTests
     }
 
     [Fact]
-    public void SetProvider_WritesBothKeys_AndReturnsConfirmation()
+    public void SetProvider_AtomicallyUpdatesSession_AndReturnsConfirmation()
     {
         var context = MakeContext();
 
@@ -185,10 +185,12 @@ public class LlmActionsTests
 
         var result = LlmActions.SetProvider("OpenRouter");
 
-        Assert.Contains("Switched to OpenRouter",                result);
-        Assert.Contains("anthropic/claude-3.5-sonnet",           result);
-        Assert.Equal("OpenRouter",                                context.Metadata[LlmActions.SessionProviderKey]);
-        Assert.Equal("anthropic/claude-3.5-sonnet",               context.Metadata[LlmActions.SessionModelKey]);
+        var session = context.CurrentLlmSession;
+
+        Assert.Contains("Switched to OpenRouter",      result);
+        Assert.Contains("anthropic/claude-3.5-sonnet", result);
+        Assert.Equal("OpenRouter",                     session.Provider);
+        Assert.Equal("anthropic/claude-3.5-sonnet",    session.Model);
     }
 
     [Fact]
@@ -202,7 +204,7 @@ public class LlmActionsTests
         var result = LlmActions.SetProvider("openrouter");
 
         Assert.Contains("Switched to OpenRouter", result);
-        Assert.Equal("OpenRouter", context.Metadata[LlmActions.SessionProviderKey]);
+        Assert.Equal("OpenRouter", context.CurrentLlmSession.Provider);
     }
 
     [Fact]
@@ -218,7 +220,7 @@ public class LlmActionsTests
         Assert.Contains("Unknown provider", result);
         Assert.Contains("Groq",             result);
         Assert.Contains("OpenRouter",       result);
-        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionProviderKey));
+        Assert.False(context.CurrentLlmSession.HasProvider);
     }
 
     [Fact]
@@ -245,7 +247,7 @@ public class LlmActionsTests
         var result = LlmActions.SetProvider("Gemini");
 
         Assert.Contains("no default model configured", result);
-        Assert.False(context.Metadata.ContainsKey(LlmActions.SessionProviderKey));
+        Assert.False(context.CurrentLlmSession.HasProvider);
     }
 
     [Fact]

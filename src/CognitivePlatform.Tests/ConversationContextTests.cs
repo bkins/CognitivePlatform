@@ -1,4 +1,3 @@
-using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Conversation;
 
 namespace CognitivePlatform.Tests;
@@ -6,14 +5,16 @@ namespace CognitivePlatform.Tests;
 public class ConversationContextTests
 {
     [Fact]
-    public void SetLlmSession_WritesBothKeys()
+    public void SetLlmSession_PopulatesSnapshot()
     {
         var context = new ConversationContext("session");
 
         context.SetLlmSession("OpenRouter", "anthropic/claude-3.5-sonnet");
 
-        Assert.Equal("OpenRouter",                   context.Metadata[LlmActions.SessionProviderKey]);
-        Assert.Equal("anthropic/claude-3.5-sonnet", context.Metadata[LlmActions.SessionModelKey]);
+        var session = context.CurrentLlmSession;
+
+        Assert.Equal("OpenRouter",                  session.Provider);
+        Assert.Equal("anthropic/claude-3.5-sonnet", session.Model);
     }
 
     [Fact]
@@ -24,8 +25,37 @@ public class ConversationContextTests
 
         context.SetLlmSession("Gemini", "gemini-2.0-flash");
 
-        Assert.Equal("Gemini",           context.Metadata[LlmActions.SessionProviderKey]);
-        Assert.Equal("gemini-2.0-flash", context.Metadata[LlmActions.SessionModelKey]);
+        var session = context.CurrentLlmSession;
+
+        Assert.Equal("Gemini",           session.Provider);
+        Assert.Equal("gemini-2.0-flash", session.Model);
+    }
+
+    [Fact]
+    public void SetLlmModel_UpdatesModel_WhilePreservingProvider()
+    {
+        var context = new ConversationContext("session");
+        context.SetLlmSession("OpenRouter", "anthropic/claude-3.5-sonnet");
+
+        context.SetLlmModel("anthropic/claude-3.7-haiku");
+
+        var session = context.CurrentLlmSession;
+
+        Assert.Equal("OpenRouter",                  session.Provider);
+        Assert.Equal("anthropic/claude-3.7-haiku",  session.Model);
+    }
+
+    [Fact]
+    public void Reset_ClearsLlmSession_ToEmpty()
+    {
+        var context = new ConversationContext("session");
+        context.SetLlmSession("Gemini", "gemini-2.0-flash");
+
+        context.Reset();
+
+        Assert.Same(LlmSession.Empty, context.CurrentLlmSession);
+        Assert.False(context.CurrentLlmSession.HasProvider);
+        Assert.False(context.CurrentLlmSession.HasModel);
     }
 
     [Fact]
@@ -38,20 +68,14 @@ public class ConversationContextTests
         Assert.Equal("value", fetched);
     }
 
-    // BACK-06 / BUG-14 (proposed): catches a real defect — ConversationContext.SetLlmSession
-    // serializes writers under _llmSessionLock but readers do not take the lock, so a reader
-    // can observe (new provider, old model). The defect is structural; this test detects it
-    // reliably when run in isolation (~9/10 runs) and intermittently when the full suite
-    // warms the JIT/threadpool enough to close the race window (full-suite runs are green).
-    // Marked Flaky — not Skip — so CI keeps exercising it; production fix tracked under BUG-14.
-    [Trait("Category", "Flaky")]
+    // BUG-14: With the immutable-snapshot model, a reader cannot observe a torn
+    // (provider, model) pair regardless of how aggressively a writer mutates the
+    // session. Deterministic; runs in both the full suite and in isolation.
     [Fact]
     public async Task SetLlmSession_KeepsProviderAndModelConsistent_UnderContention()
     {
         var context = new ConversationContext("race-session");
 
-        // Pairs the writer thread alternates between. If the write were not atomic,
-        // a reader could observe provider=A with model belonging to B.
         var pairs = new (string provider, string model)[]
                     {
                             ("Groq",       "llama-3.3-70b-versatile")
@@ -72,14 +96,14 @@ public class ConversationContextTests
 
             for (var i = 0; i < iterations; i++)
             {
-                if (context.Metadata.TryGetValue(LlmActions.SessionProviderKey, out var provider).Equals(false))
-                    continue;
-                if (context.Metadata.TryGetValue(LlmActions.SessionModelKey, out var model).Equals(false))
+                var session = context.CurrentLlmSession;
+
+                if (session.HasProvider.Equals(false) || session.HasModel.Equals(false))
                     continue;
 
-                var expected = pairs.FirstOrDefault(pair => pair.provider == provider);
+                var expected = pairs.FirstOrDefault(pair => pair.provider == session.Provider);
 
-                if (expected.model is not null && expected.model == model)
+                if (expected.model is not null && expected.model == session.Model)
                     Interlocked.Increment(ref readsOk);
                 else
                     Interlocked.Increment(ref torn);
@@ -101,5 +125,54 @@ public class ConversationContextTests
 
         Assert.Equal(0, torn);
         Assert.True(readsOk > 0, "Reader should have observed at least one consistent pair.");
+    }
+
+    // BUG-14: Reset() must atomically swap the snapshot back to Empty. A reader
+    // racing Reset() should see either the previous (provider, model) pair or
+    // the empty pair — never a half-cleared mix.
+    [Fact]
+    public async Task Reset_KeepsSessionSnapshotConsistent_UnderContention()
+    {
+        var context = new ConversationContext("reset-race");
+        var pair    = ("OpenRouter", "anthropic/claude-3.5-sonnet");
+
+        context.SetLlmSession(pair.Item1, pair.Item2);
+
+        var torn       = 0;
+        var iterations = 10_000;
+        var started    = new TaskCompletionSource();
+
+        var reader = Task.Run(() =>
+        {
+            started.SetResult();
+
+            for (var i = 0; i < iterations; i++)
+            {
+                var session = context.CurrentLlmSession;
+
+                var isPair  = session.Provider == pair.Item1 && session.Model == pair.Item2;
+                var isEmpty = session.HasProvider.Equals(false) && session.HasModel.Equals(false);
+
+                if (isPair.Equals(false) && isEmpty.Equals(false))
+                    Interlocked.Increment(ref torn);
+            }
+        });
+
+        await started.Task;
+
+        var writer = Task.Run(() =>
+        {
+            for (var i = 0; i < iterations; i++)
+            {
+                if ((i & 1) == 0)
+                    context.SetLlmSession(pair.Item1, pair.Item2);
+                else
+                    context.Reset();
+            }
+        });
+
+        await Task.WhenAll(writer, reader);
+
+        Assert.Equal(0, torn);
     }
 }

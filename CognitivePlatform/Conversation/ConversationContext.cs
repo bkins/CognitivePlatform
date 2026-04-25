@@ -1,8 +1,22 @@
 using System.Collections.Concurrent;
 using CognitivePlatform.Api.Insights.Models;
+using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 
 namespace CognitivePlatform.Api.Conversation;
+
+/// <summary>
+/// Immutable snapshot of the session's selected LLM provider and model.
+/// Stored as a single reference field on <see cref="ConversationContext"/> and swapped
+/// atomically so a reader can never observe a torn (provider, model) pair.
+/// </summary>
+public sealed record LlmSession(string Provider, string Model)
+{
+    public static LlmSession Empty { get; } = new(string.Empty, string.Empty);
+
+    public bool HasProvider => !string.IsNullOrWhiteSpace(Provider);
+    public bool HasModel    => !string.IsNullOrWhiteSpace(Model);
+}
 
 /// <summary>
 /// Per-session state for a conversation with the CognitivePlatform.
@@ -34,25 +48,40 @@ public class ConversationContext
     public ConcurrentDictionary<string, string>   Metadata              { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string?                                LastInterpreterReason { get; set; }
 
-    /// <summary>
-    /// Guards atomic two-key writes (provider + model) during mid-session LLM switches.
-    /// Readers on the router path read each key independently without taking this lock —
-    /// the writer here ensures a reader never sees a torn pair (new provider, old model).
-    /// </summary>
-    private readonly object _llmSessionLock = new();
+    private LlmSession _llmSession = LlmSession.Empty;
 
     /// <summary>
-    /// Atomically writes the session's LLM provider and its default model.
-    /// Prevents the router from seeing a stale model paired with a new provider
-    /// if two threads race the metadata.
+    /// The current session's LLM provider and model as an immutable snapshot.
+    /// Reading this property always returns a consistent (provider, model) pair —
+    /// no torn reads possible, even under concurrent <see cref="SetLlmSession(string, string)"/>
+    /// or <see cref="SetLlmModel(string)"/> calls.
     /// </summary>
-    public void SetLlmSession(string provider, string model)
+    public LlmSession CurrentLlmSession => Volatile.Read(ref _llmSession);
+
+    /// <summary>
+    /// Atomically replaces the session's LLM provider and model in a single reference swap.
+    /// </summary>
+    public void SetLlmSession(string provider, string model) =>
+        Volatile.Write(ref _llmSession, new LlmSession(provider, model));
+
+    public void SetLlmSession(LlmProvider provider, string model) =>
+        SetLlmSession(provider.ToString(), model);
+
+    /// <summary>
+    /// Atomically swaps in a new session that keeps the existing provider but updates the model.
+    /// Uses CAS to ensure no concurrent writer is lost.
+    /// </summary>
+    public void SetLlmModel(string model)
     {
-        lock (_llmSessionLock)
+        LlmSession current;
+        LlmSession next;
+
+        do
         {
-            Metadata[Actions.LlmActions.SessionProviderKey] = provider;
-            Metadata[Actions.LlmActions.SessionModelKey]    = model;
+            current = Volatile.Read(ref _llmSession);
+            next    = current with { Model = model };
         }
+        while (Interlocked.CompareExchange(ref _llmSession, next, current) != current);
     }
 
     public Exception? LastInterpreterException { get; set; } = null;
@@ -120,5 +149,7 @@ public class ConversationContext
         Metadata.Clear();
         LastCandidateActions.Clear();
         LastMissingParameters.Clear();
+
+        Volatile.Write(ref _llmSession, LlmSession.Empty);
     }
 }

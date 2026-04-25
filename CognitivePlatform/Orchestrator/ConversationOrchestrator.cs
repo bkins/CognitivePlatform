@@ -140,10 +140,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             context.Metadata["model"] = request.Model!.Trim();
         }
-        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
-                 && sessionModel.HasValue())
+        else if (context.CurrentLlmSession.HasModel)
         {
-            context.Metadata["model"] = sessionModel;
+            context.Metadata["model"] = context.CurrentLlmSession.Model;
         }
         else
         {
@@ -731,10 +730,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             context.Metadata["model"] = request.Model.Trim();
         }
-        else if (context.Metadata.TryGetValue(Actions.LlmActions.SessionModelKey, out var sessionModel)
-                 && sessionModel.HasValue())
+        else if (context.CurrentLlmSession.HasModel)
         {
-            context.Metadata["model"] = sessionModel;
+            context.Metadata["model"] = context.CurrentLlmSession.Model;
         }
         else
         {
