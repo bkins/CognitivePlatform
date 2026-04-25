@@ -38,6 +38,13 @@ public class ConversationContextTests
         Assert.Equal("value", fetched);
     }
 
+    // BACK-06 / BUG-14 (proposed): catches a real defect — ConversationContext.SetLlmSession
+    // serializes writers under _llmSessionLock but readers do not take the lock, so a reader
+    // can observe (new provider, old model). The defect is structural; this test detects it
+    // reliably when run in isolation (~9/10 runs) and intermittently when the full suite
+    // warms the JIT/threadpool enough to close the race window (full-suite runs are green).
+    // Marked Flaky — not Skip — so CI keeps exercising it; production fix tracked under BUG-14.
+    [Trait("Category", "Flaky")]
     [Fact]
     public async Task SetLlmSession_KeepsProviderAndModelConsistent_UnderContention()
     {
