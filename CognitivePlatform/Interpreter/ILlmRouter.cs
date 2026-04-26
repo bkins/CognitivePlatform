@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Insights.Models;
 
 namespace CognitivePlatform.Api.Interpreter;
 
@@ -19,4 +20,18 @@ public interface ILlmRouter
     IAsyncEnumerable<string> StreamAsync (string              prompt
                                         , ConversationContext context
                                         , CancellationToken   ct = default);
+
+    /// <summary>
+    /// Polishes <paramref name="originalResponse"/> by weaving the supplied insights
+    /// in as conversational follow-on sentences. Per-session provider/model selection
+    /// (BUG-14 / DEFERRED #10) is honored — the weave call goes through the same
+    /// dispatch as a normal turn.
+    ///
+    /// The router builds the weave prompt internally and forwards via SendAsync;
+    /// callers are not required to construct the prompt themselves.
+    /// </summary>
+    Task<string> WeaveAsync (ConversationContext    context
+                           , string                 originalResponse
+                           , IReadOnlyList<Insight> insights
+                           , CancellationToken      cancellationToken = default);
 }

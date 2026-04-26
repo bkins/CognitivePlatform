@@ -1,15 +1,12 @@
 namespace CognitivePlatform.Api.Insights.Models;
 
 /// <summary>
-/// Persisted record of an emitted insight. Used for cross-session deduplication,
-/// throttling, and coaching analytics. Stub implementation in Phase A.
+/// Phase A history entry: one row per emitted insight, keyed on
+/// <see cref="DeduplicationKey"/>. Stored in process memory only; persistence and
+/// outcome tracking (ActedOn / Dismissed / Expired) are deferred to Phase B / C.
 /// </summary>
-public sealed class InsightHistoryItem
-{
-    public string          Id           { get; init; } = Guid.NewGuid().ToString();
-    public string          InsightKey   { get; init; } = string.Empty;
-    public InsightCategory Category     { get; init; }
-    public DateTime        EmittedAtUtc { get; init; }
-    public InsightOutcome  Outcome      { get; set; }  = InsightOutcome.Unknown;
-    public DateTime?       ResolvedAtUtc { get; set; }
-}
+public sealed record InsightHistoryItem(
+        string          DeduplicationKey
+      , DateTime        EmittedAt
+      , InsightCategory Category
+      , string?         Message);

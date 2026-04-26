@@ -124,11 +124,23 @@ public class ConversationContext
     public string? ClarificationForAction    { get; set; }
     public string? ClarificationForParameter { get; set; }
 
+    private IReadOnlyList<EmittedInsightRef> _lastEmittedInsights = Array.Empty<EmittedInsightRef>();
+
     /// <summary>
     /// Insights emitted on the previous turn. Used to detect follow-through
     /// (InsightOutcome.ActedOn) when the user's next action matches a SuggestedAction.
+    ///
+    /// Stored as a single immutable reference and swapped atomically (BUG-14 pattern):
+    /// readers always observe a consistent snapshot, even under concurrent writes.
     /// </summary>
-    public IReadOnlyList<EmittedInsightRef> LastEmittedInsights { get; set; } = [];
+    public IReadOnlyList<EmittedInsightRef> LastEmittedInsights => Volatile.Read(ref _lastEmittedInsights);
+
+    /// <summary>
+    /// Atomically replaces the previous-turn insights snapshot.
+    /// Pass an empty list (or null) to clear.
+    /// </summary>
+    public void SetLastEmittedInsights(IReadOnlyList<EmittedInsightRef>? insights) =>
+        Volatile.Write(ref _lastEmittedInsights, insights ?? Array.Empty<EmittedInsightRef>());
 
     public ConversationContext (string sessionId)
     {
@@ -150,6 +162,7 @@ public class ConversationContext
         LastCandidateActions.Clear();
         LastMissingParameters.Clear();
 
-        Volatile.Write(ref _llmSession, LlmSession.Empty);
+        Volatile.Write(ref _llmSession,         LlmSession.Empty);
+        Volatile.Write(ref _lastEmittedInsights, Array.Empty<EmittedInsightRef>());
     }
 }

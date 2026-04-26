@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Insights.Models;
 using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Api.Interpreter;
@@ -44,6 +46,35 @@ public class LlmRouter : ILlmRouter
 
         await foreach (var chunk in client.StreamAsync(prompt, model, ct))
             yield return chunk;
+    }
+
+    public Task<string> WeaveAsync( ConversationContext    context
+                                  , string                 originalResponse
+                                  , IReadOnlyList<Insight> insights
+                                  , CancellationToken      cancellationToken = default )
+    {
+        var prompt = BuildWeavePrompt(originalResponse, insights);
+        return SendAsync(prompt, context, cancellationToken);
+    }
+
+    private static string BuildWeavePrompt(string                 originalResponse
+                                         , IReadOnlyList<Insight> insights)
+    {
+        var insightLines = string.Join(Environment.NewLine
+                                     , insights.Select(insight => $"- {insight.Message}"));
+
+        var prompt = new StringBuilder();
+        prompt.AppendLine("You are a helpful assistant. Present the result below to the user first, then naturally");
+        prompt.AppendLine("transition into the suggestions as conversational follow-on sentences — not as a bullet");
+        prompt.AppendLine("list. The suggestions should feel like a thoughtful aside, not a notification.");
+        prompt.AppendLine();
+        prompt.AppendLine("Result:");
+        prompt.AppendLine(originalResponse);
+        prompt.AppendLine();
+        prompt.AppendLine("Suggestions to weave in:");
+        prompt.Append(insightLines);
+
+        return prompt.ToString();
     }
 
     private (ILlmClient client, string? model) Resolve(ConversationContext context)

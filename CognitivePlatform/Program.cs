@@ -174,10 +174,15 @@ public partial class Program
         builder.Services.AddTransient<DailyRecordActions>();
 
     // Insight Engine (Phase A — no Object Store dependency)
+        // History store is a singleton because the in-memory dictionary IS the state.
+        // InsightPolicy is bound from the "Insights" config section so caps tune
+        // without a rebuild; missing section falls through to record defaults.
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
-        builder.Services.AddSingleton<InsightPolicy>(new InsightPolicy());
-        builder.Services.AddScoped<IInsightHistoryStore, NoOpInsightHistoryStore>();
+        builder.Services.AddSingleton<IInsightHistoryStore, InMemoryInsightHistoryStore>();
+        builder.Services.AddSingleton<InsightPolicy>(
+            builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
+                ?? new InsightPolicy());
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
