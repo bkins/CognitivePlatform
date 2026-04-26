@@ -13,15 +13,16 @@ namespace CognitivePlatform.Api.Actions;
 /// SetContext and SetCatalog must be called once per request by the orchestrator
 /// before any action in this class can be invoked.
 ///
-/// Model preference is stored in context.Metadata["session_model"] so it
-/// survives across conversation turns. The orchestrator reads this key and
-/// propagates it into the per-request "model" slot used by LlmInterpreter.
-///
-/// Provider preference is stored in context.Metadata["session_provider"] and
-/// consumed by ILlmRouter when dispatching a turn.
+/// Model and provider preference are stored as an immutable
+/// <see cref="LlmSession"/> snapshot on <see cref="ConversationContext"/>,
+/// swapped atomically so that <see cref="ILlmRouter"/> can never observe a
+/// torn (provider, model) pair during a mid-session switch.
 /// </summary>
 public static class LlmActions
 {
+    // Retained for backwards compatibility with existing test fixtures and
+    // any external telemetry contract. The session source of truth is now
+    // ConversationContext.CurrentLlmSession; do not read these from production code.
     public const string SessionModelKey    = "session_model";
     public const string SessionProviderKey = "session_provider";
 
@@ -56,7 +57,7 @@ public static class LlmActions
 
         if (_catalog is null)
         {
-            _context.Metadata[SessionModelKey] = model.Trim();
+            _context.SetLlmModel(model.Trim());
             return $"Model set to '{model.Trim()}'. (Model catalog unavailable — no validation performed.)";
         }
 
@@ -80,7 +81,7 @@ public static class LlmActions
                  + $"Say 'list models' to see usable options.";
         }
 
-        _context.Metadata[SessionModelKey] = match.Name;
+        _context.SetLlmModel(match.Name);
         return $"Model set to '{match.Name}' for this session.";
     }
 
@@ -105,7 +106,7 @@ public static class LlmActions
         var sb = new StringBuilder();
         sb.AppendLine("Available models:");
 
-        var currentModel = _context?.Metadata.GetValueOrDefault(SessionModelKey);
+        var currentModel = _context?.CurrentLlmSession.Model;
 
         foreach (var info in _catalog.AvailableModels)
         {
@@ -163,7 +164,7 @@ public static class LlmActions
                  + $"Set one under 'Llm:Defaults:{parsed}' in configuration.";
         }
 
-        _context.SetLlmSession(parsed.ToString(), defaultModel);
+        _context.SetLlmSession(parsed, defaultModel);
 
         return $"Switched to {parsed} (default model: {defaultModel}). "
              + "Use 'set model X' to pick a different model.";
@@ -185,7 +186,7 @@ public static class LlmActions
         var sb = new StringBuilder();
         sb.AppendLine("Available providers:");
 
-        var currentProvider = _context?.Metadata.GetValueOrDefault(SessionProviderKey);
+        var currentProvider = _context?.CurrentLlmSession.Provider;
 
         foreach (var provider in Enum.GetValues<LlmProvider>())
         {

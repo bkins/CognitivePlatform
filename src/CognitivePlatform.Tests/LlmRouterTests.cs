@@ -1,4 +1,3 @@
-using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
@@ -48,10 +47,10 @@ public class LlmRouterTests
     }
 
     [Fact]
-    public async Task SendAsync_UsesSessionProvider_WhenSessionProviderKeyIsSet()
+    public async Task SendAsync_UsesSessionProvider_WhenSessionProviderIsSet()
     {
         var context = new ConversationContext("session-2");
-        context.Metadata[LlmActions.SessionProviderKey] = "OpenRouter";
+        context.SetLlmSession("OpenRouter", string.Empty);
 
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync("openrouter-response");
@@ -67,7 +66,7 @@ public class LlmRouterTests
     public async Task SendAsync_IsCaseInsensitive_ForSessionProviderValue()
     {
         var context = new ConversationContext("session-3");
-        context.Metadata[LlmActions.SessionProviderKey] = "gemini";
+        context.SetLlmSession("gemini", string.Empty);
 
         _gemini.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync("gemini-response");
@@ -82,7 +81,7 @@ public class LlmRouterTests
     public async Task SendAsync_FallsBackToDefaultProvider_WhenSessionProviderIsUnknown()
     {
         var context = new ConversationContext("session-4");
-        context.Metadata[LlmActions.SessionProviderKey] = "Imaginary";
+        context.SetLlmSession("Imaginary", string.Empty);
 
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync("groq-response");
@@ -97,8 +96,7 @@ public class LlmRouterTests
     public async Task SendAsync_PassesSessionModel_WhenPresent()
     {
         var context = new ConversationContext("session-5");
-        context.Metadata[LlmActions.SessionProviderKey] = "OpenRouter";
-        context.Metadata[LlmActions.SessionModelKey]    = "custom-model";
+        context.SetLlmSession("OpenRouter", "custom-model");
 
         string? capturedModel = null;
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -114,7 +112,7 @@ public class LlmRouterTests
     public async Task SendAsync_PassesProviderDefaultModel_WhenNoSessionModel()
     {
         var context = new ConversationContext("session-6");
-        context.Metadata[LlmActions.SessionProviderKey] = "OpenRouter";
+        context.SetLlmSession("OpenRouter", string.Empty);
 
         string? capturedModel = null;
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -130,8 +128,8 @@ public class LlmRouterTests
     public async Task SendAsync_PrefersPerTurnModelKey_OverSessionModel()
     {
         var context = new ConversationContext("session-7");
-        context.Metadata[LlmActions.SessionModelKey] = "session-model";
-        context.Metadata["model"]                    = "per-turn-model";
+        context.SetLlmModel("session-model");
+        context.Metadata["model"] = "per-turn-model";
 
         string? capturedModel = null;
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -163,7 +161,7 @@ public class LlmRouterTests
     public async Task StreamAsync_DispatchesToSessionProvider()
     {
         var context = new ConversationContext("session-9");
-        context.Metadata[LlmActions.SessionProviderKey] = "Gemini";
+        context.SetLlmSession("Gemini", string.Empty);
 
         _gemini.Setup(client => client.StreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                .Returns(AsAsync("g1", "g2"));

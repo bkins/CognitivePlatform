@@ -190,10 +190,12 @@ public class LlmInterpreter : IInterpreter
     /// </summary>
     private bool UsesDefaultProvider(ConversationContext context)
     {
-        if (context.Metadata.TryGetValue(LlmActions.SessionProviderKey, out var raw).Not())
+        var session = context.CurrentLlmSession;
+
+        if (session.HasProvider.Not())
             return true;
 
-        if (Enum.TryParse<LlmProvider>(raw, ignoreCase: true, out var parsed).Not())
+        if (Enum.TryParse<LlmProvider>(session.Provider, ignoreCase: true, out var parsed).Not())
             return true;
 
         return parsed == _settings.Provider;

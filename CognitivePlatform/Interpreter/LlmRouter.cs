@@ -1,16 +1,15 @@
 using System.Runtime.CompilerServices;
-using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Conversation;
 using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
-/// Pure dispatcher. Reads SessionProviderKey from context.Metadata to pick the
-/// active LlmProvider (falling back to the factory's configured default),
-/// reads SessionModelKey to pick the model (falling back to the provider's
-/// configured default), then forwards to the concrete ILlmClient resolved
-/// via LlmClientFactory.
+/// Pure dispatcher. Reads <see cref="ConversationContext.CurrentLlmSession"/>
+/// to pick the active <see cref="LlmProvider"/> (falling back to the factory's
+/// configured default) and the model (falling back to the provider's configured
+/// default), then forwards to the concrete ILlmClient resolved via
+/// LlmClientFactory.
 ///
 /// Stateless — a new client is created per call so that a mid-session
 /// SetProvider switch takes effect on the next turn without any
@@ -58,8 +57,10 @@ public class LlmRouter : ILlmRouter
 
     private LlmProvider ResolveProvider(ConversationContext context)
     {
-        if (context.Metadata.TryGetValue(LlmActions.SessionProviderKey, out var raw)
-         && Enum.TryParse<LlmProvider>(raw, ignoreCase: true, out var parsed))
+        var session = context.CurrentLlmSession;
+
+        if (session.HasProvider
+         && Enum.TryParse<LlmProvider>(session.Provider, ignoreCase: true, out var parsed))
         {
             return parsed;
         }
@@ -77,11 +78,10 @@ public class LlmRouter : ILlmRouter
             return perTurnModel;
         }
 
-        if (context.Metadata.TryGetValue(LlmActions.SessionModelKey, out var sessionModel)
-         && !string.IsNullOrWhiteSpace(sessionModel))
-        {
-            return sessionModel;
-        }
+        var session = context.CurrentLlmSession;
+
+        if (session.HasModel)
+            return session.Model;
 
         return _defaults.For(provider);
     }
