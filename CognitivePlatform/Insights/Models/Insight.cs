@@ -3,8 +3,12 @@ namespace CognitivePlatform.Api.Insights.Models;
 /// <summary>
 /// A read-only observation surfaced by the Insight Engine.
 /// Insights are woven into the natural language response — they suggest, they do not execute.
+///
+/// Immutable record. Equality is structural, but in practice insights are correlated by
+/// <see cref="DeduplicationKey"/> rather than full-record equality (the optional
+/// <see cref="SuggestedParameters"/> dictionary makes structural equality reference-based).
 /// </summary>
-public sealed class Insight
+public sealed record Insight
 {
     /// <summary>Human-facing suggestion, woven into the LLM response.</summary>
     public string Message { get; init; } = string.Empty;
@@ -21,8 +25,8 @@ public sealed class Insight
     /// </summary>
     public Dictionary<string, string>? SuggestedParameters { get; init; }
 
-    public InsightPriority  Priority { get; init; } = InsightPriority.Normal;
-    public InsightCategory  Category { get; init; } = InsightCategory.General;
+    public InsightPriority Priority { get; init; } = InsightPriority.Normal;
+    public InsightCategory Category { get; init; } = InsightCategory.General;
 
     /// <summary>
     /// Stable key used for deduplication across turns and sessions.

@@ -5,6 +5,7 @@ using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Insights;
@@ -31,6 +32,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly TelemetryContext         _telemetryContext;
     private readonly IInsightEngine           _insightEngine;
     private readonly IInsightHistoryStore     _insightHistory;
+    private readonly IActivityLog             _activityLog;
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
 
@@ -47,6 +49,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , TelemetryContext                                               telemetryContext
                                    , IInsightEngine                                                 insightEngine
                                    , IInsightHistoryStore                                           insightHistory
+                                   , IActivityLog                                                   activityLog
                                    , LlmModelCatalog                                                modelCatalog
                                    , LlmProviderDefaults                                            providerDefaults )
     {
@@ -61,6 +64,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _telemetryContext = telemetryContext  ?? throw new ArgumentNullException(nameof(telemetryContext));
         _insightEngine    = insightEngine    ?? throw new ArgumentNullException(nameof(insightEngine));
         _insightHistory   = insightHistory   ?? throw new ArgumentNullException(nameof(insightHistory));
+        _activityLog      = activityLog      ?? throw new ArgumentNullException(nameof(activityLog));
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
 
@@ -604,36 +608,93 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
         var execOutputFinal = await _execution.ExecuteAsync(selectedAction, execParameters, context.SessionId, ct);
 
-        // Insight Engine — runs after execution; only pays LLM cost when insights exist
-        var insights = await _insightEngine.GenerateInsightsAsync(context, ct);
-        string finalMessage;
-
-        if (insights.Count > 0)
-        {
-            await _insightHistory.RecordEmittedAsync(insights, ct);
-
-            context.LastEmittedInsights = insights
-                .Select(insight => new EmittedInsightRef(insight.DeduplicationKey
-                                                        , insight.SuggestedAction))
-                .ToList();
-
-            finalMessage = await WeaveInsightsAsync(execOutputFinal, insights, context, ct);
-        }
-        else
-        {
-            context.LastEmittedInsights = [];
-            finalMessage = execOutputFinal;
-        }
+        // Insight Engine — runs after execution; only pays LLM cost when insights exist.
+        // Failure isolation: a faulted engine call never breaks the turn; the response
+        // falls back to the raw execution result with no insights attached.
+        var insights = await SafeGenerateInsightsAsync(context, ct);
+        var finalMessage = await ApplyInsightsToResponseAsync(execOutputFinal
+                                                            , insights
+                                                            , context
+                                                            , ct);
 
         // 10. Return a consolidated response after finalizing it
         var finalResponse = new ConverseResponse
                             {
-                                    Message = finalMessage
-                                  , Debug   = interpretation.DebugInfo
+                                    Message         = finalMessage
+                                  , Insights        = insights
+                                  , Debug           = interpretation.DebugInfo
                                   , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
                             };
 
         return await FinalizeAsync(request, finalResponse, sw, ct);
+    }
+
+    private async Task<IReadOnlyList<Insight>> SafeGenerateInsightsAsync(
+        ConversationContext context
+      , CancellationToken   ct )
+    {
+        try
+        {
+            return await _insightEngine.GenerateInsightsAsync(context, ct);
+        }
+        catch (Exception ex)
+        {
+            // Engine should swallow provider faults itself; reaching here means a
+            // structural failure (DI, history store, activity log). Don't break the turn.
+            await _activityLog.LogAsync(new Domains.Activity.ActivityEvent
+                                        {
+                                                ActivityType = InsightActivityTypes.ProviderFailed
+                                              , Notes        = $"Engine: {ex.GetType().Name}: {ex.Message}"
+                                              , Meta         = new Dictionary<string, string>
+                                                               {
+                                                                       ["scope"] = "engine"
+                                                               }
+                                        }, ct);
+
+            return Array.Empty<Insight>();
+        }
+    }
+
+    private async Task<string> ApplyInsightsToResponseAsync(
+        string                 execOutput
+      , IReadOnlyList<Insight> insights
+      , ConversationContext    context
+      , CancellationToken      ct )
+    {
+        if (insights.Count == 0)
+        {
+            context.SetLastEmittedInsights(Array.Empty<EmittedInsightRef>());
+            return execOutput;
+        }
+
+        await _insightHistory.RecordEmittedAsync(insights, ct);
+
+        var refs = insights
+            .Select(insight => new EmittedInsightRef(insight.DeduplicationKey
+                                                   , insight.SuggestedAction))
+            .ToList();
+        context.SetLastEmittedInsights(refs);
+
+        // Weave failure: log + fall back to un-woven message. Structured insights
+        // remain on the response so clients that render them distinctly still see them.
+        try
+        {
+            return await _llmRouter.WeaveAsync(context, execOutput, insights, ct);
+        }
+        catch (Exception ex)
+        {
+            await _activityLog.LogAsync(new Domains.Activity.ActivityEvent
+                                        {
+                                                ActivityType = InsightActivityTypes.WeaveFailed
+                                              , Notes        = $"{ex.GetType().Name}: {ex.Message}"
+                                              , Meta         = new Dictionary<string, string>
+                                                               {
+                                                                       ["insightCount"] = insights.Count.ToString()
+                                                               }
+                                        }, ct);
+
+            return execOutput;
+        }
     }
 
     private async Task<ConverseResponse> TakeTheFastPath( ActionMetadata?             actionMeta
@@ -798,26 +859,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         //TODO:  Figure out how to determine when the stream is complete.
         // Does this need to be determined in the controller?  
-    }
-
-    private async Task<string> WeaveInsightsAsync( string                 execOutput
-                                                  , IReadOnlyList<Insight> insights
-                                                  , ConversationContext    context
-                                                  , CancellationToken      ct )
-    {
-        var insightMessages = string.Join("\n", insights.Select(insight => $"- {insight.Message}"));
-
-        var prompt = new StringBuilder();
-        prompt.AppendLine("You are a helpful assistant. Present the result below to the user first, then naturally");
-        prompt.AppendLine("transition into the suggestions as conversational follow-on sentences — not as a bullet");
-        prompt.AppendLine("list. The suggestions should feel like a thoughtful aside, not a notification.");
-        prompt.AppendLine();
-        prompt.AppendLine($"Result: {execOutput}");
-        prompt.AppendLine();
-        prompt.AppendLine("Suggestions to weave in:");
-        prompt.AppendLine(insightMessages);
-
-        return await _llmRouter.SendAsync(prompt.ToString(), context, ct);
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
