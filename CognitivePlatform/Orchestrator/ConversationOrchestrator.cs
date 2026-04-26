@@ -135,7 +135,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                               , context
                                               , ct);
 
-            return await FinalizeAsync(request, response, sw, ct);
+            return await FinalizeAsync(request
+                                     , response
+                                     , sw
+                                     , TurnPath.FastPath
+                                     , actionName: actionMeta.Name
+                                     , succeeded:  true
+                                     , ct:         ct);
         }
 
         // Persist model into the per-request "model" slot used by LlmInterpreter.
@@ -182,17 +188,32 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                        + $"with parameters: {string.Join(", ", execParams.Select(pair => $"{pair.Key}={pair.Value}"))}"
                                                      , WasFastPath = true
                                                };
-                    return await FinalizeAsync(request, confirmationResponse, sw, ct);
+                    return await FinalizeAsync(request
+                                             , confirmationResponse
+                                             , sw
+                                             , TurnPath.Confirmation
+                                             , actionName: confirmedAction.Name
+                                             , succeeded:  true
+                                             , ct:         ct);
                 }
 
                 if (IsNegative(input).Not())
-                    return new ConverseResponse
-                           {
-                                   Message         = "Please confirm or cancel."
-                                 , Debug           = $"Awaiting confirmation for '{pending.ActionName}'."
-                                 , ExecutionResult = $"User has not yet confirmed or cancelled '{pending.ActionName}'."
-                                 , WasFastPath     = true
-                           };
+                {
+                    var awaiting = new ConverseResponse
+                                   {
+                                           Message         = "Please confirm or cancel."
+                                         , Debug           = $"Awaiting confirmation for '{pending.ActionName}'."
+                                         , ExecutionResult = $"User has not yet confirmed or cancelled '{pending.ActionName}'."
+                                         , WasFastPath     = true
+                                   };
+                    return await FinalizeAsync(request
+                                             , awaiting
+                                             , sw
+                                             , TurnPath.Confirmation
+                                             , actionName: pending.ActionName
+                                             , succeeded:  null
+                                             , ct:         ct);
+                }
 
                 context.PendingAction = null;
 
@@ -206,7 +227,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 return await FinalizeAsync(request
                                          , response
                                          , sw
-                                         , ct);
+                                         , TurnPath.Confirmation
+                                         , actionName: pending.ActionName
+                                         , succeeded:  false
+                                         , ct:         ct);
 
             }
             
@@ -235,7 +259,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , ExecutionResult = $"Could not find action '{pending.ActionName}' in registry during clarification flow."
                                      , WasFastPath     = true
                                };
-                return await FinalizeAsync(request, response, sw, ct);
+                return await FinalizeAsync(request
+                                         , response
+                                         , sw
+                                         , TurnPath.Clarification
+                                         , actionName: pending.ActionName
+                                         , succeeded:  false
+                                         , ct:         ct);
             }
 
             // If somehow no remaining parameters, just execute with what we have
@@ -259,7 +289,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                        + $"with parameters: {string.Join(", ", finalParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
                                      , WasFastPath = true
                                };
-                return await FinalizeAsync(request, response, sw, ct);
+                return await FinalizeAsync(request
+                                         , response
+                                         , sw
+                                         , TurnPath.Clarification
+                                         , actionName: action.Name
+                                         , succeeded:  true
+                                         , ct:         ct);
             }
 
             // Take the next missing parameter name
@@ -302,8 +338,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , ExecutionResult = $"Collected parameter '{nextParameterName}' with value '{userValue}' for action '{action.Name}'. Still need parameter '{friendlyName}'."
                                      , WasFastPath = true
                                };
-                
-                return await FinalizeAsync(request, response, sw, ct);
+
+                return await FinalizeAsync(request
+                                         , response
+                                         , sw
+                                         , TurnPath.Clarification
+                                         , actionName: action.Name
+                                         , succeeded:  null
+                                         , ct:         ct);
             }
 
             // execute the action now
@@ -325,7 +367,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                    , ExecutionResult = $"Executed action '{action.Name}' with parameters: {string.Join(", ", parameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
                                                    , WasFastPath = true
                                              };
-            return await FinalizeAsync(request, finalClarificationResponse, sw, ct);
+            return await FinalizeAsync(request
+                                     , finalClarificationResponse
+                                     , sw
+                                     , TurnPath.Clarification
+                                     , actionName: action.Name
+                                     , succeeded:  true
+                                     , ct:         ct);
         }
 
         // 4. Log interpreter identity
@@ -376,7 +424,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                              , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
                                              , Success         = false
                                        };
-            return await FinalizeAsync(request, llmExceptionResponse, sw, ct);
+            return await FinalizeAsync(request
+                                     , llmExceptionResponse
+                                     , sw
+                                     , TurnPath.Interpreter
+                                     , actionName: null
+                                     , succeeded:  false
+                                     , ct:         ct);
         }
         
         
@@ -428,7 +482,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                              , Debug   = msg
                              , ExecutionResult = $"Could not find action '{interpretation.ActionName}' in registry during missing parameters handling."
                        };
-                return await  FinalizeAsync(request, response, sw, ct);
+                return await  FinalizeAsync(request
+                                          , response
+                                          , sw
+                                          , TurnPath.Interpreter
+                                          , actionName: interpretation.ActionName
+                                          , succeeded:  false
+                                          , ct:         ct);
             }
 
             if (action.AllowsClarification)
@@ -497,7 +557,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , Debug   = interpretation.DebugInfo
                                      , ExecutionResult = $"Interpreter selected action '{action.Name}' but is missing required parameters: {string.Join(", ", missingNames)}. Prompting user for '{friendlyName}'."
                                };
-                return await  FinalizeAsync(request, response, sw, ct);
+                return await  FinalizeAsync(request
+                                          , response
+                                          , sw
+                                          , TurnPath.Interpreter
+                                          , actionName: action.Name
+                                          , succeeded:  null
+                                          , ct:         ct);
             }
 
             // Action does NOT allow clarification: treat as a normal failure
@@ -528,7 +594,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                   , Debug           = $"Missing required parameters for action '{interpretation.ActionName}': {missingJoined}"
                                                   , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
                                             };
-            return await FinalizeAsync(request, missingParametersResponse, sw, ct);
+            return await FinalizeAsync(request
+                                     , missingParametersResponse
+                                     , sw
+                                     , TurnPath.Interpreter
+                                     , actionName: interpretation.ActionName
+                                     , succeeded:  false
+                                     , ct:         ct);
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
@@ -553,7 +625,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                            Message = message
                          , Debug   = interpretation.DebugInfo
                    };
-            return await FinalizeAsync(request, missingActionResponse, sw, ct);
+            return await FinalizeAsync(request
+                                     , missingActionResponse
+                                     , sw
+                                     , TurnPath.Interpreter
+                                     , actionName: null
+                                     , succeeded:  false
+                                     , ct:         ct);
         }
 
         // 8. Look up the action reflectively
@@ -574,7 +652,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                 Message = "That action is not registered in this system."
                                               , Debug   = msg
                                         };
-            return await FinalizeAsync(request, unknownActionResponse, sw, ct);
+            return await FinalizeAsync(request
+                                     , unknownActionResponse
+                                     , sw
+                                     , TurnPath.Interpreter
+                                     , actionName: interpretation.ActionName
+                                     , succeeded:  false
+                                     , ct:         ct);
 
         }
 
@@ -601,12 +685,32 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                  , Debug           = $"Destructive action '{selectedAction.Name}' requires confirmation."
                                  , ExecutionResult = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
                            };
-            return await FinalizeAsync(request, response, sw, ct);
+            return await FinalizeAsync(request
+                                     , response
+                                     , sw
+                                     , TurnPath.Confirmation
+                                     , actionName: selectedAction.Name
+                                     , succeeded:  null
+                                     , ct:         ct);
         }
-        
+
         // 9. Execute with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
         var execOutputFinal = await _execution.ExecuteAsync(selectedAction, execParameters, context.SessionId, ct);
+
+        // ENH-08: record the turn BEFORE the engine fires so providers see the current
+        // user message + raw assistant output in context.Turns. After weave, replace the
+        // latest entry with the woven message so the history matches what the user saw.
+        // Phase A's Insight Engine integration only runs on this path; FinalizeAsync below
+        // is told recordTurn:false because we did the recording inline here.
+        var initialTurn = new ConversationTurn(
+                                  UserMessage:      request.Input ?? string.Empty
+                                , AssistantMessage: execOutputFinal
+                                , OccurredAt:       DateTimeOffset.UtcNow
+                                , Path:             TurnPath.Interpreter
+                                , ActionName:       selectedAction.Name
+                                , Succeeded:        true);
+        context.RecordTurn(initialTurn);
 
         // Insight Engine — runs after execution; only pays LLM cost when insights exist.
         // Failure isolation: a faulted engine call never breaks the turn; the response
@@ -617,6 +721,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                             , context
                                                             , ct);
 
+        if (insights.Count > 0 && finalMessage != execOutputFinal)
+        {
+            // Weave produced a different (woven) message — swap the latest turn so the
+            // recorded AssistantMessage matches what the user actually saw.
+            context.ReplaceLatestTurn(initialTurn with { AssistantMessage = finalMessage });
+        }
+
         // 10. Return a consolidated response after finalizing it
         var finalResponse = new ConverseResponse
                             {
@@ -626,7 +737,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                   , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
                             };
 
-        return await FinalizeAsync(request, finalResponse, sw, ct);
+        return await FinalizeAsync(request
+                                 , finalResponse
+                                 , sw
+                                 , TurnPath.Interpreter
+                                 , actionName: selectedAction.Name
+                                 , succeeded:  true
+                                 , recordTurn: false
+                                 , ct:         ct);
     }
 
     private async Task<IReadOnlyList<Insight>> SafeGenerateInsightsAsync(
@@ -885,9 +1003,29 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
     public async Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
                                                       , ConverseResponse  response
-                                                       , Stopwatch sw
-                                                      , CancellationToken ct )
+                                                      , Stopwatch         sw
+                                                      , TurnPath          path
+                                                      , string?           actionName = null
+                                                      , bool?             succeeded  = null
+                                                      , bool              recordTurn = true
+                                                      , CancellationToken ct         = default )
     {
+        // ENH-08: append the turn to the session's bounded history.
+        // The Interpreter+execute path records inline (around the engine call) so it can
+        // capture the un-woven message before the engine fires; it passes recordTurn:false
+        // here to avoid double-recording.
+        if (recordTurn)
+        {
+            var context = _contextStore.GetOrCreate(request.SessionId);
+            context.RecordTurn(new ConversationTurn(
+                                       UserMessage:      request.Input ?? string.Empty
+                                     , AssistantMessage: response.Message ?? string.Empty
+                                     , OccurredAt:       DateTimeOffset.UtcNow
+                                     , Path:             path
+                                     , ActionName:       actionName
+                                     , Succeeded:        succeeded));
+        }
+
         if (request.ClientRequestId.HasValue)
         {
             await _idempotencyStore.StoreAsync(request.ClientRequestId.Value
@@ -906,14 +1044,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                              , Response   = response.ExecutionResult ?? "No execution result."
                                                              , Properties = property
                                                        }));
-        
+
         _telemetry.Track(_telemetryContext.CreateEvent(new ConversationCompletedEvent
                                                        {
                                                                TimeElapsed = sw.Elapsed
                                                        }));
 
-        // _telemetry.Track($"Orchestrator.End; Model='{request.Model}' Response: {response.ExecutionResult}");
-        // _telemetry.Track("Orchestrator.End.Debug", response.Debug ?? "No debug info.");
         return response;
     }
 }
