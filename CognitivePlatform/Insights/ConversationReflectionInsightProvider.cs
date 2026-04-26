@@ -54,11 +54,10 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         ConversationContext                        context
       , [EnumeratorCancellation] CancellationToken cancellationToken = default )
     {
-        var lastMessage = context.LastUserMessage;
-        if (string.IsNullOrWhiteSpace(lastMessage))
+        var prompt = BuildPromptForContext(context);
+        if (prompt is null)
             yield break;
 
-        var prompt   = BuildReflectionPrompt(lastMessage);
         var response = await _router.SendAsync(prompt, context, cancellationToken);
 
         var parsed = TryParse(response, context.SessionId);
@@ -67,6 +66,61 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
 
         foreach (var insight in parsed)
             yield return insight;
+    }
+
+    private string? BuildPromptForContext(ConversationContext context)
+    {
+        // ENH-08: prefer the Turns window when populated; fall back to LastUserMessage
+        // if the orchestrator hasn't recorded any turns yet (defensive — shouldn't
+        // happen in normal flow because RecordTurn runs before the engine call).
+        var turns = context.Turns;
+        if (turns.Count == 0)
+        {
+            var fallback = context.LastUserMessage;
+            return string.IsNullOrWhiteSpace(fallback)
+                           ? null
+                           : BuildReflectionPrompt(fallback);
+        }
+
+        var window = SelectAnalysisWindow(turns);
+        if (window.Count == 0)
+            return null;
+
+        return BuildReflectionPromptFromWindow(window);
+    }
+
+    /// <summary>
+    /// Walks <paramref name="turns"/> in reverse, accumulating the most recent entries
+    /// until either <see cref="InsightPolicy.MaxAnalysisTurns"/> or
+    /// <see cref="InsightPolicy.MaxAnalysisTokens"/> is hit. Token estimation uses a
+    /// chars-÷-4 heuristic — accurate enough for budget enforcement, no tokenizer
+    /// dependency required.
+    /// </summary>
+    private List<ConversationTurn> SelectAnalysisWindow(IReadOnlyList<ConversationTurn> turns)
+    {
+        var window     = new List<ConversationTurn>();
+        var charBudget = checked(_policy.MaxAnalysisTokens * 4);
+        var charsUsed  = 0;
+
+        for (var i = turns.Count - 1; i >= 0; i--)
+        {
+            if (window.Count >= _policy.MaxAnalysisTurns)
+                break;
+
+            var turn      = turns[i];
+            var turnChars = (turn.UserMessage?.Length ?? 0) + (turn.AssistantMessage?.Length ?? 0);
+
+            // Always include the newest turn even if it alone exceeds the budget;
+            // otherwise an oversized message would silently produce zero insights.
+            if (window.Count > 0 && charsUsed + turnChars > charBudget)
+                break;
+
+            window.Add(turn);
+            charsUsed += turnChars;
+        }
+
+        window.Reverse();
+        return window;
     }
 
     // ---------------------------------------------------------------------
@@ -105,17 +159,63 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         ---
         """;
 
-    private string BuildReflectionPrompt(string lastUserMessage)
-    {
-        // Phase A: single-turn window. The MaxAnalysisTurns / MaxAnalysisTokens caps
-        // are referenced here so the dependency is wired and the configuration is
-        // exercised, even though the loop only runs over one turn today.
-        _ = _policy.MaxAnalysisTurns;
-        _ = _policy.MaxAnalysisTokens;
+    private const string MultiTurnReflectionPromptTemplate = """
+        You are a reflective observer for a personal-assistant platform. Read the recent
+        conversation turns below and decide whether the user's latest message warrants a
+        gentle, observational suggestion the assistant could offer (e.g. "want to log
+        that as a journal entry?").
 
+        Rules:
+        - Focus on the latest user message; use earlier turns only as context for
+          interpreting it.
+        - Stay quiet by default. Most messages should produce ZERO insights. Only
+          surface a suggestion when the latest message clearly carries emotion, stress,
+          reflection, or signals the user might benefit from journaling.
+        - Some turns may be truncated (you'll see "...[truncated for context]"). Do not
+          attempt to reconstruct what was cut.
+        - Never invent facts not present in the conversation.
+        - Output STRICT JSON only — no prose, no markdown fences, no commentary.
+
+        Output schema:
+        {
+          "insights": [
+            {
+              "message":          "<one short, conversational suggestion>",
+              "suggestedAction":  "AddJournalEntry" | null,
+              "deduplicationKey": "reflection.<short-signal>"
+            }
+          ]
+        }
+
+        If nothing is worth surfacing, output exactly:
+        { "insights": [] }
+
+        Recent conversation (oldest first):
+        ---
+        {{TURNS}}
+        ---
+        """;
+
+    private static string BuildReflectionPrompt(string lastUserMessage)
+    {
         var prompt = new StringBuilder(ReflectionPromptTemplate.Length + lastUserMessage.Length);
         prompt.Append(ReflectionPromptTemplate.Replace("{{USER_MESSAGE}}", lastUserMessage));
         return prompt.ToString();
+    }
+
+    private static string BuildReflectionPromptFromWindow(IReadOnlyList<ConversationTurn> window)
+    {
+        var rendered = new StringBuilder();
+        foreach (var turn in window)
+        {
+            rendered.Append("User: ");
+            rendered.AppendLine(turn.UserMessage);
+            rendered.Append("Assistant: ");
+            rendered.AppendLine(turn.AssistantMessage);
+            rendered.AppendLine();
+        }
+
+        return MultiTurnReflectionPromptTemplate.Replace("{{TURNS}}", rendered.ToString().TrimEnd());
     }
 
     // ---------------------------------------------------------------------

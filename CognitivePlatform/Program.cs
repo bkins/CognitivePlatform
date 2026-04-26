@@ -111,6 +111,11 @@ public partial class Program
         builder.Services.Configure<LlmProviderDefaults>(builder.Configuration.GetSection("Llm:Defaults"));
         builder.Services.AddSingleton<LlmProviderDefaults>(sp => sp.GetRequiredService<IOptions<LlmProviderDefaults>>().Value);
 
+        // ENH-08: bounded turn-history caps for ConversationContext (in-memory, session-scoped).
+        // Defaults: MaxTurnHistory = 50, MaxTurnMessageLength = 4096.
+        builder.Services.Configure<ConversationContextOptions>(
+            builder.Configuration.GetSection("ConversationContext"));
+
         // Usage tracker — must be registered before LlmClientFactory
         builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
 

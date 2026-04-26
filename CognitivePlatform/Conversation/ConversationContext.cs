@@ -114,6 +114,104 @@ public class ConversationContext
     /// </summary>
     public string SessionId { get; }
 
+    private readonly ConversationContextOptions _options;
+
+    private IReadOnlyList<ConversationTurn> _turns = Array.Empty<ConversationTurn>();
+
+    /// <summary>
+    /// Bounded, in-memory, session-scoped history of recent turns. Stored as a
+    /// single immutable reference and swapped atomically (BUG-14 pattern) — readers
+    /// always observe a consistent snapshot, even while the orchestrator records
+    /// or replaces the latest turn.
+    ///
+    /// <para>
+    /// The window is sized by <see cref="ConversationContextOptions.MaxTurnHistory"/>
+    /// (default 50). Per-message length is capped by
+    /// <see cref="ConversationContextOptions.MaxTurnMessageLength"/> (default 4096).
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<ConversationTurn> Turns => Volatile.Read(ref _turns);
+
+    /// <summary>
+    /// Appends <paramref name="turn"/> to the session's turn history, evicting
+    /// the oldest entry when the cap would be exceeded. Both message fields are
+    /// truncated at <see cref="ConversationContextOptions.MaxTurnMessageLength"/>.
+    ///
+    /// <para>
+    /// Single-writer contract: the orchestrator is the sole caller and processes
+    /// turns serially per session. A plain Volatile.Read-build-Volatile.Write
+    /// sequence is sufficient; no CAS loop is required. Concurrent <em>readers</em>
+    /// (e.g. providers) still see consistent snapshots via <see cref="Turns"/>.
+    /// </para>
+    /// </summary>
+    public void RecordTurn(ConversationTurn turn)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+
+        var truncated = TruncateMessages(turn);
+
+        var current = Volatile.Read(ref _turns);
+        var next    = new List<ConversationTurn>(Math.Min(current.Count + 1, _options.MaxTurnHistory));
+
+        // Slide the window: drop the oldest entry once we'd exceed the cap.
+        var skip = current.Count + 1 > _options.MaxTurnHistory ? current.Count + 1 - _options.MaxTurnHistory : 0;
+        for (var i = skip; i < current.Count; i++)
+            next.Add(current[i]);
+
+        next.Add(truncated);
+
+        Volatile.Write(ref _turns, next);
+    }
+
+    /// <summary>
+    /// Replaces the most recent recorded turn with <paramref name="turn"/>. Used
+    /// after a weave pass to swap the un-woven assistant message for the woven one.
+    ///
+    /// <para>
+    /// Same single-writer contract as <see cref="RecordTurn"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// Throws <see cref="InvalidOperationException"/> if there is no prior turn —
+    /// calling <c>ReplaceLatestTurn</c> without a prior <see cref="RecordTurn"/> is
+    /// a contract violation in the orchestrator's flow.
+    /// </para>
+    /// </summary>
+    public void ReplaceLatestTurn(ConversationTurn turn)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+
+        var current = Volatile.Read(ref _turns);
+        if (current.Count == 0)
+            throw new InvalidOperationException("Cannot replace latest turn: history is empty.");
+
+        var truncated = TruncateMessages(turn);
+
+        var next = new List<ConversationTurn>(current.Count);
+        for (var i = 0; i < current.Count - 1; i++)
+            next.Add(current[i]);
+
+        next.Add(truncated);
+
+        Volatile.Write(ref _turns, next);
+    }
+
+    private ConversationTurn TruncateMessages(ConversationTurn turn) =>
+        turn with
+        {
+                UserMessage      = TruncateOne(turn.UserMessage)
+              , AssistantMessage = TruncateOne(turn.AssistantMessage)
+        };
+
+    private string TruncateOne(string message)
+    {
+        if (message.Length <= _options.MaxTurnMessageLength)
+            return message;
+
+        return string.Concat(message.AsSpan(0, _options.MaxTurnMessageLength)
+                           , ConversationContextOptions.TruncationMarker);
+    }
+
     /// <summary>
     /// If non-null, indicates we asked the user a follow-up question
     /// to complete this action.
@@ -143,8 +241,14 @@ public class ConversationContext
         Volatile.Write(ref _lastEmittedInsights, insights ?? Array.Empty<EmittedInsightRef>());
 
     public ConversationContext (string sessionId)
+        : this(sessionId, options: null)
+    {
+    }
+
+    public ConversationContext (string sessionId, ConversationContextOptions? options)
     {
         SessionId = sessionId;
+        _options  = options ?? new ConversationContextOptions();
     }
 
     public void Reset()
@@ -164,5 +268,6 @@ public class ConversationContext
 
         Volatile.Write(ref _llmSession,         LlmSession.Empty);
         Volatile.Write(ref _lastEmittedInsights, Array.Empty<EmittedInsightRef>());
+        Volatile.Write(ref _turns,              Array.Empty<ConversationTurn>());
     }
 }
