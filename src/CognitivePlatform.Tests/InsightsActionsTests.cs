@@ -5,15 +5,17 @@ using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
 
 namespace CognitivePlatform.Tests;
 
 public class InsightsActionsTests
 {
-    private readonly Mock<ITaskService>    _tasksMock    = new();
-    private readonly Mock<IJournalService> _journalMock  = new();
-    private readonly Mock<ILlmClient>      _llmMock      = new();
-    private readonly Mock<IActivityLog>    _activityMock = new();
+    private readonly Mock<ITaskService>    _tasksMock        = new();
+    private readonly Mock<IJournalService> _journalMock      = new();
+    private readonly Mock<ILlmClient>      _llmMock          = new();
+    private readonly Mock<IActivityLog>    _activityMock     = new();
+    private readonly Mock<IPromptLogger>   _promptLoggerMock = new();
     private readonly InsightsActions       _actions;
 
     public InsightsActionsTests()
@@ -24,9 +26,10 @@ public class InsightsActionsTests
                      .ReturnsAsync((IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>());
 
         _actions = new InsightsActions(_tasksMock.Object
-                                      , _journalMock.Object
-                                      , _llmMock.Object
-                                      , _activityMock.Object);
+                                     , _journalMock.Object
+                                     , _llmMock.Object
+                                     , _promptLoggerMock.Object
+                                     , _activityMock.Object);
     }
 
     // ================================================================
@@ -121,7 +124,7 @@ public class InsightsActionsTests
 
         var result = await _actions.AnalyzePatterns();
 
-        Assert.Contains("No tasks or journal entries found", result);
+        Assert.Contains("No tasks, journal, or activity entries found", result);
         _llmMock.Verify(llm => llm.SendAsync(It.IsAny<string>()
                                             , It.IsAny<string?>()
                                             , It.IsAny<CancellationToken>())
@@ -196,8 +199,9 @@ public class InsightsActionsTests
                     .Returns(new List<JournalEntryWithRevision>());
 
         var actionsNoActivity = new InsightsActions(_tasksMock.Object
-                                                   , _journalMock.Object
-                                                   , _llmMock.Object);
+                                                  , _journalMock.Object
+                                                  , _llmMock.Object
+                                                  , _promptLoggerMock.Object);
 
         string? capturedPrompt = null;
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -70,9 +72,25 @@ public class GeminiLlmClient : ILlmClient
 
         if (response.IsSuccessStatusCode.Not())
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException(
-                $"Gemini API returned {(int)response.StatusCode}: {errorBody}");
+            var errorBody    = await response.Content.ReadAsStringAsync(cancellationToken);
+            var errorMessage = string.Empty;
+            
+            if (response.StatusCode is HttpStatusCode.ServiceUnavailable
+                                    or HttpStatusCode.TooManyRequests)
+            {
+                errorMessage = response.StatusCode switch
+                {
+                        HttpStatusCode.TooManyRequests    => "Rate limit exceeded for the day. Please try again tomorrow."
+                      , HttpStatusCode.ServiceUnavailable => "Service is unavailable."
+                      , _                                 => errorMessage
+                };
+#if DEBUG
+                errorMessage += $"\nHTTP {(int)response.StatusCode}: {errorBody}";
+#endif
+                return errorMessage;
+            }
+            
+            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {errorBody}");
         }
 
         var result = await response.Content

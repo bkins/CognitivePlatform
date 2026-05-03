@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Insights.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Api.Interpreter;
@@ -21,12 +23,15 @@ public class LlmRouter : ILlmRouter
 {
     private readonly ILlmClientFactory   _factory;
     private readonly LlmProviderDefaults _defaults;
+    private readonly IPromptLogger       _promptLogger;
 
-    public LlmRouter( ILlmClientFactory               factory
-                    , IOptions<LlmProviderDefaults>   defaults )
+    public LlmRouter( ILlmClientFactory             factory
+                    , IOptions<LlmProviderDefaults> defaults
+                    , IPromptLogger                 promptLogger )
     {
-        _factory  = factory;
-        _defaults = defaults.Value;
+        _factory      = factory;
+        _defaults     = defaults.Value;
+        _promptLogger = promptLogger;
     }
 
     public Task<string> SendAsync( string              prompt
@@ -37,10 +42,9 @@ public class LlmRouter : ILlmRouter
         return client.SendAsync(prompt, model, ct);
     }
 
-    public async IAsyncEnumerable<string> StreamAsync(
-        string                                     prompt
-      , ConversationContext                        context
-      , [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<string> StreamAsync( string                                     prompt
+                                                     , ConversationContext                        context
+                                                     , [EnumeratorCancellation] CancellationToken ct = default)
     {
         var (client, model) = Resolve(context);
 
@@ -54,6 +58,9 @@ public class LlmRouter : ILlmRouter
                                   , CancellationToken      cancellationToken = default )
     {
         var prompt = BuildWeavePrompt(originalResponse, insights);
+        
+        _promptLogger.Log("WeaveLlmRouter.WeaveAsync", prompt, _defaults.ToString());
+        
         return SendAsync(prompt, context, cancellationToken);
     }
 
@@ -104,16 +111,16 @@ public class LlmRouter : ILlmRouter
         // Per-turn override (orchestrator populates this from request.Model) wins
         // over session-level preference.
         if (context.Metadata.TryGetValue("model", out var perTurnModel)
-         && !string.IsNullOrWhiteSpace(perTurnModel))
+         && perTurnModel.HasValue())
         {
             return perTurnModel;
         }
 
         var session = context.CurrentLlmSession;
 
-        if (session.HasModel)
-            return session.Model;
+        return session.HasModel
+                       ? session.Model
+                       : _defaults.For(provider);
 
-        return _defaults.For(provider);
     }
 }

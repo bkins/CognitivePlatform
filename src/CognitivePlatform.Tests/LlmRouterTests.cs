@@ -1,6 +1,7 @@
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -8,12 +9,14 @@ namespace CognitivePlatform.Tests;
 
 public class LlmRouterTests
 {
-    private readonly Mock<ILlmClientFactory>       _factoryMock = new();
-    private readonly Mock<ILlmClient>              _groqClient  = new();
-    private readonly Mock<ILlmClient>              _openRouter  = new();
-    private readonly Mock<ILlmClient>              _gemini      = new();
-    private readonly LlmProviderDefaults           _defaults;
-    private readonly LlmRouter                     _router;
+    private readonly Mock<ILlmClientFactory> _factoryMock = new();
+    private readonly Mock<ILlmClient>        _groqClient  = new();
+    private readonly Mock<ILlmClient>        _openRouter  = new();
+    private readonly Mock<ILlmClient>        _gemini      = new();
+    private readonly Mock<IPromptLogger>     _loggerMock  = new();
+
+    private readonly LlmProviderDefaults _defaults;
+    private readonly LlmRouter           _router;
 
     public LlmRouterTests()
     {
@@ -21,7 +24,7 @@ public class LlmRouterTests
                     {
                             Groq       = "llama-3.3-70b-versatile"
                           , OpenRouter = "anthropic/claude-3.5-sonnet"
-                          , Gemini     = "gemini-2.0-flash"
+                          , Gemini     = "gemini-2.5-flash"
                     };
 
         _factoryMock.SetupGet(factory => factory.DefaultProvider).Returns(LlmProvider.Groq);
@@ -30,7 +33,8 @@ public class LlmRouterTests
         _factoryMock.Setup(factory => factory.Create(LlmProvider.Gemini))    .Returns(_gemini.Object);
 
         _router = new LlmRouter(_factoryMock.Object
-                              , Options.Create(_defaults));
+                              , Options.Create(_defaults)
+                              , _loggerMock.Object);
     }
 
     [Fact]

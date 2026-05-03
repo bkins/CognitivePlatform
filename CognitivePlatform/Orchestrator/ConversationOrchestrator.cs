@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
+
+using CP.Shared.Primitives.Avails.Extensions;
+
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Activity;
-using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
@@ -15,7 +16,6 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
-using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -36,7 +36,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
 
-    internal bool _isDebug  = false;
+    private readonly bool _isDebug  = false;
 
     public ConversationOrchestrator( IActionRegistry                                                registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
@@ -61,7 +61,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _fastPath         = fastPathResolver ?? throw new ArgumentNullException(nameof(fastPathResolver));
         _llmRouter        = llmRouter        ?? throw new ArgumentNullException(nameof(llmRouter));
         _idempotencyStore = idempotencyStore ?? throw new ArgumentNullException(nameof(idempotencyStore));
-        _telemetryContext = telemetryContext  ?? throw new ArgumentNullException(nameof(telemetryContext));
+        _telemetryContext = telemetryContext ?? throw new ArgumentNullException(nameof(telemetryContext));
         _insightEngine    = insightEngine    ?? throw new ArgumentNullException(nameof(insightEngine));
         _insightHistory   = insightHistory   ?? throw new ArgumentNullException(nameof(insightHistory));
         _activityLog      = activityLog      ?? throw new ArgumentNullException(nameof(activityLog));
@@ -77,8 +77,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
     public async Task<ConverseResponse> ConverseAsync(ConverseRequest    request
                                                     , CancellationToken ct = default)
     {
-        var sw = new Stopwatch();
-        sw.Start();
+        //TODO Reflect on the sheer number of dependencies in this class and consider
+        // if we can refactor to reduce coupling and improve testability.
+        // For example:
+        // - Can we abstract away some of the orchestration steps into separate classes or services?
+        // - Can we use a mediator pattern to decouple the components further?
+        // This class is doing a lot of work and has many reasons to change,
+        // which could lead to maintenance challenges down the line.
+        
+        // 0. Start telemetry and set a session and initial telemetry 
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
 
         var sessionId = request.SessionId;
         
@@ -117,7 +126,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 1. Get or create the session context
         var context = _contextStore.GetOrCreate(request.SessionId);
         
-// 🔑 Wire meta-actions FIRST
+        // 2. Wire up context with necessary references for actions and interpreter to function properly.
+// 🔑 Wire meta-actions & LlmActions FIRST
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
         Actions.LlmActions.SetContext(context);
@@ -127,8 +137,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
         
+        // Note: the fast path resolver runs before we persist the model into context.Metadata
+        // because some fast path actions might want to make decisions based on the raw user
+        // input without the influence of a model.
+        // For example,
+        // a "Cancel" command should ideally be recognized as such regardless of the model specified in the request.
         if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
-            && actionMeta!.IsDestructive == false)
+            && actionMeta!.IsDestructive.Not())
         {
             var response = await TakeTheFastPath(actionMeta
                                               , fastParams
@@ -137,13 +152,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             return await FinalizeAsync(request
                                      , response
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.FastPath
                                      , actionName: actionMeta.Name
                                      , succeeded:  true
                                      , ct:         ct);
         }
 
+        
         // Persist model into the per-request "model" slot used by LlmInterpreter.
         // Priority: explicit request model > user-set session model > nothing.
         if (request.Model.HasValue())
@@ -159,7 +175,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.Metadata.TryRemove("model", out _);
         }
 
-        // 3. If we are in a clarification flow, consume this turn
+        // 3. If we are in a clarification flow, consume this turn (Extract to a method?)
+        // before we get to the interpreter and treat it as a fast path turn that doesn't require re-interpretation.
         if (context.PendingAction is not null)
         {
             var pending = context.PendingAction;
@@ -173,9 +190,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
                     context.PendingAction = null;
 
                     var confirmedAction = _registry.Actions
-                                          .First(action => string.Equals(action.Name
-                                                                       , pending.ActionName
-                                                                       , StringComparison.OrdinalIgnoreCase));
+                                                   .First(action => string.Equals(action.Name
+                                                                                , pending.ActionName
+                                                                                , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
                     var result     = await _execution.ExecuteAsync(confirmedAction, execParams, context.SessionId, ct);
@@ -190,13 +207,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                };
                     return await FinalizeAsync(request
                                              , confirmationResponse
-                                             , sw
+                                             , stopwatch
                                              , TurnPath.Confirmation
                                              , actionName: confirmedAction.Name
                                              , succeeded:  true
                                              , ct:         ct);
                 }
 
+                // No match for affirmative, but also not negative:
+                // ask for clarification without cancelling the pending action yet
                 if (IsNegative(input).Not())
                 {
                     var awaiting = new ConverseResponse
@@ -208,7 +227,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    };
                     return await FinalizeAsync(request
                                              , awaiting
-                                             , sw
+                                             , stopwatch
                                              , TurnPath.Confirmation
                                              , actionName: pending.ActionName
                                              , succeeded:  null
@@ -226,7 +245,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                };
                 return await FinalizeAsync(request
                                          , response
-                                         , sw
+                                         , stopwatch
                                          , TurnPath.Confirmation
                                          , actionName: pending.ActionName
                                          , succeeded:  false
@@ -261,7 +280,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                };
                 return await FinalizeAsync(request
                                          , response
-                                         , sw
+                                         , stopwatch
                                          , TurnPath.Clarification
                                          , actionName: pending.ActionName
                                          , succeeded:  false
@@ -291,7 +310,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                };
                 return await FinalizeAsync(request
                                          , response
-                                         , sw
+                                         , stopwatch
                                          , TurnPath.Clarification
                                          , actionName: action.Name
                                          , succeeded:  true
@@ -341,7 +360,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
                 return await FinalizeAsync(request
                                          , response
-                                         , sw
+                                         , stopwatch
                                          , TurnPath.Clarification
                                          , actionName: action.Name
                                          , succeeded:  null
@@ -369,7 +388,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                              };
             return await FinalizeAsync(request
                                      , finalClarificationResponse
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Clarification
                                      , actionName: action.Name
                                      , succeeded:  true
@@ -381,17 +400,24 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                        {
                                                                Details = $"Interpreter.Selected; Using interpreter: {_interpreter.GetType().Name}"
                                                        }));
+        
+        // Steps 5 & 6: Run the interpreter and handle failures like missing parameters or no action recognized.
+        
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
         //              "Interpreter should not run after FastPath resolution.");
         var interpretation = await _interpreter.InterpretWithContext(request.Input, context);
        
         
+        // 5. Log interpreter outcome and details into telemetry and context for
+        // downstream use in execution, insights, and future interpretation.
+        
         // 5a. By default, clear any pending action; clarification will set it again
         context.PendingAction = null;
 
         // 5b. Persist interpreter decision (success or failure) into context
         context.LastUserMessage          = request.Input;
+        context.LastInterpreterName      = _interpreter.GetType().Name;
         context.LastActionName           = interpretation.ActionName;
         context.LastInterpreterReason    = interpretation.Reason;
         context.LastInterpreterDebug     = interpretation.DebugInfo;
@@ -426,7 +452,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                        };
             return await FinalizeAsync(request
                                      , llmExceptionResponse
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Interpreter
                                      , actionName: null
                                      , succeeded:  false
@@ -453,6 +479,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         foreach (var pair in interpretation.ExtractedParameters)
             context.LastParameters[pair.Key] = pair.Value;
+        
+        // End 5. Log interpreter outcome and details
 
         // 6. Handle the "missing required parameters" failure case
         if (interpretation is
@@ -484,7 +512,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                        };
                 return await  FinalizeAsync(request
                                           , response
-                                          , sw
+                                          , stopwatch
                                           , TurnPath.Interpreter
                                           , actionName: interpretation.ActionName
                                           , succeeded:  false
@@ -529,10 +557,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
                 string question;
 
-                if (action.Name.Equals("StoreValue"
-                                     , StringComparison.OrdinalIgnoreCase)
-                 && firstMissing.Equals("key"
-                                      , StringComparison.OrdinalIgnoreCase))
+                if (action.Name.IsEqualTo("StoreValue")
+                 && firstMissing.IsEqualTo("key"))
                 {
                     // Very explicit wording so the user knows the next utterance becomes the literal key
                     question = "I can store that value, but I need the literal key to store it under. "
@@ -559,7 +585,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                };
                 return await  FinalizeAsync(request
                                           , response
-                                          , sw
+                                          , stopwatch
                                           , TurnPath.Interpreter
                                           , actionName: action.Name
                                           , succeeded:  null
@@ -569,7 +595,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // Action does NOT allow clarification: treat as a normal failure
             var missingJoined = string.Join(", ", interpretation.MissingParameters);
 
+            //TODO: for better UX, we could potentially distinguish between
+            // "I understood the command but I'm missing details" vs.
+            // "I didn't understand the command at all and also couldn't find
+            //  any close matches that would allow me to ask a clarification question".
+            // The former is what we're doing here; the latter might be a more generic
+            // "I didn't understand that at all, here are some things you can try" message.🤷‍♂️
             var message = "I understood what you want to do, but I'm missing some required details. Could you rephrase with more specifics?";
+            
             if (_isDebug)
             {
                 message = """
@@ -596,7 +629,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                             };
             return await FinalizeAsync(request
                                      , missingParametersResponse
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Interpreter
                                      , actionName: interpretation.ActionName
                                      , succeeded:  false
@@ -604,40 +637,53 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
-        if (interpretation.ActionName.HasNoValue())
+        
+        if (interpretation.ActionName?.HasNoValue() ?? true)
         {
+            //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
+            // or should it be a valid action choice that just happens to be conversational?
+        
             var message = "I didn't recognize that as something I can do. Try 'what can you do' to see available commands.";
             if (_isDebug)
             {
-                message = """
-                          ## No action recognized.
-                          ----
-                          You are getting this because:
-                          ```csharp
-                          if (string.IsNullOrWhiteSpace(interpretation.ActionName))
-                          ```
-                          Is `true`
-
-                          """;
+                message = $"""
+                           ## No action recognized.
+                           ----
+                           You are getting this because:
+                           ```csharp
+                           if (interpretation.ActionName?.HasNoValue() ?? true)
+                           ```
+                           Is `true`
+                           Reason was: 
+                           ```
+                           {interpretation.Reason}
+                           ```
+                           """;
             }
             var missingActionResponse = new ConverseResponse
-                   {
-                           Message = message
-                         , Debug   = interpretation.DebugInfo
-                   };
+                                        {
+                                                Message = message
+                                              , Debug   = interpretation.DebugInfo
+                                        };
             return await FinalizeAsync(request
                                      , missingActionResponse
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Interpreter
                                      , actionName: null
                                      , succeeded:  false
                                      , ct:         ct);
         }
 
+        // Step 8 setup for Execution:
+        // we have an action name from the interpreter,
+        // but we still need to look up the metadata so we know which method to call and
+        // what parameters it needs.
+        
         // 8. Look up the action reflectively
-        var selectedAction = _registry.Actions.FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                                      , interpretation.ActionName
-                                                                                      , StringComparison.OrdinalIgnoreCase));
+        var selectedAction = _registry.Actions
+                                      .FirstOrDefault(metadata => string.Equals(metadata.Name
+                                                                              , interpretation.ActionName
+                                                                              , StringComparison.OrdinalIgnoreCase));
 
         if (selectedAction is null)
         {
@@ -654,7 +700,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                         };
             return await FinalizeAsync(request
                                      , unknownActionResponse
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Interpreter
                                      , actionName: interpretation.ActionName
                                      , succeeded:  false
@@ -669,11 +715,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
             var confirmationMessage = BuildDestructiveConfirmationPrompt(selectedAction
                                                                        , interpretation.ExtractedParameters);
 
+            var collectedParameters = new Dictionary<string, string>(interpretation.ExtractedParameters
+                                                                   , StringComparer.OrdinalIgnoreCase);
             context.PendingAction = new PendingAction
                                     {
                                             ActionName           = selectedAction.Name
-                                          , CollectedParameters  = new Dictionary<string, string>(interpretation.ExtractedParameters
-                                                                                                , StringComparer.OrdinalIgnoreCase)
+                                          , CollectedParameters  = collectedParameters
                                           , RemainingParameters  = new List<string>()
                                           , ConfirmationRequired = true
                                           , ConfirmationPrompt   = confirmationMessage
@@ -687,7 +734,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                            };
             return await FinalizeAsync(request
                                      , response
-                                     , sw
+                                     , stopwatch
                                      , TurnPath.Confirmation
                                      , actionName: selectedAction.Name
                                      , succeeded:  null
@@ -703,15 +750,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // latest entry with the woven message so the history matches what the user saw.
         // Phase A's Insight Engine integration only runs on this path; FinalizeAsync below
         // is told recordTurn:false because we did the recording inline here.
-        var initialTurn = new ConversationTurn(
-                                  UserMessage:      request.Input ?? string.Empty
-                                , AssistantMessage: execOutputFinal
-                                , OccurredAt:       DateTimeOffset.UtcNow
-                                , Path:             TurnPath.Interpreter
-                                , ActionName:       selectedAction.Name
-                                , Succeeded:        true);
+        var initialTurn = new ConversationTurn(UserMessage:      request.Input ?? string.Empty
+                                             , AssistantMessage: execOutputFinal
+                                             , OccurredAt:       DateTimeOffset.UtcNow
+                                             , Path:             TurnPath.Interpreter
+                                             , ActionName:       selectedAction.Name
+                                             , Succeeded:        true);
         context.RecordTurn(initialTurn);
 
+        // 10. Store execution result in context for insights and future interpretation,
+        // then run Finalize and return
         // Insight Engine — runs after execution; only pays LLM cost when insights exist.
         // Failure isolation: a faulted engine call never breaks the turn; the response
         // falls back to the raw execution result with no insights attached.
@@ -721,14 +769,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                             , context
                                                             , ct);
 
-        if (insights.Count > 0 && finalMessage != execOutputFinal)
+        if (insights.Count > 0 
+         && finalMessage != execOutputFinal)
         {
             // Weave produced a different (woven) message — swap the latest turn so the
             // recorded AssistantMessage matches what the user actually saw.
             context.ReplaceLatestTurn(initialTurn with { AssistantMessage = finalMessage });
         }
 
-        // 10. Return a consolidated response after finalizing it
         var finalResponse = new ConverseResponse
                             {
                                     Message         = finalMessage
@@ -739,7 +787,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         return await FinalizeAsync(request
                                  , finalResponse
-                                 , sw
+                                 , stopwatch
                                  , TurnPath.Interpreter
                                  , actionName: selectedAction.Name
                                  , succeeded:  true
@@ -747,6 +795,59 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                  , ct:         ct);
     }
 
+    
+    public async Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
+                                                      , ConverseResponse  response
+                                                      , Stopwatch         sw
+                                                      , TurnPath          path
+                                                      , string?           actionName = null
+                                                      , bool?             succeeded  = null
+                                                      , bool              recordTurn = true
+                                                      , CancellationToken ct         = default )
+    {
+        // ENH-08: append the turn to the session's bounded history.
+        // The Interpreter+execute path records inline (around the engine call) so it can
+        // capture the un-woven message before the engine fires; it passes recordTurn:false
+        // here to avoid double-recording.
+        if (recordTurn)
+        {
+            var context = _contextStore.GetOrCreate(request.SessionId);
+            context.RecordTurn(new ConversationTurn(
+                                       UserMessage:      request.Input ?? string.Empty
+                                     , AssistantMessage: response.Message ?? string.Empty
+                                     , OccurredAt:       DateTimeOffset.UtcNow
+                                     , Path:             path
+                                     , ActionName:       actionName
+                                     , Succeeded:        succeeded));
+        }
+
+        if (request.ClientRequestId.HasValue)
+        {
+            await _idempotencyStore.StoreAsync(request.ClientRequestId.Value
+                                             , response
+                                             , ct);
+        }
+
+        var property = new Dictionary<string, object?>();
+        property.Add("DebugInfo", response.Debug ?? "No debug info.");
+
+        sw.Stop();
+
+        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorCompletedEvent
+                                                       {
+                                                               Model      = request.Model            ?? "No Model defined"
+                                                             , Response   = response.ExecutionResult ?? "No execution result."
+                                                             , Properties = property
+                                                       }));
+
+        _telemetry.Track(_telemetryContext.CreateEvent(new ConversationCompletedEvent
+                                                       {
+                                                               TimeElapsed = sw.Elapsed
+                                                       }));
+
+        return response;
+    }
+    
     private async Task<IReadOnlyList<Insight>> SafeGenerateInsightsAsync(
         ConversationContext context
       , CancellationToken   ct )
@@ -999,57 +1100,5 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         return result;
-    }
-
-    public async Task<ConverseResponse> FinalizeAsync( ConverseRequest   request
-                                                      , ConverseResponse  response
-                                                      , Stopwatch         sw
-                                                      , TurnPath          path
-                                                      , string?           actionName = null
-                                                      , bool?             succeeded  = null
-                                                      , bool              recordTurn = true
-                                                      , CancellationToken ct         = default )
-    {
-        // ENH-08: append the turn to the session's bounded history.
-        // The Interpreter+execute path records inline (around the engine call) so it can
-        // capture the un-woven message before the engine fires; it passes recordTurn:false
-        // here to avoid double-recording.
-        if (recordTurn)
-        {
-            var context = _contextStore.GetOrCreate(request.SessionId);
-            context.RecordTurn(new ConversationTurn(
-                                       UserMessage:      request.Input ?? string.Empty
-                                     , AssistantMessage: response.Message ?? string.Empty
-                                     , OccurredAt:       DateTimeOffset.UtcNow
-                                     , Path:             path
-                                     , ActionName:       actionName
-                                     , Succeeded:        succeeded));
-        }
-
-        if (request.ClientRequestId.HasValue)
-        {
-            await _idempotencyStore.StoreAsync(request.ClientRequestId.Value
-                                             , response
-                                             , ct);
-        }
-
-        var property = new Dictionary<string, object?>();
-        property.Add("DebugInfo", response.Debug ?? "No debug info.");
-
-        sw.Stop();
-
-        _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorCompletedEvent
-                                                       {
-                                                               Model      = request.Model            ?? "No Model defined"
-                                                             , Response   = response.ExecutionResult ?? "No execution result."
-                                                             , Properties = property
-                                                       }));
-
-        _telemetry.Track(_telemetryContext.CreateEvent(new ConversationCompletedEvent
-                                                       {
-                                                               TimeElapsed = sw.Elapsed
-                                                       }));
-
-        return response;
     }
 }

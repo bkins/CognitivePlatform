@@ -1,10 +1,11 @@
 using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
@@ -14,12 +15,17 @@ public sealed class JournalActions
     private readonly IJournalService       _journal;
     private readonly IJournalCommandParser _parser;
     private readonly ILlmClient            _llmClient;
+    private readonly IPromptLogger         _promptLogger;
 
-    public JournalActions(IJournalService journal, IJournalCommandParser parser, ILlmClient llmClient)
+    public JournalActions( IJournalService       journal
+                         , IJournalCommandParser parser
+                         , ILlmClient            llmClient
+                         , IPromptLogger         promptLogger )
     {
-        _journal   = journal    ?? throw new ArgumentNullException(nameof(journal));
-        _parser    = parser     ?? throw new ArgumentNullException(nameof(parser));
-        _llmClient = llmClient  ?? throw new ArgumentNullException(nameof(llmClient));
+        _journal      = journal      ?? throw new ArgumentNullException(nameof(journal));
+        _parser       = parser       ?? throw new ArgumentNullException(nameof(parser));
+        _llmClient    = llmClient    ?? throw new ArgumentNullException(nameof(llmClient));
+        _promptLogger = promptLogger ?? throw new ArgumentNullException(nameof(promptLogger));
     }
 
     // ----------------------------------------------------------------------
@@ -86,6 +92,7 @@ public sealed class JournalActions
         var shortenTextBy = finalText.Length < 25
                                     ? finalText.Length
                                     : 25;
+        
         return $"Journal entry added: '{finalText[..shortenTextBy]}...'";
     }
 
@@ -306,6 +313,11 @@ public sealed class JournalActions
                                                                    , DefaultValue = "")]
                                               string? toDate = null)
     {
+        //TODO: This action is doing a lot of work that could be moved to a service — fetching and formatting
+        // the relevant entries, constructing the prompt, etc.
+        // Refactor to move that work out of the action method and into a service that can be unit tested
+        // without needing to mock ILlmClient. (see InsightsActions.AnalyzePatterns `TO_DO` for similar refactor)
+        
         var entries = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
 
         if (entries.Count == 0)
@@ -315,19 +327,19 @@ public sealed class JournalActions
         sb.AppendLine("The following are journal entries belonging to the user. Answer the user's question based only on what is written here. Be honest if the entries do not contain enough information to answer well.");
         sb.AppendLine();
 
-        foreach (var ewr in entries)
+        foreach (var entryWithRevision in entries)
         {
-            sb.Append('[').Append(ewr.Entry.CreatedUtc.ToString("yyyy-MM-dd")).Append("] ");
-            sb.Append(ewr.LatestRevision.Text);
+            sb.Append('[').Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd")).Append("] ");
+            sb.Append(entryWithRevision.LatestRevision.Text);
 
-            if (ewr.LatestRevision.Mood is not null)
-                sb.Append($" [mood: {ewr.LatestRevision.Mood}]");
+            if (entryWithRevision.LatestRevision.Mood is not null)
+                sb.Append($" [mood: {entryWithRevision.LatestRevision.Mood}]");
 
-            if (ewr.LatestRevision.MoodScore.HasValue)
-                sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
+            if (entryWithRevision.LatestRevision.MoodScore.HasValue)
+                sb.Append($" [mood score: {entryWithRevision.LatestRevision.MoodScore}]");
 
-            if (ewr.LatestRevision.Tags is { Count: > 0 })
-                sb.Append($" [tags: {string.Join(", ", ewr.LatestRevision.Tags)}]");
+            if (entryWithRevision.LatestRevision.Tags is { Count: > 0 })
+                sb.Append($" [tags: {string.Join(", ", entryWithRevision.LatestRevision.Tags)}]");
 
             sb.AppendLine();
         }
@@ -336,7 +348,10 @@ public sealed class JournalActions
         sb.AppendLine($"User's question: {question}");
 
         var prompt = sb.ToString();
-
+        _promptLogger.Log("AnalyzeJournal"
+                        , prompt
+                        , _llmClient.GetType().Name);
+        
         return await _llmClient.SendAsync(prompt);
     }
 
@@ -435,11 +450,8 @@ public sealed class JournalActions
 
     private static DateTimeOffset? ParseDate(string? input)
     {
-        if (string.IsNullOrWhiteSpace(input))
-            return null;
-
-        if (DateTimeOffset.TryParse(input, out var dateTimeOffset))
-            return dateTimeOffset;
+        if (input?.HasNoValue() ?? true) return null;
+        if (DateTimeOffset.TryParse(input, out var dateTimeOffset)) return dateTimeOffset;
 
         return null;
     }

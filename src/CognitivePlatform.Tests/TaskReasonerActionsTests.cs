@@ -6,16 +6,19 @@ using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
 
 namespace CognitivePlatform.Tests;
 
 public class TaskReasonerActionsTests
 {
-    private readonly Mock<ITaskService>      _tasksMock    = new();
-    private readonly Mock<IJournalService>   _journalMock  = new();
-    private readonly Mock<ILlmClient>        _llmMock      = new();
-    private readonly Mock<ICalendarProvider> _calendarMock = new();
-    private readonly TaskReasonerActions     _actions;
+    private readonly Mock<ITaskService>      _tasksMock     = new();
+    private readonly Mock<IJournalService>   _journalMock   = new();
+    private readonly Mock<ILlmClient>        _llmMock       = new();
+    private readonly Mock<ICalendarProvider> _calendarMock  = new();
+    private readonly Mock<IPromptLogger>     _promptLogMock = new();
+
+    private readonly TaskReasonerActions _actions;
 
     public TaskReasonerActionsTests()
     {
@@ -23,9 +26,10 @@ public class TaskReasonerActionsTests
         _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
 
         _actions = new TaskReasonerActions(_tasksMock.Object
-                                          , _journalMock.Object
-                                          , _llmMock.Object
-                                          , _calendarMock.Object);
+                                         , _journalMock.Object
+                                         , _llmMock.Object
+                                         , _promptLogMock.Object
+                                         , _calendarMock.Object);
     }
 
     // ================================================================
@@ -118,8 +122,9 @@ public class TaskReasonerActionsTests
                 .ReturnsAsync("Response.");
 
         var actionsNoCalendar = new TaskReasonerActions(_tasksMock.Object
-                                                       , _journalMock.Object
-                                                       , _llmMock.Object);
+                                                      , _journalMock.Object
+                                                      , _llmMock.Object
+                                                      , _promptLogMock.Object);
 
         await actionsNoCalendar.ReasonAboutTasks("What should I do?");
 
@@ -172,10 +177,11 @@ public class TaskReasonerActionsTests
                                                                 });
 
         var actions = new TaskReasonerActions(_tasksMock.Object
-                                             , _journalMock.Object
-                                             , _llmMock.Object
-                                             , _calendarMock.Object
-                                             , activityMock.Object);
+                                            , _journalMock.Object
+                                            , _llmMock.Object
+                                            , _promptLogMock.Object
+                                            , _calendarMock.Object
+                                            , activityMock.Object);
 
         string? capturedPrompt = null;
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
@@ -230,10 +236,11 @@ public class TaskReasonerActionsTests
                     .ReturnsAsync((IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>());
 
         var actions = new TaskReasonerActions(_tasksMock.Object
-                                             , _journalMock.Object
-                                             , _llmMock.Object
-                                             , _calendarMock.Object
-                                             , activityMock.Object);
+                                            , _journalMock.Object
+                                            , _llmMock.Object
+                                            , _promptLogMock.Object
+                                            , _calendarMock.Object
+                                            , activityMock.Object);
 
         string? capturedPrompt = null;
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()

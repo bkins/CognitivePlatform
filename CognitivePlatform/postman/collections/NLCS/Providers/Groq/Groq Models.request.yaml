@@ -8,4 +8,4 @@ auth:
   type: bearer
   credentials:
     token: "{{vault:Groq}}"
-order: 2000
+order: 3000

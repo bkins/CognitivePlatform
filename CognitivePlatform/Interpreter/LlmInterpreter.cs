@@ -6,6 +6,7 @@ using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -19,18 +20,21 @@ public class LlmInterpreter : IInterpreter
     private readonly ILlmRouter        _llmRouter;
     private readonly LlmModelCatalog   _modelCatalog;
     private readonly LlmClientSettings _settings;
+    private readonly IPromptLogger     _promptLogger;
 
     public LlmInterpreter( IActionRegistry   registry
                          , ITelemetrySink    telemetry
                          , ILlmRouter        llmRouter
                          , LlmModelCatalog   modelCatalog
-                         , LlmClientSettings settings )
+                         , LlmClientSettings settings 
+                         , IPromptLogger     promptLogger)
     {
         _registry     = registry;
         _telemetry    = telemetry;
         _llmRouter    = llmRouter;
         _modelCatalog = modelCatalog;
         _settings     = settings;
+        _promptLogger = promptLogger;
     }
 
     public async Task<InterpreterResult> InterpretWithContext( string              input
@@ -90,6 +94,18 @@ public class LlmInterpreter : IInterpreter
 
                 if (modelInfo is null || modelInfo.IsUsable.Not())
                 {
+                    var moreInfo = modelInfo?.FailureReason ?? ".";
+                    if (moreInfo != ".")
+                    {
+                        moreInfo = $". Reason: {GetLimitType(moreInfo)}";
+                        
+                    }
+
+                    var extraReason = modelInfo.FailureReason.Contains("HTTP 429:")
+                                   || modelInfo.FailureReason.Contains("HTTP 503:")
+                                              ? $"\n{modelInfo.FailureReason}"
+                                              : string.Empty;
+                    
                     var noModelResult= new InterpreterResult
                            {
                                    ActionName          = null
@@ -98,7 +114,7 @@ public class LlmInterpreter : IInterpreter
                                  , CandidateActions    = null
                                  , MissingParameters   = null
                                  , FailureType         = InterpreterFailureType.NoMatchingAction
-                                 , Reason              = $"Model '{model}' is not usable on this system."
+                                 , Reason              = $"Model '{model}' is not usable on this system{moreInfo}{extraReason}"
                            };
 
                     _telemetry.Track(noModelResult.ToEvent());
@@ -119,7 +135,14 @@ public class LlmInterpreter : IInterpreter
                              {
                                      Details = $" : InterpretWithContext : RequestedModel: {requestedModel}, ResolvedModel: {model}"
                              });
+            
+            // Log ONLY system-generated prompt (this is the final payload sent to LLM)
+            _promptLogger.Log(description: "IntentInterpretation"
+                            , prompt:      prompt
+                            , provider:    _settings.Provider.ToString()
+                            , model:       model);
 
+            // Send to model
             // Route through ILlmRouter so mid-session provider switches take effect
             // on this turn. The router re-reads context.Metadata for every call.
             rawResponse = await _llmRouter.SendAsync(prompt
@@ -132,8 +155,8 @@ public class LlmInterpreter : IInterpreter
 
             _telemetry.Track(new LlmInterpreterErrorEvent
                              {
-                                     Details    = message
-                                    , Exception = ex
+                                     Details   = message
+                                   , Exception = ex
                              });
 
             var errorResult = new InterpreterResult
@@ -168,7 +191,9 @@ public class LlmInterpreter : IInterpreter
                {
                        ActionName          = parsed.ActionName
                      , ExtractedParameters = parsed.Parameters
-                     , DebugInfo           = debug
+                     , DebugInfo           = debug + (parsed.GeminiError is not null
+                                                        ? $"\nGeminiError: Code={parsed.GeminiError?.Error.Code}, Message={parsed.GeminiError?.Error.Message}"
+                                                        : string.Empty)
                      , Reason              = parsed.Reason
                      , FailureType         = parsed.FailureType
                      , CandidateActions    = parsed.CandidateActions
@@ -180,6 +205,69 @@ public class LlmInterpreter : IInterpreter
         return results;
     }
 
+    public enum LimitType
+    {
+        Unknown
+      , RateLimit // RPM/TPM - Wait a few seconds/minutes
+      , DailyQuota // RPD - Wait until next day
+    }
+
+    private (bool HasErrors, bool HasDetails, JsonElement Details) HasErrorsDetails(JsonElement root)
+    {
+        var hasErrors = root.TryGetProperty("error", out var error);
+        var hasDetails = error.TryGetProperty("details", out var details);
+        
+        return (hasErrors, hasDetails, details);
+    }
+    
+    private (bool Continue, JsonElement Violations) ContinueWithViolations(JsonElement detail)
+    {
+        var noViolations = detail.TryGetProperty("violations", out var violations).Not();
+        var noQuotaFailure = detail.TryGetProperty("@type", out var type).Not()
+                           || (type.GetString()?.Contains("QuotaFailure").Not() ?? true);
+        
+        return (noViolations || noQuotaFailure, violations);
+    }
+    
+    public LimitType GetLimitType(string jsonResponse)
+    {
+        try 
+        {
+            if (jsonResponse.StartsWith("HTTP "))
+            {
+                jsonResponse = ExtractJsonBlock(jsonResponse);
+            }
+            
+            using var doc  = JsonDocument.Parse(jsonResponse);
+
+            var root = doc.RootElement;
+
+            var response = HasErrorsDetails(root);
+            
+            // The error details are nested in an array
+            if (response is { HasErrors: true, HasDetails: true })
+            {
+                foreach (var detail in response.Details.EnumerateArray())
+                {
+                    // Looking for QuotaFailures
+                    var (shouldContinue, violations) = ContinueWithViolations(detail);
+
+                    if (shouldContinue) continue;
+                    
+                    var metric = violations[0].GetProperty("quotaMetric").GetString();
+
+                    // Logic: If it contains "day", it's the hard cap
+                    return metric?.Contains("day", StringComparison.OrdinalIgnoreCase) ?? false 
+                                   ? LimitType.DailyQuota 
+                                   : LimitType.RateLimit;
+                }
+            }
+        }
+        catch { /*Handle malformed JSON*/ }
+
+        return LimitType.Unknown;
+    }
+    
     // ---------------------------------------------------------------------
     // Session provider check
     // ---------------------------------------------------------------------
@@ -303,6 +391,30 @@ public class LlmInterpreter : IInterpreter
         return await File.ReadAllTextAsync(filePath);
     }
 
+    private static GeminiErrorResponse ParseGeminiError(string raw)
+    {
+        var emptyResponse = new GeminiErrorResponse
+                            {
+                                    Error = new ErrorContent
+                                            {
+                                                    Code    = -1
+                                                  , Message = "Empty response from model."
+                                            }
+                            };
+#if DEBUG
+        emptyResponse.Error.Message += $"\nRaw response: {raw}";
+#endif
+        
+        if (raw.HasNoValue()) return emptyResponse;
+        
+        var result = JsonSerializer.Deserialize<List<GeminiErrorResponse>>(raw);
+
+        var firstValue = result?.FirstOrDefault();
+
+        if (firstValue is null) return emptyResponse;
+
+        return firstValue;
+    }
     // ---------------------------------------------------------------------
     // Parsing with multi-stage JSON extraction
     // ---------------------------------------------------------------------
@@ -321,8 +433,17 @@ public class LlmInterpreter : IInterpreter
 
         if (TryParse(raw, out var parsed1, actions))
             return parsed1;
-
+        
         var jsonFromBraces = ExtractJsonBlock(raw);
+        if (raw.Contains("HTTP 429:") 
+         || raw.Contains("HTTP 503:"))
+        {
+            return new ParsedModelResponse
+                   {
+                           GeminiError = ParseGeminiError(jsonFromBraces)
+                   };
+        }
+        
         if (TryParse(jsonFromBraces, out var parsed2, actions))
             return parsed2;
 

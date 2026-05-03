@@ -4,6 +4,8 @@ using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.SystemPromptLogging;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
@@ -23,53 +25,60 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public class TaskReasonerActions
 {
-    private readonly ITaskService        _taskService;
-    private readonly IJournalService     _journalService;
-    private readonly ILlmClient          _llmClient;
-    private readonly ICalendarProvider?  _calendar;
-    private readonly IActivityLog?       _activityLog;
+    private readonly ITaskService       _taskService;
+    private readonly IJournalService    _journalService;
+    private readonly ILlmClient         _llmClient;
+    private readonly IPromptLogger      _promptLogger;
+    private readonly ICalendarProvider? _calendar;
+    private readonly IActivityLog?      _activityLog;
 
     public TaskReasonerActions( ITaskService       taskService
                               , IJournalService    journalService
                               , ILlmClient         llmClient
+                              , IPromptLogger      promptLogger
                               , ICalendarProvider? calendarProvider = null
                               , IActivityLog?      activityLog      = null )
     {
         _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
         _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
         _llmClient      = llmClient      ?? throw new ArgumentNullException(nameof(llmClient));
-        _calendar       = calendarProvider;
-        _activityLog    = activityLog;
+        _promptLogger   = promptLogger   ?? throw new ArgumentNullException(nameof(promptLogger));
+
+        _calendar    = calendarProvider;
+        _activityLog = activityLog;
     }
 
-    [NaturalLanguageAction(
-            Description = "Ask a question about your tasks. The AI analyzes your active task list and recent journal entries to provide insights, recommendations, or answers."
-          , Examples = new[]
-                       {
-                               "Which of my tasks should I focus on today?"
-                             , "What are the most important things I need to do this week?"
-                             , "Am I taking on too much? What should I cut?"
-                             , "Given how I've been feeling, what tasks should I prioritize?"
-                             , "Help me decide what to work on next."
-                       }
-          , Category = "tasks")]
-    public async Task<string> ReasonAboutTasks(
-            [NaturalLanguageParam(Description = "Your question or request about your tasks and priorities."
-                                , AllowEmpty  = false)]
-            string question
-          , [NaturalLanguageParam(Description  = "Start date — limit journal context to entries from this date (optional)."
-                                , Optional     = true
-                                , DefaultValue = "")]
-            string? fromDate = null
-          , [NaturalLanguageParam(Description  = "End date — limit journal context to entries up to this date (optional)."
-                                , Optional     = true
-                                , DefaultValue = "")]
-            string? toDate = null)
+    [NaturalLanguageAction(Description = "Ask a question about your tasks. The AI analyzes your active task list and recent journal entries to provide insights, recommendations, or answers."
+                         , Examples = new[]
+                                      {
+                                              "Which of my tasks should I focus on today?"
+                                            , "What are the most important things I need to do this week?"
+                                            , "Am I taking on too much? What should I cut?"
+                                            , "Given how I've been feeling, what tasks should I prioritize?"
+                                            , "Help me decide what to work on next."
+                                      }
+                         , Category = "tasks")]
+    public async Task<string> ReasonAboutTasks( [NaturalLanguageParam(Description = "Your question or request about your tasks and priorities."
+                                                                    , AllowEmpty  = false)]
+                                                string question
+                                              , [NaturalLanguageParam(Description  = "Start date — limit journal context to entries from this date (optional)."
+                                                                    , Optional     = true
+                                                                    , DefaultValue = "")]
+                                                string? fromDate = null
+                                              , [NaturalLanguageParam(Description  = "End date — limit journal context to entries up to this date (optional)."
+                                                                    , Optional     = true
+                                                                    , DefaultValue = "")]
+                                                string? toDate = null)
     {
+        //TODO: Implement a service that does this work of aggregating and formatting the data,
+        // so this method can focus on orchestration and prompt construction.
+        // see also InsightsActions.AnalyzePatterns for a similar cross-domain example that includes activity events.
+        
         var tasks   = _taskService.GetActive();
         var entries = _journalService.ListEntries(ParseDate(fromDate), ParseDate(toDate));
 
-        if (tasks.Count == 0 && entries.Count == 0)
+        if (tasks.Count == 0 
+         && entries.Count == 0)
             return "You have no active tasks and no journal entries for the specified date range.";
 
         var sb = new StringBuilder();
@@ -82,12 +91,11 @@ public class TaskReasonerActions
             foreach (var task in tasks)
             {
                 sb.Append($"- {task.ShortDescription}");
-                if (task.IsImportant) sb.Append(" [Important]");
-                if (task.IsUrgent)    sb.Append(" [Urgent]");
-                if (task.DueDate.HasValue)
-                    sb.Append($" (due {task.DueDate:yyyy-MM-dd})");
-                if (task.Tags.Count > 0)
-                    sb.Append($" [tags: {string.Join(", ", task.Tags)}]");
+                if (task.IsImportant)      sb.Append(" [Important]");
+                if (task.IsUrgent)         sb.Append(" [Urgent]");
+                if (task.DueDate.HasValue) sb.Append($" (due {task.DueDate:yyyy-MM-dd})");
+                if (task.Tags.Count > 0)   sb.Append($" [tags: {string.Join(", ", task.Tags)}]");
+                
                 sb.AppendLine();
             }
             sb.AppendLine();
@@ -100,10 +108,9 @@ public class TaskReasonerActions
             foreach (var ewr in entries.Take(20))
             {
                 sb.Append($"[{ewr.Entry.CreatedUtc:yyyy-MM-dd}] {ewr.LatestRevision.Text}");
-                if (ewr.LatestRevision.Mood is not null)
-                    sb.Append($" [mood: {ewr.LatestRevision.Mood}]");
-                if (ewr.LatestRevision.MoodScore.HasValue)
-                    sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
+                if (ewr.LatestRevision.Mood is not null)   sb.Append($" [mood: {ewr.LatestRevision.Mood}]");
+                if (ewr.LatestRevision.MoodScore.HasValue) sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
+                
                 sb.AppendLine();
             }
             sb.AppendLine();
@@ -121,21 +128,21 @@ public class TaskReasonerActions
                     if (activityEvent.Duration.HasValue)
                     {
                         sb.Append($" ({activityEvent.Duration.Value}");
-                        if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
-                            sb.Append($" {activityEvent.Unit}");
+                        if (activityEvent.Unit.HasValue()) sb.Append($" {activityEvent.Unit}");
+                        
                         sb.Append(')');
                     }
-                    if (!string.IsNullOrWhiteSpace(activityEvent.Notes))
-                        sb.Append($" — {activityEvent.Notes}");
-                    if (activityEvent.Tags.Count > 0)
-                        sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
+                    if (activityEvent.Notes.HasValue()) sb.Append($" — {activityEvent.Notes}");
+                    if (activityEvent.Tags.Count > 0)   sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
+                    
                     sb.AppendLine();
                 }
                 sb.AppendLine();
             }
         }
 
-        if (_calendar is not null && _calendar.IsConnected)
+        if (_calendar is not null 
+         && _calendar.IsConnected)
         {
             var fromUtc = DateTimeOffset.UtcNow;
             var toUtc   = fromUtc.AddDays(7);
@@ -144,14 +151,14 @@ public class TaskReasonerActions
             if (calEvents.Count > 0)
             {
                 sb.AppendLine("=== Upcoming Calendar Events (next 7 days) ===");
-                foreach (var evt in calEvents)
+                foreach (var calendarEvent in calEvents)
                 {
-                    var timeLabel = evt.IsAllDay
-                                         ? $"{evt.StartUtc:yyyy-MM-dd} (all day)"
-                                         : $"{evt.StartUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
-                    sb.Append($"- {timeLabel} — {evt.Title}");
-                    if (evt.Location is not null)
-                        sb.Append($" @ {evt.Location}");
+                    var timeLabel = calendarEvent.IsAllDay
+                                         ? $"{calendarEvent.StartUtc:yyyy-MM-dd} (all day)"
+                                         : $"{calendarEvent.StartUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
+                    sb.Append($"- {timeLabel} — {calendarEvent.Title}");
+                    if (calendarEvent.Location is not null) sb.Append($" @ {calendarEvent.Location}");
+                    
                     sb.AppendLine();
                 }
                 sb.AppendLine();
@@ -160,6 +167,8 @@ public class TaskReasonerActions
 
         sb.AppendLine($"User's question: {question}");
 
+        _promptLogger.Log("TaskReasoningPrompt", sb.ToString(), _llmClient.GetType().Name);
+        
         return await _llmClient.SendAsync(sb.ToString());
     }
 

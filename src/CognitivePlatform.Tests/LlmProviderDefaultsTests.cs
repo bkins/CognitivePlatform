@@ -14,7 +14,7 @@ public class LlmProviderDefaultsTests
                    {
                            ["Llm:Defaults:Ollama"]     = "llama3.1:8b"
                          , ["Llm:Defaults:Groq"]       = "llama-3.3-70b-versatile"
-                         , ["Llm:Defaults:Gemini"]     = "gemini-2.0-flash"
+                         , ["Llm:Defaults:Gemini"]     = "gemini-2.5-flash"
                          , ["Llm:Defaults:OpenRouter"] = "anthropic/claude-3.5-sonnet"
                          , ["Llm:Defaults:Cerebras"]   = "llama3.1-8b"
                    };
@@ -23,7 +23,7 @@ public class LlmProviderDefaultsTests
 
         Assert.Equal("llama3.1:8b",                    defaults.Ollama);
         Assert.Equal("llama-3.3-70b-versatile",        defaults.Groq);
-        Assert.Equal("gemini-2.0-flash",               defaults.Gemini);
+        Assert.Equal("gemini-2.5-flash",               defaults.Gemini);
         Assert.Equal("anthropic/claude-3.5-sonnet",    defaults.OpenRouter);
         Assert.Equal("llama3.1-8b",                    defaults.Cerebras);
     }

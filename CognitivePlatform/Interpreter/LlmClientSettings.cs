@@ -76,16 +76,19 @@ public class GeminiSettings
     /// <summary>
     /// Gemini model to use. Google exposes an OpenAI-compatible endpoint so the
     /// same request/response schema as Groq applies.
-    /// Recommended: "gemini-2.0-flash" (fast, free tier) or "gemini-1.5-pro-002".
+    /// Recommended: "gemini-2.x-flash" (fast, free tier) or "gemini-1.5-pro-002".
     /// Full list: https://ai.google.dev/gemini-api/docs/models
     /// </summary>
-    public string Model { get; set; } = "gemini-2.0-flash";
+    public string Model { get; set; } = "gemini-2.5-flash";
 
     /// <summary>
     /// Google's OpenAI-compatible base URL.
     /// Unlikely to change but kept configurable.
     /// </summary>
     public string Endpoint { get; set; } = "https://generativelanguage.googleapis.com/v1beta/openai";
+    
+    
+    public string Provider { get; set; } = "Gemini";
 }
 
 public class OpenRouterSettings

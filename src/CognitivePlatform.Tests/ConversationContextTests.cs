@@ -23,12 +23,12 @@ public class ConversationContextTests
         var context = new ConversationContext("session");
         context.SetLlmSession("Groq", "llama-3.3-70b-versatile");
 
-        context.SetLlmSession("Gemini", "gemini-2.0-flash");
+        context.SetLlmSession("Gemini", "gemini-2.5-flash");
 
         var session = context.CurrentLlmSession;
 
         Assert.Equal("Gemini",           session.Provider);
-        Assert.Equal("gemini-2.0-flash", session.Model);
+        Assert.Equal("gemini-2.5-flash", session.Model);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class ConversationContextTests
     public void Reset_ClearsLlmSession_ToEmpty()
     {
         var context = new ConversationContext("session");
-        context.SetLlmSession("Gemini", "gemini-2.0-flash");
+        context.SetLlmSession("Gemini", "gemini-2.5-flash");
 
         context.Reset();
 
@@ -80,7 +80,7 @@ public class ConversationContextTests
                     {
                             ("Groq",       "llama-3.3-70b-versatile")
                           , ("OpenRouter", "anthropic/claude-3.5-sonnet")
-                          , ("Gemini",     "gemini-2.0-flash")
+                          , ("Gemini",     "gemini-2.5-flash")
                     };
 
         context.SetLlmSession(pairs[0].provider, pairs[0].model);

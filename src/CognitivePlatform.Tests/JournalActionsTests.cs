@@ -3,21 +3,24 @@ using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.SystemPromptLogging;
 
 namespace CognitivePlatform.Tests;
 
 public class JournalActionsTests
 {
-    private readonly Mock<IJournalService>       _journalMock = new();
-    private readonly Mock<IJournalCommandParser> _parserMock  = new();
-    private readonly Mock<ILlmClient>            _llmMock     = new();
+    private readonly Mock<IJournalService>       _journalMock   = new();
+    private readonly Mock<IJournalCommandParser> _parserMock    = new();
+    private readonly Mock<ILlmClient>            _llmMock       = new();
+    private readonly Mock<IPromptLogger>         _promptLogMock = new();
     private readonly JournalActions              _actions;
 
     public JournalActionsTests()
     {
         _actions = new JournalActions(_journalMock.Object
                                     , _parserMock.Object
-                                    , _llmMock.Object);
+                                    , _llmMock.Object
+                                    , _promptLogMock.Object);
     }
 
     // ================================================================

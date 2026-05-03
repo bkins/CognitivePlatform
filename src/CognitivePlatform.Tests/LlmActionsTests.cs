@@ -164,7 +164,7 @@ public class LlmActionsTests
         {
                 Groq       = "llama-3.3-70b-versatile"
               , OpenRouter = "anthropic/claude-3.5-sonnet"
-              , Gemini     = "gemini-2.0-flash"
+              , Gemini     = "gemini-2.5-flash"
               , Ollama     = "llama3.1:8b"
               , Cerebras   = "llama3.1-8b"
         };
@@ -271,7 +271,7 @@ public class LlmActionsTests
     public void ListProviders_MarksCurrentSessionProvider()
     {
         var context = MakeContext();
-        context.SetLlmSession("Gemini", "gemini-2.0-flash");
+        context.SetLlmSession("Gemini", "gemini-2.5-flash");
 
         LlmActions.SetContext(context);
         LlmActions.SetProviderDefaults(DefaultsWithAll());

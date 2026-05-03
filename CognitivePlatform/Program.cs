@@ -28,6 +28,8 @@ using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CognitivePlatform.Api.System;
 using CognitivePlatform.Api.SystemInfo;
+using CognitivePlatform.Api.SystemPromptLogging;
+using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
 
@@ -77,6 +79,9 @@ public partial class Program
         builder.Services.AddSingleton(logStore);
         builder.Logging.AddProvider(new InMemoryLogProvider(logStore));
 
+        builder.Services.Configure<PromptLoggingOptions>(builder.Configuration.GetSection("PromptLogging"));
+        builder.Services.AddSingleton<IPromptLogger, PromptLogger>();
+        
 // Core services
         builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
@@ -139,7 +144,8 @@ public partial class Program
                                                                          , sp.GetRequiredService<ITelemetrySink>()
                                                                          , sp.GetRequiredService<ILlmRouter>()
                                                                          , sp.GetRequiredService<LlmModelCatalog>()
-                                                                         , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value));
+                                                                         , sp.GetRequiredService<IOptions<LlmClientSettings>>().Value
+                                                                         , sp.GetRequiredService<IPromptLogger>()));
 
 // Persistence
         BuildDataPersistenceLayer(builder);
@@ -314,14 +320,15 @@ public partial class Program
         SystemEnvironmentInfo envInfo;
         SystemService         sysInfo;
         SystemVersionInfo     verInfo;
-        GroqSettings          settings;
+        // TODO: `GeminiSettings` need to be generic so that any provider settings could be used
+        GeminiSettings        settings;
         bool                  googleCalendarIsConnected;
         
         using (var scope = app.Services.CreateScope())
         {
             var probe = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
             settings = scope.ServiceProvider
-                            .GetRequiredService<IOptions<GroqSettings>>()
+                            .GetRequiredService<IOptions<GeminiSettings>>()
                             .Value;
             var catalog = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
            
@@ -398,10 +405,10 @@ public partial class Program
         }
     }
 
-    private static async Task StartProbe( bool              startWithProbeFirst
-                                        , LlmStartupProbe   probe
-                                        , GroqSettings      settings
-                                        , ILogger           log )
+    private static async Task StartProbe( bool            startWithProbeFirst
+                                        , LlmStartupProbe probe
+                                        , GeminiSettings  settings
+                                        , ILogger         log )
     {
 
         if (startWithProbeFirst)

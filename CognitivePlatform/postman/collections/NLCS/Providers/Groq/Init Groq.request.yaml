@@ -24,4 +24,5 @@ auth:
   type: bearer
   credentials:
     token: "{{vault:Groq}}"
-order: 1000
+examples: .resources/Init Groq.resources/examples
+order: 2000
