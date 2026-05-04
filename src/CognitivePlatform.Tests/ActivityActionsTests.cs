@@ -1,4 +1,4 @@
-using Moq;
+﻿using Moq;
 using CognitivePlatform.Api.Domains.Activity;
 
 namespace CognitivePlatform.Tests;
@@ -267,5 +267,75 @@ public class ActivityActionsTests
         Assert.InRange(capturedFrom!.Value
                      , approximatelySevenDaysAgo.AddMinutes(-5)
                      , approximatelySevenDaysAgo.AddMinutes(5));
+    }
+    // ================================================================
+    // D1: human-phrase translation for known ActivityType keys (EPIC-09/Sub-pass B)
+    // ================================================================
+
+    [Theory]
+    [InlineData("insight.emitted",         "Insight surfaced")]
+    [InlineData("insight.provider_failed", "Provider issue")]
+    [InlineData("insight.weave_failed",    "Weave failed")]
+    [InlineData("insight.deduplicated",    "Insight skipped (duplicate)")]
+    [InlineData("run",                     "run")]
+    public async Task ListActivities_MapsActivityType_ToExpectedLabel(string activityType, string expectedLabel)
+    {
+        var events = new List<ActivityEvent>
+                     {
+                             new() { ActivityType = activityType, OccurredUtc = DateTimeOffset.UtcNow }
+                     };
+
+        _logMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<ActivityEvent>)events);
+
+        var result = await _actions.ListActivities();
+
+        Assert.Contains($"=== {expectedLabel} (1) ===", result);
+    }
+
+    [Fact]
+    public async Task ListActivities_DoesNotEmitRawInsightKey_WhenKnownTypeLogged()
+    {
+        var events = new List<ActivityEvent>
+                     {
+                             new() { ActivityType = "insight.emitted", OccurredUtc = DateTimeOffset.UtcNow }
+                     };
+
+        _logMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<ActivityEvent>)events);
+
+        var result = await _actions.ListActivities();
+
+        Assert.Contains("=== Insight surfaced (1) ===", result);
+        Assert.DoesNotContain("insight.emitted", result);
+    }
+
+    // ================================================================
+    // D2: local-time timestamp with 12-hour clock (EPIC-09/Sub-pass B)
+    // ================================================================
+
+    [Fact]
+    public async Task ListActivities_FormatsTimestamp_AsLocalTime12Hour()
+    {
+        var occurredUtc = new DateTimeOffset(2026, 4, 20, 10, 0, 0, TimeSpan.Zero);
+        var events = new List<ActivityEvent>
+                     {
+                             new() { ActivityType = "run", OccurredUtc = occurredUtc }
+                     };
+
+        _logMock.Setup(log => log.ListAsync(It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<DateTimeOffset?>()
+                                          , It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<ActivityEvent>)events);
+
+        var result = await _actions.ListActivities();
+
+        var expectedTimestamp = $"[{occurredUtc.ToLocalTime():yyyy-MM-dd h:mm tt}]";
+        Assert.Contains(expectedTimestamp, result);
+        Assert.DoesNotContain($"[{occurredUtc:yyyy-MM-dd HH:mm}]", result);
     }
 }

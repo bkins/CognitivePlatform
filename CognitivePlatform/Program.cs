@@ -285,34 +285,7 @@ public partial class Program
         app.MapGet("/system/version",
                    (SystemService systemService) =>
                            Results.Ok(systemService.GetVersion()));
-        if (app.Environment.IsDevelopment())
-        {
-            app.MapPost("/debug/generate-journal"
-                      , async ( int             paragraphs
-                              , int             lineLength
-                              , bool            includeUnicode
-                              , IJournalService journalService ) =>
-                        {
-                            var content = JournalStressGenerator.Generate(
-                                paragraphs
-                              , lineLength
-                              , includeUnicode);
-
-                            var entryId = await journalService.AddEntryAsync(content
-                                                                           , ["testTag1", "testTag2"]
-                                                                           , "Content"
-                                                                           , 3
-                                                                           , 4
-                                                                           , null!);
-
-                            return Results.Ok(new
-                                              {
-                                                      entryId
-                                                    , Length = content.Length
-                                              });
-                        });
-        }
-
+        
         // Start listening immediately
         var runTask = app.RunAsync(); 
         

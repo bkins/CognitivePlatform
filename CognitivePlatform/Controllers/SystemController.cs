@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -13,25 +14,47 @@ public class SystemController : ControllerBase
     private readonly ITelemetrySink              _telemetry;
     private readonly IGroqUsageTracker           _usageTracker;
     private readonly ITelemetryAggregatorService _telemetryAggregator;
+    private readonly SystemService               _systemService;
 
     public SystemController( ITelemetrySink              telemetrySink
-                           , IGroqUsageTracker            usageTracker
-                           , ITelemetryAggregatorService  telemetryAggregator )
+                           , IGroqUsageTracker           usageTracker
+                           , ITelemetryAggregatorService telemetryAggregator
+                           , SystemService               systemService )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
         _telemetryAggregator = telemetryAggregator;
+        _systemService       = systemService;
     }
 
-    [HttpGet("environment")]
-    public IActionResult Get()
+
+    [HttpGet("ping")]
+    public IActionResult Ping()
     {
         _telemetry.Track(new SystemControllerEvent
         {
-            Message = "Environment endpoint was hit"
+            Message = "Ping endpoint was hit"
         });
         
         return Ok(new { Pong = "Pong" });
+    }
+    
+    [HttpGet("environment")]
+    public IActionResult Get()
+    {
+        var systemEvent = new SystemControllerEvent
+                          {
+                                  Message = "Environment endpoint was hit"
+                                , Data = new Dictionary<string, object?>
+                                         {
+                                                 { "Environment", _systemService.GetEnvironment() }
+                                               , { "Version", _systemService.GetVersion() }
+                                         }
+                          };
+        
+        _telemetry.Track(systemEvent);
+        
+        return Ok(systemEvent);
     }
 
     /// <summary>

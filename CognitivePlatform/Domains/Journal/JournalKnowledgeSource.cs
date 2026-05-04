@@ -16,7 +16,7 @@ namespace CognitivePlatform.Api.Domains.Journal;
 /// this class should be deleted.
 
 /// <summary>
-/// 
+/// Knowledge source for journal entries. Adapts journal domain objects
 /// </summary>
 public sealed class JournalKnowledgeSource : IKnowledgeSource
 {
@@ -70,11 +70,10 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
                                                    , DateTimeOffset? toUtc)
     {
         return _journalService.ListEntries(fromUtc, toUtc)
-                              .Select(entryWithRevision => new ObjectHeader(
-                                          entryWithRevision.Entry.Id
-                                        , KnowledgeKind.Journal.ToString()
-                                        , entryWithRevision.Entry.CreatedUtc
-                                        , entryWithRevision.LatestRevision.CreatedUtc))
+                              .Select(entryWithRevision => new ObjectHeader(entryWithRevision.Entry.Id
+                                                                          , nameof(KnowledgeKind.Journal)
+                                                                          , entryWithRevision.Entry.CreatedUtc
+                                                                          , entryWithRevision.LatestRevision.CreatedUtc))
                               .ToList();
     }
 

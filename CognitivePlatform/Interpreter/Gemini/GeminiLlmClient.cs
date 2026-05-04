@@ -52,10 +52,14 @@ public class GeminiLlmClient : ILlmClient
 
         var requestBody = new ChatRequest
                           {
-                                  Model    = selectedModel
+                                  Model = selectedModel
                                 , Messages =
                                   [
-                                          new ChatMessage { Role = "user", Content = prompt }
+                                          new ChatMessage
+                                          {
+                                                  Role    = "user"
+                                                , Content = prompt
+                                          }
                                   ]
                           };
 

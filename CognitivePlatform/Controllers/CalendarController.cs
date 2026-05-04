@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -67,4 +68,42 @@ public sealed class CalendarController : ControllerBase
     [HttpGet("status")]
     public IActionResult Status()
         => Ok(new { connected = _calendar.IsConnected });
+
+    [HttpGet("todays-events")]
+    public async Task<IActionResult> GetTodaysEvents()
+    {
+        var badRequestMessage = "Google Calendar is not connected. Please visit /auth/google/connect to connect your calendar.";
+        if (_calendar.IsConnected.Not())
+        {
+            return BadRequest(badRequestMessage);
+        }
+        
+        var today  = DateTimeOffset.UtcNow.Date; // Start of today in UTC
+        var from   = new DateTimeOffset(today,            TimeSpan.Zero);
+        var to     = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
+        
+        var events = await _calendar.GetEventsAsync(from, to);
+
+        return Ok(events);
+    }
+
+    [HttpGet("eventsbydate")]
+    public async Task<IActionResult> GetEventsByDate( string date )
+    {
+        if (DateTimeOffset.TryParse(date, out var parsed)
+                          .Not())
+            return BadRequest($"I couldn't parse '{date}' as a date. Please use a format like 'YYYY-MM-DD'.");
+
+        var day    = parsed.UtcDateTime.Date;
+        var from   = new DateTimeOffset(day,            TimeSpan.Zero);
+        var to     = new DateTimeOffset(day.AddDays(1), TimeSpan.Zero);
+        var events = await _calendar.GetEventsAsync(from, to);
+
+        var eventsList = CalendarActions.FormatEvents(events
+                                                    , $"Calendar for {day:yyyy-MM-dd}");
+        
+        return events.Count == 0
+                       ? Ok($"No events on your calendar for {day:yyyy-MM-dd}.")
+                       : Ok(eventsList);
+    }
 }

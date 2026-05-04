@@ -42,5 +42,20 @@ public interface IJournalService
 
     JournalEntryWithRevision GetById (string id);
 
+    /// <summary>
+    /// Returns all non-deleted journal entries in reverse-chronological order
+    /// (most recent = position 1), each paired with its 1-based display position.
+    /// Positions are stable across filtered listing calls so users can always
+    /// reference an entry by the number shown in the most recent listing.
+    /// </summary>
+    IReadOnlyList<(int Position, JournalEntryWithRevision EntryWithRevision)> GetOrderedEntries();
+
+    /// <summary>
+    /// Resolves a 1-based display position to its JournalEntryWithRevision,
+    /// or null if the position is out of range. Uses the same ordering as
+    /// <see cref="GetOrderedEntries"/>.
+    /// </summary>
+    JournalEntryWithRevision? ResolveByPosition(int position);
+
     bool Exists (Guid journalId);
 }

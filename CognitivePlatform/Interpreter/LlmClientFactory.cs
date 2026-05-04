@@ -62,20 +62,17 @@ public class LlmClientFactory : ILlmClientFactory
                                                         , options)
               , LlmProvider.Gemini => new GeminiLlmClient(_httpFactory.CreateClient("Gemini")
                                                         , options)
-              , LlmProvider.OpenRouter => new OpenAiCompatibleLlmClient(
-                                                  _httpFactory.CreateClient("OpenRouter")
-                                                , _settings.OpenRouter.ApiKey
-                                                , _settings.OpenRouter.Endpoint
-                                                , _settings.OpenRouter.Model
-                                                , _settings.Timeout)
-              , LlmProvider.Cerebras => new OpenAiCompatibleLlmClient(
-                                                  _httpFactory.CreateClient("Cerebras")
-                                                , _settings.Cerebras.ApiKey
-                                                , _settings.Cerebras.Endpoint
-                                                , _settings.Cerebras.Model
-                                                , _settings.Timeout)
-              , _ => throw new InvalidOperationException(
-                         $"Unknown LLM provider: {provider}")
+              , LlmProvider.OpenRouter => new OpenAiCompatibleLlmClient(_httpFactory.CreateClient("OpenRouter")
+                                                                      , _settings.OpenRouter.ApiKey
+                                                                      , _settings.OpenRouter.Endpoint
+                                                                      , _settings.OpenRouter.Model
+                                                                      , _settings.Timeout)
+              , LlmProvider.Cerebras => new OpenAiCompatibleLlmClient(_httpFactory.CreateClient("Cerebras")
+                                                                    , _settings.Cerebras.ApiKey
+                                                                    , _settings.Cerebras.Endpoint
+                                                                    , _settings.Cerebras.Model
+                                                                    , _settings.Timeout)
+              , _ => throw new InvalidOperationException($"Unknown LLM provider: {provider}")
         };
     }
 }

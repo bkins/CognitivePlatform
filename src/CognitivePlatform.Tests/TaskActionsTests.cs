@@ -68,8 +68,46 @@ public class TaskActionsTests
         Assert.NotNull(capturedDate);
 
         // Midnight-crossing tolerance: the action could have captured either the
-        // date it was before the call, or after — if the wall clock rolled over.
+        // date it was before the call, or after Ã¢â‚¬â€ if the wall clock rolled over.
         Assert.True(capturedDate == before || capturedDate == after
                   , $"Captured {capturedDate}, expected {before} or {after}.");
+    }
+
+    // G1 regression: AddTask must not surface the GUID in its return string.
+    [Fact]
+    public void AddTask_ReturnsDescriptionOnly_NotId()
+    {
+        _taskServiceMock.Setup(service => service.Create(It.IsAny<TaskItem>()));
+
+        var result = _actions.AddTask("Buy groceries");
+
+        Assert.Equal("Task created: Buy groceries", result);
+        Assert.DoesNotMatch(@"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", result);
+    }
+
+    // G2 regression: ListTasks must not emit a "**Id:**" field for any task.
+    [Fact]
+    public void ListTasks_DoesNotInclude_IdField()
+    {
+        var task = new TaskItem
+                   {
+                           Id               = Guid.NewGuid().ToString()
+                         , ShortDescription = "Buy groceries"
+                   };
+
+        _taskServiceMock.Setup(service => service.QueryTasks( It.IsAny<bool?>()
+                                                            , It.IsAny<bool?>()
+                                                            , It.IsAny<bool?>()
+                                                            , It.IsAny<string?>()))
+                        .Returns(new List<TaskItem> { task });
+
+        _taskServiceMock.Setup(service => service.GetOrderedActiveTasks())
+                        .Returns(new List<(int Position, TaskItem Task)> { (1, task) });
+
+        var result = _actions.ListTasks();
+
+        Assert.Contains("Buy groceries", result);
+        Assert.Contains("## 1.", result);
+        Assert.DoesNotContain("**Id:**", result);
     }
 }

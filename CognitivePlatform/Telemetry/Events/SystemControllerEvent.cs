@@ -12,9 +12,12 @@ public class SystemControllerEvent : TelemetryEvent
     {
         var data = new StringBuilder();
 
-        foreach (var kvp in Data)
+        if (Data is not null)
         {
-            data.AppendLine($"\t\t{kvp.Key}: '{kvp.Value}'");
+            foreach (var kvp in Data)
+            {
+                data.AppendLine($"\t\t{kvp.Key}: '{kvp.Value}'");
+            }    
         }
         
         return $"{base.ToString()}\n\t{nameof(Message)}: '{Message}'\n\tData:\n{data}";

@@ -196,6 +196,24 @@ public sealed class JournalService : IJournalService
                                       , partitionKey: null);
     }
     
+    public IReadOnlyList<(int Position, JournalEntryWithRevision EntryWithRevision)> GetOrderedEntries()
+    {
+        return ListEntries()
+               .OrderByDescending(entryWithRevision => entryWithRevision.Entry.CreatedUtc)
+               .Select((entryWithRevision, index) => (Position: index + 1, EntryWithRevision: entryWithRevision))
+               .ToList();
+    }
+
+    public JournalEntryWithRevision? ResolveByPosition(int position)
+    {
+        var ordered = GetOrderedEntries();
+
+        if (position < 1 || position > ordered.Count)
+            return null;
+
+        return ordered[position - 1].EntryWithRevision;
+    }
+
     public JournalEntryWithRevision GetById(string id)
     {
         var entry = _store.Get<JournalEntry>(id);

@@ -234,7 +234,7 @@ public class CalendarActions
     // Helpers
     // -----------------------------------------------------------------------
 
-    private static string FormatEvents(IReadOnlyList<CalendarEvent> events, string heading)
+    public static string FormatEvents(IReadOnlyList<CalendarEvent> events, string heading)
     {
         var sb = new StringBuilder();
         sb.AppendLine(heading + ":");

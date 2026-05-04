@@ -4,7 +4,7 @@ using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.SystemInfo;
 
-public sealed class SystemService
+public class SystemService
 {
     private static readonly DateTime _startedAtUtc = DateTime.UtcNow;
 

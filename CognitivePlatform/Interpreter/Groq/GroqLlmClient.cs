@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,7 +14,7 @@ namespace CognitivePlatform.Api.Interpreter;
 /// which means responses arrive in under 3 seconds even for large models.
 ///
 /// API key is loaded from user-secrets (development) or environment
-/// variables (production) — never from appsettings.json.
+/// variables (production) â€” never from appsettings.json.
 ///
 /// After each successful response the rate-limit headers are captured
 /// and written to <see cref="IGroqUsageTracker"/> for downstream consumers.
@@ -81,7 +81,7 @@ public class GroqLlmClient : ILlmClient
                                                        , HttpCompletionOption.ResponseHeadersRead
                                                        , cancellationToken);
 
-        // Capture rate-limit headers regardless of success/failure —
+        // Capture rate-limit headers regardless of success/failure â€”
         // even a 429 response carries the current window state.
         CaptureUsageHeaders(response.Headers);
 
@@ -192,7 +192,7 @@ public class GroqLlmClient : ILlmClient
         if (raw.HasNoValue()) return null;
 
         var duration = GroqResetTimeParser.Parse(raw);
-        return duration == TimeSpan.Zero ? null : DateTimeOffset.Now.Add(duration);
+        return duration == TimeSpan.Zero ? null : DateTimeOffset.UtcNow.Add(duration);
     }
 
     // ----------------------------------------------------------------

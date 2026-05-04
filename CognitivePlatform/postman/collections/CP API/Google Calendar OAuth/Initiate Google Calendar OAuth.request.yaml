@@ -1,5 +1,0 @@
-$kind: http-request
-description: Open in a browser — redirects to the Google consent screen.
-url: "{{baseUrl}}/auth/google/connect"
-method: GET
-order: 1000

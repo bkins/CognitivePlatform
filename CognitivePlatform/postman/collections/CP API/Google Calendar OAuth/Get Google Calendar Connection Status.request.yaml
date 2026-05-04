@@ -1,4 +1,0 @@
-$kind: http-request
-url: "{{baseUrl}}/auth/google/status"
-method: GET
-order: 3000

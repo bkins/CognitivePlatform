@@ -121,20 +121,27 @@ public sealed class JournalActions
                                       )]
                                       string? toDate)
     {
-        var entryWithRevisions = _journal.ListEntries(ParseDate(fromDate), ParseDate(toDate));
+        var from = ParseDate(fromDate);
+        var to   = ParseDate(toDate);
 
-        if (entryWithRevisions.Count == 0)
+        var allOrdered = _journal.GetOrderedEntries();
+        var filtered   = allOrdered
+                         .Where(orderedEntry => (from is null || orderedEntry.EntryWithRevision.Entry.CreatedUtc >= from)
+                                             && (to   is null || orderedEntry.EntryWithRevision.Entry.CreatedUtc <= to))
+                         .ToList();
+
+        if (filtered.Count == 0)
             return "No journal entries found.";
 
         var sb = new StringBuilder();
-        foreach (var entryWithRevision in entryWithRevisions)
-        {
-            sb.Append('[')
-              .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
-              .Append("] ")
-              .Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entryWithRevision, includeId: true);
+        foreach (var (position, entryWithRevision) in filtered)
+        {
+            sb.AppendLine($"## {position}. {entryWithRevision.Entry.CreatedUtc.ToLocalTime():yyyy-MM-dd}");
+            sb.AppendLine();
+            sb.Append(entryWithRevision.LatestRevision.Text);
+
+            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
             sb.AppendLine().AppendLine();
         }
 
@@ -145,25 +152,27 @@ public sealed class JournalActions
     // 3. GetJournalEntry
     // ----------------------------------------------------------------------
     [FastPath]
-    [NaturalLanguageAction(Description = "Retrieves a single journal entry by ID."
+    [NaturalLanguageAction(Description = "Retrieves a single journal entry by its position number (from a recent listing)."
                          , Examples = new[]
                                       {
-                                              "Show the journal entry with ID abc123."
-                                            , "Get journal entry 42."
-                                            , "Read journal entry with ID 77."
+                                              "Show journal entry 3."
+                                            , "Read entry 7."
+                                            , "Get journal entry 12."
                                       }
                          , Category = "journal")]
-    public string GetJournalEntry ([NaturalLanguageParam(Description = "The ID of the journal entry."
-                                   , AllowEmpty = false)] 
-                                   string id)
+    public string GetJournalEntry ([NaturalLanguageParam(Description = "The position number of the journal entry (e.g. '3') from a recent listing."
+                                                       , AllowEmpty  = false)]
+                                   string entryReference)
     {
-        var entryWithRevision = _journal.GetById(id); //.GetEntry(id);
-        
+        var entryWithRevision = TryResolveJournalReference(entryReference, out var errorMessage);
+
+        if (entryWithRevision is null)
+            return errorMessage!;
+
         var sb = new StringBuilder();
-        sb.Append('[')
-          .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
-          .Append("] ")
-          .Append(entryWithRevision.LatestRevision.Text);
+        sb.AppendLine($"## {entryReference}. {entryWithRevision.Entry.CreatedUtc.ToLocalTime():yyyy-MM-dd}");
+        sb.AppendLine();
+        sb.Append(entryWithRevision.LatestRevision.Text);
 
         AppendCommonMetadata(sb, entryWithRevision, includeId: false);
 
@@ -175,25 +184,31 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     [FastPath]
     [DestructiveAction]
-    [NaturalLanguageAction(Description = "Deletes a journal entry by ID. And a reason must be provided"
+    [NaturalLanguageAction(Description = "Deletes a journal entry by its position number. A reason must be provided."
                          , Examples = new[]
                                       {
-                                              "Delete journal entry abc123, because it was added by mistake."
-                                            , "Remove the entry with ID 42. It is no long needed"
-                                            , "Delete my last journal entry. It is not complete" // The model will extract the ID anyway
+                                              "Delete journal entry 3, it was added by mistake."
+                                            , "Remove entry 5 — it is no longer needed."
+                                            , "Delete my last journal entry. It is not complete."
                                       }
                          , Category = "journal")]
-    public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The ID of the entry to delete."
-                                                          , AllowEmpty = false)]
-                                      string id
-                                    , [NaturalLanguageParam(Description = "Reason Entry was deleted"
-                                                          , AllowEmpty = false)]
+    public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The position number of the entry to delete (e.g. '3') from a recent listing."
+                                                          , AllowEmpty  = false)]
+                                      string entryReference
+                                    , [NaturalLanguageParam(Description = "Reason the entry is being deleted."
+                                                          , AllowEmpty  = false)]
                                       string reason)
     {
-        var deleted = _journal.DeleteEntry(id, reason);
+        var entryWithRevision = TryResolveJournalReference(entryReference, out var errorMessage);
+
+        if (entryWithRevision is null)
+            return errorMessage!;
+
+        var deleted = _journal.DeleteEntry(entryWithRevision.Entry.Id, reason);
+
         return deleted
-                       ? $"Journal entry '{id}' deleted."
-                       : $"No journal entry found with ID '{id}'. Or a reason must be provided.";
+                       ? $"Journal entry {entryReference} — '{entryWithRevision.LatestRevision.Text[..Math.Min(40, entryWithRevision.LatestRevision.Text.Length)]}...' deleted."
+                       : $"Could not delete journal entry {entryReference}.";
     }
 
     [FastPath]
@@ -211,27 +226,26 @@ public sealed class JournalActions
     {
         var today = DateTimeOffset.UtcNow;
 
-        var entryWithRevisions = _journal.ListEntries()
-                              .Where(entryWithRevision => entryWithRevision.Entry.CreatedUtc.Month == today.Month 
-                                           && entryWithRevision.Entry.CreatedUtc.Day   == today.Day 
-                                           && entryWithRevision.Entry.CreatedUtc.Year != today.Year)
-                              .OrderBy(entryWithRevision => entryWithRevision.Entry.CreatedUtc)
-                              .ToList();
+        var filtered = _journal.GetOrderedEntries()
+                               .Where(orderedEntry => orderedEntry.EntryWithRevision.Entry.CreatedUtc.Month == today.Month
+                                                   && orderedEntry.EntryWithRevision.Entry.CreatedUtc.Day   == today.Day
+                                                   && orderedEntry.EntryWithRevision.Entry.CreatedUtc.Year  != today.Year)
+                               .ToList();
 
-        if (entryWithRevisions.Count == 0)
+        if (filtered.Count == 0)
             return "You have no entries from this day in your personal history.";
 
         var sb = new StringBuilder();
         sb.AppendLine("Entries from this day in your personal history:");
-        
-        foreach (var entryWithRevision in entryWithRevisions)
-        {
-            sb.Append('[')
-              .Append(entryWithRevision.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
-              .Append("] ")
-              .Append(entryWithRevision.LatestRevision.Text);
+        sb.AppendLine();
 
-            AppendCommonMetadata(sb, entryWithRevision, includeId: true);
+        foreach (var (position, entryWithRevision) in filtered)
+        {
+            sb.AppendLine($"## {position}. {entryWithRevision.Entry.CreatedUtc.ToLocalTime():yyyy-MM-dd}");
+            sb.AppendLine();
+            sb.Append(entryWithRevision.LatestRevision.Text);
+
+            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
             sb.AppendLine().AppendLine();
         }
 
@@ -263,9 +277,15 @@ public sealed class JournalActions
                                                             , DefaultValue = "")]
                                         string? toDate = null)
     {
-        var results = _journal.SearchEntries(keyword
-                                           , ParseDate(fromDate)
-                                           , ParseDate(toDate));
+        var matchingIds = _journal.SearchEntries(keyword
+                                               , ParseDate(fromDate)
+                                               , ParseDate(toDate))
+                                 .Select(entryWithRevision => entryWithRevision.Entry.Id)
+                                 .ToHashSet();
+
+        var allOrdered = _journal.GetOrderedEntries();
+        var results    = allOrdered.Where(orderedEntry => matchingIds.Contains(orderedEntry.EntryWithRevision.Entry.Id))
+                                   .ToList();
 
         if (results.Count == 0)
             return $"No journal entries found containing '{keyword}'.";
@@ -274,14 +294,13 @@ public sealed class JournalActions
         sb.AppendLine($"Found {results.Count} journal {(results.Count == 1 ? "entry" : "entries")} containing '{keyword}':");
         sb.AppendLine();
 
-        foreach (var ewr in results)
+        foreach (var (position, entryWithRevision) in results)
         {
-            sb.Append('[')
-              .Append(ewr.Entry.CreatedUtc.ToString("yyyy-MM-dd HH:mm"))
-              .Append("] ")
-              .Append(ewr.LatestRevision.Text);
+            sb.AppendLine($"## {position}. {entryWithRevision.Entry.CreatedUtc.ToLocalTime():yyyy-MM-dd}");
+            sb.AppendLine();
+            sb.Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, ewr, includeId: true);
+            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
             sb.AppendLine().AppendLine();
         }
 
@@ -445,6 +464,43 @@ public sealed class JournalActions
             sb.Append(" (ID: ")
               .Append(entryWithRevision.Entry.Id)
               .Append(')');
+        }
+    }
+
+    /// <summary>
+    /// Resolves a journal reference that is either a 1-based position integer
+    /// or a raw entry ID string. Returns the resolved entry, or null with an
+    /// error message in <paramref name="errorMessage"/>.
+    /// </summary>
+    private JournalEntryWithRevision? TryResolveJournalReference( string      reference
+                                                                 , out string? errorMessage )
+    {
+        reference = (reference ?? string.Empty).Trim();
+
+        if (int.TryParse(reference, out var position))
+        {
+            var byPosition = _journal.ResolveByPosition(position);
+
+            if (byPosition is null)
+            {
+                errorMessage = $"No journal entry found at position {position}.";
+                return null;
+            }
+
+            errorMessage = null;
+            return byPosition;
+        }
+
+        try
+        {
+            var byId = _journal.GetById(reference);
+            errorMessage = null;
+            return byId;
+        }
+        catch (KeyNotFoundException)
+        {
+            errorMessage = $"No journal entry found with id '{reference}'.";
+            return null;
         }
     }
 

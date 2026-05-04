@@ -75,7 +75,7 @@ public class TaskActions
 
         _taskService.Create(task);
 
-        return $"Task created: {task.ShortDescription}{Environment.NewLine}ID: {task.Id}";
+        return $"Task created: {task.ShortDescription}";
     }
 
     [FastPath]
@@ -213,7 +213,6 @@ public class TaskActions
             sb.AppendLine($"- **Priority:** {matrix}");
             sb.AppendLine($"- **Due:** {duePart}");
             sb.AppendLine($"- **Tags:** {tagsPart}");
-            sb.AppendLine($"- **Id:** `{task.Id}`");
 
             sb.AppendLine();
         }

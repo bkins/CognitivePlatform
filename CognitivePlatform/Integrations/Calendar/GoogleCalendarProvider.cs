@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.Api.Data;
@@ -11,13 +11,13 @@ namespace CognitivePlatform.Api.Integrations.Calendar;
 /// Google Calendar implementation of <see cref="ICalendarProvider"/>.
 ///
 /// OAuth flow:
-///   1. User visits GET /auth/google/connect  →  redirected to Google consent screen.
+///   1. User visits GET /auth/google/connect  â†’  redirected to Google consent screen.
 ///   2. Google redirects to GET /auth/google/callback?code=...
 ///   3. This class exchanges the code for tokens and stores them in IObjectStore.
 ///   4. Subsequent calls use the stored access token, refreshing automatically on expiry.
 ///
 /// All HTTP calls use the named "GoogleCalendar" HttpClient.
-/// Token refresh uses the stored refresh token — if missing the user must re-authorise.
+/// Token refresh uses the stored refresh token â€” if missing the user must re-authorise.
 /// </summary>
 public class GoogleCalendarProvider : ICalendarProvider
 {
@@ -136,13 +136,13 @@ public class GoogleCalendarProvider : ICalendarProvider
         var accessToken = await GetValidAccessTokenAsync(ct);
         if (accessToken is null)
         {
-            _logger.LogWarning("No valid access token — returning empty event list");
+            _logger.LogWarning("No valid access token â€” returning empty event list");
             return [];
         }
 
         var calendars = await GetCalendarListAsync(accessToken, ct);
 
-        // Fan out in parallel — one request per calendar
+        // Fan out in parallel â€” one request per calendar
         var fetchTasks = calendars
             .Select(cal => FetchEventsForCalendarAsync(cal.Id, cal.Name, accessToken, fromUtc, toUtc, ct));
 
@@ -170,7 +170,7 @@ public class GoogleCalendarProvider : ICalendarProvider
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Failed to fetch calendar list ({Status}) — falling back to primary", response.StatusCode);
+            _logger.LogWarning("Failed to fetch calendar list ({Status}) â€” falling back to primary", response.StatusCode);
             return [new CalendarInfo("primary", "Primary")];
         }
 
@@ -278,7 +278,7 @@ public class GoogleCalendarProvider : ICalendarProvider
         if (tokens.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(5))
             return tokens.AccessToken;
 
-        // Access token expired — use refresh token to get a new one
+        // Access token expired â€” use refresh token to get a new one
         if (tokens.RefreshToken is null)
         {
             _logger.LogWarning("Access token expired and no refresh token stored; re-authorisation required");
@@ -315,7 +315,7 @@ public class GoogleCalendarProvider : ICalendarProvider
         tokens.ExpiresAt   = DateTimeOffset.UtcNow.AddSeconds(
             root.TryGetProperty("expires_in", out var exp) ? exp.GetInt32() : 3600);
 
-        // Refresh token is not re-issued on every refresh — keep the existing one
+        // Refresh token is not re-issued on every refresh â€” keep the existing one
         await _store.Save(tokens, _settings.TokenStorePartitionKey, "default");
 
         _logger.LogInformation("Google Calendar access token refreshed successfully");
@@ -356,8 +356,8 @@ public class GoogleCalendarProvider : ICalendarProvider
             if (start.TryGetProperty("date", out var startDate))
             {
                 isAllDay = true;
-                startUtc = DateTimeOffset.Parse(startDate.GetString()!);
-                endUtc   = DateTimeOffset.Parse(end.GetProperty("date").GetString()!);
+                startUtc = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(startDate.GetString()!), DateTimeKind.Utc));
+                endUtc   = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(end.GetProperty("date").GetString()!), DateTimeKind.Utc));
             }
             else
             {
@@ -379,7 +379,7 @@ public class GoogleCalendarProvider : ICalendarProvider
         }
         catch
         {
-            // Malformed event — skip it rather than crashing the whole list
+            // Malformed event â€” skip it rather than crashing the whole list
             return null;
         }
     }

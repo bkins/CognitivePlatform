@@ -36,6 +36,9 @@ public class JournalActionsTests
                                                    , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision> { entry });
 
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)> { (1, entry) });
+
         var result = _actions.SearchJournalEntries("Jake");
 
         Assert.Contains("Jake",  result);
@@ -54,6 +57,13 @@ public class JournalActionsTests
                                                    , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision> { entryWithRevision, anotherEntryWithRevision });
 
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)>
+                             {
+                                     (1, entryWithRevision)
+                                   , (2, anotherEntryWithRevision)
+                             });
+
         var result = _actions.SearchJournalEntries("Jake");
 
         Assert.Contains("Found 2 journal entries containing 'Jake':", result);
@@ -67,6 +77,10 @@ public class JournalActionsTests
                                                           , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
 
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)>());
+
+
         var result = _actions.SearchJournalEntries("Jake");
 
         Assert.Equal("No journal entries found containing 'Jake'.", result);
@@ -79,6 +93,9 @@ public class JournalActionsTests
                                                           , It.IsAny<DateTimeOffset?>()
                                                           , It.IsAny<DateTimeOffset?>()))
                     .Returns(new List<JournalEntryWithRevision>());
+
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)>());
 
         _actions.SearchJournalEntries("Jake", fromDate: "2026-01-01", toDate: "2026-01-31");
 
@@ -172,6 +189,47 @@ public class JournalActionsTests
         Assert.Contains("anxious", capturedPrompt);
         Assert.Contains("2",       capturedPrompt);
         Assert.Contains("work",    capturedPrompt);
+    }
+
+    // ================================================================
+    // LIST JOURNAL ENTRIES
+    // ================================================================
+
+    // G3 regression: ListJournalEntries must render a numbered header and must not emit any GUID.
+    [Fact]
+    public void ListJournalEntries_RendersNumberedHeader_WithNoGuid()
+    {
+        var entry = MakeEntryWithRevision("Meeting with the team.");
+
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)> { (1, entry) });
+
+        var result = _actions.ListJournalEntries(fromDate: null, toDate: null);
+
+        Assert.Contains("## 1.", result);
+        Assert.Contains("Meeting with the team.", result);
+        Assert.DoesNotContain("ID:", result);
+        Assert.DoesNotMatch(@"[0-9a-f]{32}", result);
+    }
+
+    // G3 regression: SearchJournalEntries must show the global position number beside each hit.
+    [Fact]
+    public void SearchJournalEntries_IncludesGlobalPositionNumber_InResult()
+    {
+        var entry = MakeEntryWithRevision("I spoke with Jake today.");
+
+        _journalMock.Setup(svc => svc.SearchEntries("Jake"
+                                                   , It.IsAny<DateTimeOffset?>()
+                                                   , It.IsAny<DateTimeOffset?>()))
+                    .Returns(new List<JournalEntryWithRevision> { entry });
+
+        _journalMock.Setup(service => service.GetOrderedEntries())
+                    .Returns(new List<(int Position, JournalEntryWithRevision EntryWithRevision)> { (3, entry) });
+
+        var result = _actions.SearchJournalEntries("Jake");
+
+        Assert.Contains("## 3.", result);
+        Assert.Contains("I spoke with Jake today.", result);
     }
 
     // ================================================================
