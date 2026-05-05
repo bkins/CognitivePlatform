@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Registry;
+﻿using CognitivePlatform.Api.Registry;
 
 namespace CognitivePlatform.Tests;
 
@@ -60,5 +60,41 @@ public class ActionRegistryTests
 
         Assert.NotNull(action);
         Assert.False(action.IsDestructive);
+    }
+
+    // ================================================================
+    // IsReplayable — state-mutating actions are replayable
+    // ================================================================
+
+    [Theory]
+    [InlineData("AddTask")]
+    [InlineData("CompleteTask")]
+    [InlineData("DeleteTask")]
+    [InlineData("UpdateTaskDueDate")]
+    [InlineData("AddJournalEntry")]
+    [InlineData("DeleteJournalEntry")]
+    [InlineData("LogActivity")]
+    public void StateMutatingAction_IsMarkedReplayable(string actionName)
+    {
+        var action = _registry.FindByName(actionName);
+
+        Assert.NotNull(action);
+        Assert.True(action.IsReplayable, $"{actionName} should be marked IsReplayable = true");
+    }
+
+    // ================================================================
+    // IsReplayable — read-only actions must NOT be replayable
+    // ================================================================
+
+    [Theory]
+    [InlineData("ListTasks")]
+    [InlineData("ListJournalEntries")]
+    [InlineData("ListActivities")]
+    public void ReadOnlyAction_IsNotReplayable(string actionName)
+    {
+        var action = _registry.FindByName(actionName);
+
+        Assert.NotNull(action);
+        Assert.False(action.IsReplayable, $"{actionName} should not be replayable");
     }
 }

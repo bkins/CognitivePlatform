@@ -106,11 +106,44 @@ public class GroqLlmClient : ILlmClient
                                                      , string?                                    model             = null
                                                      , [EnumeratorCancellation] CancellationToken cancellationToken = default )
     {
-        // Groq supports streaming via SSE. For now we fall back to a
-        // non-streaming call and yield the whole response as one chunk.
-        // Streaming can be implemented here in a future iteration.
-        var result = await SendAsync(prompt, model, cancellationToken);
-        yield return result;
+        var selectedModel = model.HasValue()
+                                    ? model!.Trim()
+                                    : _settings.Groq.Model;
+
+        var requestBody = new GroqChatRequest
+                          {
+                                  Model    = selectedModel
+                                , Messages =
+                                  [
+                                          new GroqMessage { Role = "user", Content = prompt }
+                                  ]
+                                , Stream   = true
+                          };
+
+        var endpoint = $"{_settings.Groq.Endpoint.TrimEnd('/')}/chat/completions";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                            {
+                                    Content = JsonContent.Create(requestBody, options: JsonOptions)
+                            };
+
+        using var response = await _httpClient.SendAsync(request
+                                                       , HttpCompletionOption.ResponseHeadersRead
+                                                       , cancellationToken);
+
+        CaptureUsageHeaders(response.Headers);
+
+        if (response.IsSuccessStatusCode.Not())
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Groq API returned {(int)response.StatusCode}: {errorBody}");
+        }
+
+        var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        await foreach (var chunk in OpenAiSseReader.ReadChunksAsync(responseStream, cancellationToken))
+            yield return chunk;
     }
 
     public async Task<LlmModelProbeResult> ProbeAsync( string            model
@@ -223,6 +256,10 @@ public class GroqLlmClient : ILlmClient
         [JsonPropertyName("max_tokens")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? MaxTokens { get; set; }
+
+        [JsonPropertyName("stream")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Stream { get; set; }
     }
 
     private sealed class GroqMessage

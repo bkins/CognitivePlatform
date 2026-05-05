@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
@@ -56,9 +56,10 @@ public class ActionRegistry : IActionRegistry
                                        })
                                        .ToList();
 
-                // Detect [FastPath] and [DestructiveAction]
+                // Detect [FastPath], [DestructiveAction], and IsReplayable
                 var isFastPath    = method.GetCustomAttribute<FastPathAttribute>()        != null;
                 var isDestructive = method.GetCustomAttribute<DestructiveActionAttribute>() != null;
+                var isReplayable  = nla.IsReplayable;
 
                 var meta = new ActionMetadata
                            {
@@ -70,6 +71,7 @@ public class ActionRegistry : IActionRegistry
                                  , AllowsClarification = nla.AllowsClarification
                                  , IsFastPath          = isFastPath
                                  , IsDestructive       = isDestructive
+                                 , IsReplayable        = isReplayable
                            };
 
                 _actions.Add(meta);
@@ -137,6 +139,7 @@ public class ActionRegistry : IActionRegistry
                      , Parameters          = parameters
                      , Category            = category
                      , AllowsClarification = attribute.AllowsClarification
+                     , IsReplayable        = attribute.IsReplayable
                };
     }
 

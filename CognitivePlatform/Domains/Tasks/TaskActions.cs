@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -30,7 +30,7 @@ public class TaskActions
                                  , "Remind me to call mom tonight"
                                  , "Create a task to finish report by Friday"
                            ]
-                         , AllowsClarification = true)]
+                         , AllowsClarification = true, IsReplayable = true)]
     public string AddTask( [NaturalLanguageParam(Description = "Short description of the task."
                                                , Optional    = false
                                                , AllowEmpty  = false)]
@@ -230,7 +230,7 @@ public class TaskActions
                                  , "Task 3 is done."
                                  , "Mark task id abc123 as complete."
                            ]
-                         , AllowsClarification = true)]
+                         , AllowsClarification = true, IsReplayable = true)]
     public string CompleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                     , Optional    = false
                                                     , AllowEmpty  = false)]
@@ -413,7 +413,7 @@ public class TaskActions
                   , "Clear the due date on task 2."
                   , "Task 3 has no due date."
             ]
-          , AllowsClarification = true)]
+          , AllowsClarification = true, IsReplayable = true)]
     public string UpdateTaskDueDate( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                          , Optional    = false
                                                          , AllowEmpty  = false)]
@@ -469,7 +469,7 @@ public class TaskActions
                                  , "Remove task 4 from my list."
                                  , "Delete the task with id abc123."
                            ]
-                         , AllowsClarification = true)]
+                         , AllowsClarification = true, IsReplayable = true)]
     public string DeleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                   , Optional    = false
                                                   , AllowEmpty  = false)]

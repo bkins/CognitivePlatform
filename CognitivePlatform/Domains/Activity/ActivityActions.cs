@@ -40,7 +40,7 @@ public sealed class ActivityActions
                              , "Log a walk, 20 minutes, tagged outdoors."
                              , "Record strength training, 45 minutes, notes felt strong."
                        }
-          , Category = "activity")]
+          , Category = "activity", IsReplayable = true)]
     public async Task<string> LogActivity (
             [NaturalLanguageParam(Description = "The activity type ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. 'run', 'meditation', 'reading'."
                                 , AllowEmpty  = false)]

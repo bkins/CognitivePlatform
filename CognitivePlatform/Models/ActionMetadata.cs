@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace CognitivePlatform.Api.Models;
 
@@ -49,4 +49,10 @@ public class ActionMetadata
     /// any action with this flag set.
     /// </summary>
     public bool IsDestructive { get; init; }
+
+    /// <summary>
+    /// True when the offline intent queue is permitted to replay this action after reconnect.
+    /// Only meaningful for idempotent, state-mutating actions.
+    /// </summary>
+    public bool IsReplayable { get; init; }
 }

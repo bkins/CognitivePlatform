@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Attributes;
+﻿namespace CognitivePlatform.Api.Attributes;
 
 [AttributeUsage(AttributeTargets.Method
               , AllowMultiple = false)]
@@ -26,5 +26,11 @@ public class NaturalLanguageActionAttribute : Attribute
     /// when required parameters are missing, instead of just failing.
     /// </summary>
     public bool AllowsClarification { get; init; } = false;
+
+    /// <summary>
+    /// If true, the offline intent queue may re-execute this action after a reconnect.
+    /// Only set for idempotent, state-mutating actions where replay is safe.
+    /// </summary>
+    public bool IsReplayable { get; init; } = false;
 
 }

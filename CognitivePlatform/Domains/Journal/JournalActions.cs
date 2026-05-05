@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -41,7 +41,7 @@ public sealed class JournalActions
                                                     , "Write a journal entry tagged work saying I finished the project."
                                                     , "Add a journal entry with mood score 2 saying I felt pretty low."
                                             }
-                               , Category = "journal")]
+                               , Category = "journal", IsReplayable = true)]
     public string AddJournalEntry ([NaturalLanguageParam(    Description = "The text of the journal entry."
                                                              , AllowEmpty = false)]
                                    string text
@@ -191,7 +191,7 @@ public sealed class JournalActions
                                             , "Remove entry 5 — it is no longer needed."
                                             , "Delete my last journal entry. It is not complete."
                                       }
-                         , Category = "journal")]
+                         , Category = "journal", IsReplayable = true)]
     public string DeleteJournalEntry ([NaturalLanguageParam(Description = "The position number of the entry to delete (e.g. '3') from a recent listing."
                                                           , AllowEmpty  = false)]
                                       string entryReference

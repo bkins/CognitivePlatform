@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -111,11 +111,42 @@ public class GeminiLlmClient : ILlmClient
                                                      , string?                                    model             = null
                                                      , [EnumeratorCancellation] CancellationToken cancellationToken = default )
     {
-        // Gemini's OpenAI-compatible endpoint supports streaming (SSE) but for now
-        // we fall back to the non-streaming call and yield the whole response as one chunk.
-        // Streaming can be implemented here in a future iteration.
-        var result = await SendAsync(prompt, model, cancellationToken);
-        yield return result;
+        var selectedModel = model.HasValue()
+                                    ? model!.Trim()
+                                    : _settings.Gemini.Model;
+
+        var requestBody = new ChatRequest
+                          {
+                                  Model    = selectedModel
+                                , Messages =
+                                  [
+                                          new ChatMessage { Role = "user", Content = prompt }
+                                  ]
+                                , Stream   = true
+                          };
+
+        var endpoint = $"{_settings.Gemini.Endpoint.TrimEnd('/')}/chat/completions";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                            {
+                                    Content = JsonContent.Create(requestBody, options: JsonOptions)
+                            };
+
+        using var response = await _httpClient.SendAsync(request
+                                                       , HttpCompletionOption.ResponseHeadersRead
+                                                       , cancellationToken);
+
+        if (response.IsSuccessStatusCode.Not())
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Gemini API returned {(int)response.StatusCode}: {errorBody}");
+        }
+
+        var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        await foreach (var chunk in OpenAiSseReader.ReadChunksAsync(responseStream, cancellationToken))
+            yield return chunk;
     }
 
     public async Task<LlmModelProbeResult> ProbeAsync( string            model
@@ -180,6 +211,10 @@ public class GeminiLlmClient : ILlmClient
         [JsonPropertyName("max_tokens")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? MaxTokens { get; set; }
+
+        [JsonPropertyName("stream")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Stream { get; set; }
     }
 
     private sealed class ChatMessage
