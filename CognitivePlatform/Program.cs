@@ -9,6 +9,7 @@ using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Domains.Feedback;
 using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
@@ -80,6 +81,8 @@ public partial class Program
         builder.Logging.AddProvider(new InMemoryLogProvider(logStore));
 
         builder.Services.Configure<PromptLoggingOptions>(builder.Configuration.GetSection("PromptLogging"));
+    builder.Services.Configure<BugReportSettings>(
+        builder.Configuration.GetSection("BugReport"));
         builder.Services.AddSingleton<IPromptLogger, PromptLogger>();
         
 // Core services
@@ -187,6 +190,7 @@ public partial class Program
         builder.Services.AddTransient<ActivityActions>();
         builder.Services.AddTransient<DebugFastPath>();
         builder.Services.AddTransient<DailyRecordActions>();
+        builder.Services.AddTransient<FeedbackActions>();
 
     // Insight Engine (Phase A — no Object Store dependency)
         // History store is a singleton because the in-memory dictionary IS the state.
