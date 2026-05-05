@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get Environment Info
+url: "{{baseUrl}}/api/system/environment"
+method: GET
+order: 1902

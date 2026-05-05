@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get Today's Events
+url: "{{baseUrl}}/auth/google/todays-events"
+method: GET
+order: 2000

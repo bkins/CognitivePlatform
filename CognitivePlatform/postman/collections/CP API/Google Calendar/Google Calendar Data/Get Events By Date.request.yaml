@@ -1,0 +1,8 @@
+$kind: http-request
+name: Get Events By Date
+url: "{{baseUrl}}/auth/google/eventsbydate?date=2026-05-04"
+method: GET
+queryParams:
+  - key: date
+    value: 2026-05-04
+order: 1506

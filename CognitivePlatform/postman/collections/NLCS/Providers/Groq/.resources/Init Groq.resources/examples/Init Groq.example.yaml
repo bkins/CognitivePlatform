@@ -1,0 +1,85 @@
+$kind: http-example
+request:
+  url: https://api.groq.com/openai/v1/chat/completions
+  method: POST
+  body:
+    type: json
+    content: "{\r
+
+      \  \"messages\": [\r
+
+      \    {\r
+
+      \      \"role\": \"user\",\r
+
+      \      \"content\": {{GroqPrompt}}\r
+
+      \    }\r
+
+      \  ],\r
+
+      \  \"model\": \"llama-3.3-70b-versatile\"\r
+
+      }"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    date: Thu, 30 Apr 2026 23:19:21 GMT
+    content-type: application/json
+    transfer-encoding: chunked
+    connection: keep-alive
+    cache-control: private, max-age=0, no-store, no-cache, must-revalidate
+    server: cloudflare
+    vary: Origin
+    x-groq-region: dls
+    x-ratelimit-limit-requests: "1000"
+    x-ratelimit-limit-tokens: "12000"
+    x-ratelimit-remaining-requests: "999"
+    x-ratelimit-remaining-tokens: "11961"
+    x-ratelimit-reset-requests: 1m26.4s
+    x-ratelimit-reset-tokens: 194ms
+    x-request-id: req_01kqgb1470et8bvcpnasp0vmaw
+    via: 1.1 google
+    cf-cache-status: DYNAMIC
+    strict-transport-security: max-age=15552000
+    content-encoding: br
+    cf-ray: 9f4a45548e6bba33-SEA
+    alt-svc: h3=":443"; ma=86400
+  body:
+    type: json
+    content: |-
+      {
+        "id": "chatcmpl-6b5d84a0-c52b-4785-8593-438eef1f0519",
+        "object": "chat.completion",
+        "created": 1777591161,
+        "model": "llama-3.3-70b-versatile",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "1"
+            },
+            "logprobs": null,
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "queue_time": 0.063359964,
+          "prompt_tokens": 38,
+          "prompt_time": 0.014926175,
+          "completion_tokens": 2,
+          "completion_time": 0.006706637,
+          "total_tokens": 40,
+          "total_time": 0.021632812
+        },
+        "usage_breakdown": null,
+        "system_fingerprint": "fp_43d97c5965",
+        "x_groq": {
+          "id": "req_01kqgb1470et8bvcpnasp0vmaw",
+          "seed": 1718204828
+        },
+        "service_tier": "on_demand"
+      }
+order: 1777591964734
