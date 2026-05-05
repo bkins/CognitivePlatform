@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -371,7 +371,7 @@ public sealed class JournalActions
                         , prompt
                         , _llmClient.GetType().Name);
         
-        return await _llmClient.SendAsync(prompt);
+        return (await _llmClient.SendAsync(prompt)).Content;
     }
 
     // ----------------------------------------------------------------------

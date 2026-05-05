@@ -129,7 +129,7 @@ public class InsightsActions
             var promptWithoutActivities = sb.ToString();
         
             _promptLogger.Log("InsightsAnalysisPromptWithoutActivities", promptWithoutActivities, _llmClient.GetType().Name);
-            return await _llmClient.SendAsync(sb.ToString());
+            return (await _llmClient.SendAsync(sb.ToString())).Content;
         }
 
         sb.AppendLine("=== Recent Activities ===");
@@ -155,7 +155,7 @@ public class InsightsActions
         
         _promptLogger.Log("InsightsAnalysisPromptWithActivities", promptWithActivities, _llmClient.GetType().Name);
         
-        return await _llmClient.SendAsync(promptWithActivities);
+        return (await _llmClient.SendAsync(promptWithActivities)).Content;
     }
 
     private static DateTimeOffset? ParseDate(string? input)

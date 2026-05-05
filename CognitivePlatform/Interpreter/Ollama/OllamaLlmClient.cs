@@ -21,7 +21,7 @@ public class OllamaLlmClient : ILlmClient
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.Timeout);
     }
 
-    public async Task<string> SendAsync (string            prompt
+    public async Task<LlmResponse> SendAsync (string            prompt
                                        , string?           model             = null
                                        , CancellationToken cancellationToken = default)
     {
@@ -77,11 +77,23 @@ public class OllamaLlmClient : ILlmClient
             throw new InvalidOperationException("LLM returned no JSON response.");
 
         // Some models return null for `response` until `done = true`
-        if (json.response.DoesNotHaveValueOrIsNullOrEmpty())
-            return json.response!;
+        var content = (json.response.DoesNotHaveValueOrIsNullOrEmpty())
+                          ? json.response!
+                          : json.response ?? string.Empty;
 
-        // Fallback: return concatenated string (if future formats change)
-        return json.response ?? string.Empty;
+        var usage = new LlmUsageInfo
+                    {
+                            PromptTokens     = json.prompt_eval_count
+                          , CompletionTokens = json.eval_count
+                          , TotalTokens      = json.prompt_eval_count + json.eval_count
+                    };
+
+        return new LlmResponse
+               {
+                       Content    = content
+                     , Usage      = usage
+                     , RateLimits = LlmRateLimitSnapshot.Empty
+               };
     }
 
     public async IAsyncEnumerable<string> StreamAsync (string            prompt
@@ -155,12 +167,16 @@ public class OllamaLlmClient : ILlmClient
     private sealed class OllamaResponse
     {
         // from the Ollama spec
-        public string? response { get; set; }
-        public bool    done     { get; set; }
+        public string? response          { get; set; }
+        public bool    done              { get; set; }
+
+        // Token usage fields (Ollama names differ from OpenAI)
+        public int     prompt_eval_count { get; set; }
+        public int     eval_count        { get; set; }
 
         // future-proofing for miscellaneous fields
-        public string? model      { get; set; }
-        public string? created_at { get; set; }
+        public string? model             { get; set; }
+        public string? created_at        { get; set; }
     }
 
     public async Task<LlmModelProbeResult> ProbeAsync (string            model

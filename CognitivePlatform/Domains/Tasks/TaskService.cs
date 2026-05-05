@@ -267,13 +267,29 @@ public class TaskService : ITaskService
     /// </summary>
     private static IOrderedEnumerable<TaskItem> ApplyCanonicalOrder(IEnumerable<TaskItem> tasks)
     {
-        return tasks.OrderBy(taskItem         => taskItem.DueDate ?? DateTimeOffset.MaxValue)
+        return tasks.OrderBy(taskItem         => EisenhowerRank(taskItem))
                     .ThenByDescending(taskItem => taskItem.Priority)
+                    .ThenBy(taskItem           => taskItem.DueDate ?? DateTimeOffset.MaxValue)
                     .ThenBy(taskItem           => taskItem.CreatedAt)
                     .ThenBy(taskItem           => taskItem.SequenceNumber);
     }
 
+
     /// <summary>
+    /// Maps a task to its Eisenhower quadrant rank (0 = highest, 3 = lowest).
+    /// Q1 — Do (important + urgent)   → 0
+    /// Q2 — Decide (important + not urgent) → 1
+    /// Q3 — Delegate (not important + urgent) → 2
+    /// Q4 — Delete (not important + not urgent) → 3
+    /// </summary>
+    private static int EisenhowerRank(TaskItem task) => (task.IsImportant, task.IsUrgent) switch
+    {
+            (true,  true)  => 0
+          , (true,  false) => 1
+          , (false, true)  => 2
+          , _              => 3
+    };
+
     /// Parses a task ID string that may be either the standard dashed GUID format
     /// or the 32-character "N" format used by Guid.NewGuid().ToString("N").
     /// Using Guid.Parse alone fails on "N" format strings — this handles both.

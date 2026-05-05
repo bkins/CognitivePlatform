@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -43,7 +43,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                 new AuthenticationHeaderValue("Bearer", apiKey);
     }
 
-    public async Task<string> SendAsync( string            prompt
+    public async Task<LlmResponse> SendAsync( string            prompt
                                        , string?           model             = null
                                        , CancellationToken cancellationToken = default )
     {
@@ -80,7 +80,15 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         if (result?.Choices is not { Count: > 0 })
             throw new InvalidOperationException("LLM returned no choices in response.");
 
-        return result.Choices[0].Message?.Content ?? string.Empty;
+        var content = result.Choices[0].Message?.Content ?? string.Empty;
+        var usage   = BuildUsageInfo(result.Usage);
+
+        return new LlmResponse
+               {
+                       Content    = content
+                     , Usage      = usage
+                     , RateLimits = LlmRateLimitSnapshot.Empty
+               };
     }
 
     public async IAsyncEnumerable<string> StreamAsync( string                                     prompt
@@ -181,11 +189,32 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private sealed class ChatResponse
     {
-        [JsonPropertyName("choices")] public List<ChatChoice> Choices { get; set; } = [];
+        [JsonPropertyName("choices")] public List<ChatChoice>  Choices { get; set; } = [];
+        [JsonPropertyName("usage")]   public ChatUsageBody?    Usage   { get; set; }
     }
 
     private sealed class ChatChoice
     {
         [JsonPropertyName("message")] public ChatMessage? Message { get; set; }
+    }
+
+    private sealed class ChatUsageBody
+    {
+        [JsonPropertyName("prompt_tokens")]     public int PromptTokens     { get; set; }
+        [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
+        [JsonPropertyName("total_tokens")]      public int TotalTokens      { get; set; }
+    }
+
+    private static LlmUsageInfo BuildUsageInfo(ChatUsageBody? body)
+    {
+        if (body is null)
+            return LlmUsageInfo.Empty;
+
+        return new LlmUsageInfo
+               {
+                       PromptTokens     = body.PromptTokens
+                     , CompletionTokens = body.CompletionTokens
+                     , TotalTokens      = body.TotalTokens
+               };
     }
 }

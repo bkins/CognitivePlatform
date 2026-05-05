@@ -124,6 +124,10 @@ public partial class Program
         // Usage tracker — must be registered before LlmClientFactory
         builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
 
+        // EPIC-07: Provider Capacity & Routing — usage aggregator + rate limiter
+        builder.Services.AddSingleton<ILlmUsageAggregator, LlmUsageAggregator>();
+        builder.Services.AddSingleton<ILlmRateLimiter,     LlmRateLimiter>();
+
 // Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();
         builder.Services.AddSingleton<ILlmClientFactory>(sp => sp.GetRequiredService<LlmClientFactory>());

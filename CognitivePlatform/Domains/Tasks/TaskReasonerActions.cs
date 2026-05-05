@@ -169,7 +169,7 @@ public class TaskReasonerActions
 
         _promptLogger.Log("TaskReasoningPrompt", sb.ToString(), _llmClient.GetType().Name);
         
-        return await _llmClient.SendAsync(sb.ToString());
+        return (await _llmClient.SendAsync(sb.ToString())).Content;
     }
 
     private static DateTimeOffset? ParseDate(string? input)

@@ -45,7 +45,7 @@ public class ConversationReflectionInsightProviderTests
                                                   , It.IsAny<ConversationContext>()
                                                   , It.IsAny<CancellationToken>()))
                    .Callback<string, ConversationContext, CancellationToken>((prompt, _, _) => _capturedPrompt = prompt)
-                   .ReturnsAsync(reply);
+                   .ReturnsAsync(new LlmResponse { Content = reply });
 
     [Fact]
     public void Category_Is_Reflection()

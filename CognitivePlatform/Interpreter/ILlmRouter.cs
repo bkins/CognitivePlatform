@@ -8,12 +8,12 @@ namespace CognitivePlatform.Api.Interpreter;
 /// and model from <see cref="ConversationContext.CurrentLlmSession"/> and
 /// forwards to the concrete client resolved via LlmClientFactory.
 ///
-/// No state of its own — every call re-reads the session so mid-session
+/// No state of its own â€” every call re-reads the session so mid-session
 /// provider switches take effect on the very next turn.
 /// </summary>
 public interface ILlmRouter
 {
-    Task<string> SendAsync (string              prompt
+    Task<LlmResponse> SendAsync (string              prompt
                           , ConversationContext context
                           , CancellationToken   ct = default);
 
@@ -24,7 +24,7 @@ public interface ILlmRouter
     /// <summary>
     /// Polishes <paramref name="originalResponse"/> by weaving the supplied insights
     /// in as conversational follow-on sentences. Per-session provider/model selection
-    /// (BUG-14 / DEFERRED #10) is honored — the weave call goes through the same
+    /// (BUG-14 / DEFERRED #10) is honored â€” the weave call goes through the same
     /// dispatch as a normal turn.
     ///
     /// The router builds the weave prompt internally and forwards via SendAsync;

@@ -9,14 +9,19 @@ namespace CognitivePlatform.Tests;
 
 public class LlmRouterTests
 {
-    private readonly Mock<ILlmClientFactory> _factoryMock = new();
-    private readonly Mock<ILlmClient>        _groqClient  = new();
-    private readonly Mock<ILlmClient>        _openRouter  = new();
-    private readonly Mock<ILlmClient>        _gemini      = new();
-    private readonly Mock<IPromptLogger>     _loggerMock  = new();
+    private readonly Mock<ILlmClientFactory>   _factoryMock      = new();
+    private readonly Mock<ILlmClient>          _groqClient       = new();
+    private readonly Mock<ILlmClient>          _openRouter       = new();
+    private readonly Mock<ILlmClient>          _gemini           = new();
+    private readonly Mock<IPromptLogger>       _loggerMock       = new();
+    private readonly Mock<ILlmUsageAggregator> _aggregatorMock   = new();
+    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock  = new();
 
     private readonly LlmProviderDefaults _defaults;
     private readonly LlmRouter           _router;
+
+    // Helper so tests stay concise
+    private static LlmResponse ForContent(string content) => new() { Content = content };
 
     public LlmRouterTests()
     {
@@ -34,7 +39,9 @@ public class LlmRouterTests
 
         _router = new LlmRouter(_factoryMock.Object
                               , Options.Create(_defaults)
-                              , _loggerMock.Object);
+                              , _loggerMock.Object
+                              , _aggregatorMock.Object
+                              , _rateLimiterMock.Object);
     }
 
     [Fact]
@@ -42,11 +49,11 @@ public class LlmRouterTests
     {
         var context = new ConversationContext("session-1");
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .ReturnsAsync("groq-response");
+                   .ReturnsAsync(ForContent("groq-response"));
 
         var result = await _router.SendAsync("hello", context);
 
-        Assert.Equal("groq-response", result);
+        Assert.Equal("groq-response", result.Content);
         _factoryMock.Verify(factory => factory.Create(LlmProvider.Groq), Times.Once);
     }
 
@@ -57,11 +64,11 @@ public class LlmRouterTests
         context.SetLlmSession("OpenRouter", string.Empty);
 
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .ReturnsAsync("openrouter-response");
+                   .ReturnsAsync(ForContent("openrouter-response"));
 
         var result = await _router.SendAsync("hello", context);
 
-        Assert.Equal("openrouter-response", result);
+        Assert.Equal("openrouter-response", result.Content);
         _factoryMock.Verify(factory => factory.Create(LlmProvider.OpenRouter), Times.Once);
         _factoryMock.Verify(factory => factory.Create(LlmProvider.Groq),       Times.Never);
     }
@@ -73,11 +80,11 @@ public class LlmRouterTests
         context.SetLlmSession("gemini", string.Empty);
 
         _gemini.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-               .ReturnsAsync("gemini-response");
+               .ReturnsAsync(ForContent("gemini-response"));
 
         var result = await _router.SendAsync("hello", context);
 
-        Assert.Equal("gemini-response", result);
+        Assert.Equal("gemini-response", result.Content);
         _factoryMock.Verify(factory => factory.Create(LlmProvider.Gemini), Times.Once);
     }
 
@@ -88,11 +95,11 @@ public class LlmRouterTests
         context.SetLlmSession("Imaginary", string.Empty);
 
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .ReturnsAsync("groq-response");
+                   .ReturnsAsync(ForContent("groq-response"));
 
         var result = await _router.SendAsync("hello", context);
 
-        Assert.Equal("groq-response", result);
+        Assert.Equal("groq-response", result.Content);
         _factoryMock.Verify(factory => factory.Create(LlmProvider.Groq), Times.Once);
     }
 
@@ -104,8 +111,8 @@ public class LlmRouterTests
 
         string? capturedModel = null;
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .Callback<string, string?, CancellationToken>((_, m, _) => capturedModel = m)
-                   .ReturnsAsync(string.Empty);
+                   .Callback<string, string?, CancellationToken>((_, model, _) => capturedModel = model)
+                   .ReturnsAsync(new LlmResponse());
 
         await _router.SendAsync("hello", context);
 
@@ -120,8 +127,8 @@ public class LlmRouterTests
 
         string? capturedModel = null;
         _openRouter.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .Callback<string, string?, CancellationToken>((_, m, _) => capturedModel = m)
-                   .ReturnsAsync(string.Empty);
+                   .Callback<string, string?, CancellationToken>((_, model, _) => capturedModel = model)
+                   .ReturnsAsync(new LlmResponse());
 
         await _router.SendAsync("hello", context);
 
@@ -137,8 +144,8 @@ public class LlmRouterTests
 
         string? capturedModel = null;
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-                   .Callback<string, string?, CancellationToken>((_, m, _) => capturedModel = m)
-                   .ReturnsAsync(string.Empty);
+                   .Callback<string, string?, CancellationToken>((_, model, _) => capturedModel = model)
+                   .ReturnsAsync(new LlmResponse());
 
         await _router.SendAsync("hello", context);
 
@@ -154,11 +161,41 @@ public class LlmRouterTests
         CancellationToken captured = default;
         _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                    .Callback<string, string?, CancellationToken>((_, _, token) => captured = token)
-                   .ReturnsAsync(string.Empty);
+                   .ReturnsAsync(new LlmResponse());
 
         await _router.SendAsync("hello", context, cts.Token);
 
         Assert.Equal(cts.Token, captured);
+    }
+
+    [Fact]
+    public async Task SendAsync_RecordsUsage_AfterSuccessfulCall()
+    {
+        var context  = new ConversationContext("session-usage");
+        var usage    = new LlmUsageInfo { PromptTokens = 10, CompletionTokens = 5, TotalTokens = 15 };
+        var response = new LlmResponse { Content = "hi", Usage = usage };
+
+        _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(response);
+
+        await _router.SendAsync("hello", context);
+
+        _aggregatorMock.Verify(agg => agg.Record(usage), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendAsync_UpdatesRateLimiter_AfterSuccessfulCall()
+    {
+        var context   = new ConversationContext("session-ratelimit");
+        var snapshot  = new LlmRateLimitSnapshot { Provider = "Groq", RequestLimit = 100, RequestsRemaining = 95 };
+        var response  = new LlmResponse { Content = "hi", RateLimits = snapshot };
+
+        _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(response);
+
+        await _router.SendAsync("hello", context);
+
+        _rateLimiterMock.Verify(limiter => limiter.UpdateFromSnapshot(snapshot), Times.Once);
     }
 
     [Fact]

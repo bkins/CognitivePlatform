@@ -145,9 +145,10 @@ public class LlmInterpreter : IInterpreter
             // Send to model
             // Route through ILlmRouter so mid-session provider switches take effect
             // on this turn. The router re-reads context.Metadata for every call.
-            rawResponse = await _llmRouter.SendAsync(prompt
-                                                   , context
-                                                   , CancellationToken.None);
+            var llmResult  = await _llmRouter.SendAsync(prompt
+                                                         , context
+                                                         , CancellationToken.None);
+            rawResponse = llmResult.Content;
         }
         catch (Exception ex)
         {

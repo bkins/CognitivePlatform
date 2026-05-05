@@ -47,7 +47,7 @@ public class TaskReasonerActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                           , It.IsAny<string?>()
                                           , It.IsAny<CancellationToken>()))
-                .ReturnsAsync("Focus on Finish report.");
+                .ReturnsAsync(new LlmResponse { Content = "Focus on Finish report." });
 
         var result = await _actions.ReasonAboutTasks("What should I do next?");
 
@@ -68,7 +68,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.ReasonAboutTasks("What should I do next?");
 
@@ -93,7 +93,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.ReasonAboutTasks("How am I doing?");
 
@@ -119,7 +119,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         var actionsNoCalendar = new TaskReasonerActions(_tasksMock.Object
                                                       , _journalMock.Object
@@ -188,7 +188,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await actions.ReasonAboutTasks("What should I do?");
 
@@ -212,7 +212,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.ReasonAboutTasks("What should I do?");
 
@@ -247,7 +247,7 @@ public class TaskReasonerActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await actions.ReasonAboutTasks("What should I do?");
 

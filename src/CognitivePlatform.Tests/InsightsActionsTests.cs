@@ -44,7 +44,7 @@ public class InsightsActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                           , It.IsAny<string?>()
                                           , It.IsAny<CancellationToken>()))
-                .ReturnsAsync("You are very productive.");
+                .ReturnsAsync(new LlmResponse { Content = "You are very productive." });
 
         var result = await _actions.AnalyzePatterns();
 
@@ -79,7 +79,7 @@ public class InsightsActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.AnalyzePatterns();
 
@@ -99,7 +99,7 @@ public class InsightsActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.AnalyzePatterns(focus: "work-life balance");
 
@@ -159,7 +159,7 @@ public class InsightsActionsTests
                                           , It.IsAny<string?>()
                                           , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.AnalyzePatterns();
 
@@ -179,7 +179,7 @@ public class InsightsActionsTests
                                           , It.IsAny<string?>()
                                           , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await _actions.AnalyzePatterns();
 
@@ -208,7 +208,7 @@ public class InsightsActionsTests
                                           , It.IsAny<string?>()
                                           , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Response.");
+                .ReturnsAsync(new LlmResponse { Content = "Response." });
 
         await actionsNoActivity.AnalyzePatterns();
 

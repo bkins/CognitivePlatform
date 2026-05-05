@@ -471,4 +471,94 @@ public class TaskServiceTests
 
         Assert.Null(result);
     }
+    // ================================================================
+    // CANONICAL SORT ORDER (BUG-24)
+    // ================================================================
+
+    [Fact]
+    public void GetActive_SortsQ1BeforeQ2_WhenBothHaveNoDueDate()
+    {
+        var q2Task = new TaskItem { Id = "q2", IsImportant = true,  IsUrgent = false, ShortDescription = "Decide" };
+        var q1Task = new TaskItem { Id = "q1", IsImportant = true,  IsUrgent = true,  ShortDescription = "Do" };
+
+        _storeMock.Setup(store => store.List<TaskItem>(null, null, null))
+                  .Returns(new List<TaskItem> { q2Task, q1Task });
+
+        var result = _service.GetActive();
+
+        Assert.Equal("q1", result[0].Id);
+        Assert.Equal("q2", result[1].Id);
+    }
+
+    [Fact]
+    public void GetActive_SortsAllFourQuadrantsCorrectly()
+    {
+        var q4 = new TaskItem { Id = "q4", IsImportant = false, IsUrgent = false };
+        var q3 = new TaskItem { Id = "q3", IsImportant = false, IsUrgent = true  };
+        var q2 = new TaskItem { Id = "q2", IsImportant = true,  IsUrgent = false };
+        var q1 = new TaskItem { Id = "q1", IsImportant = true,  IsUrgent = true  };
+
+        // Deliberately supply in worst-case reverse order
+        _storeMock.Setup(store => store.List<TaskItem>(null, null, null))
+                  .Returns(new List<TaskItem> { q4, q3, q2, q1 });
+
+        var result = _service.GetActive();
+
+        Assert.Equal("q1", result[0].Id);
+        Assert.Equal("q2", result[1].Id);
+        Assert.Equal("q3", result[2].Id);
+        Assert.Equal("q4", result[3].Id);
+    }
+
+    [Fact]
+    public void GetActive_SortsQ2BeforeQ4_WhenQ4HasEarlierDueDate()
+    {
+        // This is the core BUG-24 scenario: a Q2 (Decide) task with no due date
+        // must appear BEFORE a Q4 (Delete) task that has an early due date.
+        var q4WithDue = new TaskItem { Id = "q4", IsImportant = false, IsUrgent = false, DueDate = DateTimeOffset.UtcNow.AddDays(1) };
+        var q2NoDue   = new TaskItem { Id = "q2", IsImportant = true,  IsUrgent = false };
+
+        _storeMock.Setup(store => store.List<TaskItem>(null, null, null))
+                  .Returns(new List<TaskItem> { q4WithDue, q2NoDue });
+
+        var result = _service.GetActive();
+
+        Assert.Equal("q2", result[0].Id);
+        Assert.Equal("q4", result[1].Id);
+    }
+
+    [Fact]
+    public void GetActive_SortsHigherPriorityFirst_WithinSameEisenhowerQuadrant()
+    {
+        var normalPriority   = new TaskItem { Id = "normal",   IsImportant = false, IsUrgent = false, Priority = TaskPriority.Normal };
+        var criticalPriority = new TaskItem { Id = "critical", IsImportant = false, IsUrgent = false, Priority = TaskPriority.Critical };
+        var lowPriority      = new TaskItem { Id = "low",      IsImportant = false, IsUrgent = false, Priority = TaskPriority.Low };
+
+        _storeMock.Setup(store => store.List<TaskItem>(null, null, null))
+                  .Returns(new List<TaskItem> { lowPriority, normalPriority, criticalPriority });
+
+        var result = _service.GetActive();
+
+        Assert.Equal("critical", result[0].Id);
+        Assert.Equal("normal",   result[1].Id);
+        Assert.Equal("low",      result[2].Id);
+    }
+
+    [Fact]
+    public void GetActive_SortsEarlierDueDateFirst_WithinSameQuadrantAndPriority()
+    {
+        var soonDue = new TaskItem { Id = "soon", IsImportant = true, IsUrgent = true, DueDate = DateTimeOffset.UtcNow.AddDays(1) };
+        var laterDue = new TaskItem { Id = "later", IsImportant = true, IsUrgent = true, DueDate = DateTimeOffset.UtcNow.AddDays(7) };
+        var noDue    = new TaskItem { Id = "none",  IsImportant = true, IsUrgent = true };
+
+        _storeMock.Setup(store => store.List<TaskItem>(null, null, null))
+                  .Returns(new List<TaskItem> { noDue, laterDue, soonDue });
+
+        var result = _service.GetActive();
+
+        Assert.Equal("soon",  result[0].Id);
+        Assert.Equal("later", result[1].Id);
+        Assert.Equal("none",  result[2].Id);
+    }
+
 }

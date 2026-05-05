@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -53,7 +53,7 @@ public class GroqLlmClient : ILlmClient
         ConfigureAuthHeader();
     }
 
-    public async Task<string> SendAsync( string            prompt
+    public async Task<LlmResponse> SendAsync( string            prompt
                                        , string?           model             = null
                                        , CancellationToken cancellationToken = default )
     {
@@ -99,7 +99,16 @@ public class GroqLlmClient : ILlmClient
         if (result?.Choices is not { Count: > 0 })
             throw new InvalidOperationException("Groq returned no choices in response.");
 
-        return result.Choices[0].Message?.Content ?? string.Empty;
+        var content    = result.Choices[0].Message?.Content ?? string.Empty;
+        var usage      = BuildUsageInfo(result.Usage);
+        var rateLimits = BuildRateLimitSnapshot(response.Headers);
+
+        return new LlmResponse
+               {
+                       Content    = content
+                     , Usage      = usage
+                     , RateLimits = rateLimits
+               };
     }
 
     public async IAsyncEnumerable<string> StreamAsync( string                                     prompt
@@ -207,6 +216,43 @@ public class GroqLlmClient : ILlmClient
         _usageTracker.Update(snapshot);
     }
 
+    /// <summary>
+    /// Builds the provider-agnostic <see cref="LlmRateLimitSnapshot"/> from
+    /// Groq response headers. Embedded in the returned <see cref="LlmResponse"/>.
+    /// </summary>
+    private static LlmRateLimitSnapshot BuildRateLimitSnapshot(HttpResponseHeaders headers)
+    {
+        var requestsResetRaw = ReadHeader(headers, HeaderRequestsReset);
+        var tokensResetRaw   = ReadHeader(headers, HeaderTokensReset);
+
+        return new LlmRateLimitSnapshot
+               {
+                       Provider         = "Groq"
+                     , RequestLimit      = ReadInt(headers, HeaderRequestLimit)
+                     , RequestsRemaining  = ReadInt(headers, HeaderRequestsRemaining)
+                     , RequestsResetRaw   = requestsResetRaw
+                     , RequestsResetAt    = ToResetTime(requestsResetRaw)
+                     , TokenLimit         = ReadInt(headers, HeaderTokenLimit)
+                     , TokensRemaining    = ReadInt(headers, HeaderTokensRemaining)
+                     , TokensResetRaw     = tokensResetRaw
+                     , TokensResetAt      = ToResetTime(tokensResetRaw)
+                     , CapturedAt         = DateTimeOffset.UtcNow
+               };
+    }
+
+    private static LlmUsageInfo BuildUsageInfo(GroqUsageBody? body)
+    {
+        if (body is null)
+            return LlmUsageInfo.Empty;
+
+        return new LlmUsageInfo
+               {
+                       PromptTokens     = body.PromptTokens
+                     , CompletionTokens = body.CompletionTokens
+                     , TotalTokens      = body.TotalTokens
+               };
+    }
+
     private static string ReadHeader(HttpResponseHeaders headers, string name)
     {
         return headers.TryGetValues(name, out var values)
@@ -270,11 +316,19 @@ public class GroqLlmClient : ILlmClient
 
     private sealed class GroqChatResponse
     {
-        [JsonPropertyName("choices")] public List<GroqChoice> Choices { get; set; } = [];
+        [JsonPropertyName("choices")] public List<GroqChoice>  Choices { get; set; } = [];
+        [JsonPropertyName("usage")]   public GroqUsageBody?    Usage   { get; set; }
     }
 
     private sealed class GroqChoice
     {
         [JsonPropertyName("message")] public GroqMessage? Message { get; set; }
+    }
+
+    private sealed class GroqUsageBody
+    {
+        [JsonPropertyName("prompt_tokens")]     public int PromptTokens     { get; set; }
+        [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
+        [JsonPropertyName("total_tokens")]      public int TotalTokens      { get; set; }
     }
 }

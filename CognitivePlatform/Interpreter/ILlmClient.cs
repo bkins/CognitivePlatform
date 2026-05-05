@@ -12,10 +12,10 @@ public interface ILlmClient
     /// Sends a plain-text prompt to the underlying model and returns
     /// the model's raw text output.
     /// </summary>
-    // Task<string> SendAsync(string            prompt
+    // Task<LlmResponse> SendAsync(string            prompt
     //                      , CancellationToken cancellationToken = default);
 
-    Task<string> SendAsync (string            prompt
+    Task<LlmResponse> SendAsync (string            prompt
                           , string?           model             = null
                           , CancellationToken cancellationToken = default);
 

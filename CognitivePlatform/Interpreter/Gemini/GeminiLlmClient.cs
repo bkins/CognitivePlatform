@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -42,7 +42,7 @@ public class GeminiLlmClient : ILlmClient
         ConfigureAuthHeader();
     }
 
-    public async Task<string> SendAsync( string            prompt
+    public async Task<LlmResponse> SendAsync( string            prompt
                                        , string?           model             = null
                                        , CancellationToken cancellationToken = default )
     {
@@ -91,7 +91,7 @@ public class GeminiLlmClient : ILlmClient
 #if DEBUG
                 errorMessage += $"\nHTTP {(int)response.StatusCode}: {errorBody}";
 #endif
-                return errorMessage;
+                return new LlmResponse { Content = errorMessage };
             }
             
             throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {errorBody}");
@@ -104,7 +104,15 @@ public class GeminiLlmClient : ILlmClient
         if (result?.Choices is not { Count: > 0 })
             throw new InvalidOperationException("Gemini returned no choices in response.");
 
-        return result.Choices[0].Message?.Content ?? string.Empty;
+        var content = result.Choices[0].Message?.Content ?? string.Empty;
+        var usage   = BuildUsageInfo(result.Usage);
+
+        return new LlmResponse
+               {
+                       Content    = content
+                     , Usage      = usage
+                     , RateLimits = LlmRateLimitSnapshot.Empty
+               };
     }
 
     public async IAsyncEnumerable<string> StreamAsync( string                                     prompt
@@ -225,11 +233,32 @@ public class GeminiLlmClient : ILlmClient
 
     private sealed class ChatResponse
     {
-        [JsonPropertyName("choices")] public List<ChatChoice> Choices { get; set; } = [];
+        [JsonPropertyName("choices")] public List<ChatChoice>  Choices { get; set; } = [];
+        [JsonPropertyName("usage")]   public ChatUsageBody?    Usage   { get; set; }
     }
 
     private sealed class ChatChoice
     {
         [JsonPropertyName("message")] public ChatMessage? Message { get; set; }
+    }
+
+    private sealed class ChatUsageBody
+    {
+        [JsonPropertyName("prompt_tokens")]     public int PromptTokens     { get; set; }
+        [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
+        [JsonPropertyName("total_tokens")]      public int TotalTokens      { get; set; }
+    }
+
+    private static LlmUsageInfo BuildUsageInfo(ChatUsageBody? body)
+    {
+        if (body is null)
+            return LlmUsageInfo.Empty;
+
+        return new LlmUsageInfo
+               {
+                       PromptTokens     = body.PromptTokens
+                     , CompletionTokens = body.CompletionTokens
+                     , TotalTokens      = body.TotalTokens
+               };
     }
 }

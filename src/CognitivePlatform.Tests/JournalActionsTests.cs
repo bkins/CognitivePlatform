@@ -120,7 +120,7 @@ public class JournalActionsTests
         _llmMock.Setup(llm => llm.SendAsync(It.IsAny<string>()
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
-                .ReturnsAsync("You seemed frustrated about the project.");
+                .ReturnsAsync(new LlmResponse { Content = "You seemed frustrated about the project." });
 
         var result = await _actions.AnalyzeJournal("What was I frustrated about?");
 
@@ -156,7 +156,7 @@ public class JournalActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Some response.");
+                .ReturnsAsync(new LlmResponse { Content = "Some response." });
 
         await _actions.AnalyzeJournal("What was I frustrated about?");
 
@@ -181,7 +181,7 @@ public class JournalActionsTests
                                            , It.IsAny<string?>()
                                            , It.IsAny<CancellationToken>()))
                 .Callback<string, string?, CancellationToken>((prompt, _, _) => capturedPrompt = prompt)
-                .ReturnsAsync("Some response.");
+                .ReturnsAsync(new LlmResponse { Content = "Some response." });
 
         await _actions.AnalyzeJournal("How was I feeling?");
 
