@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Actions;
@@ -60,6 +60,7 @@ public class LlmInterpreter : IInterpreter
             
             return noInputResult;
         }
+
 
         var actionsSummary = BuildActionsSummary(_registry.Actions);
         var prompt         = await BuildPromptAsync(input.Trim());

@@ -1,4 +1,4 @@
-﻿using CognitivePlatform.Api.Avails;
+using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Interpreter;
@@ -83,4 +83,5 @@ public class LlmInterpreterTests
         Assert.Equal(InterpreterFailureType.NoMatchingAction, result.FailureType);
         Assert.Contains("HTTP 429:", result.Reason);
     }
+
 }

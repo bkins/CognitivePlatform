@@ -45,6 +45,14 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         // ------------------------------------------------------------
+        // MODE 0.1: LLM META COMMANDS  (SetModel / SetProvider / ListModels / ListProviders)
+        // Placed before every domain-specific mode so these remain reachable even when
+        // the current model is exhausted and the interpreter's pre-flight would block them.
+        // ------------------------------------------------------------
+        if (TryResolveLlmMeta(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 0.5: DAILY RECORD COMMANDS  (Plan: / Check: / EOD: / ...)
         // Evaluated before colon-prefix so these explicit prefixes are not
         // accidentally swallowed by the generic journal/task colon handler.
@@ -1123,5 +1131,82 @@ public sealed class FastPathResolver : IFastPathResolver
                     or "list commands"
                     or "show commands"
                     or "show capabilities";
+    }
+
+    // ================================================================
+    // LLM META COMMANDS  (SetModel / SetProvider / ListModels / ListProviders)
+    // ================================================================
+
+    /// <summary>
+    /// Routes LLM model- and provider-switching commands without requiring an LLM call.
+    /// Because FastPath runs before <see cref="LlmInterpreter"/> the interpreter's
+    /// catalog pre-flight is never reached, so these commands work even when every
+    /// known model is exhausted or unavailable.
+    /// </summary>
+    private bool TryResolveLlmMeta( string                           input
+                                   , out ActionMetadata?             action
+                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        // SetModel — requires explicit "model" keyword to avoid false positives
+        var setModelMatch = Regex.Match(input,
+                                       @"^(?:set\s+model\s+to|use\s+model|switch\s+model\s+to|change\s+model\s+to|switch\s+to\s+model)\s+(.+)$",
+                                       RegexOptions.IgnoreCase);
+        if (setModelMatch.Success)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetModel");
+            if (action is null) return false;
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         { { "model", setModelMatch.Groups[1].Value.Trim() } };
+            return true;
+        }
+
+        // SetProvider — explicit "provider" keyword
+        var setProviderMatch = Regex.Match(input,
+                                           @"^(?:set\s+provider\s+to|use\s+provider|switch\s+provider\s+to|switch\s+to\s+provider)\s+(.+)$",
+                                           RegexOptions.IgnoreCase);
+        if (setProviderMatch.Success)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetProvider");
+            if (action is null) return false;
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         { { "provider", setProviderMatch.Groups[1].Value.Trim() } };
+            return true;
+        }
+
+        // "switch to <X>" or "use <X>" — only when X is a known LlmProvider name
+        var bareSwitch = Regex.Match(input, @"^(?:switch\s+to|use)\s+(\w+)$", RegexOptions.IgnoreCase);
+        if (bareSwitch.Success && Enum.TryParse<LlmProvider>(bareSwitch.Groups[1].Value, ignoreCase: true, out _))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetProvider");
+            if (action is null) return false;
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         { { "provider", bareSwitch.Groups[1].Value.Trim() } };
+            return true;
+        }
+
+        // ListModels
+        if (Regex.IsMatch(input, @"^(?:list|show|what|available)\s+models\b", RegexOptions.IgnoreCase)
+         || Regex.IsMatch(input, @"^what\s+models\s+are\s+available", RegexOptions.IgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListModels");
+            if (action is null) return false;
+            parameters = new Dictionary<string, string>();
+            return true;
+        }
+
+        // ListProviders
+        if (Regex.IsMatch(input, @"^(?:list|show|what|available)\s+providers\b", RegexOptions.IgnoreCase)
+         || Regex.IsMatch(input, @"^what\s+providers\s+are\s+available", RegexOptions.IgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListProviders");
+            if (action is null) return false;
+            parameters = new Dictionary<string, string>();
+            return true;
+        }
+
+        return false;
     }
 }

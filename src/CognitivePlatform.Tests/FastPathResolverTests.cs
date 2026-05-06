@@ -31,6 +31,10 @@ public class FastPathResolverTests
             , MakeAction("AnalyzeTasks")
             , MakeAction("UpdateTaskPriority")
             , MakeAction("UpdateTaskDueDate")
+            , MakeAction("SetModel")
+            , MakeAction("SetProvider")
+            , MakeAction("ListModels")
+            , MakeAction("ListProviders")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -405,5 +409,93 @@ public class FastPathResolverTests
         var resolved = _resolver.TryResolve("remove the note I made yesterday", out _, out _);
 
         Assert.False(resolved);
+    }
+
+    // ================================================================
+    // LLM META COMMANDS
+    // ================================================================
+
+    [Theory]
+    [InlineData("set model to gemini-2.5-pro",           "gemini-2.5-pro")]
+    [InlineData("use model llama-3.3-70b-versatile",     "llama-3.3-70b-versatile")]
+    [InlineData("switch model to gpt-4o-mini",           "gpt-4o-mini")]
+    [InlineData("change model to gemini-2.5-flash-lite", "gemini-2.5-flash-lite")]
+    [InlineData("switch to model gemini-2.5-pro",        "gemini-2.5-pro")]
+    public void TryResolve_ResolvesToSetModel_WithExtractedModelName(string input, string expectedModel)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetModel", action!.Name);
+        Assert.True(parameters!.TryGetValue("model", out var actualModel));
+        Assert.Equal(expectedModel, actualModel);
+    }
+
+    [Theory]
+    [InlineData("set provider to Groq",    "Groq")]
+    [InlineData("use provider OpenRouter", "OpenRouter")]
+    [InlineData("switch provider to Groq", "Groq")]
+    [InlineData("switch to provider Groq", "Groq")]
+    public void TryResolve_ResolvesToSetProvider_WithExtractedProviderName(string input, string expectedProvider)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetProvider", action!.Name);
+        Assert.True(parameters!.TryGetValue("provider", out var actualProvider));
+        Assert.Equal(expectedProvider, actualProvider);
+    }
+
+    [Theory]
+    [InlineData("switch to Groq")]
+    [InlineData("use Groq")]
+    [InlineData("use Gemini")]
+    public void TryResolve_ResolvesToSetProvider_ForBareKnownProviderName(string input)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("SetProvider", action!.Name);
+    }
+
+    [Theory]
+    [InlineData("list models")]
+    [InlineData("show models")]
+    [InlineData("what models are available")]
+    public void TryResolve_ResolvesToListModels(string input)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListModels", action!.Name);
+    }
+
+    [Theory]
+    [InlineData("list providers")]
+    [InlineData("show providers")]
+    [InlineData("what providers are available")]
+    public void TryResolve_ResolvesToListProviders(string input)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListProviders", action!.Name);
+    }
+
+    [Theory]
+    [InlineData("show me my calendar")]
+    [InlineData("what time is it")]
+    [InlineData("switch to dark mode")]
+    public void TryResolve_DoesNotMatch_ForNonMetaInput(string input)
+    {
+        // None of the normal inputs should accidentally resolve via the LLM meta path
+        _resolver.TryResolve(input, out var action, out _);
+
+        // We only care that it didn't match SetModel / SetProvider / ListModels / ListProviders
+        Assert.True(action is null
+                 || (   action.Name != "SetModel"
+                     && action.Name != "SetProvider"
+                     && action.Name != "ListModels"
+                     && action.Name != "ListProviders"));
     }
 }
