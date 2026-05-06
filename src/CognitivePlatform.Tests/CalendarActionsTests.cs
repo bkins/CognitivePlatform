@@ -1,4 +1,4 @@
-using Moq;
+﻿using Moq;
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Integrations.Calendar;
 
@@ -275,10 +275,10 @@ public class CalendarActionsTests
     [Fact]
     public async Task FindFreeTime_ReturnsNoSlots_WhenDayIsFullyBooked()
     {
-        // Block the entire working-hours window with a single event
-        var day   = new DateTimeOffset(2026, 4, 20, 0, 0, 0, TimeSpan.Zero);
-        var start = day.AddHours(8);
-        var end   = day.AddHours(18);
+        // Block the entire local working-hours window (08:00–18:00 local) with a single event
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 4, 20));
+        var start = new DateTimeOffset(2026, 4, 20,  8, 0, 0, localOffset);
+        var end   = new DateTimeOffset(2026, 4, 20, 18, 0, 0, localOffset);
 
         _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
         _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -37,9 +37,11 @@ public class CalendarActions
     {
         if (_calendar.IsConnected.Not()) return NotConnectedMessage();
 
-        var today  = DateTimeOffset.UtcNow.Date;
-        var from   = new DateTimeOffset(today,            TimeSpan.Zero);
-        var to     = new DateTimeOffset(today.AddDays(1), TimeSpan.Zero);
+        var localNow = DateTimeOffset.Now;
+        var today   = localNow.Date;
+        var offset  = localNow.Offset;
+        var from    = new DateTimeOffset(today,            offset);
+        var to      = new DateTimeOffset(today.AddDays(1), offset);
         var events = await _calendar.GetEventsAsync(from, to);
 
         return events.Count == 0
@@ -71,9 +73,10 @@ public class CalendarActions
                           .Not())
             return $"I couldn't parse '{date}' as a date. Please use a format like 'YYYY-MM-DD'.";
 
-        var day    = parsed.UtcDateTime.Date;
-        var from   = new DateTimeOffset(day,            TimeSpan.Zero);
-        var to     = new DateTimeOffset(day.AddDays(1), TimeSpan.Zero);
+        var day    = parsed.LocalDateTime.Date;
+        var offset = TimeZoneInfo.Local.GetUtcOffset(day);
+        var from   = new DateTimeOffset(day,            offset);
+        var to     = new DateTimeOffset(day.AddDays(1), offset);
         var events = await _calendar.GetEventsAsync(from, to);
 
         return events.Count == 0
@@ -165,9 +168,10 @@ public class CalendarActions
         if (durationMinutes <= 0)
             return "Duration must be greater than zero minutes.";
 
-        var day    = parsed.UtcDateTime.Date;
-        var from   = new DateTimeOffset(day,            TimeSpan.Zero);
-        var to     = new DateTimeOffset(day.AddDays(1), TimeSpan.Zero);
+        var day    = parsed.LocalDateTime.Date;
+        var offset = TimeZoneInfo.Local.GetUtcOffset(day);
+        var from   = new DateTimeOffset(day,            offset);
+        var to     = new DateTimeOffset(day.AddDays(1), offset);
         var events = await _calendar.GetEventsAsync(from, to);
 
         // Build a list of busy intervals from timed (non-all-day) events, sorted by start
@@ -178,20 +182,8 @@ public class CalendarActions
                          .ToList();
 
         // Working-hours window: 08:00–18:00 local time on the requested day
-        var workStart = new DateTimeOffset(new DateOnly(day.Year
-                                                      , day.Month
-                                                      , day.Day)
-                                         , new TimeOnly(8
-                                                      , 0
-                                                      , 0)
-                                         , TimeSpan.Zero);
-        var workEnd = new DateTimeOffset(new DateOnly(day.Year
-                                                    , day.Month
-                                                    , day.Day)
-                                       , new TimeOnly(18
-                                                    , 0
-                                                    , 0)
-                                       , TimeSpan.Zero);
+        var workStart = new DateTimeOffset(day.Year, day.Month, day.Day,  8, 0, 0, offset);
+        var workEnd   = new DateTimeOffset(day.Year, day.Month, day.Day, 18, 0, 0, offset);
 
         var required  = TimeSpan.FromMinutes(durationMinutes);
         var freeSlots = new List<(DateTimeOffset Start, DateTimeOffset End)>();

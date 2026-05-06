@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Actions;
@@ -101,9 +101,10 @@ public class LlmInterpreter : IInterpreter
                         
                     }
 
-                    var extraReason = modelInfo.FailureReason.Contains("HTTP 429:")
-                                   || modelInfo.FailureReason.Contains("HTTP 503:")
-                                              ? $"\n{modelInfo.FailureReason}"
+                    var failureReason = modelInfo?.FailureReason ?? string.Empty;
+                    var extraReason   = (   failureReason.Contains("HTTP 429:")
+                                         || failureReason.Contains("HTTP 503:"))
+                                              ? $"\n{failureReason}"
                                               : string.Empty;
                     
                     var noModelResult= new InterpreterResult
