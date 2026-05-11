@@ -155,13 +155,15 @@ public class DailyRecordActions
                   "EOD: Good day overall. Didn't finish the docs task."
                 , "Done: Solid day. Mood: Satisfied MoodScore: 4"
                 , "Evening: Wrapping up. Most things got done."
+                , "Close day"
+                , "End of day."
           ]
         , Category            = "daily"
-        , AllowsClarification = false)]
-    public async Task<string> CloseDay( [NaturalLanguageParam(Description = "The closing text — the user's reflection on the day."
-                                                            , Optional    = false
-                                                            , AllowEmpty  = false)]
-                                        string closingText
+        , AllowsClarification = true)]
+    public async Task<string> CloseDay( [NaturalLanguageParam(Description = "The closing text — the user's reflection on the day. Optional: if omitted the day is closed with a default note."
+                                                            , Optional    = true
+                                                            , AllowEmpty  = true)]
+                                        string? closingText = null
 
                                       , [NaturalLanguageParam(Description = "The user's end-of-day mood label."
                                                             , Optional    = true)]
@@ -171,7 +173,8 @@ public class DailyRecordActions
                                                             , Optional    = true)]
                                         int? moodScore = null)
     {
-        var record = await _dailyRecordService.CloseDayAsync(closingText, mood, moodScore);
+        var effectiveText = string.IsNullOrWhiteSpace(closingText) ? "Day closed." : closingText;
+        var record = await _dailyRecordService.CloseDayAsync(effectiveText, mood, moodScore);
         var rolloverCount = record.PlannedTaskIds.Count
                           + record.ReactiveTaskIds.Count
                           - record.CompletedTaskCount;
