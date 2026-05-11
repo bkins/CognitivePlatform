@@ -356,8 +356,10 @@ public class GoogleCalendarProvider : ICalendarProvider
             if (start.TryGetProperty("date", out var startDate))
             {
                 isAllDay = true;
-                startUtc = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(startDate.GetString()!), DateTimeKind.Utc));
-                endUtc   = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(end.GetProperty("date").GetString()!), DateTimeKind.Utc));
+                // Google returns date-only strings ("2026-05-11") for all-day events.
+                // Treat as local midnight so the event aligns with the local-date query window.
+                startUtc = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(startDate.GetString()!), DateTimeKind.Local));
+                endUtc   = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(end.GetProperty("date").GetString()!), DateTimeKind.Local));
             }
             else
             {

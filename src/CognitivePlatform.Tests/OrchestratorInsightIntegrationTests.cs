@@ -41,6 +41,7 @@ public class OrchestratorInsightIntegrationTests
     private readonly Mock<IInsightProvider>    _providerMock     = new(); // unused but engine constructor compatibility
     private readonly Mock<IActivityLog>        _activityLogMock  = new();
     private readonly Mock<ITelemetrySink>      _telemetryMock    = new();
+    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock  = new();
 
     private readonly InMemoryInsightHistoryStore _historyStore     = new();
     private readonly ConversationContextStore    _contextStore     = new();
@@ -71,6 +72,14 @@ public class OrchestratorInsightIntegrationTests
         _activityLogMock
             .Setup(log => log.LogAsync(It.IsAny<ActivityEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+
+        // Rate limiter: optimistic defaults (no data recorded yet).
+        _rateLimiterMock
+            .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
+            .Returns(LlmRateLimitSnapshot.Empty);
+        _rateLimiterMock
+            .Setup(limiter => limiter.CanSend(It.IsAny<string>()))
+            .Returns(true);
     }
 
     private ConversationOrchestrator BuildOrchestrator() =>
@@ -87,7 +96,8 @@ public class OrchestratorInsightIntegrationTests
           , _historyStore
           , _activityLogMock.Object
           , _modelCatalog
-          , _providerDefaults);
+          , _providerDefaults
+          , _rateLimiterMock.Object);
 
     private static ConverseRequest Request(string input, string sessionId = "test-session") =>
         new() { SessionId = sessionId, Input = input };

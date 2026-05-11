@@ -35,6 +35,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IActivityLog             _activityLog;
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
+    private readonly ILlmRateLimiter          _rateLimiter;
 
     private readonly bool _isDebug  = false;
 
@@ -51,7 +52,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IInsightHistoryStore                                           insightHistory
                                    , IActivityLog                                                   activityLog
                                    , LlmModelCatalog                                                modelCatalog
-                                   , LlmProviderDefaults                                            providerDefaults )
+                                   , LlmProviderDefaults                                            providerDefaults
+                                   , ILlmRateLimiter                                                rateLimiter )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -67,6 +69,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _activityLog      = activityLog      ?? throw new ArgumentNullException(nameof(activityLog));
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
+        _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
 
 #if DEBUG
         _isDebug = true;
@@ -426,22 +429,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
-            var message = "Something went wrong while processing your request. Please try again.";
-            if (_isDebug)
-            {
-                message = $"""
-                          ## Something went wrong while processing your request.
-                          ----
-                          You are getting this because:
-                          ```csharp
-                          interpretation.FailureType == InterpreterFailureType.Exception
-                          {interpretation.Exception?.ToString() ?? "No exception details available."}
-                          ```
-                          Is `true`
-                          The exception is:
-                          >{interpretation.DebugInfo}
-                          """;
-            }
+            // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
+            // with the reset time rather than the generic connectivity-error path.
+            var message = BuildExceptionMessage(interpretation);
 
             var llmExceptionResponse = new ConverseResponse
                                        {
@@ -1079,6 +1069,41 @@ public class ConversationOrchestrator : IConversationOrchestrator
         //TODO:  Figure out how to determine when the stream is complete.
         // Does this need to be determined in the controller?  
     }
+
+    private string BuildExceptionMessage(InterpreterResult interpretation)
+    {
+        if (IsRateLimitException(interpretation.Exception))
+        {
+            var snapshot  = _rateLimiter.GetCurrentSnapshot("Groq");
+            var resetTime = snapshot.RequestsResetAt?.ToLocalTime().ToString("h:mm tt")
+                         ?? snapshot.TokensResetAt?.ToLocalTime().ToString("h:mm tt");
+
+            return resetTime is not null
+                           ? $"Groq rate limit reached — resets at {resetTime}"
+                           : "Groq rate limit reached. Please wait a moment and try again.";
+        }
+
+        if (_isDebug)
+        {
+            return $"""
+                    ## Something went wrong while processing your request.
+                    ----
+                    You are getting this because:
+                    ```csharp
+                    interpretation.FailureType == InterpreterFailureType.Exception
+                    {interpretation.Exception?.ToString() ?? "No exception details available."}
+                    ```
+                    Is `true`
+                    The exception is:
+                    >{interpretation.DebugInfo}
+                    """;
+        }
+
+        return "Something went wrong while processing your request. Please try again.";
+    }
+
+    private static bool IsRateLimitException(Exception? ex)
+        => ex?.Message.Contains("429", StringComparison.Ordinal) == true;
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
                                                                  , IDictionary<string, string> parameters)
