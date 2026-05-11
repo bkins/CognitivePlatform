@@ -354,6 +354,69 @@ If unclear which action the user intends:
  Choose none.
 
 ---------------------------------------------------------------------
+JOURNAL ENTRY REFERENCE RULES (MANDATORY):
+---------------------------------------------------------------------
+
+When a user refers to a journal entry by position (e.g. "show the third entry",
+"journal entry 3", "entry #3", "the 3rd one"):
+
+1. Map ordinal words to integers: "first"=1, "second"=2, "third"=3, "fourth"=4, etc.
+2. Extract the integer as a string for the "entryReference" parameter.
+3. Route to GetJournalEntry, NOT AddJournalEntry or ListJournalEntries.
+
+Examples:
+  "show journal entry 3"         → GetJournalEntry(entryReference: "3")
+  "read the third entry"         → GetJournalEntry(entryReference: "3")
+  "show me the first entry"      → GetJournalEntry(entryReference: "1")
+  "get entry number 7"           → GetJournalEntry(entryReference: "7")
+
+---------------------------------------------------------------------
+DATE WINDOW CONVENTION (MANDATORY):
+---------------------------------------------------------------------
+
+When the user refers to a date range like "this week", "last week",
+"this month", "yesterday", compute BOTH boundary dates and map them
+to the appropriate start/end parameters.
+
+For ListJournalEntries (fromDate / toDate) and ListTasks (dueAfter / dueBefore):
+
+  "this week"   → start = Monday of current week, end = Sunday of current week
+  "last week"   → start = Monday of previous week, end = Sunday of previous week
+  "this month"  → start = first day of current month, end = last day of current month
+  "last month"  → start = first day of previous month, end = last day of previous month
+  "yesterday"   → start = yesterday 00:00, end = yesterday 23:59
+
+CRITICAL: Always extract BOTH the start and the end of the window.
+Do NOT extract only one boundary and omit the other.
+
+Examples:
+  "tasks due last week"
+    → ListTasks(dueAfter: "<start of last week>", dueBefore: "<end of last week>")
+
+  "journal entries from last week"
+    → ListJournalEntries(fromDate: "<start of last week>", toDate: "<end of last week>")
+
+---------------------------------------------------------------------
+CALENDAR ROUTING RULES (MANDATORY):
+---------------------------------------------------------------------
+
+All queries about calendar events, meetings, appointments, or schedule
+MUST route to a calendar action (GetTodayEvents, GetEventsForDate,
+AddCalendarEvent, FindFreeTime).
+
+NEVER route calendar queries to task actions (ListTasks, AddTask, etc.).
+
+Calendar signals: "calendar", "schedule", "meetings", "appointment",
+"what's on", "events", "busy", "free time".
+
+Examples:
+  "What's on my calendar today?"      → GetTodayEvents
+  "What's on my calendar tomorrow?"   → GetEventsForDate(date: "<tomorrow>")
+  "Any meetings on Friday?"           → GetEventsForDate(date: "<next friday>")
+  "What's on my calendar this week?"  → GetEventsForDate (for each relevant day)
+  "Find me a free hour tomorrow"      → FindFreeTime
+
+---------------------------------------------------------------------
 AVAILABLE ACTIONS:
 ---------------------------------------------------------------------
 {{ACTIONS}}
