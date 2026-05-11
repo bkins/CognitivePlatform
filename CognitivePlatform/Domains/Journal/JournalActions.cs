@@ -152,15 +152,18 @@ public sealed class JournalActions
     // 3. GetJournalEntry
     // ----------------------------------------------------------------------
     [FastPath]
-    [NaturalLanguageAction(Description = "Retrieves a single journal entry by its position number (from a recent listing)."
+    [NaturalLanguageAction(Description = "Retrieves a single journal entry by its 1-based position number. Ordinal words (first, second, third) map to position 1, 2, 3."
                          , Examples = new[]
                                       {
                                               "Show journal entry 3."
                                             , "Read entry 7."
                                             , "Get journal entry 12."
+                                            , "Show me the third journal entry."
+                                            , "Read the first entry."
+                                            , "Get the second entry."
                                       }
                          , Category = "journal")]
-    public string GetJournalEntry ([NaturalLanguageParam(Description = "The position number of the journal entry (e.g. '3') from a recent listing."
+    public string GetJournalEntry ([NaturalLanguageParam(Description = "The 1-based position number of the journal entry (e.g. '3'). Ordinal words map to integers: 'first'=1, 'second'=2, 'third'=3."
                                                        , AllowEmpty  = false)]
                                    string entryReference)
     {

@@ -54,13 +54,15 @@ public class CalendarActions
     // -----------------------------------------------------------------------
 
     [FastPath]
-    [NaturalLanguageAction(Description = "Shows calendar events for a specific date."
+    [NaturalLanguageAction(Description = "Shows calendar events for a specific date. For week or multi-day queries, call this once per relevant day."
                          , Examples = new[]
                                       {
                                               "What's on my calendar tomorrow?"
                                             , "Show my schedule for Friday."
                                             , "Do I have anything on April 15?"
                                             , "What are my events for next Monday?"
+                                            , "What's on my calendar this week?"
+                                            , "Any meetings on Wednesday?"
                                       }
                          , Category = "calendar")]
     public async Task<string> GetEventsForDate( [NaturalLanguageParam(Description = "The date to look up, e.g. '2026-04-15' or a day name the LLM will convert to a date."

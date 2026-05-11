@@ -355,7 +355,7 @@ public class LlmInterpreter : IInterpreter
         return systemPrompt;
     }
 
-    private static string BuildActionsSummary(IEnumerable<ActionMetadata> actions)
+    internal static string BuildActionsSummary(IEnumerable<ActionMetadata> actions)
     {
         var sb = new StringBuilder();
 
@@ -368,7 +368,10 @@ public class LlmInterpreter : IInterpreter
             {
                 sb.AppendLine("  Parameters:");
                 foreach (var parameter in action.Parameters)
-                    sb.AppendLine($"    - {parameter.Name} (required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
+                {
+                    var typeName = GetFriendlyTypeName(parameter.ParameterType);
+                    sb.AppendLine($"    - {parameter.Name} ({typeName}, required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
+                }
             }
 
             if (action.Examples is { Length: > 0 })
@@ -382,6 +385,26 @@ public class LlmInterpreter : IInterpreter
         }
 
         return sb.ToString();
+    }
+
+    internal static string GetFriendlyTypeName(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type);
+        if (underlying != null)
+            return GetFriendlyTypeName(underlying) + "?";
+
+        if (type == typeof(string))         return "string";
+        if (type == typeof(bool))           return "bool";
+        if (type == typeof(int))            return "int";
+        if (type == typeof(long))           return "long";
+        if (type == typeof(double))         return "double";
+        if (type == typeof(float))          return "float";
+        if (type == typeof(decimal))        return "decimal";
+        if (type == typeof(DateTimeOffset)) return "DateTimeOffset";
+        if (type == typeof(DateTime))       return "DateTime";
+        if (type == typeof(DateOnly))       return "DateOnly";
+
+        return type.Name;
     }
 
     public async Task<string?> ReadPromptAsync(string fileName)
@@ -421,8 +444,8 @@ public class LlmInterpreter : IInterpreter
     // ---------------------------------------------------------------------
     // Parsing with multi-stage JSON extraction
     // ---------------------------------------------------------------------
-    private static ParsedModelResponse ParseModelResponse( string                      raw
-                                                         , IEnumerable<ActionMetadata> actions )
+    internal static ParsedModelResponse ParseModelResponse( string                      raw
+                                                          , IEnumerable<ActionMetadata> actions )
     {
         if (string.IsNullOrWhiteSpace(raw))
         {

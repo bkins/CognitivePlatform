@@ -350,21 +350,6 @@ public partial class Program
 
 // ---------- helpers ----------
 
-        void StoreDefaultModel(LlmClientSettings settings, LlmModelCatalog catalog)
-        {
-            var ignoreCase = StringComparison.OrdinalIgnoreCase;
-    
-            var model = settings.SortedAllowedModels
-                                .Select(name => catalog.AvailableModels
-                                                       .FirstOrDefault(model => model.IsUsable
-                                                                             && model.Name
-                                                                                     .Equals(name, ignoreCase)))
-                                .FirstOrDefault(model => model != null);
-
-            if (model != null)
-                settings.DefaultModel = model.Name;
-        }
-
         void BuildDataPersistenceLayer(WebApplicationBuilder dataBuilder)
         {
             // ADM-05: DB lives at C:\CP\Data\{env}\ — outside the deploy tree so
