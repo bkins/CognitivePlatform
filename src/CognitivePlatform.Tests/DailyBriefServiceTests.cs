@@ -288,6 +288,88 @@ public class DailyBriefServiceTests
         Assert.Equal(expectedEnd,   capturedEnd);
     }
 
+    // ================================================================
+    // BUG-19: all-day event local-date filter
+    // ================================================================
+
+    [Fact]
+    public void GetBrief_IncludesTodaysAllDayEvent_WhenLocalDateMatches()
+    {
+        var today      = DateOnly.FromDateTime(DateTime.Today);
+        var startLocal = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local));
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>
+                                   {
+                                       new() { Id       = "1"
+                                             , Title    = "All Day Today"
+                                             , StartUtc = startLocal
+                                             , EndUtc   = startLocal.AddDays(1)
+                                             , IsAllDay = true }
+                                   });
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+        var result  = service.GetBrief(today);
+
+        Assert.Contains("All Day Today", result);
+    }
+
+    [Fact]
+    public void GetBrief_ExcludesYesterdaysAllDayEvent_WhenLocalDateDoesNotMatch()
+    {
+        var today         = DateOnly.FromDateTime(DateTime.Today);
+        var yesterdayUtc  = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-1), TimeSpan.Zero);
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>
+                                   {
+                                       new() { Id       = "2"
+                                             , Title    = "Yesterday Event"
+                                             , StartUtc = yesterdayUtc
+                                             , EndUtc   = yesterdayUtc.AddDays(1)
+                                             , IsAllDay = true }
+                                   });
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+        var result  = service.GetBrief(today);
+
+        Assert.DoesNotContain("Yesterday Event", result);
+    }
+
+    [Fact]
+    public void GetBrief_IncludesTimedEvent_EvenWhenStartIsBeforeLocalMidnight()
+    {
+        var today          = DateOnly.FromDateTime(DateTime.Today);
+        var lateNightStart = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(-1).AddHours(23), TimeSpan.Zero);
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<DateTimeOffset>()
+                                                      , It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarEvent>
+                                   {
+                                       new() { Id       = "3"
+                                             , Title    = "Midnight Timed Event"
+                                             , StartUtc = lateNightStart
+                                             , EndUtc   = lateNightStart.AddHours(2)
+                                             , IsAllDay = false }
+                                   });
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, _calendarMock.Object);
+        var result  = service.GetBrief(today);
+
+        Assert.Contains("Midnight Timed Event", result);
+    }
+
     [Fact]
     public void GetBrief_PassesLocalDateAnchoredWindow_ThatDiffersFromUtcMidnight_WhenServerIsNotUtc()
     {

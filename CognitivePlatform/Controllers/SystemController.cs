@@ -15,16 +15,19 @@ public class SystemController : ControllerBase
     private readonly IGroqUsageTracker           _usageTracker;
     private readonly ITelemetryAggregatorService _telemetryAggregator;
     private readonly SystemService               _systemService;
+    private readonly ILlmRateLimiter             _rateLimiter;
 
     public SystemController( ITelemetrySink              telemetrySink
                            , IGroqUsageTracker           usageTracker
                            , ITelemetryAggregatorService telemetryAggregator
-                           , SystemService               systemService )
+                           , SystemService               systemService
+                           , ILlmRateLimiter             rateLimiter )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
         _telemetryAggregator = telemetryAggregator;
         _systemService       = systemService;
+        _rateLimiter         = rateLimiter;
     }
 
 

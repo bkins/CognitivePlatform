@@ -11,16 +11,20 @@ namespace CognitivePlatform.Api.Interpreter;
 public interface ILlmUsageAggregator
 {
     /// <summary>
-    /// Records the token counts from a single completed LLM call.
-    /// No-ops when <paramref name="usage"/> is <see cref="LlmUsageInfo.Empty"/>
-    /// or all counts are zero.
+    /// Records usage from a single completed LLM call.
+    /// No-ops when the metadata usage is all zeros.
     /// </summary>
-    void Record(LlmUsageInfo usage);
+    void Record(LlmResponseMetadata metadata);
 
     /// <summary>
-    /// Returns a snapshot of the cumulative totals since process start.
+    /// Returns a snapshot of the cumulative token totals since process start.
     /// The returned instance is a value snapshot — it will not change as
     /// further calls are recorded.
     /// </summary>
-    LlmUsageInfo GetTotals();
+    LlmUsageInfo GetSessionTotal();
+
+    /// <summary>
+    /// Returns the ordered history of all recorded metadata entries since process start.
+    /// </summary>
+    IReadOnlyList<LlmResponseMetadata> GetHistory();
 }

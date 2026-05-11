@@ -1,0 +1,27 @@
+namespace CognitivePlatform.Api.Interpreter;
+
+/// <summary>
+/// Structured metadata produced after each LLM call. Carries provider identity,
+/// token usage, and rate-limit state as a single unit so subsystems receive
+/// consistent, correlated data.
+///
+/// Used by <see cref="ILlmUsageAggregator"/> and <see cref="ILlmRateLimiter"/> as
+/// their shared input type — avoids duplicate header parsing.
+/// </summary>
+public sealed class LlmResponseMetadata
+{
+    /// <summary>Provider that handled the request (e.g., "Groq").</summary>
+    public string ProviderId { get; init; } = string.Empty;
+
+    /// <summary>Model that was selected for the request.</summary>
+    public string ModelId { get; init; } = string.Empty;
+
+    /// <summary>Token usage reported in the response body.</summary>
+    public LlmUsageInfo Usage { get; init; } = LlmUsageInfo.Empty;
+
+    /// <summary>Rate-limit state captured from response headers.</summary>
+    public LlmRateLimitSnapshot RateLimits { get; init; } = LlmRateLimitSnapshot.Empty;
+
+    /// <summary>UTC timestamp when this metadata was captured.</summary>
+    public DateTimeOffset CapturedUtc { get; init; } = DateTimeOffset.UtcNow;
+}
