@@ -48,8 +48,17 @@ public class LlmRouter : ILlmRouter
         var (client, model) = Resolve(context);
         var response        = await client.SendAsync(prompt, model, ct);
 
-        _usageAggregator.Record(response.Usage);
-        _rateLimiter.UpdateFromSnapshot(response.RateLimits);
+        var metadata = new LlmResponseMetadata
+                       {
+                               ProviderId  = ResolveProvider(context).ToString()
+                             , ModelId     = model ?? string.Empty
+                             , Usage       = response.Usage
+                             , RateLimits  = response.RateLimits
+                             , CapturedUtc = DateTimeOffset.UtcNow
+                       };
+
+        _usageAggregator.Record(metadata);
+        _rateLimiter.Update(metadata);
 
         return response;
     }

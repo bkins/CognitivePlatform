@@ -356,8 +356,8 @@ public class GoogleCalendarProvider : ICalendarProvider
             if (start.TryGetProperty("date", out var startDate))
             {
                 isAllDay = true;
-                startUtc = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(startDate.GetString()!), DateTimeKind.Utc));
-                endUtc   = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(end.GetProperty("date").GetString()!), DateTimeKind.Utc));
+                startUtc = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(startDate.GetString()!), DateTimeKind.Local));
+                endUtc   = new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(end.GetProperty("date").GetString()!), DateTimeKind.Local));
             }
             else
             {

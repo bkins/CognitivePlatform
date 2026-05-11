@@ -128,8 +128,8 @@ public partial class Program
         builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
 
         // EPIC-07: Provider Capacity & Routing — usage aggregator + rate limiter
-        builder.Services.AddSingleton<ILlmUsageAggregator, LlmUsageAggregator>();
-        builder.Services.AddSingleton<ILlmRateLimiter,     LlmRateLimiter>();
+        builder.Services.AddSingleton<ILlmUsageAggregator, InMemoryLlmUsageAggregator>();
+        builder.Services.AddSingleton<ILlmRateLimiter,     InMemoryLlmRateLimiter>();
 
 // Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();

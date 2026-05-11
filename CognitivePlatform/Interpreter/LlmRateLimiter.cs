@@ -3,35 +3,34 @@ using System.Collections.Concurrent;
 namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
-/// Thread-safe singleton implementation of <see cref="ILlmRateLimiter"/>.
+/// Thread-safe in-process implementation of <see cref="ILlmRateLimiter"/>.
 /// Stores one snapshot per provider keyed by provider name (case-insensitive).
-/// Volatile reference swap ensures readers never observe a partial write.
 /// </summary>
-public sealed class LlmRateLimiter : ILlmRateLimiter
+public sealed class InMemoryLlmRateLimiter : ILlmRateLimiter
 {
     private readonly ConcurrentDictionary<string, LlmRateLimitSnapshot> _snapshots
         = new(StringComparer.OrdinalIgnoreCase);
 
-    public void UpdateFromSnapshot(LlmRateLimitSnapshot snapshot)
+    public void Update(LlmResponseMetadata metadata)
     {
-        if (snapshot.Provider.Length == 0)
+        if (metadata.ProviderId.Length == 0)
             return;
 
-        _snapshots[snapshot.Provider] = snapshot;
+        _snapshots[metadata.ProviderId] = metadata.RateLimits;
     }
 
-    public bool CanSend(string provider)
+    public bool IsExhausted(string provider)
     {
         if (!_snapshots.TryGetValue(provider, out var snapshot))
-            return true; // optimistic: no data yet
+            return false; // optimistic: no data yet
 
-        if (snapshot.HasData.Equals(false))
-            return true;
+        if (!snapshot.HasData)
+            return false;
 
-        return snapshot.RequestsRemaining > 0 && snapshot.TokensRemaining > 0;
+        return snapshot.RequestsRemaining == 0 || snapshot.TokensRemaining == 0;
     }
 
-    public LlmRateLimitSnapshot GetCurrentSnapshot(string provider)
+    public LlmRateLimitSnapshot GetLatest(string provider)
     {
         return _snapshots.TryGetValue(provider, out var snapshot)
                        ? snapshot

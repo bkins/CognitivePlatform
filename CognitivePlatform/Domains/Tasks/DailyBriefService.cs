@@ -104,9 +104,16 @@ public class DailyBriefService : IDailyBriefService
                 var todayEnd      = todayStart.AddDays(1);
 
                 // Sync bridge: DailyBrief is intentionally sync; async promotion tracked in DEFERRED.md
-                var calEvents = _calendar.GetEventsAsync(todayStart, todayEnd)
+                var rawEvents = _calendar.GetEventsAsync(todayStart, todayEnd)
                                          .GetAwaiter()
                                          .GetResult();
+
+                // BUG-19: Google may return yesterday's all-day events when the local-midnight query
+                // window starts before UTC midnight of the previous day (UTC+ timezones). Filter
+                // all-day events to the user's local date only; timed events pass through unchanged.
+                var calEvents = rawEvents
+                    .Where(evt => !evt.IsAllDay || evt.StartUtc.LocalDateTime.Date == today)
+                    .ToList();
 
                 sb.AppendLine();
                 sb.AppendLine("--- Today's Calendar ---");

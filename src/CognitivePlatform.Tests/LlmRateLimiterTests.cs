@@ -4,162 +4,125 @@ namespace CognitivePlatform.Tests;
 
 public class LlmRateLimiterTests
 {
-    private readonly LlmRateLimiter _rateLimiter = new();
+    private readonly InMemoryLlmRateLimiter _rateLimiter = new();
+
+    private static LlmResponseMetadata MetadataFor(string provider, int requestsRemaining, int tokensRemaining = 5_000
+                                                  , int requestLimit = 100, int tokenLimit = 10_000)
+        => new()
+           {
+                   ProviderId = provider
+                 , RateLimits = new LlmRateLimitSnapshot
+                                {
+                                        Provider         = provider
+                                      , RequestLimit      = requestLimit
+                                      , RequestsRemaining = requestsRemaining
+                                      , TokenLimit        = tokenLimit
+                                      , TokensRemaining   = tokensRemaining
+                                }
+           };
 
     // ----------------------------------------------------------------
-    // CanSend
-    // ----------------------------------------------------------------
-
-    [Fact]
-    public void CanSend_ReturnsTrue_WhenNoSnapshotRecordedYet()
-    {
-        Assert.True(_rateLimiter.CanSend("Groq"));
-    }
-
-    [Fact]
-    public void CanSend_ReturnsTrue_WhenBothRequestsAndTokensAreAvailable()
-    {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 50
-                                              , TokenLimit        = 10_000
-                                              , TokensRemaining   = 5_000
-                                        });
-
-        Assert.True(_rateLimiter.CanSend("Groq"));
-    }
-
-    [Fact]
-    public void CanSend_ReturnsFalse_WhenRequestsRemainingIsZero()
-    {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 0
-                                              , TokenLimit        = 10_000
-                                              , TokensRemaining   = 5_000
-                                        });
-
-        Assert.False(_rateLimiter.CanSend("Groq"));
-    }
-
-    [Fact]
-    public void CanSend_ReturnsFalse_WhenTokensRemainingIsZero()
-    {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 50
-                                              , TokenLimit        = 10_000
-                                              , TokensRemaining   = 0
-                                        });
-
-        Assert.False(_rateLimiter.CanSend("Groq"));
-    }
-
-    [Fact]
-    public void CanSend_IsCaseInsensitive_ForProviderName()
-    {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 0
-                                        });
-
-        Assert.False(_rateLimiter.CanSend("groq"));
-        Assert.False(_rateLimiter.CanSend("GROQ"));
-    }
-
-    [Fact]
-    public void CanSend_IsIndependentPerProvider()
-    {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 0   // exhausted
-                                        });
-
-        // Gemini has no snapshot yet → optimistic
-        Assert.False(_rateLimiter.CanSend("Groq"));
-        Assert.True( _rateLimiter.CanSend("Gemini"));
-    }
-
-    // ----------------------------------------------------------------
-    // UpdateFromSnapshot
+    // IsExhausted
     // ----------------------------------------------------------------
 
     [Fact]
-    public void UpdateFromSnapshot_IgnoresEmptyProviderName()
+    public void IsExhausted_ReturnsFalse_WhenNoSnapshotRecordedYet()
     {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = string.Empty
-                                              , RequestsRemaining = 0
-                                        });
-
-        // Still returns true because nothing was stored
-        Assert.True(_rateLimiter.CanSend(string.Empty));
+        Assert.False(_rateLimiter.IsExhausted("Groq"));
     }
 
     [Fact]
-    public void UpdateFromSnapshot_ReplacesExistingSnapshotForSameProvider()
+    public void IsExhausted_ReturnsFalse_WhenBothRequestsAndTokensAreAvailable()
     {
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 0   // exhausted
-                                        });
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 50, tokensRemaining: 5_000));
+
+        Assert.False(_rateLimiter.IsExhausted("Groq"));
+    }
+
+    [Fact]
+    public void IsExhausted_ReturnsTrue_WhenRequestsRemainingIsZero()
+    {
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 0, tokensRemaining: 5_000));
+
+        Assert.True(_rateLimiter.IsExhausted("Groq"));
+    }
+
+    [Fact]
+    public void IsExhausted_ReturnsTrue_WhenTokensRemainingIsZero()
+    {
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 50, tokensRemaining: 0));
+
+        Assert.True(_rateLimiter.IsExhausted("Groq"));
+    }
+
+    [Fact]
+    public void IsExhausted_IsCaseInsensitive_ForProviderName()
+    {
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 0));
+
+        Assert.True(_rateLimiter.IsExhausted("groq"));
+        Assert.True(_rateLimiter.IsExhausted("GROQ"));
+    }
+
+    [Fact]
+    public void IsExhausted_IsIndependentPerProvider()
+    {
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 0));
+
+        // Gemini has no snapshot yet -> not exhausted (optimistic)
+        Assert.True( _rateLimiter.IsExhausted("Groq"));
+        Assert.False(_rateLimiter.IsExhausted("Gemini"));
+    }
+
+    // ----------------------------------------------------------------
+    // Update
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Update_IgnoresEmptyProviderId()
+    {
+        _rateLimiter.Update(new LlmResponseMetadata
+                            {
+                                    ProviderId = string.Empty
+                                  , RateLimits = new LlmRateLimitSnapshot { RequestsRemaining = 0 }
+                            });
+
+        // Still returns false (not exhausted) because nothing was stored
+        Assert.False(_rateLimiter.IsExhausted(string.Empty));
+    }
+
+    [Fact]
+    public void Update_ReplacesExistingSnapshotForSameProvider()
+    {
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 0));
 
         // Simulate window reset
-        _rateLimiter.UpdateFromSnapshot(new LlmRateLimitSnapshot
-                                        {
-                                                Provider         = "Groq"
-                                              , RequestLimit      = 100
-                                              , RequestsRemaining = 100  // fully reset
-                                              , TokenLimit        = 10_000
-                                              , TokensRemaining   = 10_000
-                                        });
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 100, tokensRemaining: 10_000));
 
-        Assert.True(_rateLimiter.CanSend("Groq"));
+        Assert.False(_rateLimiter.IsExhausted("Groq"));
     }
 
     // ----------------------------------------------------------------
-    // GetCurrentSnapshot
+    // GetLatest
     // ----------------------------------------------------------------
 
     [Fact]
-    public void GetCurrentSnapshot_ReturnsEmpty_WhenNoSnapshotRecorded()
+    public void GetLatest_ReturnsEmpty_WhenNoSnapshotRecorded()
     {
-        var snapshot = _rateLimiter.GetCurrentSnapshot("Groq");
+        var snapshot = _rateLimiter.GetLatest("Groq");
 
         Assert.False(snapshot.HasData);
         Assert.Equal(LlmRateLimitSnapshot.Empty, snapshot);
     }
 
     [Fact]
-    public void GetCurrentSnapshot_ReturnsLastUpdatedSnapshot()
+    public void GetLatest_ReturnsLastUpdatedSnapshot()
     {
-        var expected = new LlmRateLimitSnapshot
-                       {
-                               Provider         = "Groq"
-                             , RequestLimit      = 100
-                             , RequestsRemaining = 75
-                             , TokenLimit        = 10_000
-                             , TokensRemaining   = 8_000
-                       };
+        _rateLimiter.Update(MetadataFor("Groq", requestsRemaining: 75, tokensRemaining: 8_000));
 
-        _rateLimiter.UpdateFromSnapshot(expected);
+        var snapshot = _rateLimiter.GetLatest("Groq");
 
-        var snapshot = _rateLimiter.GetCurrentSnapshot("Groq");
-
-        Assert.Equal(expected.RequestsRemaining, snapshot.RequestsRemaining);
-        Assert.Equal(expected.TokensRemaining,   snapshot.TokensRemaining);
+        Assert.Equal(75,    snapshot.RequestsRemaining);
+        Assert.Equal(8_000, snapshot.TokensRemaining);
     }
 }

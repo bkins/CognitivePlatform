@@ -24,14 +24,17 @@ public class LlmClientFactory : ILlmClientFactory
     private readonly IHttpClientFactory _httpFactory;
     private readonly LlmClientSettings  _settings;
     private readonly IGroqUsageTracker  _usageTracker;
+    private readonly ILlmRateLimiter    _rateLimiter;
 
     public LlmClientFactory( IHttpClientFactory          httpFactory
                            , IOptions<LlmClientSettings> settings
-                           , IGroqUsageTracker           usageTracker )
+                           , IGroqUsageTracker           usageTracker
+                           , ILlmRateLimiter             rateLimiter )
     {
         _httpFactory  = httpFactory;
         _settings     = settings.Value;
         _usageTracker = usageTracker;
+        _rateLimiter  = rateLimiter;
     }
 
     /// <summary>
@@ -57,7 +60,8 @@ public class LlmClientFactory : ILlmClientFactory
         {
                 LlmProvider.Groq   => new GroqLlmClient(_httpFactory.CreateClient("Groq")
                                                       , options
-                                                      , _usageTracker)
+                                                      , _usageTracker
+                                                      , _rateLimiter)
               , LlmProvider.Ollama => new OllamaLlmClient(_httpFactory.CreateClient("Ollama")
                                                         , options)
               , LlmProvider.Gemini => new GeminiLlmClient(_httpFactory.CreateClient("Gemini")

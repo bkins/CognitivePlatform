@@ -35,6 +35,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IActivityLog             _activityLog;
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
+    private readonly ILlmRateLimiter          _rateLimiter;
 
     private readonly bool _isDebug  = false;
 
@@ -51,7 +52,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IInsightHistoryStore                                           insightHistory
                                    , IActivityLog                                                   activityLog
                                    , LlmModelCatalog                                                modelCatalog
-                                   , LlmProviderDefaults                                            providerDefaults )
+                                   , LlmProviderDefaults                                            providerDefaults
+                                   , ILlmRateLimiter                                                rateLimiter )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -67,6 +69,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _activityLog      = activityLog      ?? throw new ArgumentNullException(nameof(activityLog));
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
+        _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
 
 #if DEBUG
         _isDebug = true;
@@ -426,7 +429,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
-            var message = "Something went wrong while processing your request. Please try again.";
+            var message = BuildExceptionMessage(interpretation.Exception);
             if (_isDebug)
             {
                 message = $"""
@@ -1078,6 +1081,21 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         //TODO:  Figure out how to determine when the stream is complete.
         // Does this need to be determined in the controller?  
+    }
+
+    // BUG-20: detect Groq 429 and return a human-friendly rate-limit message with reset time.
+    private string BuildExceptionMessage(Exception? exception)
+    {
+        if (exception?.Message.Contains("429", StringComparison.Ordinal) == true)
+        {
+            var snapshot  = _rateLimiter.GetLatest("Groq");
+            var resetPart = snapshot.RequestsResetAt is not null
+                                    ? $" — resets at {snapshot.RequestsResetAt.Value.ToLocalTime():h:mm tt}"
+                                    : string.Empty;
+            return $"Groq rate limit reached{resetPart}. Please wait a moment before trying again.";
+        }
+
+        return "Something went wrong while processing your request. Please try again.";
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
