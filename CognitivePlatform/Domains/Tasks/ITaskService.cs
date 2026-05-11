@@ -85,4 +85,9 @@ public interface ITaskService
                                     , bool?   onlyUrgent
                                     , bool?   onlyImportant
                                     , string? tag );
+
+    /// <summary>
+    /// Returns all completed (non-deleted) tasks, most recently completed first.
+    /// </summary>
+    IReadOnlyList<TaskItem> GetCompleted();
 }
