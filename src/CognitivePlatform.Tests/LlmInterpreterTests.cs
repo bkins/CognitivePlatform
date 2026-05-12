@@ -204,6 +204,171 @@ public class LlmInterpreterTests
         Assert.Contains("dueAfter",        catalog);
     }
 
+    // BUG-16 specific: "add a calendar event …" must never route to BatchAddTasks.
+    // The colon-style suffix ("add a calendar event for tomorrow: dentist") was
+    // confusing the LLM into splitting on the colon and treating it as a batch.
+    // Fix: explicit AddCalendarEvent examples added to CALENDAR ROUTING RULES.
+    [Fact]
+    public void ParseModelResponse_AddCalendarEventInput_ResolvesToCalendarAction_NotBatchAddTasks()
+    {
+        const string raw = """
+                           {
+                             "actionName": "AddCalendarEvent",
+                             "parameters": {
+                               "title":         "Dentist appointment",
+                               "startDateTime": "2026-05-13T14:00:00"
+                             },
+                             "reason": "User asked to add a calendar event.",
+                             "failureType": "None"
+                           }
+                           """;
+
+        var actions = new[]
+        {
+            new ActionMetadata
+            {
+                    Name        = "AddCalendarEvent"
+                  , Description = "Adds a new event to your Google Calendar."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "title",         IsOptional = false, AllowEmpty = false }
+                                    , new() { Name = "startDateTime", IsOptional = false, AllowEmpty = false }
+                                  }
+            }
+          , new ActionMetadata
+            {
+                    Name        = "BatchAddTasks"
+                  , Description = "Adds multiple tasks at once."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "descriptions", IsOptional = false, AllowEmpty = false }
+                                  }
+            }
+        };
+
+        var result = LlmInterpreter.ParseModelResponse(raw, actions);
+
+        Assert.Equal("AddCalendarEvent",              result.ActionName);
+        Assert.NotEqual("BatchAddTasks",              result.ActionName);
+        Assert.Equal(InterpreterFailureType.None,     result.FailureType);
+        Assert.True(result.Parameters.ContainsKey("title")
+                  , "title parameter must be present for AddCalendarEvent.");
+        Assert.True(result.Parameters.ContainsKey("startDateTime")
+                  , "startDateTime parameter must be present for AddCalendarEvent.");
+    }
+
+    // BUG-18 (journal path): "show my journals from last week" must provide both
+    // fromDate and toDate parameters, not return an unfiltered list.
+    [Fact]
+    public void ParseModelResponse_JournalEntriesLastWeek_IncludesBothDateBoundaries()
+    {
+        const string raw = """
+                           {
+                             "actionName": "ListJournalEntries",
+                             "parameters": {
+                               "fromDate": "2026-05-04",
+                               "toDate":   "2026-05-10"
+                             },
+                             "reason": "User asked for journal entries from last week.",
+                             "failureType": "None"
+                           }
+                           """;
+
+        var actions = new[]
+        {
+            new ActionMetadata
+            {
+                    Name        = "ListJournalEntries"
+                  , Description = "Lists journal entries."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "fromDate", IsOptional = true, AllowEmpty = true }
+                                    , new() { Name = "toDate",   IsOptional = true, AllowEmpty = true }
+                                  }
+            }
+        };
+
+        var result = LlmInterpreter.ParseModelResponse(raw, actions);
+
+        Assert.Equal("ListJournalEntries",                result.ActionName);
+        Assert.Equal(InterpreterFailureType.None,         result.FailureType);
+        Assert.True(result.Parameters.ContainsKey("fromDate")
+                  , "fromDate parameter must be present for journal date-window queries.");
+        Assert.True(result.Parameters.ContainsKey("toDate")
+                  , "toDate parameter must be present for journal date-window queries.");
+    }
+
+    // BUG-18 / BUG-16 (session state): BuildSessionStateBlock must inject computed
+    // date-window boundaries so the LLM can resolve "this week", "last week", etc.
+    [Fact]
+    public void BuildSessionStateBlock_IncludesAllDateWindowBoundaries()
+    {
+        var context = new ConversationContext("test-session");
+
+        var block = LlmInterpreter.BuildSessionStateBlock(context);
+
+        Assert.Contains("Today:",      block);
+        Assert.Contains("Yesterday:",  block);
+        Assert.Contains("Tomorrow:",   block);
+        Assert.Contains("This week:",  block);
+        Assert.Contains("Last week:",  block);
+        Assert.Contains("This month:", block);
+        Assert.Contains("Last month:", block);
+    }
+
+    // BUG-16 (calendar session state): when calendar_connected = true the session
+    // block must say "Calendar: connected" so the LLM knows calendar actions are available.
+    [Fact]
+    public void BuildSessionStateBlock_WhenCalendarConnected_IncludesCalendarConnectedLine()
+    {
+        var context = new ConversationContext("test-session");
+        context.Metadata["calendar_connected"] = "true";
+
+        var block = LlmInterpreter.BuildSessionStateBlock(context);
+
+        Assert.Contains("Calendar: connected", block);
+    }
+
+    // BUG-21 additional: the ordinal word "third" must map to entryReference = "3",
+    // not resolve to the wrong action or be left un-parsed.
+    [Fact]
+    public void ParseModelResponse_ThirdEntry_OrdinalWordMapsToPositionThree()
+    {
+        const string raw = """
+                           {
+                             "actionName": "GetJournalEntry",
+                             "parameters": { "entryReference": "3" },
+                             "reason": "User said 'show the third entry'; 'third' maps to position 3.",
+                             "failureType": "None"
+                           }
+                           """;
+
+        var actions = new[]
+        {
+            new ActionMetadata
+            {
+                    Name        = "GetJournalEntry"
+                  , Description = "Retrieves a journal entry by position."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "entryReference", IsOptional = false, AllowEmpty = false }
+                                  }
+            }
+          , new ActionMetadata
+            {
+                    Name        = "ListJournalEntries"
+                  , Description = "Lists journal entries."
+                  , Parameters  = new List<ParameterMetadata>()
+            }
+        };
+
+        var result = LlmInterpreter.ParseModelResponse(raw, actions);
+
+        Assert.Equal("GetJournalEntry",               result.ActionName);
+        Assert.Equal("3",                             result.Parameters["entryReference"]);
+        Assert.Equal(InterpreterFailureType.None,     result.FailureType);
+    }
+
     [Fact]
     public async Task InterpretWithContext_WhenModelIsNotUsable_WithHttp429Reason_IncludesRateLimitDetail()
     {
