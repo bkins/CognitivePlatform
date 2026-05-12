@@ -233,6 +233,115 @@ public class JournalActionsTests
     }
 
     // ================================================================
+    // GET JOURNAL HISTORY
+    // ================================================================
+
+    [Fact]
+    public void GetJournalHistory_ReturnsNotFound_WhenPositionOutOfRange()
+    {
+        _journalMock.Setup(svc => svc.ResolveByPosition(99))
+                    .Returns((JournalEntryWithRevision?)null);
+
+        var result = _actions.GetJournalHistory("99");
+
+        Assert.Contains("No journal entry found at position 99", result);
+    }
+
+    [Fact]
+    public void GetJournalHistory_ReturnsSingleRevisionMessage_WhenEntryHasOneRevision()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        var entry   = new JournalEntry { Id = entryId };
+
+        var revision = new JournalRevision
+                       {
+                               RevisionId = Guid.NewGuid().ToString("N")
+                             , EntryId    = entryId
+                             , CreatedUtc = new DateTimeOffset(2026, 5, 9, 14, 15, 0, TimeSpan.Zero)
+                             , Text       = "Had a productive meeting."
+                       };
+
+        var entryWithRevision = new JournalEntryWithRevision(entry, revision, IsEdited: false);
+
+        _journalMock.Setup(svc => svc.ResolveByPosition(3))
+                    .Returns(entryWithRevision);
+
+        _journalMock.Setup(svc => svc.GetRevisionHistory(entryId))
+                    .Returns(new List<JournalRevision> { revision });
+
+        var result = _actions.GetJournalHistory("3");
+
+        Assert.Contains("1 revision", result);
+        Assert.Contains("current",    result);
+    }
+
+    [Fact]
+    public void GetJournalHistory_ReturnsFullChain_WhenEntryHasMultipleRevisions()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        var entry   = new JournalEntry { Id = entryId };
+
+        var revision1 = new JournalRevision
+                        {
+                                RevisionId = Guid.NewGuid().ToString("N")
+                              , EntryId    = entryId
+                              , CreatedUtc = new DateTimeOffset(2026, 5, 9, 14, 15, 0, TimeSpan.Zero)
+                              , Text       = "Original text."
+                        };
+
+        var revision2 = new JournalRevision
+                        {
+                                RevisionId = Guid.NewGuid().ToString("N")
+                              , EntryId    = entryId
+                              , CreatedUtc = new DateTimeOffset(2026, 5, 10, 9, 30, 0, TimeSpan.Zero)
+                              , Text       = "Updated text."
+                        };
+
+        var entryWithRevision = new JournalEntryWithRevision(entry, revision2, IsEdited: true);
+
+        _journalMock.Setup(svc => svc.ResolveByPosition(3))
+                    .Returns(entryWithRevision);
+
+        _journalMock.Setup(svc => svc.GetRevisionHistory(entryId))
+                    .Returns(new List<JournalRevision> { revision1, revision2 });
+
+        var result = _actions.GetJournalHistory("3");
+
+        Assert.Contains("2 revisions", result);
+        Assert.Contains("original",    result);
+        Assert.Contains("updated",     result);
+        Assert.Contains("current",     result);
+    }
+
+    [Fact]
+    public void GetJournalHistory_PositionLookup_ResolvesCorrectly()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        var entry   = new JournalEntry { Id = entryId };
+
+        var revision = new JournalRevision
+                       {
+                               RevisionId = Guid.NewGuid().ToString("N")
+                             , EntryId    = entryId
+                             , CreatedUtc = DateTimeOffset.UtcNow
+                             , Text       = "Some text."
+                       };
+
+        var entryWithRevision = new JournalEntryWithRevision(entry, revision, IsEdited: false);
+
+        _journalMock.Setup(svc => svc.ResolveByPosition(1))
+                    .Returns(entryWithRevision);
+
+        _journalMock.Setup(svc => svc.GetRevisionHistory(entryId))
+                    .Returns(new List<JournalRevision> { revision });
+
+        var result = _actions.GetJournalHistory("1");
+
+        Assert.Contains("1 revision", result);
+        Assert.Contains("current",    result);
+    }
+
+    // ================================================================
     // HELPERS
     // ================================================================
 

@@ -25,8 +25,25 @@ public interface ICalendarProvider
     Task<bool> ExchangeCodeAsync(string code, CancellationToken ct = default);
 
     /// <summary>
+    /// Returns all calendars visible to the authenticated user, each annotated with
+    /// its current inclusion state (see <see cref="SetCalendarInclusionAsync"/>).
+    /// Throws <see cref="CalendarAuthException"/> when the token is invalid.
+    /// </summary>
+    Task<IReadOnlyList<CalendarSummary>> GetCalendarListAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Includes or excludes a calendar from event queries.
+    /// Pass <paramref name="include"/> = false to suppress events from that calendar.
+    /// The change is persisted and survives process restarts.
+    /// </summary>
+    Task SetCalendarInclusionAsync( string           calendarId
+                                  , bool             include
+                                  , CancellationToken ct = default );
+
+    /// <summary>
     /// Returns all events from the user's primary calendar in the given UTC window,
     /// ordered by start time. Returns an empty list when not connected or on error.
+    /// Only calendars that pass the inclusion filter are queried.
     /// </summary>
     Task<IReadOnlyList<CalendarEvent>> GetEventsAsync( DateTimeOffset    fromUtc
                                                      , DateTimeOffset    toUtc
