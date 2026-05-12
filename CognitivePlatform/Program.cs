@@ -21,13 +21,14 @@ using System.Text;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Domains.DailyRecord;
+using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
+using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.Models.SystemInfo;
-using CognitivePlatform.Api.System;
 using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
@@ -85,6 +86,11 @@ public partial class Program
         builder.Configuration.GetSection("BugReport"));
         builder.Services.AddSingleton<IPromptLogger, PromptLogger>();
         
+// Workspace
+        builder.Services.AddTransient<WorkspaceActions>();
+        builder.Services.AddSingleton<IUserSettingsService, UserSettingsService>();
+        builder.Services.AddSingleton<IWorkspaceContext, WorkspaceContext>();
+
 // Core services
         builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
@@ -191,17 +197,11 @@ public partial class Program
         builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
         builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
         builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
-
-// Actions
-        builder.Services.AddTransient<JournalActions>();
-        builder.Services.AddTransient<TaskActions>();
-        builder.Services.AddTransient<TaskReasonerActions>();
-        builder.Services.AddTransient<InsightsActions>();
-        builder.Services.AddTransient<ActivityActions>();
-        builder.Services.AddTransient<DebugFastPath>();
-        builder.Services.AddTransient<DailyRecordActions>();
-        builder.Services.AddTransient<FeedbackActions>();
-
+        
+    // System
+        builder.Services.AddSingleton<ISystemInfoService, SystemService>();
+        builder.Services.Configure<SystemPathsOptions>(builder.Configuration.GetSection("SystemPaths"));
+        
     // Insight Engine (Phase A — no Object Store dependency)
         // History store is a singleton because the in-memory dictionary IS the state.
         // InsightPolicy is bound from the "Insights" config section so caps tune
@@ -209,9 +209,8 @@ public partial class Program
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, InMemoryInsightHistoryStore>();
-        builder.Services.AddSingleton<InsightPolicy>(
-            builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
-                ?? new InsightPolicy());
+        builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
+                                                  ?? new InsightPolicy());
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
@@ -228,6 +227,17 @@ public partial class Program
         
         builder.Services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
 
+    // Actions
+        builder.Services.AddTransient<JournalActions>();
+        builder.Services.AddTransient<TaskActions>();
+        builder.Services.AddTransient<TaskReasonerActions>();
+        builder.Services.AddTransient<InsightsActions>();
+        builder.Services.AddTransient<ActivityActions>();
+        builder.Services.AddTransient<DebugFastPath>();
+        builder.Services.AddTransient<DailyRecordActions>();
+        builder.Services.AddTransient<FeedbackActions>();
+        builder.Services.AddTransient<SystemActions>();
+
 // Scalar setup
         builder.Services.AddEndpointsApiExplorer();
         
@@ -242,8 +252,11 @@ public partial class Program
             var dbPath   = Path.Combine(dataRoot, "platform.db");
 
             return new SystemService(environment
-                                   , dataRoot
-                                   , dbPath);
+                                   , sp.GetRequiredService<IOptions<SystemPathsOptions>>());
+            
+            // return new SystemService(environment
+            //                        , dataRoot
+            //                        , dbPath);
         });
 
         // Suppress the built-in messages
@@ -312,14 +325,16 @@ public partial class Program
         SystemService         sysInfo;
         SystemVersionInfo     verInfo;
         // TODO: `GeminiSettings` need to be generic so that any provider settings could be used
-        GeminiSettings        settings;
-        bool                  googleCalendarIsConnected;
+        //GeminiSettings        settings;
+        GroqSettings settings;
+        bool         googleCalendarIsConnected;
+        
         
         using (var scope = app.Services.CreateScope())
         {
             var probe = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
             settings = scope.ServiceProvider
-                            .GetRequiredService<IOptions<GeminiSettings>>()
+                            .GetRequiredService<IOptions<GroqSettings>>()
                             .Value;
             var catalog = scope.ServiceProvider.GetRequiredService<LlmModelCatalog>();
            
@@ -344,7 +359,7 @@ public partial class Program
                             , EnvInfo                 = envInfo
                             , VerInfo                 = verInfo
                             , SysInfo                 = sysInfo
-                            , DefaultModel            = settings.Model
+                            , DefaultModel            = "llama-3.3-70b-versatile"//"gemini-3.1-pro-preview" //"gemini-1.5-Pro" //settings.Model -- TODO: `settings` is not reading from config for some reason, needs investigation. Hardcoding for now to unblock.
                             , Provider                = settings.Provider
                             , GoogleCalendarConnected = googleCalendarIsConnected
                       };
@@ -367,7 +382,7 @@ public partial class Program
             var dataDirectory = Path.Combine(@"C:\CP\Data", dataBuilder.Environment.EnvironmentName);
 
             Directory.CreateDirectory(dataDirectory);
-
+//C:\CP\Data\Development
             var dbPath = Path.Combine(dataDirectory, "platform.db");
 
             var connectionString = $"Data Source={dbPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True";
@@ -383,7 +398,7 @@ public partial class Program
 
     private static async Task StartProbe( bool            startWithProbeFirst
                                         , LlmStartupProbe probe
-                                        , GeminiSettings  settings
+                                        , GroqSettings    settings
                                         , ILogger         log )
     {
 

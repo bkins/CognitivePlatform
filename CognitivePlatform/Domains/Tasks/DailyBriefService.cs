@@ -33,6 +33,12 @@ public class DailyBriefService : IDailyBriefService
         _logger      = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
+    // WORKSPACE NOTE (EPIC-10):
+    // DailyBriefService is workspace-scoped transitively through ITaskService.
+    // All task data is fetched via _taskService.GetActive(), which delegates to
+    // TaskService.List() — already workspace-partitioned via IWorkspaceContext
+    // (EPIC-10-B). No direct IObjectStore calls are made here; no further changes needed.
+
     public string GetBrief(DateOnly? localDate = null)
     {
         // BUG-12: "today" is a client concern — when the caller supplies the user's

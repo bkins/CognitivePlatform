@@ -15,12 +15,13 @@ using CognitivePlatform.Api.Telemetry;
 
 namespace CognitivePlatform.Tests;
 
-[Collection("LlmSharedState")]
+
 /// <summary>
 /// EPIC-08 B2: Verifies that the orchestrator returns improved user-friendly messages
 /// for the no-action-recognized and missing-parameters failure paths, replacing the
 /// generic "I didn't recognize that" and "I'm missing some required details" strings.
 /// </summary>
+[Collection("LlmSharedState")]
 public class OrchestratorGracefulFailureTests
 {
     private readonly Mock<IActionRegistry>   _registryMock    = new();
@@ -79,6 +80,7 @@ public class OrchestratorGracefulFailureTests
           , _contextStore
           , _telemetryMock.Object
           , _fastPathMock.Object
+          , null!
           , _routerMock.Object
           , _idempotencyMock.Object
           , _telemetryContext

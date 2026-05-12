@@ -12,6 +12,7 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
@@ -36,6 +37,7 @@ public class OrchestratorInsightIntegrationTests
     private readonly Mock<IInterpreter>        _interpreterMock  = new();
     private readonly Mock<IExecutionEngine>    _executionMock    = new();
     private readonly Mock<IFastPathResolver>   _fastPathMock     = new();
+    private readonly Mock<IWorkspaceContext>    _workspaceContextMock = new();
     private readonly Mock<ILlmRouter>          _routerMock       = new();
     private readonly Mock<IIdempotencyStore>   _idempotencyMock  = new();
     private readonly Mock<IInsightEngine>      _engineMock       = new();
@@ -62,7 +64,17 @@ public class OrchestratorInsightIntegrationTests
                                            , It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        // FastPath off by default — every test that wants it on opts in.
+        // FastPath off by default
+        _fastPathMock
+            .Setup(resolver => resolver.TryExtractWorkspacePrefix(It.IsAny<string>()
+                                                                 , out It.Ref<string?>.IsAny
+                                                                 , out It.Ref<string?>.IsAny))
+            .Returns(false);
+
+        // WorkspaceContext: default no-op.
+        _workspaceContextMock
+            .Setup(context => context.SetActiveWorkspaceAsync(It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
         _fastPathMock
             .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
                                                  , out It.Ref<ActionMetadata?>.IsAny
@@ -90,6 +102,7 @@ public class OrchestratorInsightIntegrationTests
           , _contextStore
           , _telemetryMock.Object
           , _fastPathMock.Object
+          , _workspaceContextMock.Object
           , _routerMock.Object
           , _idempotencyMock.Object
           , _telemetryContext

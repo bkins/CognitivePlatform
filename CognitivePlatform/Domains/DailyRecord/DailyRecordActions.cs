@@ -20,34 +20,32 @@ public class DailyRecordActions
     // =========================================================================
 
     [FastPath]
-    [NaturalLanguageAction(
-          Description          = "Open today's daily plan. Call when the user submits their morning intention, priorities, or task list for the day."
-        , Examples             =
-          [
-                  "Plan: Today I'm focusing on the refactor. Tasks: - Write unit tests - Review the PR"
-                , "Plan: Quiet day, catching up on emails. Mood: Calm MoodScore: 3"
-                , "Morning plan: deep work on the API, then team sync."
-          ]
-        , Category             = "daily"
-        , AllowsClarification  = false)]
-    public async Task<string> OpenDay(
-          [NaturalLanguageParam(Description = "The opening text — the user's stated intention for the day."
-                              , Optional    = false
-                              , AllowEmpty  = false)]
-          string openingText
+    [NaturalLanguageAction(Description          = "Open today's daily plan. Call when the user submits their morning intention, priorities, or task list for the day."
+                         , Examples             =
+                           [
+                                   "Plan: Today I'm focusing on the refactor. Tasks: - Write unit tests - Review the PR"
+                                 , "Plan: Quiet day, catching up on emails. Mood: Calm MoodScore: 3"
+                                 , "Morning plan: deep work on the API, then team sync."
+                           ]
+                         , Category             = "daily"
+                         , AllowsClarification  = false)]
+    public async Task<string> OpenDay( [NaturalLanguageParam(Description = "The opening text — the user's stated intention for the day."
+                                                           , Optional    = false
+                                                           , AllowEmpty  = false)]
+                                       string openingText
 
-        , [NaturalLanguageParam(Description = "Comma-separated task titles to add as today's planned tasks."
-                              , Optional    = true
-                              , AllowEmpty  = true)]
-          string? tasks = null
+                                     , [NaturalLanguageParam(Description = "Comma-separated task titles to add as today's planned tasks."
+                                                           , Optional    = true
+                                                           , AllowEmpty  = true)]
+                                       string? tasks = null
 
-        , [NaturalLanguageParam(Description = "The user's mood label, e.g. 'Focused'."
-                              , Optional    = true)]
-          string? mood = null
+                                     , [NaturalLanguageParam(Description = "The user's mood label, e.g. 'Focused'."
+                                                           , Optional    = true)]
+                                       string? mood = null
 
-        , [NaturalLanguageParam(Description = "Mood score from 1 (lowest) to 5 (highest)."
-                              , Optional    = true)]
-          int? moodScore = null)
+                                     , [NaturalLanguageParam(Description = "Mood score from 1 (lowest) to 5 (highest)."
+                                                           , Optional    = true)]
+                                       int? moodScore = null)
     {
         var isAmendment = _dailyRecordService.GetToday() is not null;
         var taskTitles  = SplitCommaSeparated(tasks);
@@ -85,16 +83,15 @@ public class DailyRecordActions
     // =========================================================================
 
     [FastPath]
-    [NaturalLanguageAction(
-          Description         = "Add a check-in for today. Call when the user reports progress, completes tasks, or adds new tasks during the day."
-        , Examples            =
-          [
-                  "Check: Finished the streaming handler. Got pulled into a meeting."
-                , "Check: Good progress this morning. Tasks: - Write deployment notes"
-                , "Checking in — task 3 is done."
-          ]
-        , Category            = "daily"
-        , AllowsClarification = true)]
+    [NaturalLanguageAction(Description         = "Add a check-in for today. Call when the user reports progress, completes tasks, or adds new tasks during the day."
+                         , Examples            =
+                           [
+                                   "Check: Finished the streaming handler. Got pulled into a meeting."
+                                 , "Check: Good progress this morning. Tasks: - Write deployment notes"
+                                 , "Checking in — task 3 is done."
+                           ]
+                         , Category            = "daily"
+                         , AllowsClarification = true)]
     public async Task<string> AddCheckpoint(
           [NaturalLanguageParam(Description = "The check-in text — what the user reported."
                               , Optional    = false

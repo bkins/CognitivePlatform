@@ -1,9 +1,9 @@
 using System.Text.Json;
+using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Models.SystemInfo;
-using CognitivePlatform.Api.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
 
-namespace CognitivePlatform.Api.System;
+namespace CognitivePlatform.Api.SystemInfo;
 
 public sealed class StartupInvariantGuard
 {

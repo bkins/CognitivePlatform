@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.System;
+using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -46,7 +46,7 @@ public record StartupSummary
                 {tab}Database:       {EnvInfo.DatabasePath}
                 {tab}
                 {tab}Version:        {VerInfo.Version}
-                {tab}Build:          {VerInfo.BuildConfiguration}  ({VerInfo.BuildTimeUtc.ToLocalTime()})
+                {tab}Build:          {VerInfo.BuildConfiguration}  ({VerInfo.BuildTimeUtc?.ToLocalTime()})
                 {tab}Commit:         {shortCommit}
                 {tab}
                 {tab}LLM Model:      {DefaultModel}

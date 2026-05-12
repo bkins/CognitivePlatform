@@ -10,6 +10,13 @@ namespace CognitivePlatform.Api.Domains.DailyRecord;
 /// Owns the daily record lifecycle: open, checkpoint, close.
 /// Delegates all task mutations to ITaskService and all journal writes to IJournalService.
 /// Never writes directly to task or journal storage.
+///
+/// WORKSPACE NOTE (EPIC-10):
+/// DailyRecord is intentionally cross-workspace. DailyRecord.Id is a date string ("2026-05-06"),
+/// and the DB schema uses Id as the sole primary key (Id TEXT PRIMARY KEY). Scoping DailyRecords
+/// by workspace would require ID prefixing or a schema migration. More importantly, a "day" is
+/// a calendar concept that transcends workspace — opening/closing the day is a global operation.
+/// All _store calls in this service use partitionKey: null deliberately.
 public class DailyRecordService : IDailyRecordService
 {
     private readonly IObjectStore    _store;
@@ -71,10 +78,13 @@ public class DailyRecordService : IDailyRecordService
 
             foreach (var title in taskTitles)
             {
+                TaskDateParser.TryExtractDueDateFromTitle(title, out var cleanTitle, out var dueDate);
+
                 var task = _taskService.Create(new TaskItem
                                                {
-                                                       ShortDescription = title
+                                                       ShortDescription = cleanTitle
                                                      , OriginDate       = originDate
+                                                     , DueDate          = dueDate
                                                });
                 record.PlannedTaskIds.Add(task.Id);
             }
@@ -117,10 +127,13 @@ public class DailyRecordService : IDailyRecordService
 
         foreach (var title in newTaskTitles ?? Array.Empty<string>())
         {
+            TaskDateParser.TryExtractDueDateFromTitle(title, out var cleanTitle, out var dueDate);
+
             var task = _taskService.Create(new TaskItem
                                            {
-                                                   ShortDescription = title
+                                                   ShortDescription = cleanTitle
                                                  , OriginDate       = originDate
+                                                 , DueDate          = dueDate
                                            });
             checkpoint.AddedTaskIds.Add(task.Id);
             record.ReactiveTaskIds.Add(task.Id);
@@ -214,7 +227,7 @@ public class DailyRecordService : IDailyRecordService
     {
         var record = _store.Get<DailyRecord>(TodayKey())
                      ?? throw new InvalidOperationException(
-                            "No daily record exists for today — nothing to delete.");
+                            "No daily record exists for today â€” nothing to delete.");
 
         record.IsDeleted  = true;
         record.DeletedUtc = DateTimeOffset.UtcNow;
@@ -277,3 +290,4 @@ public class DailyRecordService : IDailyRecordService
                .Distinct(StringComparer.OrdinalIgnoreCase)
                .ToList();
 }
+

@@ -4,6 +4,7 @@ using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
@@ -29,16 +30,19 @@ public sealed class JournalService : IJournalService
     private readonly ILogger<JournalService>    _logger;
     private readonly IJournalRevisionRepository _revisionRepository;
     private readonly IJournalDraftRepository    _draftRepository;
+    private readonly IWorkspaceContext          _workspaceContext;
 
     public JournalService (IObjectStore               store
                          , IJournalRevisionRepository revisionRepository
-                           , IJournalDraftRepository draftRepository
-                         , ILogger<JournalService>    logger)
+                         , IJournalDraftRepository    draftRepository
+                         , ILogger<JournalService>    logger
+                         , IWorkspaceContext          workspaceContext)
     {
         _store              = store;
         _revisionRepository = revisionRepository;
         _draftRepository    = draftRepository;
         _logger             = logger;
+        _workspaceContext   = workspaceContext;
     }
 
     public async Task<string> AddEntryAsync(string                 text
@@ -48,7 +52,7 @@ public sealed class JournalService : IJournalService
                                           , int?                  moodLevel
                                           , IReadOnlyList<string> mediaPaths)
     {
-        var entryId = Guid.NewGuid();//.ToString("N");
+        var entryId = Guid.NewGuid();
 
         var entry = new JournalEntry
                     {
@@ -69,14 +73,19 @@ public sealed class JournalService : IJournalService
                              , MediaPaths = mediaPaths
                        };
 
-        var actualEntryId = await _store.Save(entry, entry.Id);
-        if (entryId.ToString("N") != actualEntryId) _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service.  Look into why.");
-        
-        _store.Save(revision, revision.RevisionId);
+        var actualEntryId = await _store.Save(entry
+                                            , partitionKey: _workspaceContext.ActivePartitionKey
+                                            , id:           entry.Id);
+        if (entryId.ToString("N") != actualEntryId)
+            _logger.LogWarning("The 'EntryId' that was intended to be used was not what was created by the journal service. Look into why.");
 
-        // TODO: Not sure if this is needed. Consider removing the concept of a "draft" and just having the latest revision be the "draft"
-        //  until it's finalized? The draft concept was originally intended to support a "save draft" vs "publish" flow,
-        //  but that may be overcomplicating things for now.
+        await _store.Save(revision
+                        , partitionKey: _workspaceContext.ActivePartitionKey
+                        , id:           revision.RevisionId);
+
+        // TODO: Not sure if this is needed. Consider removing the concept of a "draft" and just having the latest
+        //  revision be the "draft" until it's finalized? The draft concept was originally intended to support a
+        //  "save draft" vs "publish" flow, but that may be overcomplicating things for now.
         await _draftRepository.AddAsync(new JournalDraft
                                         {
                                                 Id         = entryId
@@ -89,7 +98,6 @@ public sealed class JournalService : IJournalService
                                         });
         return actualEntryId;
     }
-
 
     public JournalRevision EditEntry(string                 entryId
                                    , string?                text           = null
@@ -121,28 +129,26 @@ public sealed class JournalService : IJournalService
                                 , MediaPaths = mediaPaths                    ?? latest.MediaPaths
                           };
         _store.Save(newRevision
-                  , newRevision.RevisionId);
+                  , partitionKey: _workspaceContext.ActivePartitionKey
+                  , id:           newRevision.RevisionId);
 
         return newRevision;
     }
-    
+
     private JournalRevision GetLatestRevision(string entryId)
     {
         var revisions = _revisionRepository.GetRevisionsByEntryId(entryId);
 
-        return revisions.FirstOrDefault() 
+        return revisions.FirstOrDefault()
                         ?? throw new InvalidOperationException($"JournalEntry '{entryId}' has no revisions.");
     }
-    
+
     public IReadOnlyList<JournalEntryWithRevision> ListEntries(DateTimeOffset?  fromUtc = null
                                                               , DateTimeOffset? toUtc   = null)
     {
-        //NOTE: this may call the repository multiple times — that’s fine for now.
-        // Correctness > optimization, for now. When batching is implemented, it will be done once, in the repository.
-        
-        
-        var entries = _store.List<JournalEntry>(fromUtc: fromUtc
-                                              , toUtc: toUtc);
+        var entries = _store.List<JournalEntry>(partitionKey: _workspaceContext.ActivePartitionKey
+                                              , fromUtc: fromUtc
+                                              , toUtc:   toUtc);
 
         return entries.Select(entry =>
                       {
@@ -159,7 +165,7 @@ public sealed class JournalService : IJournalService
                       .OrderBy(revision => revision!.Entry.CreatedUtc)
                       .ToList()!;
     }
-    
+
     public IReadOnlyList<JournalEntryWithRevision> SearchEntries (string          keyword
                                                                 , DateTimeOffset? fromUtc = null
                                                                 , DateTimeOffset? toUtc   = null)
@@ -189,13 +195,13 @@ public sealed class JournalService : IJournalService
     public JournalEntry? GetEntry (string id)
     {
         if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("id cannot be null or empty."
-                                      , nameof(id));
+            throw new ArgumentException("id cannot be null or empty.", nameof(id));
 
-        return _store.Get<JournalEntry>(id
-                                      , partitionKey: null);
+        // Null partition key intentionally used for ID-based lookups — matches all partitions.
+        // This allows retrieval by absolute ID regardless of the current workspace.
+        return _store.Get<JournalEntry>(id, partitionKey: null);
     }
-    
+
     public IReadOnlyList<(int Position, JournalEntryWithRevision EntryWithRevision)> GetOrderedEntries()
     {
         return ListEntries()
@@ -222,7 +228,7 @@ public sealed class JournalService : IJournalService
         var revisions = _revisionRepository.GetRevisionsByEntryId(id);
 
         if (revisions.Count == 0) throw new InvalidOperationException($"JournalEntry {id} has no revisions.");
-        
+
         var latest    = revisions[0];
         var wasEdited = revisions.Count > 1;
 
@@ -237,23 +243,26 @@ public sealed class JournalService : IJournalService
 
     public bool DeleteEntry(string id, string reason)
     {
+        // Null partition key for Get — allows deletion by absolute ID regardless of workspace.
         var entry = _store.Get<JournalEntry>(id, partitionKey: null);
-        
+
         if (entry is null) return false;
         if (entry.DeletedUtc is not null) throw new InvalidOperationException("Entry is already deleted.");
-        
+
         entry.DeletedUtc    = DateTimeOffset.UtcNow;
         entry.DeletedReason = reason;
 
-        _store.Save(entry, entry.Id);
+        _store.Save(entry
+                  , partitionKey: _workspaceContext.ActivePartitionKey
+                  , id:           entry.Id);
 
         return true;
     }
-    
+
     public List<JournalEntry> ListEntriesOnThisDay (int month
                                                   , int day)
     {
-        return _store.List<JournalEntry>(partitionKey: nameof(JournalEntry))
+        return _store.List<JournalEntry>(partitionKey: _workspaceContext.ActivePartitionKey)
                      .Where(entry => entry.CreatedUtc.Month == month
                                   && entry.CreatedUtc.Day   == day
                                   && entry.DeletedUtc       == null)
@@ -272,7 +281,7 @@ public sealed class JournalService : IJournalService
               , >= 5 => MoodLevel.VeryPositive
         };
     }
-    
+
     public static string MapMoodEmoji (MoodLevel mood)
     {
         return mood switch
@@ -299,14 +308,12 @@ public sealed class JournalService : IJournalService
 
             var trimmed = raw.Trim();
 
-            // If the caller already supplied some kind of path, keep it as-is.
             if (trimmed.Contains('/') || trimmed.Contains('\\'))
             {
                 result.Add(trimmed);
             }
             else
             {
-                // Treat as a simple file name and tuck it under a logical per-entry folder.
                 result.Add($"Media/{entryId}/{trimmed}");
             }
         }

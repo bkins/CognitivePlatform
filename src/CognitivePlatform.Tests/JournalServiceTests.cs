@@ -3,17 +3,19 @@ using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Workspace;
 using Microsoft.Extensions.Logging;
 
 namespace CognitivePlatform.Tests;
 
 public class JournalServiceTests
 {
-    private readonly Mock<IObjectStore>               _storeMock          = new();
-    private readonly Mock<IJournalRevisionRepository> _revisionRepoMock   = new();
-    private readonly Mock<IJournalDraftRepository>    _draftRepoMock      = new();
-    private readonly Mock<ILogger<JournalService>>    _loggerMock         = new();
-    private readonly JournalService                   _service;
+    private readonly Mock<IObjectStore>               _storeMock            = new();
+    private readonly Mock<IJournalRevisionRepository> _revisionRepoMock     = new();
+    private readonly Mock<IJournalDraftRepository>    _draftRepoMock        = new();
+    private readonly Mock<ILogger<JournalService>>    _loggerMock           = new();
+    private readonly Mock<IWorkspaceContext>           _workspaceContextMock = new();
+    private readonly JournalService                    _service;
 
     public JournalServiceTests()
     {
@@ -31,10 +33,14 @@ public class JournalServiceTests
                                                   , It.IsAny<CancellationToken>()))
                       .Returns(Task.CompletedTask);
 
+        _workspaceContextMock.Setup(ctx => ctx.ActivePartitionKey)
+                             .Returns((string?)null); // personal workspace
+
         _service = new JournalService(_storeMock.Object
                                     , _revisionRepoMock.Object
                                     , _draftRepoMock.Object
-                                    , _loggerMock.Object);
+                                    , _loggerMock.Object
+                                    , _workspaceContextMock.Object);
     }
 
     // ================================================================
@@ -473,7 +479,7 @@ public class JournalServiceTests
                            , CreatedUtc = new DateTimeOffset(2024, 4, 20, 10, 0, 0, TimeSpan.Zero)
                      };
 
-        _storeMock.Setup(store => store.List<JournalEntry>(nameof(JournalEntry), null, null))
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
                   .Returns(new List<JournalEntry> { target, other });
 
         var results = _service.ListEntriesOnThisDay(month: 3, day: 15);
@@ -497,7 +503,7 @@ public class JournalServiceTests
                             , DeletedUtc = DateTimeOffset.UtcNow
                       };
 
-        _storeMock.Setup(store => store.List<JournalEntry>(nameof(JournalEntry), null, null))
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
                   .Returns(new List<JournalEntry> { active, deleted });
 
         var results = _service.ListEntriesOnThisDay(month: 6, day: 1);
@@ -520,7 +526,7 @@ public class JournalServiceTests
                           , CreatedUtc = new DateTimeOffset(2024, 9, 10, 12, 0, 0, TimeSpan.Zero)
                     };
 
-        _storeMock.Setup(store => store.List<JournalEntry>(nameof(JournalEntry), null, null))
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
                   .Returns(new List<JournalEntry> { older, newer });
 
         var results = _service.ListEntriesOnThisDay(month: 9, day: 10);

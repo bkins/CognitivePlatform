@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Workspace;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
@@ -10,16 +11,18 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public class TaskService : ITaskService
 {
-    private readonly IObjectStore _store;
+    private readonly IObjectStore      _store;
+    private readonly IWorkspaceContext _workspaceContext;
 
     // Provides a stable, monotonically increasing tiebreaker for tasks whose
     // CreatedAt timestamps are identical (e.g. tasks created in a batch loop).
     // Volatile ensures visibility across threads without a full lock.
     private static volatile int _sequenceCounter = 0;
 
-    public TaskService(IObjectStore store)
+    public TaskService(IObjectStore store, IWorkspaceContext workspaceContext)
     {
-        _store = store;
+        _store            = store;
+        _workspaceContext = workspaceContext;
     }
 
     public TaskItem Create(TaskItem task)
@@ -48,7 +51,8 @@ public class TaskService : ITaskService
     {
         return id == Guid.Empty
                        ? throw new ArgumentException("id cannot be empty.", nameof(id))
-                       : _store.Get<TaskItem>(id.ToString("N"), partitionKey: null);
+                       : _store.Get<TaskItem>(id.ToString("N")
+                                            , partitionKey: _workspaceContext.ActivePartitionKey);
     }
 
     public TaskItem? Get(string id)
@@ -60,7 +64,8 @@ public class TaskService : ITaskService
     {
         return id == Guid.Empty
                        ? throw new ArgumentException("id cannot be empty.", nameof(id))
-                       : _store.GetDeleted<TaskItem>(id.ToString("N"), partitionKey: null);
+                       : _store.GetDeleted<TaskItem>(id.ToString("N")
+                                                   , partitionKey: _workspaceContext.ActivePartitionKey);
     }
 
     public TaskItem? GetDeleted(string id)
@@ -75,7 +80,7 @@ public class TaskService : ITaskService
     {
         var normalizedTag = tag is null || tag.HasNoValue() ? null : tag.Trim();
 
-        return _store.List<TaskItem>()
+        return _store.List<TaskItem>(partitionKey: _workspaceContext.ActivePartitionKey)
                      .Where(task => task.IsDeleted.Not()
                                  && (includeCompleted == true || task.CompletedAt == null)
                                  && (onlyUrgent       != true || task.IsUrgent)
@@ -87,7 +92,7 @@ public class TaskService : ITaskService
                                        , DateTimeOffset? toUtc            = null
                                        , bool            includeCompleted = true )
     {
-        var tasks = _store.List<TaskItem>(partitionKey: null
+        var tasks = _store.List<TaskItem>(partitionKey: _workspaceContext.ActivePartitionKey
                                         , fromUtc: fromUtc
                                         , toUtc:   toUtc);
 
@@ -283,10 +288,9 @@ public class TaskService : ITaskService
                     .ThenBy(taskItem           => taskItem.SequenceNumber);
     }
 
-
     /// <summary>
     /// Maps a task to its Eisenhower quadrant rank (0 = highest, 3 = lowest).
-    /// Q1 — Do (important + urgent)   → 0
+    /// Q1 — Do (important + urgent)        → 0
     /// Q2 — Decide (important + not urgent) → 1
     /// Q3 — Delegate (not important + urgent) → 2
     /// Q4 — Delete (not important + not urgent) → 3
@@ -299,6 +303,7 @@ public class TaskService : ITaskService
           , _              => 3
     };
 
+    /// <summary>
     /// Parses a task ID string that may be either the standard dashed GUID format
     /// or the 32-character "N" format used by Guid.NewGuid().ToString("N").
     /// Using Guid.Parse alone fails on "N" format strings — this handles both.
@@ -308,10 +313,6 @@ public class TaskService : ITaskService
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("id cannot be null or empty.", nameof(id));
 
-        // "N" format: 32 hex chars with no dashes (e.g. "ddc5dd4442ef47e6993896eef66dfa71")
-        // "D" format: standard dashes (e.g. "ddc5dd44-42ef-47e6-9938-96eef66dfa71")
-        // Guid.ParseExact("N") handles the former; Guid.Parse handles the latter.
-        // TryParseExact with "N" first covers the common case; fall back to Parse for others.
         if (Guid.TryParseExact(id, "N", out var guidN))
             return guidN;
 
@@ -322,6 +323,8 @@ public class TaskService : ITaskService
     {
         task.UpdatedAt = DateTimeOffset.UtcNow;
 
-        _store.Save(task, partitionKey: null, id: task.Id);
+        _store.Save(task
+                  , partitionKey: _workspaceContext.ActivePartitionKey
+                  , id:           task.Id);
     }
 }

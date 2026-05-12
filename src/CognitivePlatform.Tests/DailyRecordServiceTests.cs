@@ -465,4 +465,82 @@ public class DailyRecordServiceTests
         Assert.NotNull(result);
         Assert.Equal(key, result.Id);
     }
+
+    // ================================================================
+    // OpenDayAsync — due date extraction (Bug 2 regression)
+    // ================================================================
+
+    [Fact]
+    public async Task OpenDayAsync_SetsDueDate_WhenTitleContainsByTomorrow()
+    {
+        _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns((DailyRecord?)null);
+
+        TaskItem? capturedTask = null;
+
+        _taskMock
+            .Setup(taskService => taskService.Create(It.IsAny<TaskItem>()))
+            .Callback<TaskItem>(taskItem => capturedTask = taskItem)
+            .Returns<TaskItem>(taskItem => new TaskItem
+                                           {
+                                                   Id               = "task-due"
+                                                 , ShortDescription = taskItem.ShortDescription
+                                                 , DueDate          = taskItem.DueDate
+                                           });
+
+        await _service.OpenDayAsync("Plan day.", new[] { "Fix login bug by tomorrow" });
+
+        Assert.NotNull(capturedTask);
+        Assert.Equal("Fix login bug",                             capturedTask!.ShortDescription);
+        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(1), capturedTask.DueDate!.Value.Date);
+    }
+
+    [Fact]
+    public async Task OpenDayAsync_LeavesCleanTitle_WhenNoDateSuffixPresent()
+    {
+        _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns((DailyRecord?)null);
+
+        TaskItem? capturedTask = null;
+
+        _taskMock
+            .Setup(taskService => taskService.Create(It.IsAny<TaskItem>()))
+            .Callback<TaskItem>(taskItem => capturedTask = taskItem)
+            .Returns<TaskItem>(taskItem => new TaskItem
+                                           {
+                                                   Id               = "task-plain"
+                                                 , ShortDescription = taskItem.ShortDescription
+                                           });
+
+        await _service.OpenDayAsync("Plan day.", new[] { "Review pull requests" });
+
+        Assert.NotNull(capturedTask);
+        Assert.Equal("Review pull requests", capturedTask!.ShortDescription);
+        Assert.Null(capturedTask.DueDate);
+    }
+
+    [Fact]
+    public async Task AddCheckpointAsync_SetsDueDate_WhenNewTaskTitleContainsByFriday()
+    {
+        var record = new DailyRecord { Id = TodayKey, Phase = DayPhase.Active };
+        _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns(record);
+
+        TaskItem? capturedTask = null;
+
+        _taskMock
+            .Setup(taskService => taskService.Create(It.IsAny<TaskItem>()))
+            .Callback<TaskItem>(taskItem => capturedTask = taskItem)
+            .Returns<TaskItem>(taskItem => new TaskItem
+                                           {
+                                                   Id               = "task-checkpoint"
+                                                 , ShortDescription = taskItem.ShortDescription
+                                                 , DueDate          = taskItem.DueDate
+                                           });
+
+        await _service.AddCheckpointAsync( "Discovered extra work."
+                                          , newTaskTitles: new[] { "Write release notes by Friday" });
+
+        Assert.NotNull(capturedTask);
+        Assert.Equal("Write release notes", capturedTask!.ShortDescription);
+        Assert.NotNull(capturedTask.DueDate);
+        Assert.Equal(DayOfWeek.Friday,      capturedTask.DueDate!.Value.DayOfWeek);
+    }
 }

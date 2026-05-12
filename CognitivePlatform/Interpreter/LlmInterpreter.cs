@@ -472,14 +472,23 @@ public class LlmInterpreter : IInterpreter
 #endif
         
         if (raw.HasNoValue()) return emptyResponse;
+
+
+        GeminiErrorResponse? firstValue; //= result?.FirstOrDefault();
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<List<GeminiErrorResponse>>(raw);
+            firstValue = result?.FirstOrDefault();
+        }
+        catch (Exception e)
+        {
+            emptyResponse.Error.Message = $"Failed to parse Gemini error response: {e.GetType().Name} - {e.Message}\n{e.StackTrace}";
+
+            return emptyResponse;
+        }
         
-        var result = JsonSerializer.Deserialize<List<GeminiErrorResponse>>(raw);
-
-        var firstValue = result?.FirstOrDefault();
-
-        if (firstValue is null) return emptyResponse;
-
-        return firstValue;
+        return firstValue ?? emptyResponse;
     }
     // ---------------------------------------------------------------------
     // Parsing with multi-stage JSON extraction

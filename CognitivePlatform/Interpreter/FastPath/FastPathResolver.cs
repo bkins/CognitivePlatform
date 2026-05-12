@@ -209,6 +209,7 @@ public sealed class FastPathResolver : IFastPathResolver
         return true;
     }
 
+    
     // ================================================================
     // COLON PREFIX MODE  (journal: ..., task: ...)
     // ================================================================
@@ -252,7 +253,28 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
+        if (prefix.Equals("system", StringComparison.OrdinalIgnoreCase))
+        {
+            SetSystemAction(input:  input
+                          , action: ref action);
+            
+            parameters = ParseToDictionary(input);
+            
+            return action is not null;
+        }
+
         return false;
+    }
+
+    private void SetSystemAction( string              input
+                                , ref ActionMetadata? action )
+    {
+
+        if (input.Contains("version"))       action = _registry.Actions.FirstOrDefault(action => action.Name == "GetVersion");
+        if (input.Contains("environment"))   action = _registry.Actions.FirstOrDefault(action => action.Name == "GetEnvironment");
+        if (input.Contains("uptime"))        action = _registry.Actions.FirstOrDefault(action => action.Name == "GetUptime");
+        if (input.Contains("System Status")) action = _registry.Actions.FirstOrDefault(action => action.Name == "GetSystemStatus");
+        if (input.Contains("configuration")) action = _registry.Actions.FirstOrDefault(action => action.Name == "GetConfigurationValue");
     }
 
     public static Dictionary<string, string> ParseToDictionary(string input)
@@ -423,7 +445,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
                 var listParams = BuildListTasksParameters(arg.ToLowerInvariant());
 
-                // "/task list" with no qualifier means "show everything" — same
+                // "/task list" with no qualifier means "show everything" â€” same
                 // contract as "show my tasks" in natural language.
                 if (string.IsNullOrWhiteSpace(arg))
                     listParams["includeCompleted"] = "true";
@@ -583,7 +605,7 @@ public sealed class FastPathResolver : IFastPathResolver
     {
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // "show my tasks" / "list my tasks" / "what are my tasks" — no qualifier means
+        // "show my tasks" / "list my tasks" / "what are my tasks" â€” no qualifier means
         // the user wants their full picture: open AND completed (but not deleted).
         // Explicit filter phrases like "show open tasks" leave includeCompleted unset (false).
         var unqualifiedSignals    = new[] { "show my tasks", "list my tasks", "what are my tasks"
@@ -604,7 +626,7 @@ public sealed class FastPathResolver : IFastPathResolver
         if (normalized.Contains("overdue"))
             parameters["overdueOnly"] = "true";
 
-        // Due-date shorthand phrases — translate to a dueBefore value the execution engine
+        // Due-date shorthand phrases â€” translate to a dueBefore value the execution engine
         // can coerce to DateTimeOffset?. Full ISO-8601 with offset is used deliberately:
         // date-only "yyyy-MM-dd" may be parsed as a local DateTime rather than a DateTimeOffset,
         // causing silent coercion failure and the filter being ignored entirely.
@@ -617,7 +639,7 @@ public sealed class FastPathResolver : IFastPathResolver
         if (normalized.Contains("this week"))
             parameters["dueBefore"] = DateTimeOffset.UtcNow.Date.AddDays(7).ToString("yyyy-MM-ddTHH:mm:sszzz");
 
-        // Priority keyword → map to the equivalent importance/urgency flags so
+        // Priority keyword â†’ map to the equivalent importance/urgency flags so
         // ListTasks' existing filter parameters are satisfied without LLM help.
         if (normalized.Contains("high priority") || normalized.Contains("critical"))
         {
@@ -865,7 +887,7 @@ public sealed class FastPathResolver : IFastPathResolver
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskDueDate");
         if (action is null) return false;
 
-        // Clearing phrases — pass a sentinel the action recognises as "remove due date".
+        // Clearing phrases â€” pass a sentinel the action recognises as "remove due date".
         var isClearIntent = normalized.Contains("clear due")
                          || normalized.Contains("remove due")
                          || normalized.Contains("no due date");
@@ -894,8 +916,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
     /// <summary>
     /// Extracts the raw date string that follows a due-date signal phrase.
-    /// e.g. "task 2 is due friday" → "friday"
-    ///      "set task 3 due date to april 5th" → "april 5th"
+    /// e.g. "task 2 is due friday" â†’ "friday"
+    ///      "set task 3 due date to april 5th" â†’ "april 5th"
     /// </summary>
     private static string ExtractDueDateText(string normalized)
     {
@@ -935,7 +957,7 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // MODE 3: GENERIC FAST PATH — ATTRIBUTE + METADATA DRIVEN
+    // MODE 3: GENERIC FAST PATH â€” ATTRIBUTE + METADATA DRIVEN
     // ================================================================
     private bool TryResolveGenericFastPath( string                           input
                                            , out ActionMetadata?             action
@@ -1041,7 +1063,7 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // SIGNAL DETECTION — NATURAL LANGUAGE INTENT MARKERS (journal/add)
+    // SIGNAL DETECTION â€” NATURAL LANGUAGE INTENT MARKERS (journal/add)
     // ================================================================
     private static readonly string[] FastPathSignals =
     {
@@ -1150,7 +1172,7 @@ public sealed class FastPathResolver : IFastPathResolver
         action     = null;
         parameters = null;
 
-        // SetModel — requires explicit "model" keyword to avoid false positives
+        // SetModel â€” requires explicit "model" keyword to avoid false positives
         var setModelMatch = Regex.Match(input,
                                        @"^(?:set\s+model\s+to|use\s+model|switch\s+model\s+to|change\s+model\s+to|switch\s+to\s+model)\s+(.+)$",
                                        RegexOptions.IgnoreCase);
@@ -1163,7 +1185,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // SetProvider — explicit "provider" keyword
+        // SetProvider â€” explicit "provider" keyword
         var setProviderMatch = Regex.Match(input,
                                            @"^(?:set\s+provider\s+to|use\s+provider|switch\s+provider\s+to|switch\s+to\s+provider)\s+(.+)$",
                                            RegexOptions.IgnoreCase);
@@ -1176,7 +1198,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // "switch to <X>" or "use <X>" — only when X is a known LlmProvider name
+        // "switch to <X>" or "use <X>" â€” only when X is a known LlmProvider name
         var bareSwitch = Regex.Match(input, @"^(?:switch\s+to|use)\s+(\w+)$", RegexOptions.IgnoreCase);
         if (bareSwitch.Success && Enum.TryParse<LlmProvider>(bareSwitch.Groups[1].Value, ignoreCase: true, out _))
         {
@@ -1208,5 +1230,46 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return false;
+    }
+
+    // ================================================================
+    // WORKSPACE PREFIX  ("workspaceName: remainder")
+    // ================================================================
+
+    private static readonly Regex WorkspacePrefixPattern =
+        new(@"^([A-Za-z][A-Za-z0-9_-]*):\s+(.+)$"
+          , RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <inheritdoc />
+    public bool TryExtractWorkspacePrefix( string     input
+                                         , out string? workspaceName
+                                         , out string? remainder )
+    {
+        workspaceName = null;
+        remainder     = null;
+
+        if (input.HasValue().Not()) return false;
+
+        var match = WorkspacePrefixPattern.Match(input.Trim());
+        if (!match.Success) return false;
+
+        var token = match.Groups[1].Value;
+
+        // Built-in daily-record prefixes (Plan:, Check:, EOD:, Done:, Evening:, DayDone:)
+        // must not be treated as workspace names.
+        if (DailyRecordCommandParser.StartsWithKnownPrefix(input)) return false;
+
+        // Registered action names (Journal:, AddTask:, etc.) are handled by Mode 1.1.
+        if (_registry.Actions.Any(registryAction =>
+                registryAction.Name.Equals(token, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        
+        if (_registry.Actions.Any(registryAction =>
+                registryAction.Category.Equals(token, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        
+        workspaceName = token;
+        remainder     = match.Groups[2].Value.Trim();
+        return true;
     }
 }

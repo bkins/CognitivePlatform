@@ -42,7 +42,17 @@ public class CalendarActions
         var offset  = localNow.Offset;
         var from    = new DateTimeOffset(today,            offset);
         var to      = new DateTimeOffset(today.AddDays(1), offset);
-        var events = await _calendar.GetEventsAsync(from, to);
+
+        IReadOnlyList<CalendarEvent> events;
+
+        try
+        {
+            events = await _calendar.GetEventsAsync(from, to);
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
 
         return events.Count == 0
                        ? $"No events on your calendar for {today:yyyy-MM-dd}."
@@ -79,7 +89,17 @@ public class CalendarActions
         var offset = TimeZoneInfo.Local.GetUtcOffset(day);
         var from   = new DateTimeOffset(day,            offset);
         var to     = new DateTimeOffset(day.AddDays(1), offset);
-        var events = await _calendar.GetEventsAsync(from, to);
+
+        IReadOnlyList<CalendarEvent> events;
+
+        try
+        {
+            events = await _calendar.GetEventsAsync(from, to);
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
 
         return events.Count == 0
                        ? $"No events on your calendar for {day:yyyy-MM-dd}."
@@ -174,7 +194,17 @@ public class CalendarActions
         var offset = TimeZoneInfo.Local.GetUtcOffset(day);
         var from   = new DateTimeOffset(day,            offset);
         var to     = new DateTimeOffset(day.AddDays(1), offset);
-        var events = await _calendar.GetEventsAsync(from, to);
+
+        IReadOnlyList<CalendarEvent> events;
+
+        try
+        {
+            events = await _calendar.GetEventsAsync(from, to);
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
 
         // Build a list of busy intervals from timed (non-all-day) events, sorted by start
         var busy = events.Where(calendarEvent => calendarEvent.IsAllDay.Not())
@@ -261,4 +291,8 @@ public class CalendarActions
     private static string NotConnectedMessage()
         => "Google Calendar is not connected. "
          + "Open http://localhost:<environmentPort>/auth/google/connect in your browser to authorise access, then try again.";
+
+    private static string ReAuthMessage()
+        => "Your Google Calendar session has expired. "
+         + "Open http://localhost:<environmentPort>/auth/google/connect in your browser to re-authorise, then try again.";
 }

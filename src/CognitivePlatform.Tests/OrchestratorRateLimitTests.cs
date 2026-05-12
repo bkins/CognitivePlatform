@@ -12,15 +12,17 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
-[Collection("LlmSharedState")]
+
 /// <summary>
 /// BUG-20: Verifies that when the interpreter returns an exception carrying
 /// a 429 status code, the orchestrator returns a user-friendly rate-limit
 /// message with the reset time rather than the generic error response.
 /// </summary>
+[Collection("LlmSharedState")]
 public class OrchestratorRateLimitTests
 {
     private readonly Mock<IActionRegistry>   _registryMock    = new();
@@ -32,7 +34,8 @@ public class OrchestratorRateLimitTests
     private readonly Mock<IInsightEngine>    _engineMock      = new();
     private readonly Mock<IActivityLog>      _activityLogMock = new();
     private readonly Mock<ITelemetrySink>    _telemetryMock   = new();
-    private readonly Mock<ILlmRateLimiter>   _rateLimiterMock = new();
+    private readonly Mock<ILlmRateLimiter>   _rateLimiterMock      = new();
+    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
 
     private readonly InMemoryInsightHistoryStore _historyStore     = new();
     private readonly ConversationContextStore    _contextStore     = new();
@@ -75,6 +78,7 @@ public class OrchestratorRateLimitTests
           , _contextStore
           , _telemetryMock.Object
           , _fastPathMock.Object
+          , _workspaceContextMock.Object
           , _routerMock.Object
           , _idempotencyMock.Object
           , _telemetryContext

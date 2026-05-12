@@ -16,6 +16,7 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -27,6 +28,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ConversationContextStore _contextStore;
     private readonly ITelemetrySink           _telemetry;
     private readonly IFastPathResolver        _fastPath;
+    private readonly IWorkspaceContext        _workspaceContext;
     private readonly ILlmRouter               _llmRouter;
     private readonly IIdempotencyStore        _idempotencyStore;
     private readonly TelemetryContext         _telemetryContext;
@@ -45,6 +47,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , ConversationContextStore                                       contextStore
                                    , ITelemetrySink                                                 telemetry
                                    , IFastPathResolver                                              fastPathResolver
+                                   , IWorkspaceContext                                              workspaceContext
                                    , ILlmRouter                                                     llmRouter
                                    , IIdempotencyStore                                              idempotencyStore
                                    , TelemetryContext                                               telemetryContext
@@ -61,6 +64,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _contextStore     = contextStore     ?? throw new ArgumentNullException(nameof(contextStore));
         _telemetry        = telemetry        ?? throw new ArgumentNullException(nameof(telemetry));
         _fastPath         = fastPathResolver ?? throw new ArgumentNullException(nameof(fastPathResolver));
+        _workspaceContext = workspaceContext ?? throw new ArgumentNullException(nameof(workspaceContext));
         _llmRouter        = llmRouter        ?? throw new ArgumentNullException(nameof(llmRouter));
         _idempotencyStore = idempotencyStore ?? throw new ArgumentNullException(nameof(idempotencyStore));
         _telemetryContext = telemetryContext ?? throw new ArgumentNullException(nameof(telemetryContext));
@@ -145,7 +149,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // input without the influence of a model.
         // For example,
         // a "Cancel" command should ideally be recognized as such regardless of the model specified in the request.
-        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
+        
+        // EPIC-10-D: Strip workspace prefix and switch workspace before fast-path resolution.
+        var resolveInput = request.Input;
+        if (_fastPath.TryResolve(request.Input, out var workspaceName, out var workspaceRemainder))
+        {
+            await _workspaceContext.SetActiveWorkspaceAsync(workspaceName.Name!);
+            //resolveInput = workspaceRemainder!;
+        }
+
+        if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive.Not())
         {
             var response = await TakeTheFastPath(actionMeta
@@ -988,7 +1001,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // ✅ J-01.1: FastPath always wins (for non-destructive actions).
         // In streaming mode: if FastPath resolves a non-destructive action, execute
         // and emit a single chunk. Destructive actions fall through to the interpreter.
-        if (_fastPath.TryResolve(request.Input, out var actionMeta, out var fastParams)
+        // EPIC-10-D: Strip workspace prefix and switch workspace before fast-path resolution.
+        var streamResolveInput = request.Input;
+        if (_fastPath.TryExtractWorkspacePrefix(request.Input, out var streamWorkspaceName, out var streamWorkspaceRemainder))
+        {
+            await _workspaceContext.SetActiveWorkspaceAsync(streamWorkspaceName!);
+            streamResolveInput = streamWorkspaceRemainder!;
+        }
+
+        if (_fastPath.TryResolve(streamResolveInput, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive == false)
         {
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent

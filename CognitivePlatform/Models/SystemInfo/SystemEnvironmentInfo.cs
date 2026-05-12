@@ -16,14 +16,14 @@ public sealed class SystemEnvironmentInfo
         {
                 var sb = new StringBuilder();
 
-                sb.AppendLine(nameof(SystemEnvironmentInfo));
-                sb.AppendLine($"\t{nameof(EnvironmentName)}:  {EnvironmentName}");
-                sb.AppendLine($"\t{nameof(MachineName)}:      {MachineName}");
+                sb.AppendLine($"# {nameof(SystemEnvironmentInfo)}");
+                sb.AppendLine($"- **{nameof(EnvironmentName)}**:  {EnvironmentName}");
+                sb.AppendLine($"- **{nameof(MachineName)}**:      {MachineName}");
                 // sb.AppendLine($"\t{nameof(ContentRoot)}:      {ContentRoot}");
                 // sb.AppendLine($"\t{nameof(DataRoot)}:         {DataRoot}");
-                sb.AppendLine($"\t{nameof(DatabasePath)}:     {DatabasePath}");
-                sb.AppendLine($"\t{nameof(ProcessId)}:        {ProcessId}");
-                sb.Append($"\t{nameof(StartedAtUtc)}:     {StartedAtUtc.ToLocalTime()}");
+                sb.AppendLine($"- **{nameof(DatabasePath)}**:     {DatabasePath}");
+                sb.AppendLine($"- **{nameof(ProcessId)}**:        {ProcessId}");
+                sb.Append($"- **{nameof(StartedAtUtc)}**:     {StartedAtUtc.ToLocalTime()}");
 
                 return sb.ToString();
         }

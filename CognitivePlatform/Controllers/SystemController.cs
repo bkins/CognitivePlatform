@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.Telemetry;

@@ -136,8 +136,8 @@ public class GoogleCalendarProvider : ICalendarProvider
         var accessToken = await GetValidAccessTokenAsync(ct);
         if (accessToken is null)
         {
-            _logger.LogWarning("No valid access token â€” returning empty event list");
-            return [];
+            _logger.LogWarning("No valid access token -- throwing CalendarAuthException");
+            throw new CalendarAuthException();
         }
 
         var calendars = await GetCalendarListAsync(accessToken, ct);

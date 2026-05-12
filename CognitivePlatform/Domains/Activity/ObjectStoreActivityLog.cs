@@ -1,20 +1,26 @@
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Domains.Activity;
 
 public sealed class ObjectStoreActivityLog : IActivityLog
 {
-    private readonly IObjectStore _store;
+    private readonly IObjectStore      _store;
+    private readonly IWorkspaceContext _workspaceContext;
 
-    public ObjectStoreActivityLog(IObjectStore store)
+    public ObjectStoreActivityLog(IObjectStore store, IWorkspaceContext workspaceContext)
     {
-        _store = store;
+        _store            = store;
+        _workspaceContext = workspaceContext;
     }
 
     public async Task LogAsync(ActivityEvent activityEvent, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await _store.Save(activityEvent, partitionKey: null, id: activityEvent.Id).ConfigureAwait(false);
+        await _store.Save(activityEvent
+                        , partitionKey: _workspaceContext.ActivePartitionKey
+                        , id:           activityEvent.Id)
+                    .ConfigureAwait(false);
     }
 
     public Task<IReadOnlyList<ActivityEvent>> ListAsync( DateTimeOffset?   fromUtc           = null
@@ -23,9 +29,12 @@ public sealed class ObjectStoreActivityLog : IActivityLog
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<ActivityEvent> ordered = _store.List<ActivityEvent>(partitionKey: null, fromUtc: fromUtc, toUtc: toUtc)
-                                                     .OrderByDescending(activityEvent => activityEvent.OccurredUtc)
-                                                     .ToList();
+        IReadOnlyList<ActivityEvent> ordered =
+            _store.List<ActivityEvent>(partitionKey: _workspaceContext.ActivePartitionKey
+                                     , fromUtc: fromUtc
+                                     , toUtc:   toUtc)
+                  .OrderByDescending(activityEvent => activityEvent.OccurredUtc)
+                  .ToList();
 
         return Task.FromResult(ordered);
     }

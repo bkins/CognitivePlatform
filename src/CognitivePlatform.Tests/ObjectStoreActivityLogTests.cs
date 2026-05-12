@@ -1,13 +1,15 @@
 using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Activity;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
 public class ObjectStoreActivityLogTests
 {
-    private readonly Mock<IObjectStore>     _storeMock = new();
-    private readonly ObjectStoreActivityLog _log;
+    private readonly Mock<IObjectStore>      _storeMock            = new();
+    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
+    private readonly ObjectStoreActivityLog  _log;
 
     public ObjectStoreActivityLogTests()
     {
@@ -16,7 +18,10 @@ public class ObjectStoreActivityLogTests
                                            , It.IsAny<string?>()))
                   .ReturnsAsync("id");
 
-        _log = new ObjectStoreActivityLog(_storeMock.Object);
+        _workspaceContextMock.Setup(ctx => ctx.ActivePartitionKey)
+                             .Returns((string?)null); // personal workspace
+
+        _log = new ObjectStoreActivityLog(_storeMock.Object, _workspaceContextMock.Object);
     }
 
     [Fact]
@@ -88,8 +93,10 @@ public class ObjectStoreActivityLogTests
     [Fact]
     public async Task LogAndList_RoundTrip_ViaInMemoryStore()
     {
-        var inMemoryStore = new FakeObjectStore();
-        var log           = new ObjectStoreActivityLog(inMemoryStore);
+        var inMemoryStore      = new FakeObjectStore();
+        var workspaceCtxMock   = new Mock<IWorkspaceContext>();
+        workspaceCtxMock.Setup(ctx => ctx.ActivePartitionKey).Returns((string?)null);
+        var log = new ObjectStoreActivityLog(inMemoryStore, workspaceCtxMock.Object);
 
         var first  = new ActivityEvent { ActivityType = "run",        OccurredUtc = DateTimeOffset.UtcNow.AddMinutes(-5) };
         var second = new ActivityEvent { ActivityType = "meditation", OccurredUtc = DateTimeOffset.UtcNow                };

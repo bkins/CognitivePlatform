@@ -79,7 +79,7 @@ public class GeminiSettings
     /// Recommended: "gemini-2.5-flash" (fast, free tier).
     /// Full list: https://ai.google.dev/gemini-api/docs/models
     /// </summary>
-    public string Model { get; set; } = "gemini-2.5-flash";
+    public string Model { get; set; } = "llama-3.3-70b-versatile"; //"gemini-3.1-pro-preview";
 
     /// <summary>
     /// Google's OpenAI-compatible base URL.

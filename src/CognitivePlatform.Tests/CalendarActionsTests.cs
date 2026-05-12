@@ -326,4 +326,53 @@ public class CalendarActionsTests
 
         Assert.Contains("No free slots", result, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ================================================================
+    // CalendarAuthException handling (Bug 3 regression)
+    // ================================================================
+
+    [Fact]
+    public async Task GetTodayEvents_ReturnsReAuthMessage_WhenTokenExpired()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .ThrowsAsync(new CalendarAuthException());
+
+        var result = await _actions.GetTodayEvents();
+
+        Assert.Contains("expired", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No events", result);
+    }
+
+    [Fact]
+    public async Task GetEventsForDate_ReturnsReAuthMessage_WhenTokenExpired()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .ThrowsAsync(new CalendarAuthException());
+
+        var result = await _actions.GetEventsForDate("2026-04-20");
+
+        Assert.Contains("expired", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No events", result);
+    }
+
+    [Fact]
+    public async Task FindFreeTime_ReturnsReAuthMessage_WhenTokenExpired()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .ThrowsAsync(new CalendarAuthException());
+
+        var result = await _actions.FindFreeTime("2026-04-20", 60);
+
+        Assert.Contains("expired", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No free slots", result);
+    }
 }

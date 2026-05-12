@@ -1,13 +1,15 @@
 using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
 public class TaskServiceTests
 {
-    private readonly Mock<IObjectStore> _storeMock = new();
-    private readonly TaskService        _service;
+    private readonly Mock<IObjectStore>      _storeMock            = new();
+    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
+    private readonly TaskService             _service;
 
     public TaskServiceTests()
     {
@@ -16,7 +18,10 @@ public class TaskServiceTests
                                            , It.IsAny<string?>()))
                   .ReturnsAsync(string.Empty);
 
-        _service = new TaskService(_storeMock.Object);
+        _workspaceContextMock.Setup(ctx => ctx.ActivePartitionKey)
+                             .Returns((string?)null); // personal workspace
+
+        _service = new TaskService(_storeMock.Object, _workspaceContextMock.Object);
     }
 
     // ================================================================
