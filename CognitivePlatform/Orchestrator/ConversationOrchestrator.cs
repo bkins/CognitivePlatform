@@ -429,9 +429,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
-            // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
-            // with the reset time rather than the generic connectivity-error path.
-            var message = BuildExceptionMessage(interpretation);
+            // BUG-20 / EPIC-07-B: user-friendly message for 429 and capacity errors.
+            // Debug detail is appended inside BuildExceptionMessage for generic failures only
+            // so that 429 / capacity-exhaustion messages are never overridden.
+            var message = BuildExceptionMessage(interpretation.Exception
+                                              , interpretation.DebugInfo ?? string.Empty);
 
             var llmExceptionResponse = new ConverseResponse
                                        {
@@ -1036,34 +1038,35 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Does this need to be determined in the controller?  
     }
 
-    private string BuildExceptionMessage(InterpreterResult interpretation)
+    // BUG-20 / EPIC-07-B: returns a human-friendly message for 429 and capacity-exhaustion errors.
+    // User-friendly exception types are returned as-is even in debug mode so tests are reliable.
+    private string BuildExceptionMessage(Exception? exception, string debugInfo = "")
     {
-        if (IsRateLimitException(interpretation.Exception))
-        {
-            var snapshot  = _rateLimiter.GetCurrentSnapshot("Groq");
-            var resetTime = snapshot.RequestsResetAt?.ToLocalTime().ToString("h:mm tt")
-                         ?? snapshot.TokensResetAt?.ToLocalTime().ToString("h:mm tt");
+        if (exception is LlmCapacityExceededException)
+            return "All AI providers are currently at capacity. Please try again later.";
 
-            return resetTime is not null
-                           ? $"Groq rate limit reached — resets at {resetTime}"
-                           : "Groq rate limit reached. Please wait a moment and try again.";
+        if (exception?.Message.Contains("429", StringComparison.Ordinal) == true)
+        {
+            var snapshot  = _rateLimiter.GetLatest("Groq");
+            var resetPart = snapshot.RequestsResetAt is not null
+                                    ? $" — resets at {snapshot.RequestsResetAt.Value.ToLocalTime():h:mm tt}"
+                                    : string.Empty;
+            return $"Groq rate limit reached{resetPart}. Please wait a moment before trying again.";
         }
 
         if (_isDebug)
-        {
             return $"""
                     ## Something went wrong while processing your request.
                     ----
                     You are getting this because:
                     ```csharp
                     interpretation.FailureType == InterpreterFailureType.Exception
-                    {interpretation.Exception?.ToString() ?? "No exception details available."}
+                    {exception?.ToString() ?? "No exception details available."}
                     ```
                     Is `true`
                     The exception is:
-                    >{interpretation.DebugInfo}
+                    >{debugInfo}
                     """;
-        }
 
         return "Something went wrong while processing your request. Please try again.";
     }
@@ -1122,9 +1125,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         return $"I know what you want to do, but I'm missing some required details.{detail} Please try again with the full details.";
     }
-
-    private static bool IsRateLimitException(Exception? ex)
-        => ex?.Message.Contains("429", StringComparison.Ordinal) == true;
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
                                                                  , IDictionary<string, string> parameters)

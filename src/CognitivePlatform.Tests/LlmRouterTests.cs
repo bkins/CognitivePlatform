@@ -9,13 +9,14 @@ namespace CognitivePlatform.Tests;
 
 public class LlmRouterTests
 {
-    private readonly Mock<ILlmClientFactory>   _factoryMock      = new();
-    private readonly Mock<ILlmClient>          _groqClient       = new();
-    private readonly Mock<ILlmClient>          _openRouter       = new();
-    private readonly Mock<ILlmClient>          _gemini           = new();
-    private readonly Mock<IPromptLogger>       _loggerMock       = new();
-    private readonly Mock<ILlmUsageAggregator> _aggregatorMock   = new();
-    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock  = new();
+    private readonly Mock<ILlmClientFactory>   _factoryMock        = new();
+    private readonly Mock<ILlmClient>          _groqClient         = new();
+    private readonly Mock<ILlmClient>          _openRouter         = new();
+    private readonly Mock<ILlmClient>          _gemini             = new();
+    private readonly Mock<IPromptLogger>       _loggerMock         = new();
+    private readonly Mock<ILlmUsageAggregator> _aggregatorMock     = new();
+    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock    = new();
+    private readonly Mock<ILlmCapacityRouter>  _capacityRouterMock = new();
 
     private readonly LlmProviderDefaults _defaults;
     private readonly LlmRouter           _router;
@@ -37,11 +38,15 @@ public class LlmRouterTests
         _factoryMock.Setup(factory => factory.Create(LlmProvider.OpenRouter)).Returns(_openRouter.Object);
         _factoryMock.Setup(factory => factory.Create(LlmProvider.Gemini))    .Returns(_gemini.Object);
 
+        // Default: no provider is exhausted — session routing proceeds normally.
+        _rateLimiterMock.Setup(limiter => limiter.IsExhausted(It.IsAny<string>())).Returns(false);
+
         _router = new LlmRouter(_factoryMock.Object
                               , Options.Create(_defaults)
                               , _loggerMock.Object
                               , _aggregatorMock.Object
-                              , _rateLimiterMock.Object);
+                              , _rateLimiterMock.Object
+                              , _capacityRouterMock.Object);
     }
 
     [Fact]

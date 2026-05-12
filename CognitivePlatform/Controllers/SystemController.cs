@@ -73,7 +73,7 @@ public class SystemController : ControllerBase
     {
         var snapshot        = _usageTracker.Current;
         var sessionTotals   = _llmUsageAggregator.GetSessionTotal();
-        var groqRateLimits  = _llmRateLimiter.GetCurrentSnapshot("Groq");
+        var groqRateLimits  = _llmRateLimiter.GetLatest("Groq");
 
         var response = new
                        {

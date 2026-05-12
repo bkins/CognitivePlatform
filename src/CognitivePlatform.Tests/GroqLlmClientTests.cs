@@ -14,9 +14,9 @@ namespace CognitivePlatform.Tests;
 /// </summary>
 public class GroqLlmClientTests
 {
-    private static GroqLlmClient BuildClient( HttpMessageHandler       handler
-                                            , IGroqUsageTracker?       tracker     = null
-                                            , ILlmRateLimiter?         rateLimiter = null )
+    private static GroqLlmClient BuildClient( HttpMessageHandler handler
+                                            , IGroqUsageTracker? tracker     = null
+                                            , ILlmRateLimiter?   rateLimiter = null )
     {
         var httpClient = new HttpClient(handler);
 

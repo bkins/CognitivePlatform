@@ -24,4 +24,11 @@ public sealed class LlmResponseMetadata
 
     /// <summary>UTC timestamp when this metadata was captured.</summary>
     public DateTimeOffset CapturedUtc { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Set when the capacity router switched to a fallback provider because the
+    /// session-preferred provider was exhausted (ENH-12). Null in the normal path.
+    /// Example: "Switched to gemini (gemini-2.0-flash) — Groq limit reached".
+    /// </summary>
+    public string? ProviderSwitchNote { get; init; }
 }

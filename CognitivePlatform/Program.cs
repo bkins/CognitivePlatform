@@ -131,6 +131,16 @@ public partial class Program
         builder.Services.AddSingleton<ILlmUsageAggregator, InMemoryLlmUsageAggregator>();
         builder.Services.AddSingleton<ILlmRateLimiter,     InMemoryLlmRateLimiter>();
 
+        // EPIC-07 Phase B: capacity-aware multi-provider router
+        builder.Services.AddSingleton<ILlmCapacityRouter>(sp =>
+        {
+            var configs     = builder.Configuration
+                                     .GetSection("LlmModels")
+                                     .Get<List<LlmModelConfig>>() ?? [];
+            var rateLimiter = sp.GetRequiredService<ILlmRateLimiter>();
+            return new LlmCapacityRouter(configs, rateLimiter);
+        });
+
 // Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();
         builder.Services.AddSingleton<ILlmClientFactory>(sp => sp.GetRequiredService<LlmClientFactory>());
