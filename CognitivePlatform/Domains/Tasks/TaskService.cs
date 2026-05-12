@@ -225,6 +225,15 @@ public class TaskService : ITaskService
         SaveInternal(task);
     }
 
+    public IReadOnlyList<TaskItem> GetCompleted()
+    {
+        return _store.List<TaskItem>()
+                     .Where(task => task.IsDeleted.Not()
+                                 && task.CompletedAt != null)
+                     .OrderByDescending(task => task.CompletedAt)
+                     .ToList();
+    }
+
     // --- Private helpers ----------------------------------------------------
 
     private BatchCompleteResult CompleteOne(string taskId)

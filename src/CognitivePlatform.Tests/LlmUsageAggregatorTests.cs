@@ -4,16 +4,28 @@ namespace CognitivePlatform.Tests;
 
 public class LlmUsageAggregatorTests
 {
-    private readonly LlmUsageAggregator _aggregator = new();
+    private readonly InMemoryLlmUsageAggregator _aggregator = new();
+
+    private static LlmResponseMetadata MetadataWith(int prompt, int completion, int total, string provider = "Groq")
+        => new()
+           {
+                   ProviderId = provider
+                 , Usage      = new LlmUsageInfo
+                                {
+                                        PromptTokens     = prompt
+                                      , CompletionTokens = completion
+                                      , TotalTokens      = total
+                                }
+           };
 
     // ----------------------------------------------------------------
-    // Record / GetTotals
+    // Record / GetSessionTotal
     // ----------------------------------------------------------------
 
     [Fact]
-    public void GetTotals_ReturnsZeros_BeforeAnyCallIsRecorded()
+    public void GetSessionTotal_ReturnsZeros_BeforeAnyCallIsRecorded()
     {
-        var totals = _aggregator.GetTotals();
+        var totals = _aggregator.GetSessionTotal();
 
         Assert.Equal(0, totals.PromptTokens);
         Assert.Equal(0, totals.CompletionTokens);
@@ -23,10 +35,10 @@ public class LlmUsageAggregatorTests
     [Fact]
     public void Record_AccumulatesTokenCounts_AcrossMultipleCalls()
     {
-        _aggregator.Record(new LlmUsageInfo { PromptTokens = 10, CompletionTokens = 5,  TotalTokens = 15 });
-        _aggregator.Record(new LlmUsageInfo { PromptTokens = 20, CompletionTokens = 10, TotalTokens = 30 });
+        _aggregator.Record(MetadataWith(prompt: 10, completion: 5,  total: 15));
+        _aggregator.Record(MetadataWith(prompt: 20, completion: 10, total: 30));
 
-        var totals = _aggregator.GetTotals();
+        var totals = _aggregator.GetSessionTotal();
 
         Assert.Equal(30, totals.PromptTokens);
         Assert.Equal(15, totals.CompletionTokens);
@@ -36,9 +48,9 @@ public class LlmUsageAggregatorTests
     [Fact]
     public void Record_IsNoOp_WhenAllCountsAreZero()
     {
-        _aggregator.Record(LlmUsageInfo.Empty);
+        _aggregator.Record(new LlmResponseMetadata { Usage = LlmUsageInfo.Empty });
 
-        var totals = _aggregator.GetTotals();
+        var totals = _aggregator.GetSessionTotal();
 
         Assert.Equal(0, totals.PromptTokens);
         Assert.Equal(0, totals.CompletionTokens);
@@ -46,15 +58,13 @@ public class LlmUsageAggregatorTests
     }
 
     [Fact]
-    public void GetTotals_ReturnsSnapshot_NotLiveReference()
+    public void GetSessionTotal_ReturnsSnapshot_NotLiveReference()
     {
-        _aggregator.Record(new LlmUsageInfo { PromptTokens = 10, CompletionTokens = 5, TotalTokens = 15 });
-        var snapshot = _aggregator.GetTotals();
+        _aggregator.Record(MetadataWith(prompt: 10, completion: 5, total: 15));
+        var snapshot = _aggregator.GetSessionTotal();
 
-        // Record more AFTER taking snapshot
-        _aggregator.Record(new LlmUsageInfo { PromptTokens = 100, CompletionTokens = 50, TotalTokens = 150 });
+        _aggregator.Record(MetadataWith(prompt: 100, completion: 50, total: 150));
 
-        // Original snapshot should be unchanged
         Assert.Equal(10, snapshot.PromptTokens);
     }
 
@@ -63,20 +73,64 @@ public class LlmUsageAggregatorTests
     {
         var tasks = Enumerable.Range(0, 100)
                               .Select(_ => Task.Run(() =>
-                                  _aggregator.Record(new LlmUsageInfo
-                                                     {
-                                                             PromptTokens     = 1
-                                                           , CompletionTokens = 1
-                                                           , TotalTokens      = 2
-                                                     })))
+                                  _aggregator.Record(MetadataWith(prompt: 1, completion: 1, total: 2))))
                               .ToArray();
 
         await Task.WhenAll(tasks);
 
-        var totals = _aggregator.GetTotals();
+        var totals = _aggregator.GetSessionTotal();
 
         Assert.Equal(100, totals.PromptTokens);
         Assert.Equal(100, totals.CompletionTokens);
         Assert.Equal(200, totals.TotalTokens);
+    }
+
+    // ----------------------------------------------------------------
+    // GetHistory
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void GetHistory_ReturnsEmpty_BeforeAnyCallIsRecorded()
+    {
+        var history = _aggregator.GetHistory();
+
+        Assert.Empty(history);
+    }
+
+    [Fact]
+    public void GetHistory_ContainsEachRecordedMetadata_InOrder()
+    {
+        var first  = MetadataWith(prompt: 10, completion: 5,  total: 15, provider: "Groq");
+        var second = MetadataWith(prompt: 20, completion: 10, total: 30, provider: "OpenRouter");
+
+        _aggregator.Record(first);
+        _aggregator.Record(second);
+
+        var history = _aggregator.GetHistory();
+
+        Assert.Equal(2,            history.Count);
+        Assert.Equal("Groq",       history[0].ProviderId);
+        Assert.Equal("OpenRouter", history[1].ProviderId);
+    }
+
+    [Fact]
+    public void GetHistory_ReturnsSnapshot_NotLiveList()
+    {
+        _aggregator.Record(MetadataWith(prompt: 10, completion: 5, total: 15));
+        var history = _aggregator.GetHistory();
+
+        _aggregator.Record(MetadataWith(prompt: 20, completion: 10, total: 30));
+
+        Assert.Single(history);
+    }
+
+    [Fact]
+    public void GetHistory_IsEmpty_WhenRecordHasZeroUsage()
+    {
+        _aggregator.Record(new LlmResponseMetadata { ProviderId = "Groq", Usage = LlmUsageInfo.Empty });
+
+        var history = _aggregator.GetHistory();
+
+        Assert.Empty(history);
     }
 }

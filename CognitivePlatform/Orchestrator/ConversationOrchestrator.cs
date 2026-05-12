@@ -432,6 +432,22 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
             // with the reset time rather than the generic connectivity-error path.
             var message = BuildExceptionMessage(interpretation);
+            var message = BuildExceptionMessage(interpretation.Exception);
+            if (_isDebug)
+            {
+                message = $"""
+                          ## Something went wrong while processing your request.
+                          ----
+                          You are getting this because:
+                          ```csharp
+                          interpretation.FailureType == InterpreterFailureType.Exception
+                          {interpretation.Exception?.ToString() ?? "No exception details available."}
+                          ```
+                          Is `true`
+                          The exception is:
+                          >{interpretation.DebugInfo}
+                          """;
+            }
 
             var llmExceptionResponse = new ConverseResponse
                                        {
@@ -1097,6 +1113,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
                     The exception is:
                     >{interpretation.DebugInfo}
                     """;
+    // BUG-20: detect Groq 429 and return a human-friendly rate-limit message with reset time.
+    private string BuildExceptionMessage(Exception? exception)
+    {
+        if (exception?.Message.Contains("429", StringComparison.Ordinal) == true)
+        {
+            var snapshot  = _rateLimiter.GetLatest("Groq");
+            var resetPart = snapshot.RequestsResetAt is not null
+                                    ? $" — resets at {snapshot.RequestsResetAt.Value.ToLocalTime():h:mm tt}"
+                                    : string.Empty;
+            return $"Groq rate limit reached{resetPart}. Please wait a moment before trying again.";
         }
 
         return "Something went wrong while processing your request. Please try again.";

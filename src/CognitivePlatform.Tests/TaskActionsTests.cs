@@ -85,6 +85,64 @@ public class TaskActionsTests
         Assert.DoesNotMatch(@"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", result);
     }
 
+    // BUG-22: ListCompletedTasks must return only completed tasks, not open ones.
+
+    [Fact]
+    public void ListCompletedTasks_ReturnsCompletedTask_WhenOneExists()
+    {
+        var completedAt = DateTimeOffset.UtcNow.AddHours(-2);
+        var task = new TaskItem
+                   {
+                           Id               = Guid.NewGuid().ToString()
+                         , ShortDescription = "Write report"
+                         , CompletedAt      = completedAt
+                   };
+
+        _taskServiceMock.Setup(service => service.GetCompleted())
+                        .Returns(new List<TaskItem> { task });
+
+        var result = _actions.ListCompletedTasks();
+
+        Assert.Contains("Write report", result);
+        Assert.Contains("Completed Tasks (1)", result);
+    }
+
+    [Fact]
+    public void ListCompletedTasks_DoesNotInclude_OpenTasks()
+    {
+        var openTask = new TaskItem
+                       {
+                               Id               = Guid.NewGuid().ToString()
+                             , ShortDescription = "Open task"
+                             , CompletedAt      = null
+                       };
+        var completedTask = new TaskItem
+                            {
+                                    Id               = Guid.NewGuid().ToString()
+                                  , ShortDescription = "Done task"
+                                  , CompletedAt      = DateTimeOffset.UtcNow.AddHours(-1)
+                            };
+
+        _taskServiceMock.Setup(service => service.GetCompleted())
+                        .Returns(new List<TaskItem> { completedTask });
+
+        var result = _actions.ListCompletedTasks();
+
+        Assert.Contains("Done task", result);
+        Assert.DoesNotContain("Open task", result);
+    }
+
+    [Fact]
+    public void ListCompletedTasks_ReturnsNoTasksMessage_WhenNoneExist()
+    {
+        _taskServiceMock.Setup(service => service.GetCompleted())
+                        .Returns(new List<TaskItem>());
+
+        var result = _actions.ListCompletedTasks();
+
+        Assert.Equal("No completed tasks found.", result);
+    }
+
     // G2 regression: ListTasks must not emit a "**Id:**" field for any task.
     [Fact]
     public void ListTasks_DoesNotInclude_IdField()

@@ -129,7 +129,7 @@ public class TaskActions
     }
 
     [FastPath]
-    [NaturalLanguageAction(Description = "List tasks, optionally filtered by completion, urgency, importance, or tag."
+    [NaturalLanguageAction(Description = "List tasks, optionally filtered by completion, urgency, importance, tag, or due-date window."
                          , Examples =
                            [
                                    "Show my tasks."
@@ -138,6 +138,9 @@ public class TaskActions
                                  , "Show high priority tasks"
                                  , "Show overdue tasks"
                                  , "Show tasks due tomorrow"
+                                 , "Show tasks due this week"
+                                 , "Tasks due last week"
+                                 , "What tasks are due next week?"
                            ]
                          , AllowsClarification = false)]
     public string ListTasks( [NaturalLanguageParam(Description  = "Include completed tasks (true/false)."
@@ -219,6 +222,49 @@ public class TaskActions
 
         return sb.ToString();
 
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(Description = "List completed tasks, most recently completed first."
+                         , Examples =
+                           [
+                                   "Show my completed tasks."
+                                 , "What tasks have I finished?"
+                                 , "List my done tasks."
+                                 , "Show tasks I've completed."
+                                 , "What have I accomplished?"
+                           ]
+                         , AllowsClarification = false)]
+    public string ListCompletedTasks()
+    {
+        var completed = _taskService.GetCompleted();
+
+        if (completed.Count == 0)
+            return "No completed tasks found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Completed Tasks ({completed.Count})");
+        sb.AppendLine();
+
+        foreach (var task in completed)
+        {
+            var shortDescription = task.ShortDescription.HasNoValue()
+                                           ? "_No description_"
+                                           : task.ShortDescription;
+
+            var completedPart = task.CompletedAt?.ToString("yyyy-MM-dd") ?? "_Unknown_";
+            var tagsPart      = task.Tags.Count > 0
+                                        ? string.Join(", ", task.Tags)
+                                        : "_None_";
+
+            sb.AppendLine($"## {shortDescription}");
+            sb.AppendLine();
+            sb.AppendLine($"- **Completed:** {completedPart}");
+            sb.AppendLine($"- **Tags:** {tagsPart}");
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
     }
 
     [FastPath]

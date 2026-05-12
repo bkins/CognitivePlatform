@@ -180,7 +180,7 @@ public class LlmRouterTests
 
         await _router.SendAsync("hello", context);
 
-        _aggregatorMock.Verify(agg => agg.Record(usage), Times.Once);
+        _aggregatorMock.Verify(agg => agg.Record(It.Is<LlmResponseMetadata>(m => m.Usage == usage)), Times.Once);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class LlmRouterTests
 
         await _router.SendAsync("hello", context);
 
-        _rateLimiterMock.Verify(limiter => limiter.UpdateFromSnapshot(snapshot), Times.Once);
+        _rateLimiterMock.Verify(limiter => limiter.Update(It.Is<LlmResponseMetadata>(m => m.RateLimits == snapshot)), Times.Once);
     }
 
     [Fact]

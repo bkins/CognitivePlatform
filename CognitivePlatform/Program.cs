@@ -128,8 +128,8 @@ public partial class Program
         builder.Services.AddSingleton<IGroqUsageTracker, GroqUsageTracker>();
 
         // EPIC-07: Provider Capacity & Routing — usage aggregator + rate limiter
-        builder.Services.AddSingleton<ILlmUsageAggregator, LlmUsageAggregator>();
-        builder.Services.AddSingleton<ILlmRateLimiter,     LlmRateLimiter>();
+        builder.Services.AddSingleton<ILlmUsageAggregator, InMemoryLlmUsageAggregator>();
+        builder.Services.AddSingleton<ILlmRateLimiter,     InMemoryLlmRateLimiter>();
 
 // Factory — selects the active provider at runtime
         builder.Services.AddSingleton<LlmClientFactory>();
@@ -349,21 +349,6 @@ public partial class Program
         await runTask;
 
 // ---------- helpers ----------
-
-        void StoreDefaultModel(LlmClientSettings settings, LlmModelCatalog catalog)
-        {
-            var ignoreCase = StringComparison.OrdinalIgnoreCase;
-    
-            var model = settings.SortedAllowedModels
-                                .Select(name => catalog.AvailableModels
-                                                       .FirstOrDefault(model => model.IsUsable
-                                                                             && model.Name
-                                                                                     .Equals(name, ignoreCase)))
-                                .FirstOrDefault(model => model != null);
-
-            if (model != null)
-                settings.DefaultModel = model.Name;
-        }
 
         void BuildDataPersistenceLayer(WebApplicationBuilder dataBuilder)
         {

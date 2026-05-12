@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,7 +14,7 @@ namespace CognitivePlatform.Api.Interpreter;
 /// which means responses arrive in under 3 seconds even for large models.
 ///
 /// API key is loaded from user-secrets (development) or environment
-/// variables (production) â€” never from appsettings.json.
+/// variables (production) â€" never from appsettings.json.
 ///
 /// After each successful response the rate-limit headers are captured
 /// and written to <see cref="IGroqUsageTracker"/> for downstream consumers.
@@ -24,6 +24,7 @@ public class GroqLlmClient : ILlmClient
     private readonly HttpClient          _httpClient;
     private readonly LlmClientSettings   _settings;
     private readonly IGroqUsageTracker   _usageTracker;
+    private readonly ILlmRateLimiter     _rateLimiter;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
                                                                 {
@@ -42,11 +43,13 @@ public class GroqLlmClient : ILlmClient
 
     public GroqLlmClient( HttpClient                  httpClient
                         , IOptions<LlmClientSettings> settings
-                        , IGroqUsageTracker            usageTracker )
+                        , IGroqUsageTracker            usageTracker
+                        , ILlmRateLimiter              rateLimiter )
     {
         _httpClient   = httpClient;
         _settings     = settings.Value;
         _usageTracker = usageTracker;
+        _rateLimiter  = rateLimiter;
 
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.Timeout);
 
@@ -81,12 +84,21 @@ public class GroqLlmClient : ILlmClient
                                                        , HttpCompletionOption.ResponseHeadersRead
                                                        , cancellationToken);
 
-        // Capture rate-limit headers regardless of success/failure â€”
+        // Capture rate-limit headers regardless of success/failure —
         // even a 429 response carries the current window state.
         CaptureUsageHeaders(response.Headers);
 
         if (response.IsSuccessStatusCode.Not())
         {
+            // Feed the rate limiter before throwing so IsExhausted() is accurate
+            // even when the router never sees a successful response (BUG-20).
+            _rateLimiter.Update(new LlmResponseMetadata
+                                {
+                                        ProviderId = "Groq"
+                                      , ModelId    = selectedModel
+                                      , RateLimits = BuildRateLimitSnapshot(response.Headers)
+                                });
+
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new HttpRequestException(
                 $"Groq API returned {(int)response.StatusCode}: {errorBody}");

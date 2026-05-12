@@ -1,34 +1,31 @@
 namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
-/// Tracks the most recent rate-limit state for each LLM provider and
-/// exposes a <see cref="CanSend"/> guard that callers can check before
-/// dispatching a request.
+/// Tracks the most recent rate-limit state for each LLM provider.
+/// Updated by the router after every response (including 429s from the client).
 ///
-/// Phase A records snapshots from completed responses (header-based, Groq only).
-/// Phase B will use this to drive pre-call throttling and provider fallback.
+/// Phase A: records snapshots from response headers (Groq only).
+/// Phase B: will use this to drive pre-call throttling and provider fallback.
 /// </summary>
 public interface ILlmRateLimiter
 {
     /// <summary>
-    /// Records the latest rate-limit snapshot returned with an LLM response.
-    /// Thread-safe; called by the router after every successful send.
+    /// Records the latest rate-limit state from an LLM response.
+    /// Thread-safe; called by the router after every send (success or 429).
     /// </summary>
-    void UpdateFromSnapshot(LlmRateLimitSnapshot snapshot);
+    void Update(LlmResponseMetadata metadata);
 
     /// <summary>
     /// Returns <c>true</c> when the most recent snapshot for
-    /// <paramref name="provider"/> indicates capacity is available, or when
-    /// no snapshot has been recorded yet (optimistic default).
-    ///
-    /// "Capacity available" means: requests remaining > 0 AND tokens remaining > 0,
-    /// or <see cref="LlmRateLimitSnapshot.HasData"/> is false (no data yet).
+    /// <paramref name="provider"/> shows requests or tokens are exhausted.
+    /// Returns <c>false</c> (not exhausted) when no snapshot has been recorded
+    /// yet — optimistic default so the first request is always attempted.
     /// </summary>
-    bool CanSend(string provider);
+    bool IsExhausted(string provider);
 
     /// <summary>
     /// Returns the most recent snapshot for <paramref name="provider"/>,
     /// or <see cref="LlmRateLimitSnapshot.Empty"/> if none has been recorded.
     /// </summary>
-    LlmRateLimitSnapshot GetCurrentSnapshot(string provider);
+    LlmRateLimitSnapshot GetLatest(string provider);
 }
