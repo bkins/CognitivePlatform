@@ -29,6 +29,7 @@ namespace CognitivePlatform.Tests;
 //
 // Zero real LLM clients are constructed; the router and any insight producers are
 // Moq objects. The history store is the real InMemoryInsightHistoryStore.
+[Collection("LlmSharedState")]
 public class OrchestratorInsightIntegrationTests
 {
     private readonly Mock<IActionRegistry>     _registryMock     = new();
@@ -77,9 +78,6 @@ public class OrchestratorInsightIntegrationTests
         _rateLimiterMock
             .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
             .Returns(LlmRateLimitSnapshot.Empty);
-        _rateLimiterMock
-            .Setup(limiter => limiter.CanSend(It.IsAny<string>()))
-            .Returns(true);
     }
 
     private ConversationOrchestrator BuildOrchestrator() =>

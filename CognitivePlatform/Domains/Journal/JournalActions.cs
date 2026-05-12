@@ -141,7 +141,7 @@ public sealed class JournalActions
             sb.AppendLine();
             sb.Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
+            AppendCommonMetadata(sb, entryWithRevision);
             sb.AppendLine().AppendLine();
         }
 
@@ -177,7 +177,7 @@ public sealed class JournalActions
         sb.AppendLine();
         sb.Append(entryWithRevision.LatestRevision.Text);
 
-        AppendCommonMetadata(sb, entryWithRevision, includeId: false);
+        AppendCommonMetadata(sb, entryWithRevision);
 
         return sb.ToString();
     }
@@ -248,7 +248,7 @@ public sealed class JournalActions
             sb.AppendLine();
             sb.Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
+            AppendCommonMetadata(sb, entryWithRevision);
             sb.AppendLine().AppendLine();
         }
 
@@ -303,7 +303,7 @@ public sealed class JournalActions
             sb.AppendLine();
             sb.Append(entryWithRevision.LatestRevision.Text);
 
-            AppendCommonMetadata(sb, entryWithRevision, includeId: false);
+            AppendCommonMetadata(sb, entryWithRevision);
             sb.AppendLine().AppendLine();
         }
 
@@ -404,9 +404,7 @@ public sealed class JournalActions
         return score;
     }
 
-    private static void AppendCommonMetadata (StringBuilder  sb
-                                              , JournalEntryWithRevision entryWithRevision
-                                              , bool         includeId)
+    private static void AppendCommonMetadata(StringBuilder sb, JournalEntryWithRevision entryWithRevision)
     {
         if (entryWithRevision.LatestRevision.Tags is { Count: > 0 })
         {
@@ -462,12 +460,6 @@ public sealed class JournalActions
               .Append(']');
         }
 
-        if (includeId)
-        {
-            sb.Append(" (ID: ")
-              .Append(entryWithRevision.Entry.Id)
-              .Append(')');
-        }
     }
 
     /// <summary>

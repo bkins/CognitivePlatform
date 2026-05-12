@@ -17,7 +17,6 @@ public class SystemController : ControllerBase
     private readonly SystemService               _systemService;
     private readonly ILlmUsageAggregator         _llmUsageAggregator;
     private readonly ILlmRateLimiter             _llmRateLimiter;
-    private readonly ILlmRateLimiter             _rateLimiter;
 
     public SystemController( ITelemetrySink              telemetrySink
                            , IGroqUsageTracker           usageTracker
@@ -25,7 +24,6 @@ public class SystemController : ControllerBase
                            , SystemService               systemService
                            , ILlmUsageAggregator         llmUsageAggregator
                            , ILlmRateLimiter             llmRateLimiter )
-                           , ILlmRateLimiter             rateLimiter )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
@@ -33,7 +31,6 @@ public class SystemController : ControllerBase
         _systemService       = systemService;
         _llmUsageAggregator  = llmUsageAggregator;
         _llmRateLimiter      = llmRateLimiter;
-        _rateLimiter         = rateLimiter;
     }
 
 
@@ -75,7 +72,7 @@ public class SystemController : ControllerBase
     public IActionResult GetUsage()
     {
         var snapshot        = _usageTracker.Current;
-        var sessionTotals   = _llmUsageAggregator.GetTotals();
+        var sessionTotals   = _llmUsageAggregator.GetSessionTotal();
         var groqRateLimits  = _llmRateLimiter.GetCurrentSnapshot("Groq");
 
         var response = new
