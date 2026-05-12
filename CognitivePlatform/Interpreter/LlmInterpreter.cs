@@ -356,7 +356,7 @@ public class LlmInterpreter : IInterpreter
         return systemPrompt;
     }
 
-    private static string BuildSessionStateBlock(ConversationContext context)
+    internal static string BuildSessionStateBlock(ConversationContext context)
     {
         var today        = DateTime.Now.Date;
         var daysToMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
