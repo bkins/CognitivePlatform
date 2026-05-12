@@ -270,6 +270,13 @@ public sealed class JournalService : IJournalService
                      .ToList();
     }
 
+    public IReadOnlyList<JournalRevision> GetRevisionHistory(string entryId)
+    {
+        return _revisionRepository.GetRevisionsByEntryId(entryId)
+                                  .OrderBy(revision => revision.CreatedUtc)
+                                  .ToList();
+    }
+
     public static MoodLevel MapMoodLevel (int score)
     {
         return score switch

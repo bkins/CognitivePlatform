@@ -58,4 +58,9 @@ public interface IJournalService
     JournalEntryWithRevision? ResolveByPosition(int position);
 
     bool Exists (Guid journalId);
+
+    /// <summary>
+    /// Returns all revisions for a journal entry, ordered oldest-first (revision 1 = original).
+    /// </summary>
+    IReadOnlyList<JournalRevision> GetRevisionHistory(string entryId);
 }
