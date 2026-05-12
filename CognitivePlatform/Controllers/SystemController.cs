@@ -15,18 +15,24 @@ public class SystemController : ControllerBase
     private readonly IGroqUsageTracker           _usageTracker;
     private readonly ITelemetryAggregatorService _telemetryAggregator;
     private readonly SystemService               _systemService;
+    private readonly ILlmUsageAggregator         _llmUsageAggregator;
+    private readonly ILlmRateLimiter             _llmRateLimiter;
     private readonly ILlmRateLimiter             _rateLimiter;
 
     public SystemController( ITelemetrySink              telemetrySink
                            , IGroqUsageTracker           usageTracker
                            , ITelemetryAggregatorService telemetryAggregator
                            , SystemService               systemService
+                           , ILlmUsageAggregator         llmUsageAggregator
+                           , ILlmRateLimiter             llmRateLimiter )
                            , ILlmRateLimiter             rateLimiter )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
         _telemetryAggregator = telemetryAggregator;
         _systemService       = systemService;
+        _llmUsageAggregator  = llmUsageAggregator;
+        _llmRateLimiter      = llmRateLimiter;
         _rateLimiter         = rateLimiter;
     }
 
@@ -68,7 +74,9 @@ public class SystemController : ControllerBase
     [HttpGet("usage")]
     public IActionResult GetUsage()
     {
-        var snapshot = _usageTracker.Current;
+        var snapshot        = _usageTracker.Current;
+        var sessionTotals   = _llmUsageAggregator.GetTotals();
+        var groqRateLimits  = _llmRateLimiter.GetCurrentSnapshot("Groq");
 
         var response = new
                        {
@@ -96,6 +104,18 @@ public class SystemController : ControllerBase
                                               , ResetApproxLocal = FormatResetTime(snapshot.TokensResetRaw
                                                                                  , snapshot.TokensResetAt)
                                         }
+
+                             , SessionTotals = new
+                                               {
+                                                       PromptTokens     = sessionTotals.PromptTokens
+                                                     , CompletionTokens = sessionTotals.CompletionTokens
+                                                     , TotalTokens      = sessionTotals.TotalTokens
+                                               }
+
+                             , GroqRateLimitResetAt = groqRateLimits.HasData
+                                                              ? FormatResetTime(groqRateLimits.RequestsResetRaw
+                                                                              , groqRateLimits.RequestsResetAt)
+                                                              : null
                        };
 
         var systemEvent = new SystemControllerEvent
@@ -109,9 +129,10 @@ public class SystemController : ControllerBase
                                                , { "TokensRemaining", snapshot.TokensRemaining }
                                                , { "Resets", $"{response.Requests.ResetApproxLocal} (Requests)"
                                                            + $", {response.Tokens.ResetApproxLocal} (Tokens)" }
+                                               , { "SessionTotalTokens", sessionTotals.TotalTokens }
                                          }
                           };
-        
+
         _telemetry.Track(systemEvent);
 
         return Ok(response);

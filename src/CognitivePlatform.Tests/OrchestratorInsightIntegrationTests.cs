@@ -72,6 +72,14 @@ public class OrchestratorInsightIntegrationTests
         _activityLogMock
             .Setup(log => log.LogAsync(It.IsAny<ActivityEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+
+        // Rate limiter: optimistic defaults (no data recorded yet).
+        _rateLimiterMock
+            .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
+            .Returns(LlmRateLimitSnapshot.Empty);
+        _rateLimiterMock
+            .Setup(limiter => limiter.CanSend(It.IsAny<string>()))
+            .Returns(true);
     }
 
     private ConversationOrchestrator BuildOrchestrator() =>

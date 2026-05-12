@@ -429,6 +429,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
+            // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
+            // with the reset time rather than the generic connectivity-error path.
+            var message = BuildExceptionMessage(interpretation);
             var message = BuildExceptionMessage(interpretation.Exception);
             if (_isDebug)
             {
@@ -1083,6 +1086,33 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Does this need to be determined in the controller?  
     }
 
+    private string BuildExceptionMessage(InterpreterResult interpretation)
+    {
+        if (IsRateLimitException(interpretation.Exception))
+        {
+            var snapshot  = _rateLimiter.GetCurrentSnapshot("Groq");
+            var resetTime = snapshot.RequestsResetAt?.ToLocalTime().ToString("h:mm tt")
+                         ?? snapshot.TokensResetAt?.ToLocalTime().ToString("h:mm tt");
+
+            return resetTime is not null
+                           ? $"Groq rate limit reached — resets at {resetTime}"
+                           : "Groq rate limit reached. Please wait a moment and try again.";
+        }
+
+        if (_isDebug)
+        {
+            return $"""
+                    ## Something went wrong while processing your request.
+                    ----
+                    You are getting this because:
+                    ```csharp
+                    interpretation.FailureType == InterpreterFailureType.Exception
+                    {interpretation.Exception?.ToString() ?? "No exception details available."}
+                    ```
+                    Is `true`
+                    The exception is:
+                    >{interpretation.DebugInfo}
+                    """;
     // BUG-20: detect Groq 429 and return a human-friendly rate-limit message with reset time.
     private string BuildExceptionMessage(Exception? exception)
     {
@@ -1097,6 +1127,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         return "Something went wrong while processing your request. Please try again.";
     }
+
+    private static bool IsRateLimitException(Exception? ex)
+        => ex?.Message.Contains("429", StringComparison.Ordinal) == true;
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
                                                                  , IDictionary<string, string> parameters)

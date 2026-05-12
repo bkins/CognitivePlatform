@@ -90,6 +90,35 @@ public class CalendarActionsTests
         Assert.Contains("all day",         result, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task GetTodayEvents_UsesLocalMidnightWindow_NotUtcMidnight()
+    {
+        DateTimeOffset capturedFrom = default;
+        DateTimeOffset capturedTo   = default;
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .Callback<DateTimeOffset, DateTimeOffset, CancellationToken>((from, to, _) =>
+                     {
+                         capturedFrom = from;
+                         capturedTo   = to;
+                     })
+                     .ReturnsAsync(new List<CalendarEvent>());
+
+        await _actions.GetTodayEvents();
+
+        // The window must span exactly one calendar day in local time.
+        Assert.Equal(TimeSpan.FromHours(24), capturedTo - capturedFrom);
+
+        // The window must be anchored at local midnight (offset == local UTC offset),
+        // not at UTC midnight (offset == Zero when not in UTC timezone).
+        var expectedOffset = TimeZoneInfo.Local.GetUtcOffset(capturedFrom.DateTime);
+        Assert.Equal(expectedOffset, capturedFrom.Offset);
+        Assert.Equal(expectedOffset, capturedTo.Offset);
+    }
+
     // ================================================================
     // GetEventsForDate
     // ================================================================
