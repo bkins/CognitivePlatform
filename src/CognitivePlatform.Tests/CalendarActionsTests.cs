@@ -1,6 +1,7 @@
 ﻿using Moq;
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Integrations.Calendar;
+using System.Collections.Generic;
 
 namespace CognitivePlatform.Tests;
 
@@ -374,5 +375,85 @@ public class CalendarActionsTests
 
         Assert.Contains("expired", result, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("No free slots", result);
+    }
+
+    // ================================================================
+    // ListCalendars
+    // ================================================================
+
+    [Fact]
+    public async Task ListCalendars_ReturnsNotConnected_WhenCalendarNotConnected()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
+
+        var result = await _actions.ListCalendars();
+
+        Assert.Contains("not connected", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListCalendars_ReturnsAllCalendars_WithInclusionStatus()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetCalendarListAsync(It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarSummary>
+                                   {
+                                       new("personal-id", "Personal",          IsSelected: true)
+                                     , new("family-id",   "Family",            IsSelected: false)
+                                     , new("work-id",     "Work",              IsSelected: true)
+                                   });
+
+        var result = await _actions.ListCalendars();
+
+        Assert.Contains("Personal",  result);
+        Assert.Contains("Family",    result);
+        Assert.Contains("Work",      result);
+        Assert.Contains("included",  result);
+        Assert.Contains("excluded",  result);
+    }
+
+    // ================================================================
+    // SetCalendarInclusion
+    // ================================================================
+
+    [Fact]
+    public async Task SetCalendarInclusion_ReturnsNotFound_WhenNameDoesNotMatch()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetCalendarListAsync(It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarSummary>
+                                   {
+                                       new("personal-id", "Personal", IsSelected: true)
+                                   });
+
+        var result = await _actions.SetCalendarInclusion("Unknown Calendar", false);
+
+        Assert.Contains("No calendar found", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SetCalendarInclusion_CallsProviderWithCorrectId_WhenNameMatches()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetCalendarListAsync(It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<CalendarSummary>
+                                   {
+                                       new("family-id", "Family", IsSelected: true)
+                                   });
+
+        _calendarMock.Setup(cal => cal.SetCalendarInclusionAsync( It.IsAny<string>()
+                                                                , It.IsAny<bool>()
+                                                                , It.IsAny<CancellationToken>()))
+                     .Returns(Task.CompletedTask);
+
+        var result = await _actions.SetCalendarInclusion("Family", false);
+
+        _calendarMock.Verify(cal => cal.SetCalendarInclusionAsync("family-id"
+                                                                 , false
+                                                                 , It.IsAny<CancellationToken>())
+                           , Times.Once);
+
+        Assert.Contains("Family",   result);
+        Assert.Contains("excluded", result);
     }
 }
