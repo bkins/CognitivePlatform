@@ -36,4 +36,6 @@ public sealed class InMemoryLlmRateLimiter : ILlmRateLimiter
                        ? snapshot
                        : LlmRateLimitSnapshot.Empty;
     }
+
+    public LlmRateLimitSnapshot GetCurrentSnapshot(string provider) => GetLatest(provider);
 }

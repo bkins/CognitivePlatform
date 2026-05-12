@@ -432,22 +432,6 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
             // with the reset time rather than the generic connectivity-error path.
             var message = BuildExceptionMessage(interpretation);
-            var message = BuildExceptionMessage(interpretation.Exception);
-            if (_isDebug)
-            {
-                message = $"""
-                          ## Something went wrong while processing your request.
-                          ----
-                          You are getting this because:
-                          ```csharp
-                          interpretation.FailureType == InterpreterFailureType.Exception
-                          {interpretation.Exception?.ToString() ?? "No exception details available."}
-                          ```
-                          Is `true`
-                          The exception is:
-                          >{interpretation.DebugInfo}
-                          """;
-            }
 
             var llmExceptionResponse = new ConverseResponse
                                        {
@@ -607,25 +591,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //  any close matches that would allow me to ask a clarification question".
             // The former is what we're doing here; the latter might be a more generic
             // "I didn't understand that at all, here are some things you can try" message.🤷‍♂️
-            var message = "I understood what you want to do, but I'm missing some required details. Could you rephrase with more specifics?";
-            
-            if (_isDebug)
-            {
-                message = """
-                          ## Missing required parameters — action does not allow clarification.
-                          ----
-                          You are getting this because:
-                          ```csharp
-                          if (interpretation is
-                          {
-                                  FailureType: InterpreterFailureType.MissingParameters
-                                , ActionName: not null
-                                , MissingParameters.Count: > 0
-                          })
-                          ```
-                          Is `true` 
-                          """;
-            }
+            var message = BuildMissingParametersMessage(interpretation);
 
             var missingParametersResponse = new ConverseResponse
                                             {
@@ -649,23 +615,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
             // or should it be a valid action choice that just happens to be conversational?
         
-            var message = "I didn't recognize that as something I can do. Try 'what can you do' to see available commands.";
-            if (_isDebug)
-            {
-                message = $"""
-                           ## No action recognized.
-                           ----
-                           You are getting this because:
-                           ```csharp
-                           if (interpretation.ActionName?.HasNoValue() ?? true)
-                           ```
-                           Is `true`
-                           Reason was: 
-                           ```
-                           {interpretation.Reason}
-                           ```
-                           """;
-            }
+            var message = BuildNoActionMessage(interpretation);
             var missingActionResponse = new ConverseResponse
                                         {
                                                 Message = message
@@ -1113,19 +1063,64 @@ public class ConversationOrchestrator : IConversationOrchestrator
                     The exception is:
                     >{interpretation.DebugInfo}
                     """;
-    // BUG-20: detect Groq 429 and return a human-friendly rate-limit message with reset time.
-    private string BuildExceptionMessage(Exception? exception)
-    {
-        if (exception?.Message.Contains("429", StringComparison.Ordinal) == true)
-        {
-            var snapshot  = _rateLimiter.GetLatest("Groq");
-            var resetPart = snapshot.RequestsResetAt is not null
-                                    ? $" — resets at {snapshot.RequestsResetAt.Value.ToLocalTime():h:mm tt}"
-                                    : string.Empty;
-            return $"Groq rate limit reached{resetPart}. Please wait a moment before trying again.";
         }
 
         return "Something went wrong while processing your request. Please try again.";
+    }
+
+    private string BuildNoActionMessage(InterpreterResult interpretation)
+    {
+        var candidates = interpretation.CandidateActions is { Count: > 0 }
+                                 ? string.Join(", ", interpretation.CandidateActions)
+                                 : null;
+
+        var normalMessage = candidates is not null
+                                    ? $"I wasn't sure what you meant — possibly '{candidates}'? Type 'what can you do' to see all available commands."
+                                    : "I didn't recognize that as a command. Type 'what can you do' to see all available commands.";
+
+        if (_isDebug)
+        {
+            return $"""
+                    {normalMessage}
+
+                    [DEBUG] Reason: {interpretation.Reason}
+                    """;
+        }
+
+        return normalMessage;
+    }
+
+    private string BuildMissingParametersMessage(InterpreterResult interpretation)
+    {
+        if (_isDebug)
+        {
+            var missingJoinedDebug = string.Join(", ", interpretation.MissingParameters ?? []);
+            return $$"""
+                    ## Missing required parameters — action does not allow clarification.
+                    ----
+                    You are getting this because:
+                    ```csharp
+                    if (interpretation is
+                    {
+                            FailureType: InterpreterFailureType.MissingParameters
+                          , ActionName: not null
+                          , MissingParameters.Count: > 0
+                    })
+                    ```
+                    Is `true`
+                    Missing: {{missingJoinedDebug}}
+                    """;
+        }
+
+        var firstMissing = interpretation.MissingParameters is { Count: > 0 }
+                                   ? interpretation.MissingParameters[0]
+                                   : null;
+
+        var detail = firstMissing is not null
+                             ? $" I need a value for '{firstMissing}'."
+                             : string.Empty;
+
+        return $"I know what you want to do, but I'm missing some required details.{detail} Please try again with the full details.";
     }
 
     private static bool IsRateLimitException(Exception? ex)

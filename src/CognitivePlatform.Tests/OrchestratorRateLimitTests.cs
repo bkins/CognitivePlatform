@@ -15,6 +15,7 @@ using CognitivePlatform.Api.Telemetry;
 
 namespace CognitivePlatform.Tests;
 
+[Collection("LlmSharedState")]
 /// <summary>
 /// BUG-20: Verifies that when the interpreter returns an exception carrying
 /// a 429 status code, the orchestrator returns a user-friendly rate-limit
