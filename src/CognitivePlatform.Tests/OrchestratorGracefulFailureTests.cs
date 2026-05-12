@@ -12,6 +12,7 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
@@ -24,16 +25,17 @@ namespace CognitivePlatform.Tests;
 [Collection("LlmSharedState")]
 public class OrchestratorGracefulFailureTests
 {
-    private readonly Mock<IActionRegistry>   _registryMock    = new();
-    private readonly Mock<IInterpreter>      _interpreterMock = new();
-    private readonly Mock<IExecutionEngine>  _executionMock   = new();
-    private readonly Mock<IFastPathResolver> _fastPathMock    = new();
-    private readonly Mock<ILlmRouter>        _routerMock      = new();
-    private readonly Mock<IIdempotencyStore> _idempotencyMock = new();
-    private readonly Mock<IInsightEngine>    _engineMock      = new();
-    private readonly Mock<IActivityLog>      _activityLogMock = new();
-    private readonly Mock<ITelemetrySink>    _telemetryMock   = new();
-    private readonly Mock<ILlmRateLimiter>   _rateLimiterMock = new();
+    private readonly Mock<IActionRegistry>   _registryMock         = new();
+    private readonly Mock<IInterpreter>      _interpreterMock      = new();
+    private readonly Mock<IExecutionEngine>  _executionMock        = new();
+    private readonly Mock<IFastPathResolver> _fastPathMock         = new();
+    private readonly Mock<ILlmRouter>        _routerMock           = new();
+    private readonly Mock<IIdempotencyStore> _idempotencyMock      = new();
+    private readonly Mock<IInsightEngine>    _engineMock           = new();
+    private readonly Mock<IActivityLog>      _activityLogMock      = new();
+    private readonly Mock<ITelemetrySink>    _telemetryMock        = new();
+    private readonly Mock<ILlmRateLimiter>   _rateLimiterMock      = new();
+    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
 
     private readonly InMemoryInsightHistoryStore _historyStore     = new();
     private readonly ConversationContextStore    _contextStore     = new();
@@ -80,7 +82,7 @@ public class OrchestratorGracefulFailureTests
           , _contextStore
           , _telemetryMock.Object
           , _fastPathMock.Object
-          , null!
+          , _workspaceContextMock.Object
           , _routerMock.Object
           , _idempotencyMock.Object
           , _telemetryContext
