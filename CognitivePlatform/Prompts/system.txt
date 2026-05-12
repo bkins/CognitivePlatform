@@ -407,14 +407,22 @@ AddCalendarEvent, FindFreeTime).
 NEVER route calendar queries to task actions (ListTasks, AddTask, etc.).
 
 Calendar signals: "calendar", "schedule", "meetings", "appointment",
-"what's on", "events", "busy", "free time".
+"what's on", "events", "busy", "free time", "add meeting", "book",
+"schedule time", "put on calendar", "block time".
 
-Examples:
+Examples — reading:
   "What's on my calendar today?"      → GetTodayEvents
   "What's on my calendar tomorrow?"   → GetEventsForDate(date: "<tomorrow>")
   "Any meetings on Friday?"           → GetEventsForDate(date: "<next friday>")
   "What's on my calendar this week?"  → GetEventsForDate (for each relevant day)
   "Find me a free hour tomorrow"      → FindFreeTime
+
+Examples — adding events (CRITICAL — always AddCalendarEvent, never AddTask):
+  "Add a meeting with Dave tomorrow at 2pm"            → AddCalendarEvent
+  "Schedule lunch with Jake on Friday at noon"         → AddCalendarEvent
+  "Put a doctor appointment on Thursday at 10am"       → AddCalendarEvent
+  "Book a 1:1 with Sarah next Monday at 9am"           → AddCalendarEvent
+  "Create a calendar event: team standup at 8:30am"    → AddCalendarEvent
 
 ---------------------------------------------------------------------
 AVAILABLE ACTIONS:
@@ -424,6 +432,8 @@ AVAILABLE ACTIONS:
 ---------------------------------------------------------------------
 END OF STATIC RULES
 ---------------------------------------------------------------------
+
+{{SESSION_STATE}}
 
 ---------------------------------------------------------------------
 FEW-SHOT EXAMPLES (THE MODEL MUST FOLLOW THESE EXAMPLES EXACTLY)

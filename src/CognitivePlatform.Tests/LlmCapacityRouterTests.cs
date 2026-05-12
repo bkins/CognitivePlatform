@@ -104,7 +104,24 @@ public class LlmCapacityRouterTests
 
         var result = router.SelectModel();
 
-        Assert.Equal("gemini",         result.Provider);
+        Assert.Equal("gemini",           result.Provider);
+        Assert.Equal("gemini-2.0-flash", result.Model);
+    }
+
+    [Fact]
+    public void SelectModel_SkipsProvider_WhenRateLimiterReportsExhausted()
+    {
+        // Local counters are not exhausted — no limits configured — but the rate limiter
+        // reports Groq as exhausted (e.g. a 429 was recorded from response headers).
+        _rateLimiterMock
+            .Setup(limiter => limiter.IsExhausted("groq"))
+            .Returns(true);
+
+        var router = Build(GroqConfig(priority: 1), GeminiConfig(priority: 2));
+
+        var result = router.SelectModel();
+
+        Assert.Equal("gemini",           result.Provider);
         Assert.Equal("gemini-2.0-flash", result.Model);
     }
 

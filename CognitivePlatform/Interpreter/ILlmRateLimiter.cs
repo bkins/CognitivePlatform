@@ -28,4 +28,11 @@ public interface ILlmRateLimiter
     /// or <see cref="LlmRateLimitSnapshot.Empty"/> if none has been recorded.
     /// </summary>
     LlmRateLimitSnapshot GetLatest(string provider);
+
+    /// <summary>
+    /// Alias for <see cref="GetLatest"/>. Returns the current rate-limit snapshot
+    /// for <paramref name="provider"/>, or <see cref="LlmRateLimitSnapshot.Empty"/> if
+    /// no snapshot has been recorded yet.
+    /// </summary>
+    LlmRateLimitSnapshot GetCurrentSnapshot(string provider);
 }

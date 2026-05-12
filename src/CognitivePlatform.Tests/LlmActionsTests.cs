@@ -6,6 +6,7 @@ using CognitivePlatform.Api.Interpreter;
 
 namespace CognitivePlatform.Tests;
 
+[Collection("LlmSharedState")]
 public class LlmActionsTests
 {
     private static ConversationContext MakeContext() =>

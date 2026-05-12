@@ -42,7 +42,7 @@ public class LlmCapacityRouter : ILlmCapacityRouter
             {
                 RollWindowIfExpired(capacity);
 
-                if (!capacity.IsExhausted)
+                if (!capacity.IsExhausted && !_rateLimiter.IsExhausted(capacity.ModelId.Provider))
                     return capacity.ModelId;
             }
 

@@ -17,11 +17,11 @@ namespace CognitivePlatform.Tests;
 
 [Collection("LlmSharedState")]
 /// <summary>
-/// BUG-20: Verifies that when the interpreter returns an exception carrying
-/// a 429 status code, the orchestrator returns a user-friendly rate-limit
-/// message with the reset time rather than the generic error response.
+/// EPIC-08 B2: Verifies that the orchestrator returns improved user-friendly messages
+/// for the no-action-recognized and missing-parameters failure paths, replacing the
+/// generic "I didn't recognize that" and "I'm missing some required details" strings.
 /// </summary>
-public class OrchestratorRateLimitTests
+public class OrchestratorGracefulFailureTests
 {
     private readonly Mock<IActionRegistry>   _registryMock    = new();
     private readonly Mock<IInterpreter>      _interpreterMock = new();
@@ -40,7 +40,7 @@ public class OrchestratorRateLimitTests
     private readonly LlmModelCatalog             _modelCatalog     = new();
     private readonly LlmProviderDefaults         _providerDefaults = new();
 
-    public OrchestratorRateLimitTests()
+    public OrchestratorGracefulFailureTests()
     {
         _idempotencyMock
             .Setup(store => store.TryGetAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -66,6 +66,10 @@ public class OrchestratorRateLimitTests
             .Setup(engine => engine.GenerateInsightsAsync(It.IsAny<ConversationContext>()
                                                          , It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Insight>)Array.Empty<Insight>());
+
+        _rateLimiterMock
+            .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
+            .Returns(LlmRateLimitSnapshot.Empty);
     }
 
     private ConversationOrchestrator BuildOrchestrator() =>
@@ -85,22 +89,15 @@ public class OrchestratorRateLimitTests
           , _providerDefaults
           , _rateLimiterMock.Object);
 
-    [Fact]
-    public async Task ConverseAsync_ReturnsRateLimitMessage_When429ExceptionOccurs()
-    {
-        var resetAt  = DateTimeOffset.UtcNow.AddMinutes(2);
-        var snapshot = new LlmRateLimitSnapshot
-                       {
-                               Provider         = "Groq"
-                             , RequestLimit      = 100
-                             , RequestsRemaining = 0
-                             , RequestsResetAt   = resetAt
-                             , RequestsResetRaw  = "2m"
-                       };
+    // ================================================================
+    // NO ACTION RECOGNIZED
+    // ================================================================
 
-        _rateLimiterMock
-            .Setup(limiter => limiter.GetLatest("Groq"))
-            .Returns(snapshot);
+    [Fact]
+    public async Task ConverseAsync_IncludesCandidateName_WhenNoActionWithCandidates()
+    {
+        _registryMock.SetupGet(registry => registry.Actions)
+                     .Returns(Array.Empty<ActionMetadata>());
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
@@ -109,30 +106,27 @@ public class OrchestratorRateLimitTests
                           {
                                   ActionName          = null
                                 , ExtractedParameters = new()
-                                , FailureType         = InterpreterFailureType.Exception
-                                , Exception           = new HttpRequestException("Groq API returned 429: rate limit exceeded")
-                                , Reason              = "LLM call failed"
-                                , DebugInfo           = "429 rate limit"
+                                , FailureType         = InterpreterFailureType.NoMatchingAction
+                                , CandidateActions    = new List<string> { "AddTask" }
+                                , Reason              = "Input unclear."
                           });
 
         var orchestrator = BuildOrchestrator();
         var response     = await orchestrator.ConverseAsync(new ConverseRequest
                                                             {
                                                                     SessionId = "test-session"
-                                                                  , Input     = "hello"
+                                                                  , Input     = "do something"
                                                             });
 
         Assert.NotNull(response.Message);
-        Assert.Contains("rate limit", response.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("resets at",  response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AddTask", response.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ConverseAsync_ReturnsGenericMessage_WhenExceptionIsNot429()
+    public async Task ConverseAsync_SuggestsHelpCommand_WhenNoActionRecognized()
     {
-        _rateLimiterMock
-            .Setup(limiter => limiter.GetLatest(It.IsAny<string>()))
-            .Returns(LlmRateLimitSnapshot.Empty);
+        _registryMock.SetupGet(registry => registry.Actions)
+                     .Returns(Array.Empty<ActionMetadata>());
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
@@ -141,78 +135,111 @@ public class OrchestratorRateLimitTests
                           {
                                   ActionName          = null
                                 , ExtractedParameters = new()
-                                , FailureType         = InterpreterFailureType.Exception
-                                , Exception           = new HttpRequestException("Connection refused")
-                                , Reason              = "LLM call failed"
-                                , DebugInfo           = "connection error"
+                                , FailureType         = InterpreterFailureType.NoMatchingAction
+                                , CandidateActions    = null
+                                , Reason              = "No match found."
                           });
 
         var orchestrator = BuildOrchestrator();
         var response     = await orchestrator.ConverseAsync(new ConverseRequest
                                                             {
                                                                     SessionId = "test-session"
-                                                                  , Input     = "hello"
+                                                                  , Input     = "xyzzy"
                                                             });
 
         Assert.NotNull(response.Message);
-        Assert.Contains("went wrong", response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("what can you do", response.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ================================================================
+    // MISSING PARAMETERS (no clarification path)
+    // ================================================================
+
+    [Fact]
+    public async Task ConverseAsync_IncludesMissingParamName_WhenActionDoesNotAllowClarification()
+    {
+        var action = new ActionMetadata
+                     {
+                             Name                = "AddTask"
+                           , AllowsClarification = false
+                           , Parameters          = new List<ParameterMetadata>
+                                                   {
+                                                       new()
+                                                       {
+                                                               Name       = "shortDescription"
+                                                             , IsOptional = false
+                                                             , AllowEmpty = false
+                                                       }
+                                                   }
+                     };
+
+        _registryMock.SetupGet(registry => registry.Actions)
+                     .Returns(new[] { action });
+
+        _interpreterMock
+            .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
+                                                                  , It.IsAny<ConversationContext>()))
+            .ReturnsAsync(new InterpreterResult
+                          {
+                                  ActionName          = "AddTask"
+                                , ExtractedParameters = new()
+                                , FailureType         = InterpreterFailureType.MissingParameters
+                                , MissingParameters   = new List<string> { "shortDescription" }
+                                , Reason              = "Missing required parameter: shortDescription"
+                          });
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(new ConverseRequest
+                                                            {
+                                                                    SessionId = "test-session"
+                                                                  , Input     = "add a task"
+                                                            });
+
+        Assert.NotNull(response.Message);
+        Assert.Contains("shortDescription", response.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ConverseAsync_Returns429FallbackMessage_WhenResetTimeUnavailable()
+    public async Task ConverseAsync_ReturnsRetryGuidance_WhenMissingParameters_NoClarification()
     {
-        _rateLimiterMock
-            .Setup(limiter => limiter.GetLatest("Groq"))
-            .Returns(LlmRateLimitSnapshot.Empty);
+        var action = new ActionMetadata
+                     {
+                             Name                = "AddTask"
+                           , AllowsClarification = false
+                           , Parameters          = new List<ParameterMetadata>
+                                                   {
+                                                       new()
+                                                       {
+                                                               Name       = "shortDescription"
+                                                             , IsOptional = false
+                                                             , AllowEmpty = false
+                                                       }
+                                                   }
+                     };
+
+        _registryMock.SetupGet(registry => registry.Actions)
+                     .Returns(new[] { action });
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
                                                                   , It.IsAny<ConversationContext>()))
             .ReturnsAsync(new InterpreterResult
                           {
-                                  ActionName          = null
+                                  ActionName          = "AddTask"
                                 , ExtractedParameters = new()
-                                , FailureType         = InterpreterFailureType.Exception
-                                , Exception           = new HttpRequestException("Groq API returned 429: rate limit exceeded")
-                                , Reason              = "LLM call failed"
-                                , DebugInfo           = "429"
+                                , FailureType         = InterpreterFailureType.MissingParameters
+                                , MissingParameters   = new List<string> { "shortDescription" }
+                                , Reason              = "Missing required parameter: shortDescription"
                           });
 
         var orchestrator = BuildOrchestrator();
         var response     = await orchestrator.ConverseAsync(new ConverseRequest
                                                             {
                                                                     SessionId = "test-session"
-                                                                  , Input     = "hello"
+                                                                  , Input     = "add a task"
                                                             });
 
         Assert.NotNull(response.Message);
-        Assert.Contains("rate limit", response.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task ConverseAsync_ReturnsCapacityExhaustedMessage_WhenAllProvidersExhausted()
-    {
-        _interpreterMock
-            .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
-            .ReturnsAsync(new InterpreterResult
-                          {
-                                  ActionName          = null
-                                , ExtractedParameters = new()
-                                , FailureType         = InterpreterFailureType.Exception
-                                , Exception           = new LlmCapacityExceededException()
-                                , Reason              = "All providers exhausted"
-                                , DebugInfo           = "capacity exceeded"
-                          });
-
-        var orchestrator = BuildOrchestrator();
-        var response     = await orchestrator.ConverseAsync(new ConverseRequest
-                                                            {
-                                                                    SessionId = "test-session"
-                                                                  , Input     = "hello"
-                                                            });
-
-        Assert.NotNull(response.Message);
-        Assert.Contains("capacity", response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("missing", response.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

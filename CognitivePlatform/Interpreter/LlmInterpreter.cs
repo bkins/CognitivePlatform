@@ -62,8 +62,7 @@ public class LlmInterpreter : IInterpreter
         }
 
 
-        var actionsSummary = BuildActionsSummary(_registry.Actions);
-        var prompt         = await BuildPromptAsync(input.Trim());
+        var prompt = await BuildPromptAsync(input.Trim(), context);
 
         if (context.ClarificationModeEnabled)
             prompt += "\n\nCLARIFICATION_MODE = true\n";
@@ -344,15 +343,56 @@ public class LlmInterpreter : IInterpreter
     // ---------------------------------------------------------------------
     // Prompt builder
     // ---------------------------------------------------------------------
-    private async Task<string> BuildPromptAsync(string userInput)
+    private async Task<string> BuildPromptAsync(string userInput, ConversationContext context)
     {
         var systemPrompt   = await File.ReadAllTextAsync("Prompts/system.txt");
         var actionsSummary = BuildActionsSummary(_registry.Actions);
+        var sessionState   = BuildSessionStateBlock(context);
 
-        systemPrompt = systemPrompt.Replace("{{ACTIONS}}",    actionsSummary)
-                                   .Replace("{{USER_INPUT}}", userInput);
+        systemPrompt = systemPrompt.Replace("{{ACTIONS}}",       actionsSummary)
+                                   .Replace("{{SESSION_STATE}}", sessionState)
+                                   .Replace("{{USER_INPUT}}",    userInput);
 
         return systemPrompt;
+    }
+
+    private static string BuildSessionStateBlock(ConversationContext context)
+    {
+        var today        = DateTime.Now.Date;
+        var daysToMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+
+        var thisWeekStart  = today.AddDays(-daysToMonday);
+        var thisWeekEnd    = thisWeekStart.AddDays(6);
+        var lastWeekStart  = thisWeekStart.AddDays(-7);
+        var lastWeekEnd    = thisWeekStart.AddDays(-1);
+        var thisMonthStart = new DateTime(today.Year, today.Month, 1);
+        var thisMonthEnd   = thisMonthStart.AddMonths(1).AddDays(-1);
+        var lastMonthStart = thisMonthStart.AddMonths(-1);
+        var lastMonthEnd   = thisMonthStart.AddDays(-1);
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine("---------------------------------------------------------------------");
+        sb.AppendLine("SESSION STATE (computed at request time — use these exact dates):");
+        sb.AppendLine("---------------------------------------------------------------------");
+        sb.AppendLine($"Today:      {today:yyyy-MM-dd} ({today:dddd})");
+        sb.AppendLine($"Yesterday:  {today.AddDays(-1):yyyy-MM-dd}");
+        sb.AppendLine($"Tomorrow:   {today.AddDays(1):yyyy-MM-dd}");
+        sb.AppendLine($"This week:  {thisWeekStart:yyyy-MM-dd} to {thisWeekEnd:yyyy-MM-dd}  (Mon-Sun)");
+        sb.AppendLine($"Last week:  {lastWeekStart:yyyy-MM-dd} to {lastWeekEnd:yyyy-MM-dd}  (Mon-Sun)");
+        sb.AppendLine($"This month: {thisMonthStart:yyyy-MM-dd} to {thisMonthEnd:yyyy-MM-dd}");
+        sb.AppendLine($"Last month: {lastMonthStart:yyyy-MM-dd} to {lastMonthEnd:yyyy-MM-dd}");
+
+        if (context.LastActionName.HasValue())
+            sb.AppendLine($"Last action: {context.LastActionName}");
+
+        if (context.Metadata.TryGetValue("calendar_connected", out var calendarConnected)
+            && calendarConnected.Equals("true", StringComparison.OrdinalIgnoreCase))
+        {
+            sb.AppendLine("Calendar: connected");
+        }
+
+        return sb.ToString();
     }
 
     internal static string BuildActionsSummary(IEnumerable<ActionMetadata> actions)

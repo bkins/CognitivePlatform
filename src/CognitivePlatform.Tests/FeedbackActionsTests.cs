@@ -75,16 +75,15 @@ public class FeedbackActionsTests : IDisposable
     }
 
     [Fact]
-    public void ReportBug_WritesUtcTimestamp_InEntry()
+    public void ReportBug_WritesTimestamp_InEntry()
     {
-        var action    = CreateAction();
-        var beforeUtc = DateTimeOffset.UtcNow;
+        var action      = CreateAction();
+        var beforeLocal = DateTimeOffset.Now;
 
         action.ReportBug("Timing check.");
 
         var content = File.ReadAllText(_tempFile);
-        // Timestamp is formatted yyyy-MM-dd HH:mm UTC; check the date portion
-        Assert.Contains(beforeUtc.ToString("yyyy-MM-dd"), content);
+        Assert.Contains(beforeLocal.ToString("yyyy-MM-dd"), content);
     }
 
     [Fact]
