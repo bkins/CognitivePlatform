@@ -14,8 +14,9 @@ namespace CognitivePlatform.Tests;
 /// </summary>
 public class GroqLlmClientTests
 {
-    private static GroqLlmClient BuildClient( HttpMessageHandler       handler
-                                            , IGroqUsageTracker?       tracker = null )
+    private static GroqLlmClient BuildClient( HttpMessageHandler handler
+                                            , IGroqUsageTracker? tracker     = null
+                                            , ILlmRateLimiter?   rateLimiter = null )
     {
         var httpClient = new HttpClient(handler);
 
@@ -32,11 +33,13 @@ public class GroqLlmClientTests
                                              }
                        };
 
-        tracker ??= new Mock<IGroqUsageTracker>().Object;
+        tracker     ??= new Mock<IGroqUsageTracker>().Object;
+        rateLimiter ??= new Mock<ILlmRateLimiter>().Object;
 
         return new GroqLlmClient(httpClient
                                , Options.Create(settings)
-                               , tracker);
+                               , tracker
+                               , rateLimiter);
     }
 
     private static HttpMessageHandler SuccessHandlerWithHeaders( string  responseContent

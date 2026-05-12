@@ -429,25 +429,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         if (interpretation.FailureType == InterpreterFailureType.Exception)
         {
-            // BUG-20: Detect Groq 429 rate-limit errors and return a user-friendly message
-            // with the reset time rather than the generic connectivity-error path.
-            var message = BuildExceptionMessage(interpretation);
-            var message = BuildExceptionMessage(interpretation.Exception);
-            if (_isDebug)
-            {
-                message = $"""
-                          ## Something went wrong while processing your request.
-                          ----
-                          You are getting this because:
-                          ```csharp
-                          interpretation.FailureType == InterpreterFailureType.Exception
-                          {interpretation.Exception?.ToString() ?? "No exception details available."}
-                          ```
-                          Is `true`
-                          The exception is:
-                          >{interpretation.DebugInfo}
-                          """;
-            }
+            // BUG-20 / EPIC-07-B: user-friendly message for 429 and capacity errors.
+            // Debug detail is appended inside BuildExceptionMessage for generic failures only
+            // so that 429 / capacity-exhaustion messages are never overridden.
+            var message = BuildExceptionMessage(interpretation.Exception
+                                              , interpretation.DebugInfo ?? string.Empty);
 
             var llmExceptionResponse = new ConverseResponse
                                        {
@@ -1086,36 +1072,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Does this need to be determined in the controller?  
     }
 
-    private string BuildExceptionMessage(InterpreterResult interpretation)
+    // BUG-20 / EPIC-07-B: returns a human-friendly message for 429 and capacity-exhaustion errors.
+    // User-friendly exception types are returned as-is even in debug mode so tests are reliable.
+    private string BuildExceptionMessage(Exception? exception, string debugInfo = "")
     {
-        if (IsRateLimitException(interpretation.Exception))
-        {
-            var snapshot  = _rateLimiter.GetCurrentSnapshot("Groq");
-            var resetTime = snapshot.RequestsResetAt?.ToLocalTime().ToString("h:mm tt")
-                         ?? snapshot.TokensResetAt?.ToLocalTime().ToString("h:mm tt");
+        if (exception is LlmCapacityExceededException)
+            return "All AI providers are currently at capacity. Please try again later.";
 
-            return resetTime is not null
-                           ? $"Groq rate limit reached — resets at {resetTime}"
-                           : "Groq rate limit reached. Please wait a moment and try again.";
-        }
-
-        if (_isDebug)
-        {
-            return $"""
-                    ## Something went wrong while processing your request.
-                    ----
-                    You are getting this because:
-                    ```csharp
-                    interpretation.FailureType == InterpreterFailureType.Exception
-                    {interpretation.Exception?.ToString() ?? "No exception details available."}
-                    ```
-                    Is `true`
-                    The exception is:
-                    >{interpretation.DebugInfo}
-                    """;
-    // BUG-20: detect Groq 429 and return a human-friendly rate-limit message with reset time.
-    private string BuildExceptionMessage(Exception? exception)
-    {
         if (exception?.Message.Contains("429", StringComparison.Ordinal) == true)
         {
             var snapshot  = _rateLimiter.GetLatest("Groq");
@@ -1125,11 +1088,22 @@ public class ConversationOrchestrator : IConversationOrchestrator
             return $"Groq rate limit reached{resetPart}. Please wait a moment before trying again.";
         }
 
+        if (_isDebug)
+            return $"""
+                    ## Something went wrong while processing your request.
+                    ----
+                    You are getting this because:
+                    ```csharp
+                    interpretation.FailureType == InterpreterFailureType.Exception
+                    {exception?.ToString() ?? "No exception details available."}
+                    ```
+                    Is `true`
+                    The exception is:
+                    >{debugInfo}
+                    """;
+
         return "Something went wrong while processing your request. Please try again.";
     }
-
-    private static bool IsRateLimitException(Exception? ex)
-        => ex?.Message.Contains("429", StringComparison.Ordinal) == true;
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
                                                                  , IDictionary<string, string> parameters)

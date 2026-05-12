@@ -75,11 +75,11 @@ public class OrchestratorInsightIntegrationTests
 
         // Rate limiter: optimistic defaults (no data recorded yet).
         _rateLimiterMock
-            .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
+            .Setup(limiter => limiter.GetLatest(It.IsAny<string>()))
             .Returns(LlmRateLimitSnapshot.Empty);
         _rateLimiterMock
-            .Setup(limiter => limiter.CanSend(It.IsAny<string>()))
-            .Returns(true);
+            .Setup(limiter => limiter.IsExhausted(It.IsAny<string>()))
+            .Returns(false);
     }
 
     private ConversationOrchestrator BuildOrchestrator() =>

@@ -98,7 +98,7 @@ public class OrchestratorRateLimitTests
                        };
 
         _rateLimiterMock
-            .Setup(limiter => limiter.GetCurrentSnapshot("Groq"))
+            .Setup(limiter => limiter.GetLatest("Groq"))
             .Returns(snapshot);
 
         _interpreterMock
@@ -130,7 +130,7 @@ public class OrchestratorRateLimitTests
     public async Task ConverseAsync_ReturnsGenericMessage_WhenExceptionIsNot429()
     {
         _rateLimiterMock
-            .Setup(limiter => limiter.GetCurrentSnapshot(It.IsAny<string>()))
+            .Setup(limiter => limiter.GetLatest(It.IsAny<string>()))
             .Returns(LlmRateLimitSnapshot.Empty);
 
         _interpreterMock
@@ -161,7 +161,7 @@ public class OrchestratorRateLimitTests
     public async Task ConverseAsync_Returns429FallbackMessage_WhenResetTimeUnavailable()
     {
         _rateLimiterMock
-            .Setup(limiter => limiter.GetCurrentSnapshot("Groq"))
+            .Setup(limiter => limiter.GetLatest("Groq"))
             .Returns(LlmRateLimitSnapshot.Empty);
 
         _interpreterMock
@@ -186,5 +186,32 @@ public class OrchestratorRateLimitTests
 
         Assert.NotNull(response.Message);
         Assert.Contains("rate limit", response.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConverseAsync_ReturnsCapacityExhaustedMessage_WhenAllProvidersExhausted()
+    {
+        _interpreterMock
+            .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
+                                                                  , It.IsAny<ConversationContext>()))
+            .ReturnsAsync(new InterpreterResult
+                          {
+                                  ActionName          = null
+                                , ExtractedParameters = new()
+                                , FailureType         = InterpreterFailureType.Exception
+                                , Exception           = new LlmCapacityExceededException()
+                                , Reason              = "All providers exhausted"
+                                , DebugInfo           = "capacity exceeded"
+                          });
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(new ConverseRequest
+                                                            {
+                                                                    SessionId = "test-session"
+                                                                  , Input     = "hello"
+                                                            });
+
+        Assert.NotNull(response.Message);
+        Assert.Contains("capacity", response.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

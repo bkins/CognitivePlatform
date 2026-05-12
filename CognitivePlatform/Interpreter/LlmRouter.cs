@@ -27,38 +27,73 @@ public class LlmRouter : ILlmRouter
     private readonly IPromptLogger       _promptLogger;
     private readonly ILlmUsageAggregator _usageAggregator;
     private readonly ILlmRateLimiter     _rateLimiter;
+    private readonly ILlmCapacityRouter  _capacityRouter;
 
     public LlmRouter( ILlmClientFactory              factory
                     , IOptions<LlmProviderDefaults>  defaults
                     , IPromptLogger                  promptLogger
                     , ILlmUsageAggregator             usageAggregator
-                    , ILlmRateLimiter                 rateLimiter )
+                    , ILlmRateLimiter                 rateLimiter
+                    , ILlmCapacityRouter              capacityRouter )
     {
         _factory          = factory;
         _defaults         = defaults.Value;
         _promptLogger     = promptLogger;
         _usageAggregator  = usageAggregator;
         _rateLimiter      = rateLimiter;
+        _capacityRouter   = capacityRouter;
     }
 
     public async Task<LlmResponse> SendAsync( string              prompt
                                             , ConversationContext context
                                             , CancellationToken   ct = default )
     {
-        var (client, model) = Resolve(context);
-        var response        = await client.SendAsync(prompt, model, ct);
+        var sessionProvider = ResolveProvider(context);
+        var sessionModel    = ResolveModel(context, sessionProvider);
+        var client          = _factory.Create(sessionProvider);
+        var resolvedModel   = sessionModel;
+        var resolvedProvider = sessionProvider.ToString();
+        string? switchNote  = null;
+
+        // When the session-preferred provider is exhausted (as signalled by its
+        // last rate-limit snapshot), delegate to the capacity router to find
+        // the next non-exhausted model.  LlmCapacityExceededException propagates
+        // up through the interpreter so the orchestrator can surface a friendly message.
+        if (_rateLimiter.IsExhausted(sessionProvider.ToString()))
+        {
+            var capacityModelId = _capacityRouter.SelectModel();
+            var capacityProvider = Enum.TryParse<LlmProvider>(capacityModelId.Provider, ignoreCase: true, out var parsed)
+                                           ? parsed
+                                           : _factory.DefaultProvider;
+
+            client           = _factory.Create(capacityProvider);
+            resolvedModel    = capacityModelId.Model;
+            resolvedProvider = capacityModelId.Provider;
+            switchNote       = $"Switched to {capacityModelId.Provider} ({capacityModelId.Model}) — {sessionProvider} limit reached";
+        }
+
+        var response = await client.SendAsync(prompt, resolvedModel, ct);
 
         var metadata = new LlmResponseMetadata
                        {
-                               ProviderId  = ResolveProvider(context).ToString()
-                             , ModelId     = model ?? string.Empty
-                             , Usage       = response.Usage
-                             , RateLimits  = response.RateLimits
-                             , CapturedUtc = DateTimeOffset.UtcNow
+                               ProviderId        = resolvedProvider
+                             , ModelId           = resolvedModel ?? string.Empty
+                             , Usage             = response.Usage
+                             , RateLimits        = response.RateLimits
+                             , CapturedUtc       = DateTimeOffset.UtcNow
+                             , ProviderSwitchNote = switchNote
                        };
 
         _usageAggregator.Record(metadata);
         _rateLimiter.Update(metadata);
+
+        var modelId = new LlmModelId(resolvedProvider, resolvedModel ?? string.Empty);
+
+        if (!ReferenceEquals(response.Usage, LlmUsageInfo.Empty))
+            _capacityRouter.RecordUsage(modelId, response.Usage);
+
+        if (response.RateLimits.HasData)
+            _capacityRouter.RecordRateLimits(modelId, response.RateLimits);
 
         return response;
     }
