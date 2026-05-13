@@ -39,9 +39,12 @@ public sealed class JournalActivityInsightProvider : IInsightProvider
         await Task.CompletedTask;
 
         // Query only today's local-date window so we don't load the entire history.
+        // ToUniversalTime() is required: SqliteObjectStore compares CreatedUtc strings
+        // lexicographically, so both bounds must carry +00:00 to sort correctly against
+        // the stored UTC values.
         var today   = DateTime.Now.Date;
-        var fromUtc = new DateTimeOffset(today,            TimeZoneInfo.Local.GetUtcOffset(today));
-        var toUtc   = new DateTimeOffset(today.AddDays(1), TimeZoneInfo.Local.GetUtcOffset(today.AddDays(1)));
+        var fromUtc = new DateTimeOffset(today,            TimeZoneInfo.Local.GetUtcOffset(today))           .ToUniversalTime();
+        var toUtc   = new DateTimeOffset(today.AddDays(1), TimeZoneInfo.Local.GetUtcOffset(today.AddDays(1))).ToUniversalTime();
 
         var todaysEntries = _journalService.ListEntries(fromUtc: fromUtc, toUtc: toUtc);
 
