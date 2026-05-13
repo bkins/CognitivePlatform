@@ -4,7 +4,7 @@ using CognitivePlatform.Api.Workspace;
 namespace CognitivePlatform.Tests;
 
 /// <summary>
-/// Tests for WorkspaceContext (KnownWorkspaces registry, normalisation, persistence)
+/// Tests for WorkspaceContext (KnownWorkspaces registry, normalization, persistence)
 /// and WorkspaceActions (UseWorkspace, GetCurrentWorkspace, ListWorkspaces).
 /// </summary>
 public class WorkspaceTests
