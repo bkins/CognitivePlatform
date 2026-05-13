@@ -365,4 +365,87 @@ public class OrchestratorInsightIntegrationTests
         Assert.Equal("second",    context.Turns[1].UserMessage);
         Assert.Equal("output B",  context.Turns[1].AssistantMessage);
     }
+
+    // ====================================================================
+    // ENH-09 / B.4: INSIGHT ENGINE ON FASTPATH TURNS
+    // ====================================================================
+
+    [Fact]
+    public async Task FastPath_EngineEmitsInsights_MessageIsWoven_AndWeaveIsCalled()
+    {
+        var action = SimpleAction("FastDo");
+
+        _fastPathMock
+            .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
+                                                 , out It.Ref<ActionMetadata?>.IsAny
+                                                 , out It.Ref<Dictionary<string, string>?>.IsAny))
+            .Returns((string _
+                    , out ActionMetadata? meta
+                    , out Dictionary<string, string>? parameters) =>
+            {
+                meta       = action;
+                parameters = new Dictionary<string, string>();
+                return true;
+            });
+
+        StubExecutionReturns("fastpath raw output");
+
+        var emitted = Insight("journal.no-entry-today", "You haven't journaled today.");
+        StubEngineEmits(emitted);
+
+        _routerMock
+            .Setup(router => router.WeaveAsync(It.IsAny<ConversationContext>()
+                                             , It.IsAny<string>()
+                                             , It.IsAny<IReadOnlyList<Insight>>()
+                                             , It.IsAny<CancellationToken>()))
+            .ReturnsAsync("fastpath woven response");
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(Request("list tasks"));
+
+        Assert.Equal("fastpath woven response", response.Message);
+        Assert.Single(response.Insights);
+        Assert.Equal("journal.no-entry-today", response.Insights[0].DeduplicationKey);
+
+        _routerMock.Verify(router => router.WeaveAsync(It.IsAny<ConversationContext>()
+                                                     , It.IsAny<string>()
+                                                     , It.IsAny<IReadOnlyList<Insight>>()
+                                                     , It.IsAny<CancellationToken>())
+                         , Times.Once);
+    }
+
+    [Fact]
+    public async Task FastPath_EngineEmitsZero_WeaveIsSkipped_RawMessageReturned()
+    {
+        var action = SimpleAction("FastDo");
+
+        _fastPathMock
+            .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
+                                                 , out It.Ref<ActionMetadata?>.IsAny
+                                                 , out It.Ref<Dictionary<string, string>?>.IsAny))
+            .Returns((string _
+                    , out ActionMetadata? meta
+                    , out Dictionary<string, string>? parameters) =>
+            {
+                meta       = action;
+                parameters = new Dictionary<string, string>();
+                return true;
+            });
+
+        StubExecutionReturns("fastpath raw output");
+        StubEngineEmits(/* none */);
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(Request("list tasks"));
+
+        Assert.Equal("fastpath raw output", response.Message);
+        Assert.Empty(response.Insights);
+
+        // Weave must not fire — FastPath turns with no insights skip the LLM call.
+        _routerMock.Verify(router => router.WeaveAsync(It.IsAny<ConversationContext>()
+                                                     , It.IsAny<string>()
+                                                     , It.IsAny<IReadOnlyList<Insight>>()
+                                                     , It.IsAny<CancellationToken>())
+                         , Times.Never);
+    }
 }
