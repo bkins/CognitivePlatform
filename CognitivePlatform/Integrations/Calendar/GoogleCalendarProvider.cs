@@ -219,6 +219,13 @@ public class GoogleCalendarProvider : ICalendarProvider
 
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized
+                                    or System.Net.HttpStatusCode.Forbidden)
+            {
+                _logger.LogWarning("Calendar list request rejected ({Status}) — token invalid, throwing CalendarAuthException", response.StatusCode);
+                throw new CalendarAuthException();
+            }
+
             _logger.LogWarning("Failed to fetch calendar list ({Status}) — falling back to primary", response.StatusCode);
             return [new CalendarInfo("primary", "Primary")];
         }
