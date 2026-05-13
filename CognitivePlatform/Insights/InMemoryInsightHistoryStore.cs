@@ -26,10 +26,13 @@ public sealed class InMemoryInsightHistoryStore : IInsightHistoryStore
             if (string.IsNullOrWhiteSpace(insight.DeduplicationKey))
                 continue;
 
-            var item = new InsightHistoryItem(insight.DeduplicationKey
-                                            , now
-                                            , insight.Category
-                                            , insight.Message);
+            var item = new InsightHistoryItem
+                       {
+                               InsightKey   = insight.DeduplicationKey
+                             , EmittedAtUtc = now
+                             , Category     = insight.Category
+                             , Message      = insight.Message
+                       };
 
             _items[insight.DeduplicationKey] = item;
         }
@@ -51,6 +54,25 @@ public sealed class InMemoryInsightHistoryStore : IInsightHistoryStore
 
         var age = DateTime.UtcNow - item!.EmittedAt;
         return Task.FromResult(age <= window);
+    }
+
+    public Task RecordOutcomeAsync( string            deduplicationKey
+                                  , InsightOutcome    outcome
+                                  , CancellationToken cancellationToken = default )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(deduplicationKey))
+            return Task.CompletedTask;
+
+        if (_items.TryGetValue(deduplicationKey, out var item)
+         && item.Outcome == InsightOutcome.Unknown)
+        {
+            item.Outcome       = outcome;
+            item.ResolvedAtUtc = DateTime.UtcNow;
+        }
+
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<InsightHistoryItem>> GetRecentAsync(
