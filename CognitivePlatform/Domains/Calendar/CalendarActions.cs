@@ -163,6 +163,93 @@ public class CalendarActions
     }
 
     // -----------------------------------------------------------------------
+    // ListCalendars
+    // -----------------------------------------------------------------------
+
+    [FastPath]
+    [NaturalLanguageAction(Description = "Lists all Google Calendars on the connected account with their current inclusion status."
+                         , Examples = new[]
+                                      {
+                                              "Show my calendars."
+                                            , "List my Google calendars."
+                                            , "Which calendars am I subscribed to?"
+                                            , "What calendars do I have?"
+                                      }
+                         , Category = "calendar")]
+    public async Task<string> ListCalendars()
+    {
+        if (_calendar.IsConnected.Not()) return NotConnectedMessage();
+
+        IReadOnlyList<CalendarSummary> summaries;
+
+        try
+        {
+            summaries = await _calendar.GetCalendarListAsync();
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Your Google Calendars:");
+
+        foreach (var summary in summaries)
+        {
+            var status = summary.IsSelected ? "included" : "excluded";
+            sb.AppendLine($"  • {summary.Name} [{status}]");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // -----------------------------------------------------------------------
+    // SetCalendarInclusion
+    // -----------------------------------------------------------------------
+
+    [NaturalLanguageAction(Description = "Includes or excludes a Google Calendar from event queries and daily briefs."
+                         , Examples = new[]
+                                      {
+                                              "Exclude my Family calendar from daily briefs."
+                                            , "Include the Work calendar in my schedule."
+                                            , "Stop showing events from Holidays in United States."
+                                            , "Add the Birthdays calendar back to my schedule."
+                                      }
+                         , Category = "calendar")]
+    public async Task<string> SetCalendarInclusion( [NaturalLanguageParam(Description = "The name or ID of the calendar to include or exclude."
+                                                                        , AllowEmpty  = false)]
+                                                    string calendarNameOrId
+                                                  , [NaturalLanguageParam(Description = "True to include the calendar in event queries; false to exclude it."
+                                                                        , AllowEmpty  = false)]
+                                                    bool include )
+    {
+        if (_calendar.IsConnected.Not()) return NotConnectedMessage();
+
+        IReadOnlyList<CalendarSummary> summaries;
+
+        try
+        {
+            summaries = await _calendar.GetCalendarListAsync();
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
+
+        var match = summaries.FirstOrDefault(summary =>
+                        summary.Name.Equals(calendarNameOrId, StringComparison.OrdinalIgnoreCase)
+                     || summary.Id.Equals(calendarNameOrId,   StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+            return $"No calendar found with name or ID '{calendarNameOrId}'.";
+
+        await _calendar.SetCalendarInclusionAsync(match.Id, include);
+
+        var action = include ? "included" : "excluded";
+        return $"Calendar '{match.Name}' is now {action} from your schedule.";
+    }
+
+    // -----------------------------------------------------------------------
     // FindFreeTime
     // -----------------------------------------------------------------------
 

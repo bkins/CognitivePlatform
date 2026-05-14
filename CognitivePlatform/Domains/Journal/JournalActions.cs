@@ -311,7 +311,57 @@ public sealed class JournalActions
     }
 
     // ----------------------------------------------------------------------
-    // 6. AnalyzeJournal
+    // 6. GetJournalHistory
+    // ----------------------------------------------------------------------
+    [FastPath]
+    [NaturalLanguageAction(Description = "Shows the revision history of a journal entry — the original and all subsequent edits with their timestamps."
+                         , Examples = new[]
+                                      {
+                                              "Show the history of journal entry 3."
+                                            , "How many times has entry 5 been edited?"
+                                            , "Show me the revision history for entry 2."
+                                            , "What did entry 7 look like originally?"
+                                      }
+                         , Category = "journal")]
+    public string GetJournalHistory ([NaturalLanguageParam(Description = "The 1-based position number of the journal entry (e.g. '3'). Ordinal words map to integers: 'first'=1, 'second'=2, 'third'=3."
+                                                         , AllowEmpty  = false)]
+                                     string entryReference)
+    {
+        var entryWithRevision = TryResolveJournalReference(entryReference, out var errorMessage);
+
+        if (entryWithRevision is null)
+            return errorMessage!;
+
+        var revisions = _journal.GetRevisionHistory(entryWithRevision.Entry.Id);
+        var count     = revisions.Count;
+
+        if (count == 1)
+        {
+            var timestamp = revisions[0].CreatedUtc.ToLocalTime().ToString("MMM d 'at' h:mm tt");
+            return $"Entry #{entryReference} has 1 revision — created {timestamp} (current).";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Entry #{entryReference} has {count} revisions:");
+
+        for (var index = 0; index < revisions.Count; index++)
+        {
+            var revision  = revisions[index];
+            var timestamp = revision.CreatedUtc.ToLocalTime().ToString("MMM d 'at' h:mm tt");
+            var label     = index == 0 ? "original" : "updated";
+            var current   = index == revisions.Count - 1 ? " (current)" : string.Empty;
+            var excerpt   = revision.Text.Length <= 50
+                                    ? revision.Text
+                                    : revision.Text[..50] + "...";
+
+            sb.AppendLine($"  {index + 1}. {label} — {timestamp}{current}: \"{excerpt}\"");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // ----------------------------------------------------------------------
+    // 7. AnalyzeJournal
     // ----------------------------------------------------------------------
     [NaturalLanguageAction(Description = "Answers a question about your journal by reading your entries and reasoning over them using AI. Use this for questions that require understanding meaning, not just finding a keyword."
                          , Examples = new[]
