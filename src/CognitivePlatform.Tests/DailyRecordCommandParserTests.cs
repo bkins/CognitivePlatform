@@ -187,6 +187,91 @@ public class DailyRecordCommandParserTests
         Assert.Empty(result.Tasks);
     }
 
+    // ================================================================
+    // IMPLICIT TASKS — bare "Plan:\n" prefix (BUG-31)
+    // When nothing follows the command prefix on the first line,
+    // subsequent plain-text lines are treated as task titles.
+    // ================================================================
+
+    [Fact]
+    public void Parse_TreatsSubsequentLine_AsImplicitTask_WhenNothingFollowsPrefix()
+    {
+        var input = "Plan:\nFinish the sprint report by tomorrow";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(DailyCommandType.Plan,                        result.CommandType);
+        Assert.Single(result.Tasks);
+        Assert.Equal("Finish the sprint report by tomorrow",       result.Tasks[0]);
+        Assert.Equal(string.Empty,                                 result.BodyText);
+    }
+
+    [Fact]
+    public void Parse_TreatsMultipleSubsequentLines_AsImplicitTasks()
+    {
+        var input = "Plan:\nFinish the sprint report\nCall the client\nReview the PR";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(3,                        result.Tasks.Count);
+        Assert.Equal("Finish the sprint report", result.Tasks[0]);
+        Assert.Equal("Call the client",          result.Tasks[1]);
+        Assert.Equal("Review the PR",            result.Tasks[2]);
+        Assert.Equal(string.Empty,               result.BodyText);
+    }
+
+    [Fact]
+    public void Parse_ImplicitTask_RetainsDueDateSuffix_ForTaskDateParser()
+    {
+        // TaskDateParser strips "by tomorrow" from the title — the parser must
+        // preserve the raw suffix so TaskDateParser can extract it downstream.
+        var input = "Plan:\nFinish the sprint report by tomorrow";
+
+        var result = _parser.Parse(input);
+
+        Assert.Single(result.Tasks);
+        Assert.Equal("Finish the sprint report by tomorrow", result.Tasks[0]);
+    }
+
+    [Fact]
+    public void Parse_ImplicitTasks_WithBlankLines_AreSkipped()
+    {
+        var input = "Plan:\n\nTask one\n\nTask two\n\n";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal(2,          result.Tasks.Count);
+        Assert.Equal("Task one", result.Tasks[0]);
+        Assert.Equal("Task two", result.Tasks[1]);
+    }
+
+    [Fact]
+    public void Parse_FoldsPendingLines_IntoBodyText_WhenExplicitTasksBlockFollows()
+    {
+        // Lines before a Tasks: block become body text even when bare "Plan:" is used.
+        var input = "Plan:\nContext for the day.\nTasks: Fix bug, Write tests";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Context for the day.", result.BodyText);
+        Assert.Equal(2,                      result.Tasks.Count);
+        Assert.Contains("Fix bug",           result.Tasks);
+        Assert.Contains("Write tests",       result.Tasks);
+    }
+
+    [Fact]
+    public void Parse_DoesNotActivateImplicitTasksMode_WhenBodyTextOnFirstLine()
+    {
+        // "Plan: Focus today.\nAlso reviewing PRs." — the continuation line is
+        // body text, not a task, because body text appeared on the first line.
+        var input = "Plan: Focus today.\nAlso reviewing PRs.";
+
+        var result = _parser.Parse(input);
+
+        Assert.Equal("Focus today. Also reviewing PRs.", result.BodyText);
+        Assert.Empty(result.Tasks);
+    }
+
     [Fact]
     public void Parse_BodyText_DoesNotIncludeTaskLines()
     {
