@@ -62,6 +62,14 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
         int?    moodScore = null;
         bool inTasksBlock = false;
 
+        // When nothing follows the command prefix on the first line (e.g. "Plan:\n"),
+        // treat subsequent plain-text lines as implicit task titles rather than body
+        // text. This deferred decision is resolved after the loop based on whether an
+        // explicit Tasks: block was encountered.
+        bool implicitTasksMode    = cleanFirstLineBody.Length == 0;
+        bool hasExplicitTasksBlock = false;
+        var  pendingLines          = new List<string>();
+
         // Merge synthetic directive "lines" (extracted from first-line body) with
         // the real subsequent lines so a single unified loop handles both.
         var allRemainingLines = syntheticDirectiveLines.Concat(lines.Skip(1)).ToList();
@@ -80,6 +88,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
             // Tasks: — inline or block header
             if (line.StartsWith("Tasks:", StringComparison.OrdinalIgnoreCase))
             {
+                hasExplicitTasksBlock = true;
                 var inlinePart = line.Substring("Tasks:".Length).Trim();
                 if (inlinePart.Length > 0)
                 {
@@ -130,11 +139,36 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
                 continue;
             }
 
-            // Body text continuation
-            if (bodyBuilder.Length > 0)
-                bodyBuilder.Append(' ');
+            // In implicit tasks mode, defer line placement until we know whether a
+            // Tasks: block appears later. Otherwise append directly to body text.
+            if (implicitTasksMode)
+                pendingLines.Add(line);
+            else
+            {
+                if (bodyBuilder.Length > 0)
+                    bodyBuilder.Append(' ');
 
-            bodyBuilder.Append(line);
+                bodyBuilder.Append(line);
+            }
+        }
+
+        // Resolve deferred lines collected in implicit tasks mode.
+        //   — An explicit Tasks: block was found: pending lines precede it and are body text.
+        //   — No Tasks: block: treat the pending lines as implicit task titles.
+        if (pendingLines.Count > 0)
+        {
+            if (hasExplicitTasksBlock)
+            {
+                foreach (var pendingLine in pendingLines)
+                {
+                    if (bodyBuilder.Length > 0) bodyBuilder.Append(' ');
+                    bodyBuilder.Append(pendingLine);
+                }
+            }
+            else
+            {
+                tasks.AddRange(pendingLines);
+            }
         }
 
         return new ParsedDailyCommand

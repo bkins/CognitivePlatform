@@ -35,6 +35,10 @@ public class FastPathResolverTests
             , MakeAction("SetProvider")
             , MakeAction("ListModels")
             , MakeAction("ListProviders")
+            , MakeAction("OpenDay")
+            , MakeAction("AddCheckpoint")
+            , MakeAction("CloseDay")
+            , MakeAction("ClaimRolledOverTasks")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -497,5 +501,92 @@ public class FastPathResolverTests
                      && action.Name != "SetProvider"
                      && action.Name != "ListModels"
                      && action.Name != "ListProviders"));
+    }
+
+    // ================================================================
+    // MODE 0.5: DAILY RECORD — implicit tasks via bare "Plan:\n" (BUG-31)
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_Plan_WithImplicitTasks_SetsTasksParameter()
+    {
+        _dailyParserMock
+            .Setup(parser => parser.Parse(It.IsAny<string>()))
+            .Returns(new ParsedDailyCommand
+                     {
+                             CommandType = DailyCommandType.Plan
+                           , BodyText    = string.Empty
+                           , Tasks       = new List<string> { "Finish the sprint report by tomorrow" }
+                     });
+
+        var resolved = _resolver.TryResolve( "Plan:\nFinish the sprint report by tomorrow"
+                                           , out var action
+                                           , out var parameters );
+
+        Assert.True(resolved);
+        Assert.Equal("OpenDay",                                action!.Name);
+        Assert.Equal("Finish the sprint report by tomorrow",   parameters!["tasks"]);
+    }
+
+    [Fact]
+    public void TryResolve_Plan_WithImplicitTasks_SetsNonEmptyOpeningText()
+    {
+        _dailyParserMock
+            .Setup(parser => parser.Parse(It.IsAny<string>()))
+            .Returns(new ParsedDailyCommand
+                     {
+                             CommandType = DailyCommandType.Plan
+                           , BodyText    = string.Empty
+                           , Tasks       = new List<string> { "Write the report" }
+                     });
+
+        var resolved = _resolver.TryResolve( "Plan:\nWrite the report"
+                                           , out _
+                                           , out var parameters );
+
+        Assert.True(resolved);
+        Assert.False(string.IsNullOrWhiteSpace(parameters!["openingText"])
+                   , "openingText must not be empty when Plan: body is absent");
+    }
+
+    [Fact]
+    public void TryResolve_Plan_WithMultipleImplicitTasks_SetsCommaSeparatedTasksParameter()
+    {
+        _dailyParserMock
+            .Setup(parser => parser.Parse(It.IsAny<string>()))
+            .Returns(new ParsedDailyCommand
+                     {
+                             CommandType = DailyCommandType.Plan
+                           , BodyText    = string.Empty
+                           , Tasks       = new List<string> { "Task one", "Task two", "Task three" }
+                     });
+
+        var resolved = _resolver.TryResolve( "Plan:\nTask one\nTask two\nTask three"
+                                           , out _
+                                           , out var parameters );
+
+        Assert.True(resolved);
+        Assert.Equal("Task one, Task two, Task three", parameters!["tasks"]);
+    }
+
+    [Fact]
+    public void TryResolve_Plan_WithBodyText_PassesBodyTextAsOpeningText()
+    {
+        _dailyParserMock
+            .Setup(parser => parser.Parse(It.IsAny<string>()))
+            .Returns(new ParsedDailyCommand
+                     {
+                             CommandType = DailyCommandType.Plan
+                           , BodyText    = "Focused day on the API refactor."
+                           , Tasks       = new List<string>()
+                     });
+
+        var resolved = _resolver.TryResolve( "Plan: Focused day on the API refactor."
+                                           , out _
+                                           , out var parameters );
+
+        Assert.True(resolved);
+        Assert.Equal("Focused day on the API refactor.", parameters!["openingText"]);
+        Assert.False(parameters.ContainsKey("tasks"));
     }
 }

@@ -152,7 +152,11 @@ public sealed class FastPathResolver : IFastPathResolver
         switch (parsed.CommandType)
         {
             case DailyCommandType.Plan:
-                parameters["openingText"] = parsed.BodyText;
+                // When the user writes "Plan:\nTask..." with no opening text on the first line,
+                // BodyText is empty. Substitute a minimal default so openingText is never blank.
+                parameters["openingText"] = string.IsNullOrWhiteSpace(parsed.BodyText)
+                                                ? "Plan"
+                                                : parsed.BodyText;
                 if (parsed.Tasks.Count    > 0) parameters["tasks"]     = string.Join(", ", parsed.Tasks);
                 if (parsed.Mood      is not null) parameters["mood"]      = parsed.Mood;
                 if (parsed.MoodScore.HasValue)    parameters["moodScore"] = parsed.MoodScore.Value.ToString();
