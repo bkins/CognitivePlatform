@@ -161,6 +161,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive.Not())
         {
+            await CheckForInsightFollowThroughAsync(actionMeta!.Name, context, ct);
             var fastResponse = await TakeTheFastPath(actionMeta, fastParams, context, ct);
 
             // ENH-09 / B.4: fire the insight engine on FastPath turns, mirroring the
@@ -742,6 +743,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         // 9. Execute with whatever parameters we have (including defaults for optionals)
         var execParameters  = ApplyDefaultValues(selectedAction, interpretation.ExtractedParameters);
+        await CheckForInsightFollowThroughAsync(selectedAction.Name, context, ct);
         var execOutputFinal = await _execution.ExecuteAsync(selectedAction, execParameters, context.SessionId, ct);
 
         // ENH-08: record the turn BEFORE the engine fires so providers see the current
@@ -1174,6 +1176,31 @@ public class ConversationOrchestrator : IConversationOrchestrator
                              : string.Empty;
 
         return $"I know what you want to do, but I'm missing some required details.{detail} Please try again with the full details.";
+    }
+
+    /// <summary>
+    /// Records <see cref="InsightOutcome.ActedOn"/> when the user's resolved action
+    /// matches a <see cref="EmittedInsightRef.SuggestedAction"/> from the previous turn,
+    /// then clears the emitted-insight snapshot so the same signal is not double-counted.
+    /// Must be called after action resolution but before execution so the outcome is
+    /// persisted regardless of whether execution succeeds.
+    /// </summary>
+    private async Task CheckForInsightFollowThroughAsync( string             resolvedActionName
+                                                        , ConversationContext context
+                                                        , CancellationToken  ct )
+    {
+        var match = context.LastEmittedInsights
+            .FirstOrDefault(emitted => string.Equals(emitted.SuggestedAction
+                                                    , resolvedActionName
+                                                    , StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            await _insightHistory.RecordOutcomeAsync(match.DeduplicationKey
+                                                   , InsightOutcome.ActedOn
+                                                   , ct);
+            context.SetLastEmittedInsights(Array.Empty<EmittedInsightRef>());
+        }
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
