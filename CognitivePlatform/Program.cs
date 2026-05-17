@@ -202,11 +202,12 @@ public partial class Program
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();
         builder.Services.Configure<SystemPathsOptions>(builder.Configuration.GetSection("SystemPaths"));
         
-    // Insight Engine (Phase B — Object Store-backed history, Journal activity provider)
+    // Insight Engine (Phase C — Task awareness provider added alongside Phase B providers)
         // InsightPolicy is bound from the "Insights" config section so caps tune
         // without a rebuild; missing section falls through to record defaults.
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, JournalActivityInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, TaskAwarenessInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
         builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
