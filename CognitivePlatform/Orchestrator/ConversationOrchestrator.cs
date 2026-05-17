@@ -161,17 +161,45 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams)
             && actionMeta!.IsDestructive.Not())
         {
-            var response = await TakeTheFastPath(actionMeta
-                                              , fastParams
-                                              , context
-                                              , ct);
+            var fastResponse = await TakeTheFastPath(actionMeta, fastParams, context, ct);
+
+            // ENH-09 / B.4: fire the insight engine on FastPath turns, mirroring the
+            // Interpreter+execute path. Record the turn first so providers see the
+            // current user message and raw assistant output in context.Turns.
+            // Skip the weave pass entirely when the engine returns nothing — FastPath
+            // turns must not pay LLM latency when there is nothing to weave.
+            context.LastUserMessage = request.Input;
+
+            var initialFastTurn = new ConversationTurn(
+                UserMessage:      request.Input ?? string.Empty
+              , AssistantMessage: fastResponse.Message ?? string.Empty
+              , OccurredAt:       DateTimeOffset.UtcNow
+              , Path:             TurnPath.FastPath
+              , ActionName:       actionMeta.Name
+              , Succeeded:        true);
+            context.RecordTurn(initialFastTurn);
+
+            var fastInsights = await SafeGenerateInsightsAsync(context, ct);
+            var fastFinalMessage = await ApplyInsightsToResponseAsync(fastResponse.Message ?? string.Empty
+                                                                    , fastInsights
+                                                                    , context
+                                                                    , ct);
+
+            if (fastInsights.Count > 0 && fastFinalMessage != fastResponse.Message)
+            {
+                context.ReplaceLatestTurn(initialFastTurn with { AssistantMessage = fastFinalMessage });
+                fastResponse.Message = fastFinalMessage;
+            }
+
+            fastResponse.Insights = fastInsights;
 
             return await FinalizeAsync(request
-                                     , response
+                                     , fastResponse
                                      , stopwatch
                                      , TurnPath.FastPath
                                      , actionName: actionMeta.Name
                                      , succeeded:  true
+                                     , recordTurn: false
                                      , ct:         ct);
         }
 
@@ -825,7 +853,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
     {
         try
         {
-            return await _insightEngine.GenerateInsightsAsync(context, ct);
+            return await _insightEngine.GenerateInsightsAsync(context, ct)
+                ?? Array.Empty<Insight>();
         }
         catch (Exception ex)
         {
