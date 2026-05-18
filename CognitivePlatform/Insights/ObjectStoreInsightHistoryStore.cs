@@ -50,6 +50,7 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
                              , Category     = insight.Category
                              , EmittedAtUtc = DateTime.UtcNow
                              , Message      = insight.Message
+                             , Reasoning    = insight.Reasoning
                        };
 
             await _store.Save(item, partitionKey: PartitionKey, id: item.Id);

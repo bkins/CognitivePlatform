@@ -58,6 +58,10 @@ public sealed class JournalActivityInsightProvider : IInsightProvider
                            , DeduplicationKey = "journal.no-entry-today"
                            , Category         = InsightCategory.Journal
                            , Priority         = InsightPriority.Normal
+                           , Reasoning        = new InsightReasoning
+                                               {
+                                                       Explanation = "No journal entry found for today."
+                                               }
                      };
     }
 }

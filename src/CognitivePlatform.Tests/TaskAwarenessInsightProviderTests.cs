@@ -49,11 +49,25 @@ public class TaskAwarenessInsightProviderTests
         var insights = await CollectAsync(_provider.GenerateAsync(MakeContext()));
 
         var single = Assert.Single(insights);
-        Assert.Equal("tasks.open-tasks-reminder",                    single.DeduplicationKey);
+        Assert.Equal("tasks.open-tasks-reminder",                      single.DeduplicationKey);
         Assert.Equal("You have 4 open tasks. Want help prioritising?", single.Message);
-        Assert.Equal("ListTasksSummary",                              single.SuggestedAction);
-        Assert.Equal(InsightCategory.Tasks,                           single.Category);
-        Assert.Equal(InsightPriority.Normal,                          single.Priority);
+        Assert.Equal("ListTasksSummary",                               single.SuggestedAction);
+        Assert.Equal(InsightCategory.Tasks,                            single.Category);
+        Assert.Equal(InsightPriority.Normal,                           single.Priority);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_PopulatesReasoning_WhenOpenTaskCountExceedsThreshold()
+    {
+        StubOpenTasks(5);
+
+        var insights = await CollectAsync(_provider.GenerateAsync(MakeContext()));
+
+        var single = Assert.Single(insights);
+        Assert.NotNull(single.Reasoning);
+        Assert.Equal("You have 5 open tasks.", single.Reasoning.Explanation);
+        Assert.Equal(5, single.Reasoning.Evidence.Count);
+        Assert.All(single.Reasoning.Evidence, evidence => Assert.Equal("Task", evidence.EntityType));
     }
 
     [Fact]

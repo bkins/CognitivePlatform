@@ -63,6 +63,19 @@ public class JournalActivityInsightProviderTests
     }
 
     [Fact]
+    public async Task GenerateAsync_PopulatesReasoning_WhenNoJournalEntryToday()
+    {
+        StubNoEntriesToday();
+
+        var insights = await CollectAsync(_provider.GenerateAsync(MakeContext()));
+
+        var single = Assert.Single(insights);
+        Assert.NotNull(single.Reasoning);
+        Assert.Equal("No journal entry found for today.", single.Reasoning.Explanation);
+        Assert.Empty(single.Reasoning.Evidence);
+    }
+
+    [Fact]
     public async Task GenerateAsync_YieldsNothing_WhenEntryExistsToday()
     {
         StubEntryExistsToday();
