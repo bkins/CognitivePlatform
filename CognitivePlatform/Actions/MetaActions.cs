@@ -1,6 +1,8 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Insights;
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -11,6 +13,7 @@ public static class MetaActions
 {
     private static IActionRegistry?     _registry;
     private static ConversationContext? _context;
+    private static IInsightHistoryStore? _insightHistoryStore;
 
     /// <summary>
     /// Called once per app lifetime (or startup) to inject the shared action registry.
@@ -27,6 +30,14 @@ public static class MetaActions
     public static void SetContext (ConversationContext context)
     {
         _context = context;
+    }
+
+    /// <summary>
+    /// Called once at startup to give WhyInsight access to the insight history store.
+    /// </summary>
+    public static void SetInsightHistoryStore (IInsightHistoryStore store)
+    {
+        _insightHistoryStore = store;
     }
 
     /// <summary>
@@ -246,6 +257,63 @@ public static class MetaActions
              + $"\n\n(Also, since this is a debug build, you can see the input text echoed back here for testing purposes.)";
 #endif
         return "I'm here when you want to do something.";
+    }
+
+    [NaturalLanguageAction(Description = "Explains why the system made a recent suggestion or insight."
+                         , Examples =
+                           [
+                                   "Why are you suggesting this?"
+                                 , "Why did you say that?"
+                                 , "Why that suggestion?"
+                           ]
+                         , Category = "interpreter"
+    )]
+    public static async Task<string> WhyInsight()
+    {
+        if (_context is null)
+            return "No conversation context available.";
+
+        if (_insightHistoryStore is null)
+            return "Insight history is not available.";
+
+        var lastInsights = _context.LastEmittedInsights;
+
+        if (lastInsights.Count == 0)
+            return "I haven't made any suggestions recently.";
+
+        var mostRecent = lastInsights[^1];
+
+        var recentHistory = await _insightHistoryStore.GetRecentAsync(TimeSpan.FromHours(48));
+
+        var historyItem = recentHistory
+            .Where(item => string.Equals(item.InsightKey
+                                       , mostRecent.DeduplicationKey
+                                       , StringComparison.Ordinal))
+            .OrderByDescending(item => item.EmittedAtUtc)
+            .FirstOrDefault();
+
+        if (historyItem?.Reasoning is null)
+            return $"I recently suggested something, but I don't have detailed reasoning available for that suggestion.";
+
+        var sb = new StringBuilder();
+
+        if (historyItem.Message.HasValue())
+        {
+            sb.AppendLine($"My recent suggestion was: {historyItem.Message}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine($"Why: {historyItem.Reasoning.Explanation}");
+
+        if (historyItem.Reasoning.Evidence.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("Evidence:");
+            foreach (var evidence in historyItem.Reasoning.Evidence)
+                sb.AppendLine($" - {evidence.EntityType}: {evidence.EntityId}");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public static WhyActionResult BuildWhyActionResult (ConversationContext ctx)

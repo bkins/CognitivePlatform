@@ -212,6 +212,7 @@ public partial class Program
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
         builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
                                                   ?? new InsightPolicy());
+        builder.Services.AddScoped<INotificationEngine, NotificationEngine>();
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();

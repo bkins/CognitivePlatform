@@ -137,6 +137,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 // 🔑 Wire meta-actions & LlmActions FIRST
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.MetaActions.SetInsightHistoryStore(_insightHistory);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);
@@ -1025,6 +1026,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.TestActions.SetContext(context);
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
+        Actions.MetaActions.SetInsightHistoryStore(_insightHistory);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);

@@ -45,6 +45,10 @@ public sealed class TaskAwarenessInsightProvider : IInsightProvider
         if (openTasks.Count <= OpenTaskThreshold)
             yield break;
 
+        var evidence = openTasks
+            .Select(task => new EvidenceReference("Task", task.Id))
+            .ToList();
+
         yield return new Insight
                      {
                              Message          = $"You have {openTasks.Count} open tasks. Want help prioritising?"
@@ -52,6 +56,11 @@ public sealed class TaskAwarenessInsightProvider : IInsightProvider
                            , DeduplicationKey = "tasks.open-tasks-reminder"
                            , Category         = InsightCategory.Tasks
                            , Priority         = InsightPriority.Normal
+                           , Reasoning        = new InsightReasoning
+                                               {
+                                                       Explanation = $"You have {openTasks.Count} open tasks."
+                                                     , Evidence    = evidence
+                                               }
                      };
     }
 }

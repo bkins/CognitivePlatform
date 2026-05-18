@@ -22,8 +22,11 @@ public sealed class InsightHistoryItem
     public string?         Message       { get; set; }
     public InsightOutcome  Outcome       { get; set; } = InsightOutcome.Unknown;
     public DateTime?       ResolvedAtUtc { get; set; }
-    public bool            IsDeleted     { get; set; }
-    public DateTime?       DeletedUtc    { get; set; }
+    public bool              IsDeleted  { get; set; }
+    public DateTime?         DeletedUtc { get; set; }
+
+    /// <summary>Optional reasoning captured from the originating <see cref="Insight"/>. Surfaced by WhyInsight.</summary>
+    public InsightReasoning? Reasoning  { get; set; }
 
     /// <summary>Alias for <see cref="InsightKey"/> — kept for backward compatibility.</summary>
     [JsonIgnore]
