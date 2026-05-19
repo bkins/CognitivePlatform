@@ -39,6 +39,9 @@ public class FastPathResolverTests
             , MakeAction("AddCheckpoint")
             , MakeAction("CloseDay")
             , MakeAction("ClaimRolledOverTasks")
+            , MakeAction("ListPersonalities")
+            , MakeAction("GetActivePersonality")
+            , MakeAction("SetPersonality")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -588,5 +591,122 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("Focused day on the API refactor.", parameters!["openingText"]);
         Assert.False(parameters.ContainsKey("tasks"));
+    }
+
+    // ================================================================
+    // MODE 2.5: PERSONALITY FAST PATHS
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonalities_ForListPhrase()
+    {
+        var resolved = _resolver.TryResolve("list all personalities", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonalities", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonalities_ForShowPhrase()
+    {
+        var resolved = _resolver.TryResolve("show available personalities", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonalities", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonalities_ForWhatPersonalitiesPhrase()
+    {
+        var resolved = _resolver.TryResolve("what personalities are available?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonalities", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersonality_ForActivePhrase()
+    {
+        var resolved = _resolver.TryResolve("what personality is active?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersonality", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersonality_ForCurrentPhrase()
+    {
+        var resolved = _resolver.TryResolve("which personality am I using?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersonality", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForSwitchToPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("switch to the Zen personality", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("zen", parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForUseThePhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("use the Programmer personality", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("programmer", parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForSetPersonalityToPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("set personality to Witty", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("witty", parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForActivatePhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("activate Motivational Coach", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("motivational coach", parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonalities_ForPrefixCommand()
+    {
+        var resolved = _resolver.TryResolve("/personality list", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonalities", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersonality_ForPrefixCommand()
+    {
+        var resolved = _resolver.TryResolve("/personality active", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersonality", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForPrefixSetCommand()
+    {
+        var resolved = _resolver.TryResolve("/personality set Zen", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("Zen",            parameters!["name"]);
     }
 }

@@ -199,6 +199,28 @@ public class PersonalityServiceTests
     // ================================================================
 
     [Fact]
+    public async Task AddAsync_ForcesIsActive_ToFalse_RegardlessOfInput()
+    {
+        var personality = new PersonalityDefinition
+                          {
+                                  Name     = "Eager Custom"
+                                , IsActive = true  // caller tries to add as active
+                          };
+
+        _storeMock.Setup(store => store.List<PersonalityDefinition>(It.IsAny<string?>()
+                                                                   , It.IsAny<DateTimeOffset?>()
+                                                                   , It.IsAny<DateTimeOffset?>()))
+                  .Returns(new List<PersonalityDefinition>
+                           {
+                               new PersonalityDefinition { Id = "00000000000000000000000000000001", IsBuiltIn = true, IsActive = true }
+                           });
+
+        var result = await _service.AddAsync(personality);
+
+        Assert.False(result.IsActive);
+    }
+
+    [Fact]
     public async Task AddAsync_StoresNewUserDefinedPersonality()
     {
         var personality = new PersonalityDefinition

@@ -80,6 +80,7 @@ public class PersonalityService : IPersonalityService
         var now = DateTimeOffset.UtcNow;
         personality.IsBuiltIn  = false;
         personality.IsDeleted  = false;
+        personality.IsActive   = false; // new personalities are always inactive; use SetActiveAsync to activate
         personality.CreatedAt  = now;
         personality.UpdatedAt  = now;
 
