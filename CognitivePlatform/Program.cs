@@ -208,11 +208,21 @@ public partial class Program
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, JournalActivityInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, TaskAwarenessInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, StressPatternInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, OverdueTasksNoJournalInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
         builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
                                                   ?? new InsightPolicy());
         builder.Services.AddScoped<INotificationEngine, NotificationEngine>();
+
+    // Automation Gate (Phase E — empty whitelist by default; opt-in per feature)
+        builder.Services.AddSingleton<IAutomationGate>(sp =>
+        {
+            var logger         = sp.GetRequiredService<ILogger<AutomationGate>>();
+            var allowedActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return new AutomationGate(allowedActions, logger);
+        });
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
