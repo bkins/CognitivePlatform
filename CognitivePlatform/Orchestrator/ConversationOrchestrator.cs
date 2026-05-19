@@ -16,6 +16,7 @@ using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
+using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Orchestrator;
@@ -38,6 +39,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
     private readonly ILlmRateLimiter          _rateLimiter;
+    private readonly IPersonaEngine?          _personaEngine;
 
     private readonly bool _isDebug  = false;
 
@@ -56,7 +58,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IActivityLog                                                   activityLog
                                    , LlmModelCatalog                                                modelCatalog
                                    , LlmProviderDefaults                                            providerDefaults
-                                   , ILlmRateLimiter                                                rateLimiter )
+                                   , ILlmRateLimiter                                                rateLimiter
+                                   , IPersonaEngine?                                                personaEngine = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -74,6 +77,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
+        _personaEngine    = personaEngine;
 
 #if DEBUG
         _isDebug = true;
@@ -440,6 +444,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , succeeded:  true
                                      , ct:         ct);
         }
+
+        // Persona pre-pass: resolve intent and optionally apply a personality-specific model
+        // for this turn only. Runs only on the LLM interpreter path; fast-path and clarification
+        // turns have already returned above. If the engine is absent or resolves Unknown / null
+        // personality, the existing active config is used unchanged.
+        await ApplyPersonaPrePassAsync(request.Input, context, ct);
 
         // 4. Log interpreter identity
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -1202,6 +1212,43 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                    , InsightOutcome.ActedOn
                                                    , ct);
             context.SetLastEmittedInsights(Array.Empty<EmittedInsightRef>());
+        }
+    }
+
+    private async Task ApplyPersonaPrePassAsync(
+        string              userMessage
+      , ConversationContext context
+      , CancellationToken   ct)
+    {
+        if (_personaEngine is null)
+            return;
+
+        try
+        {
+            var personaResult = await _personaEngine.ResolveAsync(userMessage, ct).ConfigureAwait(false);
+
+            if (personaResult.Intent == Domains.PersonaEngine.Intent.Unknown
+             || personaResult.Personality is null)
+            {
+                return;
+            }
+
+            var modelConfig = personaResult.Personality.ModelConfig;
+
+            if (modelConfig is null)
+                return;
+
+            context.Metadata.TryGetValue("model", out var currentModel);
+
+            if (modelConfig.ModelId is not null
+             && !string.Equals(modelConfig.ModelId, currentModel, StringComparison.OrdinalIgnoreCase))
+            {
+                context.Metadata["model"] = modelConfig.ModelId;
+            }
+        }
+        catch
+        {
+            // Persona pre-pass failures must never break the turn.
         }
     }
 

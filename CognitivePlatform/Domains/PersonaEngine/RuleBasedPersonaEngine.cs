@@ -3,7 +3,7 @@ using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 
 namespace CognitivePlatform.Api.Domains.PersonaEngine;
 
-public class RuleBasedPersonaEngine : IPersonaEngine
+public class RuleBasedPersonaEngine : IPersonaEngine, IIntentAnalyzer
 {
     private readonly IPersonalityService _personalityService;
 
@@ -12,10 +12,13 @@ public class RuleBasedPersonaEngine : IPersonaEngine
         _personalityService = personalityService ?? throw new ArgumentNullException(nameof(personalityService));
     }
 
+    public Task<IntentAnalysisResult> AnalyzeAsync(string message, CancellationToken ct = default)
+        => Task.FromResult(ClassifyIntent(message));
+
     public async Task<PersonaContextResult> ResolveAsync(string userMessage, CancellationToken ct = default)
     {
         var analysisResult = ClassifyIntent(userMessage);
-        var personality    = await ResolvePersonalityAsync(analysisResult.SuggestedPersonaName).ConfigureAwait(false);
+        var personality    = await PersonalityResolver.ResolveAsync(_personalityService, analysisResult.SuggestedPersonaName).ConfigureAwait(false);
 
         return new PersonaContextResult
                {
@@ -98,33 +101,4 @@ public class RuleBasedPersonaEngine : IPersonaEngine
                };
     }
 
-    private async Task<PersonalityDefinition?> ResolvePersonalityAsync(string? suggestedPersonaName)
-    {
-        var allPersonalities = await _personalityService.GetAllAsync().ConfigureAwait(false);
-
-        if (suggestedPersonaName is not null)
-        {
-            var normalizedSuggestion = NormalizeName(suggestedPersonaName);
-
-            var matchedPersonality = allPersonalities.FirstOrDefault(personality =>
-            {
-                var normalizedName = NormalizeName(personality.Name);
-                return normalizedName == normalizedSuggestion
-                    || normalizedName.Contains(normalizedSuggestion)
-                    || normalizedSuggestion.Contains(normalizedName);
-            });
-
-            if (matchedPersonality is not null)
-                return matchedPersonality;
-        }
-
-        var activePersonality = await _personalityService.GetActiveAsync().ConfigureAwait(false);
-
-        return activePersonality ?? allPersonalities.FirstOrDefault();
-    }
-
-    private static string NormalizeName(string name)
-        => new string(name.ToLowerInvariant()
-                          .Where(char.IsLetterOrDigit)
-                          .ToArray());
 }
