@@ -25,6 +25,7 @@ using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Domains.Personality;
+using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -238,6 +239,9 @@ public partial class Program
     // Personality
         builder.Services.AddSingleton<IPersonalityService, PersonalityService>();
         builder.Services.AddTransient<PersonalityActions>();
+
+    // Persona Engine
+        builder.Services.AddSingleton<IPersonaEngine, RuleBasedPersonaEngine>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
