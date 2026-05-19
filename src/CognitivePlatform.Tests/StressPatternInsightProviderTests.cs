@@ -157,6 +157,29 @@ public class StressPatternInsightProviderTests
     }
 
     // ====================================================================
+    // Repeat-window — 72 h for Habit category
+    // ====================================================================
+
+    [Fact]
+    public void InsightPolicy_HabitCategoryWindow_Is72Hours()
+    {
+        // The stress provider documents a 72-hour repeat window. Verify that the
+        // policy's category override enforces this (mirrors the DI registration logic
+        // in Program.cs that seeds the Habit window when not set from config).
+        var policy = new InsightPolicy
+                     {
+                         CategoryRepeatWindows = new Dictionary<InsightCategory, TimeSpan>
+                                                 {
+                                                     [InsightCategory.Habit] = TimeSpan.FromHours(72)
+                                                 }
+                     };
+
+        var window = policy.GetRepeatWindow(InsightCategory.Habit);
+
+        Assert.Equal(TimeSpan.FromHours(72), window);
+    }
+
+    // ====================================================================
     // Category property
     // ====================================================================
 

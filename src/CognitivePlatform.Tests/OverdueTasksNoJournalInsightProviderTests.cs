@@ -122,6 +122,28 @@ public class OverdueTasksNoJournalInsightProviderTests
     }
 
     // ====================================================================
+    // Core logic — suppress: tasks due TODAY are not overdue
+    // ====================================================================
+
+    [Fact]
+    public async Task GenerateAsync_YieldsNothing_WhenTasksDueTodayButNotYetPastDueDate()
+    {
+        // Tasks whose DueDate calendar date equals today are not overdue —
+        // only strictly-before-today dates qualify (mirrors DailyBriefService).
+        var dueTodayUtc  = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        var tasksDueToday = Enumerable.Range(0, 3)
+            .Select(_ => new TaskItem { ShortDescription = "Due today", DueDate = dueTodayUtc })
+            .ToList();
+
+        StubActiveTasks(tasksDueToday);
+        StubNoJournalToday();
+
+        var insights = await CollectAsync(_provider.GenerateAsync(MakeContext()));
+
+        Assert.Empty(insights);
+    }
+
+    // ====================================================================
     // Category property
     // ====================================================================
 

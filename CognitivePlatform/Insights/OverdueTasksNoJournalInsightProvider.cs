@@ -43,9 +43,12 @@ public sealed class OverdueTasksNoJournalInsightProvider : IInsightProvider
 
         await Task.CompletedTask;
 
-        var now          = DateTimeOffset.UtcNow;
+        // Mirror DailyBriefService: a task is overdue only when its UTC calendar
+        // date is strictly before today. Tasks due today are not overdue.
+        var todayUtc     = DateTime.UtcNow.Date;
         var overdueTasks = _taskService.GetActive()
-                                       .Where(task => task.DueDate.HasValue && task.DueDate.Value < now)
+                                       .Where(task => task.DueDate.HasValue
+                                                   && task.DueDate.Value.UtcDateTime.Date < todayUtc)
                                        .ToList();
 
         if (overdueTasks.Count < OverdueTaskThreshold)
