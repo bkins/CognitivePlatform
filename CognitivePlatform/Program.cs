@@ -208,11 +208,28 @@ public partial class Program
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, JournalActivityInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, TaskAwarenessInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, StressPatternInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, OverdueTasksNoJournalInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
-        builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
-                                                  ?? new InsightPolicy());
+        var insightPolicy = builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
+                        ?? new InsightPolicy();
+
+        // Enforce the 72-hour repeat window for the Habit category (stress-pattern coaching
+        // provider) unless the operator has explicitly configured a different window in appsettings.
+        if (!insightPolicy.CategoryRepeatWindows.ContainsKey(InsightCategory.Habit))
+            insightPolicy.CategoryRepeatWindows[InsightCategory.Habit] = TimeSpan.FromHours(72);
+
+        builder.Services.AddSingleton<InsightPolicy>(insightPolicy);
         builder.Services.AddScoped<INotificationEngine, NotificationEngine>();
+
+    // Automation Gate (Phase E — empty whitelist by default; opt-in per feature)
+        builder.Services.AddSingleton<IAutomationGate>(sp =>
+        {
+            var logger         = sp.GetRequiredService<ILogger<AutomationGate>>();
+            var allowedActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return new AutomationGate(allowedActions, logger);
+        });
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
