@@ -44,9 +44,11 @@ public class IdentityFastPathTests
     [Theory]
     [InlineData("show my profile")]
     [InlineData("get my profile")]
-    [InlineData("my profile")]
-    [InlineData("show profile")]
+    [InlineData("display my profile")]
+    [InlineData("view my profile")]
     [InlineData("who am i")]
+    [InlineData("show who i am")]
+    [InlineData("show my identity profile")]
     public void TryResolve_ResolvesToGetProfile_ForProfileQuerySignals(string input)
     {
         var resolved = _resolver.TryResolve(input, out var action, out var parameters);

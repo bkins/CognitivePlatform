@@ -6,7 +6,7 @@ namespace CognitivePlatform.Api.Domains.Identity;
 
 public class IdentityService : IIdentityService
 {
-    public const string SingletonProfileId = "person-profile-singleton";
+    private const string ProfileIdPrefix = "person-profile";
 
     private readonly IObjectStore      _store;
     private readonly IWorkspaceContext _workspaceContext;
@@ -17,19 +17,25 @@ public class IdentityService : IIdentityService
         _workspaceContext = workspaceContext;
     }
 
+    // Workspace-scoped so two workspaces never share a row in the Id-keyed store.
+    public static string GetProfileId(string? partitionKey)
+        => $"{ProfileIdPrefix}-{partitionKey ?? "personal"}";
+
+    private string ProfileId => GetProfileId(_workspaceContext.ActivePartitionKey);
+
     public async Task<PersonProfile> GetProfileAsync(CancellationToken ct)
     {
-        var existing = _store.Get<PersonProfile>(SingletonProfileId
+        var existing = _store.Get<PersonProfile>(ProfileId
                                                , partitionKey: _workspaceContext.ActivePartitionKey);
 
         if (existing is not null)
             return existing;
 
-        var empty = new PersonProfile { Id = SingletonProfileId };
+        var empty = new PersonProfile { Id = ProfileId };
 
         await _store.Save(empty
                         , partitionKey: _workspaceContext.ActivePartitionKey
-                        , id:           SingletonProfileId);
+                        , id:           ProfileId);
 
         return empty;
     }
@@ -38,7 +44,7 @@ public class IdentityService : IIdentityService
     {
         await _store.Save(profile
                         , partitionKey: _workspaceContext.ActivePartitionKey
-                        , id:           SingletonProfileId);
+                        , id:           ProfileId);
     }
 
     public Task<IReadOnlyList<IdentityAssertion>> GetAssertionsAsync(CancellationToken ct)

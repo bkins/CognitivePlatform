@@ -36,13 +36,13 @@ public class IdentityServiceTests
     [Fact]
     public async Task GetProfileAsync_ReturnsSeededEmptyProfile_WhenNoProfileExists()
     {
-        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.SingletonProfileId, null))
+        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.GetProfileId(null), null))
                   .Returns((PersonProfile?)null);
 
         var result = await _service.GetProfileAsync(CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal(IdentityService.SingletonProfileId, result.Id);
+        Assert.Equal(IdentityService.GetProfileId(null), result.Id);
         Assert.Empty(result.CoreValues);
         Assert.Empty(result.PersonalityTraits);
     }
@@ -50,7 +50,7 @@ public class IdentityServiceTests
     [Fact]
     public async Task GetProfileAsync_SavesNewProfile_WhenNoProfileExists()
     {
-        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.SingletonProfileId, null))
+        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.GetProfileId(null), null))
                   .Returns((PersonProfile?)null);
 
         await _service.GetProfileAsync(CancellationToken.None);
@@ -66,11 +66,11 @@ public class IdentityServiceTests
     {
         var existing = new PersonProfile
                        {
-                               Id            = IdentityService.SingletonProfileId
+                               Id            = IdentityService.GetProfileId(null)
                              , PreferredName = "Ben"
                        };
 
-        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.SingletonProfileId, null))
+        _storeMock.Setup(store => store.Get<PersonProfile>(IdentityService.GetProfileId(null), null))
                   .Returns(existing);
 
         var result = await _service.GetProfileAsync(CancellationToken.None);
@@ -91,7 +91,7 @@ public class IdentityServiceTests
     {
         var profile = new PersonProfile
                       {
-                              Id            = IdentityService.SingletonProfileId
+                              Id            = IdentityService.GetProfileId(null)
                             , PreferredName = "Ben"
                             , Occupation    = "Engineer"
                       };
@@ -100,7 +100,7 @@ public class IdentityServiceTests
 
         _storeMock.Verify(store => store.Save(profile
                                             , null
-                                            , IdentityService.SingletonProfileId)
+                                            , IdentityService.GetProfileId(null))
                         , Times.Once);
     }
 

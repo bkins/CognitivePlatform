@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -109,7 +109,19 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
-        // MODE 2.5: IDENTITY FAST PATHS
+        // MODE 2.5: PERSONALITY-SPECIFIC FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolvePersonality(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
+        // MODE 2.6: PERSONA-SPECIFIC FAST PATHS (alias vocabulary)
+        // ------------------------------------------------------------
+        if (TryResolvePersona(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
+        // MODE 2.7: IDENTITY FAST PATHS
         // ------------------------------------------------------------
         if (TryResolveIdentityGetProfile(input, out action, out parameters))
             return true;
@@ -371,6 +383,12 @@ public sealed class FastPathResolver : IFastPathResolver
         if (domain == "task")
             return TryResolvePrefixTask(parts, out action, out parameters);
 
+        if (domain == "personality")
+            return TryResolvePrefixPersonality(parts, out action, out parameters);
+
+        if (domain == "persona")
+            return TryResolvePrefixPersona(parts, out action, out parameters);
+
         return false;
     }
 
@@ -458,7 +476,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
                 var listParams = BuildListTasksParameters(arg.ToLowerInvariant());
 
-                // "/task list" with no qualifier means "show everything" â€” same
+                // "/task list" with no qualifier means "show everything" â€" same
                 // contract as "show my tasks" in natural language.
                 if (string.IsNullOrWhiteSpace(arg))
                     listParams["includeCompleted"] = "true";
@@ -618,7 +636,7 @@ public sealed class FastPathResolver : IFastPathResolver
     {
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // "show my tasks" / "list my tasks" / "what are my tasks" â€” no qualifier means
+        // "show my tasks" / "list my tasks" / "what are my tasks" â€" no qualifier means
         // the user wants their full picture: open AND completed (but not deleted).
         // Explicit filter phrases like "show open tasks" leave includeCompleted unset (false).
         var unqualifiedSignals    = new[] { "show my tasks", "list my tasks", "what are my tasks"
@@ -639,7 +657,7 @@ public sealed class FastPathResolver : IFastPathResolver
         if (normalized.Contains("overdue"))
             parameters["overdueOnly"] = "true";
 
-        // Due-date shorthand phrases â€” translate to a dueBefore value the execution engine
+        // Due-date shorthand phrases â€" translate to a dueBefore value the execution engine
         // can coerce to DateTimeOffset?. Full ISO-8601 with offset is used deliberately:
         // date-only "yyyy-MM-dd" may be parsed as a local DateTime rather than a DateTimeOffset,
         // causing silent coercion failure and the filter being ignored entirely.
@@ -900,7 +918,7 @@ public sealed class FastPathResolver : IFastPathResolver
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskDueDate");
         if (action is null) return false;
 
-        // Clearing phrases â€” pass a sentinel the action recognises as "remove due date".
+        // Clearing phrases â€" pass a sentinel the action recognises as "remove due date".
         var isClearIntent = normalized.Contains("clear due")
                          || normalized.Contains("remove due")
                          || normalized.Contains("no due date");
@@ -970,7 +988,306 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // MODE 3: GENERIC FAST PATH â€” ATTRIBUTE + METADATA DRIVEN
+    // MODE 2.5: PERSONALITY FAST PATHS
+    // ================================================================
+
+    private static readonly string[] ListPersonalitySignals =
+    {
+            "list personalities"
+          , "show personalities"
+          , "show personality options"
+          , "list all personalities"
+          , "show available personalities"
+          , "what personalities are available"
+          , "what personalities do you have"
+    };
+
+    private static readonly string[] GetActivePersonalitySignals =
+    {
+            "what personality is active"
+          , "which personality am i using"
+          , "show the current personality"
+          , "current personality"
+          , "active personality"
+          , "what personality are you using"
+          , "what personality is set"
+    };
+
+    private static readonly string[] SetPersonalityPrefixes =
+    {
+            "switch to the "
+          , "switch to "
+          , "use the "
+          , "use personality "
+          , "set personality to "
+          , "change personality to "
+          , "change to "
+          , "activate "
+    };
+
+    private bool TryResolvePersonality( string                           input
+                                      , out ActionMetadata?             action
+                                      , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListPersonalitySignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonalities");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        if (GetActivePersonalitySignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersonality");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        var extractedName = ExtractPersonalityName(normalized);
+        if (extractedName is not null)
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersonality");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["name"] = extractedName };
+            return true;
+        }
+
+        return false;
+    }
+
+    // ----------------------------------------------------------------
+    // /personality <verb> [arg]
+    //   /personality list
+    //   /personality active
+    //   /personality set <name>
+    //   /personality use <name>
+    // ----------------------------------------------------------------
+    private bool TryResolvePrefixPersonality( string[]                         parts
+                                            , out ActionMetadata?             action
+                                            , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2) return false;
+
+        var verb = parts[1].ToLowerInvariant();
+        var arg  = parts.Length == 3 ? parts[2] : string.Empty;
+
+        switch (verb)
+        {
+            case "list":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonalities");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "active":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersonality");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "set":
+            case "use":
+            case "switch":
+            {
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersonality");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string> { ["name"] = arg };
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Extracts a personality name from natural-language set-personality phrases.
+    /// Returns null if no recognized set-personality prefix is found.
+    /// </summary>
+    private static string? ExtractPersonalityName(string normalized)
+    {
+        foreach (var prefix in SetPersonalityPrefixes)
+        {
+            if (!normalized.StartsWith(prefix)) continue;
+
+            var candidate = normalized.Substring(prefix.Length).Trim();
+
+            // Strip trailing "personality" or "persona" qualifier
+            // (e.g. "switch to the zen personality" / "switch to the zen persona")
+            if (candidate.EndsWith(" personality"))
+                candidate = candidate[..^" personality".Length].Trim();
+            else if (candidate.EndsWith(" persona"))
+                candidate = candidate[..^" persona".Length].Trim();
+
+            if (candidate.Length > 0)
+                return candidate;
+        }
+
+        return null;
+    }
+
+    // ================================================================
+    // MODE 2.6: PERSONA FAST PATHS (alias vocabulary for "persona" phrasing)
+    // ================================================================
+
+    private static readonly string[] ListPersonaSignals =
+    {
+            "list personas"
+          , "show personas"
+          , "show persona options"
+          , "list all personas"
+          , "show available personas"
+          , "what personas are available"
+          , "what personas do you have"
+    };
+
+    private static readonly string[] GetActivePersonaSignals =
+    {
+            "what persona is active"
+          , "which persona am i using"
+          , "show the current persona"
+          , "current persona"
+          , "active persona"
+          , "what persona are you using"
+          , "what persona is set"
+          , "what's my persona"
+    };
+
+    private static readonly string[] SetPersonaPrefixes =
+    {
+            "set persona to "
+          , "set my persona to "
+          , "change persona to "
+          , "use persona "
+          , "switch persona to "
+    };
+
+    private bool TryResolvePersona( string                           input
+                                  , out ActionMetadata?             action
+                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListPersonaSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonas");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        if (GetActivePersonaSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersona");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        var extractedName = ExtractPersonaName(normalized);
+        if (extractedName is not null)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersona");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["name"] = extractedName };
+            return true;
+        }
+
+        return false;
+    }
+
+    // ----------------------------------------------------------------
+    // /persona <verb> [arg]
+    //   /persona list
+    //   /persona active
+    //   /persona set <name>
+    //   /persona use <name>
+    // ----------------------------------------------------------------
+    private bool TryResolvePrefixPersona( string[]                         parts
+                                        , out ActionMetadata?             action
+                                        , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2) return false;
+
+        var verb = parts[1].ToLowerInvariant();
+        var arg  = parts.Length == 3 ? parts[2] : string.Empty;
+
+        switch (verb)
+        {
+            case "list":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonas");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "active":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersona");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "set":
+            case "use":
+            case "switch":
+            {
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersona");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string> { ["name"] = arg };
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Extracts a persona name from natural-language set-persona phrases.
+    /// Returns null if no recognized set-persona prefix is found.
+    /// </summary>
+    private static string? ExtractPersonaName(string normalized)
+    {
+        foreach (var prefix in SetPersonaPrefixes)
+        {
+            if (!normalized.StartsWith(prefix)) continue;
+
+            var candidate = normalized.Substring(prefix.Length).Trim();
+
+            // Strip trailing "persona" qualifier if present (e.g. "set persona to zen persona")
+            if (candidate.EndsWith(" persona"))
+                candidate = candidate[..^" persona".Length].Trim();
+
+            if (candidate.Length > 0)
+                return candidate;
+        }
+
+        return null;
+    }
+
+    // ================================================================
+    // MODE 3: GENERIC FAST PATH — ATTRIBUTE + METADATA DRIVEN
     // ================================================================
     private bool TryResolveGenericFastPath( string                           input
                                            , out ActionMetadata?             action
@@ -1076,7 +1393,7 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // SIGNAL DETECTION â€” NATURAL LANGUAGE INTENT MARKERS (journal/add)
+    // SIGNAL DETECTION â€" NATURAL LANGUAGE INTENT MARKERS (journal/add)
     // ================================================================
     private static readonly string[] FastPathSignals =
     {
@@ -1185,7 +1502,7 @@ public sealed class FastPathResolver : IFastPathResolver
         action     = null;
         parameters = null;
 
-        // SetModel â€” requires explicit "model" keyword to avoid false positives
+        // SetModel â€" requires explicit "model" keyword to avoid false positives
         var setModelMatch = Regex.Match(input,
                                        @"^(?:set\s+model\s+to|use\s+model|switch\s+model\s+to|change\s+model\s+to|switch\s+to\s+model)\s+(.+)$",
                                        RegexOptions.IgnoreCase);
@@ -1198,7 +1515,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // SetProvider â€” explicit "provider" keyword
+        // SetProvider â€" explicit "provider" keyword
         var setProviderMatch = Regex.Match(input,
                                            @"^(?:set\s+provider\s+to|use\s+provider|switch\s+provider\s+to|switch\s+to\s+provider)\s+(.+)$",
                                            RegexOptions.IgnoreCase);
@@ -1211,7 +1528,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // "switch to <X>" or "use <X>" â€” only when X is a known LlmProvider name
+        // "switch to <X>" or "use <X>" â€" only when X is a known LlmProvider name
         var bareSwitch = Regex.Match(input, @"^(?:switch\s+to|use)\s+(\w+)$", RegexOptions.IgnoreCase);
         if (bareSwitch.Success && Enum.TryParse<LlmProvider>(bareSwitch.Groups[1].Value, ignoreCase: true, out _))
         {
@@ -1265,9 +1582,9 @@ public sealed class FastPathResolver : IFastPathResolver
     {
             "show my profile"
           , "get my profile"
-          , "my profile"
-          , "show profile"
           , "display my profile"
+          , "view my profile"
+          , "show my identity profile"
           , "who am i"
           , "show who i am"
     };

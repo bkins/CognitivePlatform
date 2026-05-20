@@ -16,4 +16,8 @@ public static class KeyedServices
      */
     public const string MockInterpreter = "mock";
     public const string LlmInterpreter  = "llm";
+
+    public const string RuleBasedIntentAnalyzer = "intent-analyzer-rule";
+    public const string KeywordIntentAnalyzer   = "intent-analyzer-keyword";
+    public const string LlmIntentAnalyzer       = "intent-analyzer-llm";
 }

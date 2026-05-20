@@ -2,7 +2,7 @@ namespace CognitivePlatform.Api.Domains.Identity;
 
 public sealed record PersonProfile
 {
-    public string                Id                       { get; init; } = "person-profile-singleton";
+    public string                Id                       { get; init; } = string.Empty;
     public string                PreferredName            { get; init; } = string.Empty;
     public string                Occupation               { get; init; } = string.Empty;
     public IReadOnlyList<string> CoreValues               { get; init; } = [];

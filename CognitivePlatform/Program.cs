@@ -25,6 +25,8 @@ using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Domains.Identity;
+using CognitivePlatform.Api.Domains.Personality;
+using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -212,14 +214,51 @@ public partial class Program
         builder.Services.AddScoped<IInsightProvider, ConversationReflectionInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, JournalActivityInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, TaskAwarenessInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, StressPatternInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, OverdueTasksNoJournalInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
-        builder.Services.AddSingleton<InsightPolicy>(builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
-                                                  ?? new InsightPolicy());
+        var insightPolicy = builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
+                        ?? new InsightPolicy();
+
+        // Enforce the 72-hour repeat window for the Habit category (stress-pattern coaching
+        // provider) unless the operator has explicitly configured a different window in appsettings.
+        if (!insightPolicy.CategoryRepeatWindows.ContainsKey(InsightCategory.Habit))
+            insightPolicy.CategoryRepeatWindows[InsightCategory.Habit] = TimeSpan.FromHours(72);
+
+        builder.Services.AddSingleton<InsightPolicy>(insightPolicy);
         builder.Services.AddScoped<INotificationEngine, NotificationEngine>();
+
+    // Automation Gate (Phase E — empty whitelist by default; opt-in per feature)
+        builder.Services.AddSingleton<IAutomationGate>(sp =>
+        {
+            var logger         = sp.GetRequiredService<ILogger<AutomationGate>>();
+            var allowedActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return new AutomationGate(allowedActions, logger);
+        });
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
+
+    // Personality
+        builder.Services.AddSingleton<IPersonalityService, PersonalityService>();
+        builder.Services.AddTransient<PersonalityActions>();
+        builder.Services.AddTransient<PersonaEngineActions>();
+
+    // Persona Engine
+        builder.Services.AddSingleton<RuleBasedPersonaEngine>();
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer>(KeyedServices.RuleBasedIntentAnalyzer
+                                                           , (sp, _) => sp.GetRequiredService<RuleBasedPersonaEngine>());
+
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer, KeywordIntentAnalyzer>(
+            KeyedServices.KeywordIntentAnalyzer
+          , (sp, _) => new KeywordIntentAnalyzer(DefaultKeywordRules.Build()));
+
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer, LlmIntentAnalyzer>(
+            KeyedServices.LlmIntentAnalyzer
+          , (sp, _) => new LlmIntentAnalyzer(sp.GetRequiredService<ILlmRouter>()));
+
+        builder.Services.AddSingleton<IPersonaEngine, HybridPersonaEngine>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";

@@ -22,7 +22,7 @@ public class IdentityActionsTests
     {
         var profile = new PersonProfile
                       {
-                              Id            = IdentityService.SingletonProfileId
+                              Id            = IdentityService.GetProfileId(null)
                             , PreferredName = "Ben"
                             , Occupation    = "Software Engineer"
                             , CoreValues    = ["Integrity", "Excellence"]
@@ -69,7 +69,7 @@ public class IdentityActionsTests
     public async Task SetProfileField_UpdatesPreferredName()
     {
         _serviceMock.Setup(service => service.GetProfileAsync(It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new PersonProfile { Id = IdentityService.SingletonProfileId });
+                    .ReturnsAsync(new PersonProfile { Id = IdentityService.GetProfileId(null) });
 
         _serviceMock.Setup(service => service.UpdateProfileAsync(It.IsAny<PersonProfile>(), It.IsAny<CancellationToken>()))
                     .Returns(Task.CompletedTask);
@@ -87,7 +87,7 @@ public class IdentityActionsTests
     public async Task SetProfileField_UpdatesOccupation()
     {
         _serviceMock.Setup(service => service.GetProfileAsync(It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new PersonProfile { Id = IdentityService.SingletonProfileId });
+                    .ReturnsAsync(new PersonProfile { Id = IdentityService.GetProfileId(null) });
 
         _serviceMock.Setup(service => service.UpdateProfileAsync(It.IsAny<PersonProfile>(), It.IsAny<CancellationToken>()))
                     .Returns(Task.CompletedTask);
@@ -117,7 +117,7 @@ public class IdentityActionsTests
     public async Task SetProfileField_AcceptsNameAlias_ForPreferredName()
     {
         _serviceMock.Setup(service => service.GetProfileAsync(It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new PersonProfile { Id = IdentityService.SingletonProfileId });
+                    .ReturnsAsync(new PersonProfile { Id = IdentityService.GetProfileId(null) });
 
         _serviceMock.Setup(service => service.UpdateProfileAsync(It.IsAny<PersonProfile>(), It.IsAny<CancellationToken>()))
                     .Returns(Task.CompletedTask);
