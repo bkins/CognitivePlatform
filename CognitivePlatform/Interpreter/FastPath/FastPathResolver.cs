@@ -115,6 +115,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.6: PERSONA-SPECIFIC FAST PATHS (alias vocabulary)
+        // ------------------------------------------------------------
+        if (TryResolvePersona(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
@@ -370,6 +376,9 @@ public sealed class FastPathResolver : IFastPathResolver
 
         if (domain == "personality")
             return TryResolvePrefixPersonality(parts, out action, out parameters);
+
+        if (domain == "persona")
+            return TryResolvePrefixPersona(parts, out action, out parameters);
 
         return false;
     }
@@ -1107,9 +1116,12 @@ public sealed class FastPathResolver : IFastPathResolver
 
             var candidate = normalized.Substring(prefix.Length).Trim();
 
-            // Strip trailing "personality" qualifier if present (e.g. "switch to the zen personality")
+            // Strip trailing "personality" or "persona" qualifier
+            // (e.g. "switch to the zen personality" / "switch to the zen persona")
             if (candidate.EndsWith(" personality"))
                 candidate = candidate[..^" personality".Length].Trim();
+            else if (candidate.EndsWith(" persona"))
+                candidate = candidate[..^" persona".Length].Trim();
 
             if (candidate.Length > 0)
                 return candidate;
@@ -1119,7 +1131,154 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // MODE 3: GENERIC FAST PATH â€" ATTRIBUTE + METADATA DRIVEN
+    // MODE 2.6: PERSONA FAST PATHS (alias vocabulary for "persona" phrasing)
+    // ================================================================
+
+    private static readonly string[] ListPersonaSignals =
+    {
+            "list personas"
+          , "show personas"
+          , "show persona options"
+          , "list all personas"
+          , "show available personas"
+          , "what personas are available"
+          , "what personas do you have"
+    };
+
+    private static readonly string[] GetActivePersonaSignals =
+    {
+            "what persona is active"
+          , "which persona am i using"
+          , "show the current persona"
+          , "current persona"
+          , "active persona"
+          , "what persona are you using"
+          , "what persona is set"
+          , "what's my persona"
+    };
+
+    private static readonly string[] SetPersonaPrefixes =
+    {
+            "set persona to "
+          , "set my persona to "
+          , "change persona to "
+          , "use persona "
+          , "switch persona to "
+    };
+
+    private bool TryResolvePersona( string                           input
+                                  , out ActionMetadata?             action
+                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListPersonaSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonas");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        if (GetActivePersonaSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersona");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        var extractedName = ExtractPersonaName(normalized);
+        if (extractedName is not null)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersona");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["name"] = extractedName };
+            return true;
+        }
+
+        return false;
+    }
+
+    // ----------------------------------------------------------------
+    // /persona <verb> [arg]
+    //   /persona list
+    //   /persona active
+    //   /persona set <name>
+    //   /persona use <name>
+    // ----------------------------------------------------------------
+    private bool TryResolvePrefixPersona( string[]                         parts
+                                        , out ActionMetadata?             action
+                                        , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2) return false;
+
+        var verb = parts[1].ToLowerInvariant();
+        var arg  = parts.Length == 3 ? parts[2] : string.Empty;
+
+        switch (verb)
+        {
+            case "list":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListPersonas");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "active":
+            {
+                action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetActivePersona");
+                parameters = new Dictionary<string, string>();
+                return action != null;
+            }
+
+            case "set":
+            case "use":
+            case "switch":
+            {
+                if (string.IsNullOrWhiteSpace(arg)) return false;
+
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersona");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string> { ["name"] = arg };
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Extracts a persona name from natural-language set-persona phrases.
+    /// Returns null if no recognized set-persona prefix is found.
+    /// </summary>
+    private static string? ExtractPersonaName(string normalized)
+    {
+        foreach (var prefix in SetPersonaPrefixes)
+        {
+            if (!normalized.StartsWith(prefix)) continue;
+
+            var candidate = normalized.Substring(prefix.Length).Trim();
+
+            // Strip trailing "persona" qualifier if present (e.g. "set persona to zen persona")
+            if (candidate.EndsWith(" persona"))
+                candidate = candidate[..^" persona".Length].Trim();
+
+            if (candidate.Length > 0)
+                return candidate;
+        }
+
+        return null;
+    }
+
+    // ================================================================
+    // MODE 3: GENERIC FAST PATH — ATTRIBUTE + METADATA DRIVEN
     // ================================================================
     private bool TryResolveGenericFastPath( string                           input
                                            , out ActionMetadata?             action

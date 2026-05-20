@@ -239,6 +239,7 @@ public partial class Program
     // Personality
         builder.Services.AddSingleton<IPersonalityService, PersonalityService>();
         builder.Services.AddTransient<PersonalityActions>();
+        builder.Services.AddTransient<PersonaEngineActions>();
 
     // Persona Engine
         builder.Services.AddSingleton<RuleBasedPersonaEngine>();
