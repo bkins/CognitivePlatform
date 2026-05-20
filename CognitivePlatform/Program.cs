@@ -241,7 +241,19 @@ public partial class Program
         builder.Services.AddTransient<PersonalityActions>();
 
     // Persona Engine
-        builder.Services.AddSingleton<IPersonaEngine, RuleBasedPersonaEngine>();
+        builder.Services.AddSingleton<RuleBasedPersonaEngine>();
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer>(KeyedServices.RuleBasedIntentAnalyzer
+                                                           , (sp, _) => sp.GetRequiredService<RuleBasedPersonaEngine>());
+
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer, KeywordIntentAnalyzer>(
+            KeyedServices.KeywordIntentAnalyzer
+          , (sp, _) => new KeywordIntentAnalyzer(DefaultKeywordRules.Build()));
+
+        builder.Services.AddKeyedSingleton<IIntentAnalyzer, LlmIntentAnalyzer>(
+            KeyedServices.LlmIntentAnalyzer
+          , (sp, _) => new LlmIntentAnalyzer(sp.GetRequiredService<ILlmRouter>()));
+
+        builder.Services.AddSingleton<IPersonaEngine, HybridPersonaEngine>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
