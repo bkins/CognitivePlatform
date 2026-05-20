@@ -24,6 +24,7 @@ using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
+using CognitivePlatform.Api.Domains.Identity;
 using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
@@ -200,6 +201,9 @@ public partial class Program
         builder.Services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
         builder.Services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
         
+    // Identity
+        builder.Services.AddSingleton<IIdentityService, IdentityService>();
+
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();
         builder.Services.Configure<SystemPathsOptions>(builder.Configuration.GetSection("SystemPaths"));
@@ -278,6 +282,7 @@ public partial class Program
         builder.Services.AddTransient<DailyRecordActions>();
         builder.Services.AddTransient<FeedbackActions>();
         builder.Services.AddTransient<SystemActions>();
+        builder.Services.AddTransient<IdentityActions>();
 
 // Scalar setup
         builder.Services.AddEndpointsApiExplorer();

@@ -121,6 +121,15 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.7: IDENTITY FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveIdentityGetProfile(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityListAssertions(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
@@ -1560,6 +1569,74 @@ public sealed class FastPathResolver : IFastPathResolver
     private static readonly Regex WorkspacePrefixPattern =
         new(@"^([A-Za-z][A-Za-z0-9_-]*):\s+(.+)$"
           , RegexOptions.Singleline | RegexOptions.Compiled);
+
+    // ================================================================
+    // IDENTITY FAST PATHS
+    // ================================================================
+
+    // ----------------------------------------------------------------
+    // GetProfile
+    // "show my profile", "get my profile", "my profile", "who am i"
+    // ----------------------------------------------------------------
+    private static readonly string[] IdentityGetProfileSignals =
+    {
+            "show my profile"
+          , "get my profile"
+          , "display my profile"
+          , "view my profile"
+          , "show my identity profile"
+          , "who am i"
+          , "show who i am"
+    };
+
+    private bool TryResolveIdentityGetProfile( string                           input
+                                              , out ActionMetadata?             action
+                                              , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (IdentityGetProfileSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetProfile");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // ListIdentityAssertions
+    // "show my identity assertions", "list assertions", "identity facts"
+    // ----------------------------------------------------------------
+    private static readonly string[] IdentityListAssertionsSignals =
+    {
+            "identity assertions"
+          , "my assertions"
+          , "list assertions"
+          , "show assertions"
+          , "identity facts"
+    };
+
+    private bool TryResolveIdentityListAssertions( string                           input
+                                                  , out ActionMetadata?             action
+                                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (IdentityListAssertionsSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListIdentityAssertions");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
 
     /// <inheritdoc />
     public bool TryExtractWorkspacePrefix( string     input
