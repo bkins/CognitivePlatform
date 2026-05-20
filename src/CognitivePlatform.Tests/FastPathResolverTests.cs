@@ -42,6 +42,9 @@ public class FastPathResolverTests
             , MakeAction("ListPersonalities")
             , MakeAction("GetActivePersonality")
             , MakeAction("SetPersonality")
+            , MakeAction("ListPersonas")
+            , MakeAction("GetActivePersona")
+            , MakeAction("SetPersona")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -708,5 +711,132 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("SetPersonality", action!.Name);
         Assert.Equal("Zen",            parameters!["name"]);
+    }
+
+    // ================================================================
+    // MODE 2.6: PERSONA FAST PATHS (alias vocabulary)
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonas_ForListPhrase()
+    {
+        var resolved = _resolver.TryResolve("list all personas", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonas", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonas_ForShowPhrase()
+    {
+        var resolved = _resolver.TryResolve("show available personas", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonas", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonas_ForWhatPersonasPhrase()
+    {
+        var resolved = _resolver.TryResolve("what personas are available?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonas", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersona_ForActivePhrase()
+    {
+        var resolved = _resolver.TryResolve("what persona is active?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersona", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersona_ForCurrentPersonaPhrase()
+    {
+        var resolved = _resolver.TryResolve("which persona am I using?", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersona", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersona_ForSetPersonaToPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("set persona to Zen", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersona", action!.Name);
+        Assert.Equal("zen",        parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersona_ForUsePersonaPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("use persona Programmer", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersona",  action!.Name);
+        Assert.Equal("programmer",  parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersona_ForChangePersonaToPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("change persona to Witty", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersona", action!.Name);
+        Assert.Equal("witty",      parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersona_ForSetMyPersonaToPhrase_AndExtractsName()
+    {
+        var resolved = _resolver.TryResolve("set my persona to Tech Expert", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersona", action!.Name);
+        Assert.Equal("tech expert", parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListPersonas_ForPrefixCommand()
+    {
+        var resolved = _resolver.TryResolve("/persona list", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("ListPersonas", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetActivePersona_ForPrefixCommand()
+    {
+        var resolved = _resolver.TryResolve("/persona active", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("GetActivePersona", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersona_ForPrefixSetCommand()
+    {
+        var resolved = _resolver.TryResolve("/persona set Zen", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersona", action!.Name);
+        Assert.Equal("Zen",        parameters!["name"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToSetPersonality_ForSwitchToTheZenPersonaPhrase()
+    {
+        var resolved = _resolver.TryResolve("switch to the Zen persona", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SetPersonality", action!.Name);
+        Assert.Equal("zen",            parameters!["name"]);
     }
 }
