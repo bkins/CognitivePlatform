@@ -218,7 +218,7 @@ public class OrchestratorPersonaPrePassTests
     }
 
     // ================================================================
-    // Persona engine throws — turn completes normally
+    // Persona engine throws — turn completes normally (non-cancellation)
     // ================================================================
 
     [Fact]
@@ -233,6 +233,74 @@ public class OrchestratorPersonaPrePassTests
                            new ConverseRequest { Input = "help me code", SessionId = SessionId });
 
         Assert.NotNull(response);
+    }
+
+    // ================================================================
+    // Persona engine does not override when request already pins a model
+    // ================================================================
+
+    [Fact]
+    public async Task ConverseAsync_DoesNotApplyPersonalityModel_WhenRequestHasPinnedModel()
+    {
+        var personalityWithModel = new PersonalityDefinition
+                                   {
+                                       Id          = "tech-persona"
+                                     , Name        = "TechnicalHelper"
+                                     , ModelConfig = new PersonalityModelConfig { ModelId = "gemma-3b-it" }
+                                   };
+
+        _personaEngineMock
+            .Setup(engine => engine.ResolveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PersonaContextResult
+                          {
+                              Intent               = Intent.TechnicalHelp
+                            , Personality          = personalityWithModel
+                            , IntentAnalysisResult = new IntentAnalysisResult
+                                                     {
+                                                         Intent     = Intent.TechnicalHelp
+                                                       , Confidence = 0.9
+                                                     }
+                          });
+
+        ConversationContext? capturedContext = null;
+        _interpreterMock
+            .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
+                                                                  , It.IsAny<ConversationContext>()))
+            .Callback<string, ConversationContext>((_, ctx) => capturedContext = ctx)
+            .ReturnsAsync(new InterpreterResult { ActionName = null });
+
+        var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
+        await orchestrator.ConverseAsync(new ConverseRequest
+                                         {
+                                             Input    = "fix my bug"
+                                           , SessionId = SessionId
+                                           , Model    = "explicit-pinned-model"
+                                         });
+
+        Assert.NotNull(capturedContext);
+        Assert.True(capturedContext!.Metadata.TryGetValue("model", out var appliedModel));
+        Assert.Equal("explicit-pinned-model", appliedModel);
+    }
+
+    // ================================================================
+    // Cancellation propagates out of the persona pre-pass
+    // ================================================================
+
+    [Fact]
+    public async Task ConverseAsync_PropagatesCancellation_WhenPersonaEngineIsCancelled()
+    {
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        _personaEngineMock
+            .Setup(engine => engine.ResolveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException(cts.Token));
+
+        var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            orchestrator.ConverseAsync(new ConverseRequest { Input = "help me", SessionId = SessionId }
+                                     , cts.Token));
     }
 
     // --- Helpers -----------------------------------------------------------------

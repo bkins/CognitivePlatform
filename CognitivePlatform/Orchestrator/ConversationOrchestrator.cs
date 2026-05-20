@@ -449,7 +449,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // for this turn only. Runs only on the LLM interpreter path; fast-path and clarification
         // turns have already returned above. If the engine is absent or resolves Unknown / null
         // personality, the existing active config is used unchanged.
-        await ApplyPersonaPrePassAsync(request.Input, context, ct);
+        await ApplyPersonaPrePassAsync(request.Input, context, request.Model.HasValue(), ct);
 
         // 4. Log interpreter identity
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -1218,9 +1218,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private async Task ApplyPersonaPrePassAsync(
         string              userMessage
       , ConversationContext context
+      , bool               requestHasPinnedModel
       , CancellationToken   ct)
     {
         if (_personaEngine is null)
+            return;
+
+        // Never override a model the caller explicitly pinned for this request.
+        if (requestHasPinnedModel)
             return;
 
         try
@@ -1246,9 +1251,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.Metadata["model"] = modelConfig.ModelId;
             }
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Persona pre-pass failures must never break the turn.
+            // Cancellation is allowed to propagate so the caller's CancellationToken is honoured.
         }
     }
 
