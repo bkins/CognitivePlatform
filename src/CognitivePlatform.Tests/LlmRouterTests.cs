@@ -168,7 +168,7 @@ public class LlmRouterTests
                    .Callback<string, string?, CancellationToken>((_, _, token) => captured = token)
                    .ReturnsAsync(new LlmResponse());
 
-        await _router.SendAsync("hello", context, cts.Token);
+        await _router.SendAsync("hello", context, ct: cts.Token);
 
         Assert.Equal(cts.Token, captured);
     }
@@ -243,6 +243,54 @@ public class LlmRouterTests
 
         Assert.Equal(new[] { "groq-chunk" }, first);
         Assert.Equal(new[] { "or-chunk" },   second);
+    }
+
+    // ----------------------------------------------------------------
+    // ENH-19: complexity routing
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task SendAsync_DefaultComplexity_IsStandard()
+    {
+        var context = new ConversationContext("session-complexity-default");
+
+        // Force the capacity router path so we can verify what complexity is passed.
+        _rateLimiterMock.Setup(limiter => limiter.IsExhausted(It.IsAny<string>())).Returns(true);
+
+        _capacityRouterMock
+            .Setup(router => router.SelectModel(It.IsAny<TaskComplexity>()))
+            .Returns(new LlmModelCapacity { ModelId = new LlmModelId("groq", "llama-3.3-70b-versatile") });
+
+        _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(ForContent("response"));
+
+        await _router.SendAsync("hello", context);
+
+        _capacityRouterMock.Verify(router => router.SelectModel(TaskComplexity.Standard), Times.Once);
+    }
+
+    [Fact]
+    public async Task WeaveAsync_PassesLightComplexity_ToInternalSendAsync()
+    {
+        var context  = new ConversationContext("session-weave-light");
+        var insights = new List<CognitivePlatform.Api.Insights.Models.Insight>
+                       {
+                           new() { Message = "You tend to work late.", DeduplicationKey = "test" }
+                       };
+
+        // Force the capacity router path so complexity can be observed.
+        _rateLimiterMock.Setup(limiter => limiter.IsExhausted(It.IsAny<string>())).Returns(true);
+
+        _capacityRouterMock
+            .Setup(router => router.SelectModel(It.IsAny<TaskComplexity>()))
+            .Returns(new LlmModelCapacity { ModelId = new LlmModelId("groq", "llama-3.3-70b-versatile") });
+
+        _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(ForContent("woven response"));
+
+        await _router.WeaveAsync(context, "original response", insights);
+
+        _capacityRouterMock.Verify(router => router.SelectModel(TaskComplexity.Light), Times.Once);
     }
 
     private static async IAsyncEnumerable<string> AsAsync(params string[] chunks)

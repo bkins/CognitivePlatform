@@ -31,4 +31,11 @@ public sealed class LlmResponseMetadata
     /// Example: "Switched to gemini (gemini-2.0-flash) — Groq limit reached".
     /// </summary>
     public string? ProviderSwitchNote { get; init; }
+
+    /// <summary>
+    /// Set when the requested <see cref="TaskComplexity"/> was Heavy but the capacity router
+    /// could not find an available Heavy-tier model and fell back to a Standard-tier model (ENH-19).
+    /// Null when the model meets or exceeds the requested tier.
+    /// </summary>
+    public string? TierDowngradeNote { get; init; }
 }

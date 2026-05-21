@@ -25,6 +25,7 @@ public class LlmCapacityRouter : ILlmCapacityRouter
                               {
                                       ModelId = config.Id
                                     , Limits  = config.Limits
+                                    , Tier    = config.Tier
                                     , Usage   = new LlmUsageState()
                               })
             .ToList();
@@ -32,6 +33,10 @@ public class LlmCapacityRouter : ILlmCapacityRouter
 
     /// <inheritdoc/>
     public LlmModelId SelectModel()
+        => SelectModel(TaskComplexity.Standard).ModelId;
+
+    /// <inheritdoc/>
+    public LlmModelCapacity SelectModel(TaskComplexity complexity)
     {
         lock (_lock)
         {
@@ -39,11 +44,38 @@ public class LlmCapacityRouter : ILlmCapacityRouter
                 throw new LlmCapacityExceededException("No LLM models are configured.");
 
             foreach (var capacity in _models)
-            {
                 RollWindowIfExpired(capacity);
 
-                if (!capacity.IsExhausted && !_rateLimiter.IsExhausted(capacity.ModelId.Provider))
-                    return capacity.ModelId;
+            // First pass: highest-priority non-exhausted model at the ideal tier.
+            foreach (var capacity in _models)
+            {
+                if (capacity.IsExhausted || _rateLimiter.IsExhausted(capacity.ModelId.Provider))
+                    continue;
+
+                if (IsIdealTierFor(capacity.Tier, complexity))
+                    return capacity;
+            }
+
+            // Second pass: acceptable fallback tier (Heavy→Standard downgrade, or Standard→Heavy upgrade).
+            foreach (var capacity in _models)
+            {
+                if (capacity.IsExhausted || _rateLimiter.IsExhausted(capacity.ModelId.Provider))
+                    continue;
+
+                if (IsAcceptableFallbackFor(capacity.Tier, complexity))
+                {
+                    var note = BuildDowngradeNote(capacity.Tier, complexity);
+                    return note is null
+                               ? capacity
+                               : new LlmModelCapacity
+                                 {
+                                         ModelId           = capacity.ModelId
+                                       , Limits            = capacity.Limits
+                                       , Tier              = capacity.Tier
+                                       , Usage             = capacity.Usage
+                                       , TierDowngradeNote = note
+                                 };
+                }
             }
 
             throw new LlmCapacityExceededException();
@@ -83,6 +115,32 @@ public class LlmCapacityRouter : ILlmCapacityRouter
     // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
+
+    private static bool IsIdealTierFor(TaskComplexity modelTier, TaskComplexity requestedComplexity)
+        => requestedComplexity switch
+           {
+               TaskComplexity.Heavy    => modelTier == TaskComplexity.Heavy,
+               TaskComplexity.Standard => modelTier == TaskComplexity.Standard,
+               TaskComplexity.Light    => true,
+               _                       => true
+           };
+
+    private static bool IsAcceptableFallbackFor(TaskComplexity modelTier, TaskComplexity requestedComplexity)
+        => requestedComplexity switch
+           {
+               TaskComplexity.Heavy    => modelTier == TaskComplexity.Standard,
+               TaskComplexity.Standard => modelTier == TaskComplexity.Heavy,
+               _                       => false
+           };
+
+    private static string? BuildDowngradeNote(TaskComplexity modelTier, TaskComplexity requestedComplexity)
+    {
+        if (requestedComplexity == TaskComplexity.Heavy && modelTier == TaskComplexity.Standard)
+            return "Note: the model best suited for this analysis isn't available right now. "
+                 + "Results may be less detailed than usual — try again later for the best output.";
+
+        return null;
+    }
 
     private LlmModelCapacity? FindCapacity(LlmModelId modelId)
         => _models.FirstOrDefault(capacity => string.Equals(capacity.ModelId.Provider, modelId.Provider, StringComparison.OrdinalIgnoreCase)

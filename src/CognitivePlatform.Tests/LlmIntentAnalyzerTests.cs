@@ -24,6 +24,7 @@ public class LlmIntentAnalyzerTests
     {
         _routerMock.Setup(router => router.SendAsync(It.IsAny<string>()
                                                    , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
                                                    , It.IsAny<CancellationToken>()))
                    .ThrowsAsync(new InvalidOperationException("LLM unavailable"));
 
@@ -98,6 +99,7 @@ public class LlmIntentAnalyzerTests
 
         _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
                                                     , It.IsAny<ConversationContext>()
+                                                    , It.IsAny<TaskComplexity>()
                                                     , It.IsAny<CancellationToken>())
                          , Times.Never);
     }
@@ -122,6 +124,7 @@ public class LlmIntentAnalyzerTests
     {
         _routerMock.Setup(router => router.SendAsync(It.IsAny<string>()
                                                    , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
                                                    , It.IsAny<CancellationToken>()))
                    .ReturnsAsync(new LlmResponse { Content = content });
     }
