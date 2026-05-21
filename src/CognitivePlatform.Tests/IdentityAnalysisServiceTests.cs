@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Identity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -10,12 +11,12 @@ namespace CognitivePlatform.Tests;
 
 public class IdentityAnalysisServiceTests
 {
-    private readonly Mock<IIdentityService>              _identityServiceMock = new();
-    private readonly Mock<IJournalService>               _journalServiceMock  = new();
-    private readonly Mock<ITaskService>                  _taskServiceMock     = new();
-    private readonly Mock<ILlmClient>                    _llmClientMock       = new();
-    private readonly Mock<ILogger<IdentityAnalysisService>> _loggerMock        = new();
-    private readonly IdentityAnalysisService             _service;
+    private readonly Mock<IIdentityService>               _identityServiceMock = new();
+    private readonly Mock<IJournalService>                _journalServiceMock  = new();
+    private readonly Mock<ITaskService>                   _taskServiceMock     = new();
+    private readonly Mock<ILlmRouter>                     _llmRouterMock       = new();
+    private readonly Mock<ILogger<IdentityAnalysisService>> _loggerMock         = new();
+    private readonly IdentityAnalysisService              _service;
 
     public IdentityAnalysisServiceTests()
     {
@@ -47,7 +48,7 @@ public class IdentityAnalysisServiceTests
             _identityServiceMock.Object
           , _journalServiceMock.Object
           , _taskServiceMock.Object
-          , _llmClientMock.Object
+          , _llmRouterMock.Object
           , _loggerMock.Object);
     }
 
@@ -77,7 +78,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -101,7 +102,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -124,7 +125,7 @@ public class IdentityAnalysisServiceTests
 ```
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = markdownResponse });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -144,7 +145,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -160,7 +161,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateInsightsAsync_ThrowsAndLogs_WhenLlmFails()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ThrowsAsync(new HttpRequestException("connection refused"));
 
         await Assert.ThrowsAsync<HttpRequestException>(
@@ -179,7 +180,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateInsightsAsync_ReturnsEmpty_WhenLlmReturnsEmptyContent()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = string.Empty });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -190,7 +191,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateInsightsAsync_ReturnsEmpty_WhenLlmReturnsMalformedJson()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = "this is not json" });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -211,7 +212,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         var results = await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -237,7 +238,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         var snapshot = await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
@@ -262,7 +263,7 @@ public class IdentityAnalysisServiceTests
 }
 """;
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
@@ -275,7 +276,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateSnapshotAsync_ThrowsAndLogs_WhenLlmFails()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ThrowsAsync(new InvalidOperationException("LLM unavailable"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -294,7 +295,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateSnapshotAsync_ReturnsEmptySnapshot_WhenResponseIsMalformed()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = "not json at all" });
 
         var snapshot = await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
@@ -306,7 +307,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateSnapshotAsync_DoesNotPersist_WhenSnapshotNarrativeIsEmpty()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = "not json at all" });
 
         await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
@@ -321,7 +322,7 @@ public class IdentityAnalysisServiceTests
     {
         var llmJson = """{ "narrativeSummary": "", "dominantThemes": [], "activeStressors": [], "motivators": [], "observedStrengths": [] }""";
 
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = llmJson });
 
         await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
@@ -332,13 +333,34 @@ public class IdentityAnalysisServiceTests
     }
 
     // ================================================================
+    // ENH-19 — Heavy complexity routing
+    // ================================================================
+
+    [Fact]
+    public async Task GenerateInsightsAsync_PassesHeavyComplexity_ToLlmRouter()
+    {
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new LlmResponse { Content = """{ "insights": [] }""" });
+
+        await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
+
+        _llmRouterMock.Verify(
+            router => router.SendAsync(
+                It.IsAny<string>()
+              , It.IsAny<ConversationContext>()
+              , TaskComplexity.Heavy
+              , It.IsAny<CancellationToken>())
+          , Times.Once);
+    }
+
+    // ================================================================
     // GenerateInsightsAsync — reads recent data
     // ================================================================
 
     [Fact]
     public async Task GenerateInsightsAsync_ReadsLast30DaysOfJournalEntries()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = """{ "insights": [] }""" });
 
         await _service.GenerateInsightsAsync(string.Empty, CancellationToken.None);
@@ -355,7 +377,7 @@ public class IdentityAnalysisServiceTests
     [Fact]
     public async Task GenerateSnapshotAsync_ReadsLast14DaysOfJournalEntries()
     {
-        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        _llmRouterMock.Setup(router => router.SendAsync(It.IsAny<string>(), It.IsAny<ConversationContext>(), It.IsAny<TaskComplexity>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new LlmResponse { Content = """{ "narrativeSummary": "", "dominantThemes": [], "activeStressors": [], "motivators": [], "observedStrengths": [] }""" });
 
         await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);

@@ -36,9 +36,16 @@ public class LlmUsageState
 /// </summary>
 public class LlmModelCapacity
 {
-    public LlmModelId    ModelId { get; init; } = default!;
-    public LlmRateLimits Limits  { get; init; } = new();
-    public LlmUsageState Usage   { get; init; } = new();
+    public LlmModelId     ModelId           { get; init; } = default!;
+    public LlmRateLimits  Limits            { get; init; } = new();
+    public LlmUsageState  Usage             { get; init; } = new();
+    public TaskComplexity Tier              { get; init; } = TaskComplexity.Standard;
+
+    /// <summary>
+    /// Set when the selected model's Tier is below the requested TaskComplexity.
+    /// Null when the model meets or exceeds the requested tier.
+    /// </summary>
+    public string?        TierDowngradeNote { get; init; }
 
     public int RemainingRequests => Limits.RequestsPerWindow.HasValue
                                             ? Limits.RequestsPerWindow.Value - Usage.RequestsUsed
@@ -61,6 +68,13 @@ public class LlmModelConfig
     public string        Model    { get; init; } = string.Empty;
     public int           Priority { get; init; }
     public LlmRateLimits Limits   { get; init; } = new();
+
+    /// <summary>
+    /// The complexity tier this model is preferred for.
+    /// Used by ILlmCapacityRouter.SelectModel(TaskComplexity) to prefer appropriate models.
+    /// Defaults to Standard if not configured.
+    /// </summary>
+    public TaskComplexity Tier { get; init; } = TaskComplexity.Standard;
 
     public LlmModelId Id => new(Provider, Model);
 }

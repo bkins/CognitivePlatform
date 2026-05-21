@@ -246,4 +246,131 @@ public class LlmCapacityRouterTests
 
         Assert.Null(exception);
     }
+
+    // ----------------------------------------------------------------
+    // SelectModel(TaskComplexity) — ENH-19 tier-aware selection
+    // ----------------------------------------------------------------
+
+    private static LlmModelConfig HeavyModelConfig(int priority = 1)
+        => new()
+           {
+                   Provider = "gemini"
+                 , Model    = "gemini-2.0-pro"
+                 , Priority = priority
+                 , Tier     = TaskComplexity.Heavy
+           };
+
+    private static LlmModelConfig StandardModelConfig(int priority = 2)
+        => new()
+           {
+                   Provider = "groq"
+                 , Model    = "llama-3.3-70b-versatile"
+                 , Priority = priority
+                 , Tier     = TaskComplexity.Standard
+           };
+
+    private static LlmModelConfig LightModelConfig(int priority = 3)
+        => new()
+           {
+                   Provider = "gemini"
+                 , Model    = "gemini-2.0-flash-lite"
+                 , Priority = priority
+                 , Tier     = TaskComplexity.Light
+           };
+
+    [Fact]
+    public void SelectModel_HeavyComplexity_PrefersHeavyTierModel()
+    {
+        var router = Build(HeavyModelConfig(priority: 1), StandardModelConfig(priority: 2));
+
+        var result = router.SelectModel(TaskComplexity.Heavy);
+
+        Assert.Equal("gemini",          result.ModelId.Provider);
+        Assert.Equal("gemini-2.0-pro",  result.ModelId.Model);
+        Assert.Null(result.TierDowngradeNote);
+    }
+
+    [Fact]
+    public void SelectModel_HeavyComplexity_FallsBackToStandard_WhenHeavyExhausted()
+    {
+        var heavy    = HeavyModelConfig(priority: 1);
+        heavy = new LlmModelConfig
+                {
+                        Provider = heavy.Provider
+                      , Model    = heavy.Model
+                      , Priority = heavy.Priority
+                      , Tier     = heavy.Tier
+                      , Limits   = new LlmRateLimits { RequestsPerWindow = 1, Window = TimeSpan.FromHours(1) }
+                };
+
+        var router   = Build(heavy, StandardModelConfig(priority: 2));
+        var heavyId  = new LlmModelId(heavy.Provider, heavy.Model);
+        router.RecordUsage(heavyId, Usage(1));
+
+        var result = router.SelectModel(TaskComplexity.Heavy);
+
+        Assert.Equal("groq",                     result.ModelId.Provider);
+        Assert.Equal("llama-3.3-70b-versatile",  result.ModelId.Model);
+        Assert.NotNull(result.TierDowngradeNote);
+        Assert.Contains("available", result.TierDowngradeNote, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SelectModel_StandardComplexity_SkipsLightTierModels()
+    {
+        var router = Build(LightModelConfig(priority: 1), StandardModelConfig(priority: 2));
+
+        var result = router.SelectModel(TaskComplexity.Standard);
+
+        Assert.Equal("groq",                    result.ModelId.Provider);
+        Assert.Equal("llama-3.3-70b-versatile", result.ModelId.Model);
+        Assert.Null(result.TierDowngradeNote);
+    }
+
+    [Fact]
+    public void SelectModel_LightComplexity_AcceptsAnyAvailableModel()
+    {
+        var router = Build(LightModelConfig(priority: 1), StandardModelConfig(priority: 2), HeavyModelConfig(priority: 3));
+
+        var result = router.SelectModel(TaskComplexity.Light);
+
+        Assert.Equal("gemini",               result.ModelId.Provider);
+        Assert.Equal("gemini-2.0-flash-lite", result.ModelId.Model);
+        Assert.Null(result.TierDowngradeNote);
+    }
+
+    [Fact]
+    public void SelectModel_WithComplexity_Throws_WhenAllModelsExhausted()
+    {
+        var heavy    = new LlmModelConfig
+                       {
+                               Provider = "gemini"
+                             , Model    = "gemini-2.0-pro"
+                             , Priority = 1
+                             , Tier     = TaskComplexity.Heavy
+                             , Limits   = new LlmRateLimits { RequestsPerWindow = 1, Window = TimeSpan.FromHours(1) }
+                       };
+        var standard = new LlmModelConfig
+                       {
+                               Provider = "groq"
+                             , Model    = "llama-3.3-70b-versatile"
+                             , Priority = 2
+                             , Tier     = TaskComplexity.Standard
+                             , Limits   = new LlmRateLimits { RequestsPerWindow = 1, Window = TimeSpan.FromHours(1) }
+                       };
+
+        var router   = Build(heavy, standard);
+        router.RecordUsage(new LlmModelId(heavy.Provider,    heavy.Model),    Usage(1));
+        router.RecordUsage(new LlmModelId(standard.Provider, standard.Model), Usage(1));
+
+        Assert.Throws<LlmCapacityExceededException>(() => router.SelectModel(TaskComplexity.Heavy));
+    }
+
+    [Fact]
+    public void LlmModelConfig_Tier_DefaultsToStandard_WhenNotConfigured()
+    {
+        var config = new LlmModelConfig { Provider = "groq", Model = "llama-3", Priority = 1 };
+
+        Assert.Equal(TaskComplexity.Standard, config.Tier);
+    }
 }

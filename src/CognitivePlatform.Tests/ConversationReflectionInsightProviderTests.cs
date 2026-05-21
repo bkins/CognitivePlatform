@@ -43,8 +43,9 @@ public class ConversationReflectionInsightProviderTests
     private void StubRouterReply(string reply) =>
         _routerMock.Setup(router => router.SendAsync(It.IsAny<string>()
                                                   , It.IsAny<ConversationContext>()
+                                                  , It.IsAny<TaskComplexity>()
                                                   , It.IsAny<CancellationToken>()))
-                   .Callback<string, ConversationContext, CancellationToken>((prompt, _, _) => _capturedPrompt = prompt)
+                   .Callback<string, ConversationContext, TaskComplexity, CancellationToken>((prompt, _, _, _) => _capturedPrompt = prompt)
                    .ReturnsAsync(new LlmResponse { Content = reply });
 
     [Fact]
@@ -65,6 +66,7 @@ public class ConversationReflectionInsightProviderTests
         Assert.Empty(insights);
         _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
                                                    , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
                                                    , It.IsAny<CancellationToken>())
                          , Times.Never);
     }
@@ -85,6 +87,7 @@ public class ConversationReflectionInsightProviderTests
         _routerMock.Verify(router => router.SendAsync(
                                 It.Is<string>(prompt => prompt.Contains(userMessage))
                               , It.IsAny<ConversationContext>()
+                              , It.IsAny<TaskComplexity>()
                               , It.IsAny<CancellationToken>())
                           , Times.Once);
     }

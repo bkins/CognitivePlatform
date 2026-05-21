@@ -16,11 +16,23 @@ public interface ILlmCapacityRouter
 {
     /// <summary>
     /// Returns the best available model according to priority and capacity state.
+    /// Delegates to <see cref="SelectModel(TaskComplexity)"/> with Standard complexity.
     /// </summary>
     /// <exception cref="LlmCapacityExceededException">
     /// All configured models are exhausted or no models are configured.
     /// </exception>
     LlmModelId SelectModel();
+
+    /// <summary>
+    /// Returns the best available model for the requested <paramref name="complexity"/> tier.
+    /// Prefers models whose configured <see cref="LlmModelConfig.Tier"/> matches the request,
+    /// falling back to a lower-tier model and setting <see cref="LlmModelCapacity.TierDowngradeNote"/>
+    /// when the ideal tier is unavailable.
+    /// </summary>
+    /// <exception cref="LlmCapacityExceededException">
+    /// All models at an acceptable tier are exhausted or no models are configured.
+    /// </exception>
+    LlmModelCapacity SelectModel(TaskComplexity complexity);
 
     /// <summary>
     /// Increments usage counters for <paramref name="modelId"/> and rolls the

@@ -14,8 +14,9 @@ namespace CognitivePlatform.Api.Interpreter;
 public interface ILlmRouter
 {
     Task<LlmResponse> SendAsync (string              prompt
-                          , ConversationContext context
-                          , CancellationToken   ct = default);
+                              , ConversationContext context
+                              , TaskComplexity      complexity = TaskComplexity.Standard
+                              , CancellationToken   ct         = default);
 
     IAsyncEnumerable<string> StreamAsync (string              prompt
                                         , ConversationContext context

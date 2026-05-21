@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Interpreter;
@@ -9,22 +10,22 @@ namespace CognitivePlatform.Api.Domains.Identity;
 
 public class IdentityAnalysisService : IIdentityAnalysisService
 {
-    private readonly IIdentityService             _identityService;
-    private readonly IJournalService              _journalService;
-    private readonly ITaskService                 _taskService;
-    private readonly ILlmClient                   _llmClient;
+    private readonly IIdentityService              _identityService;
+    private readonly IJournalService               _journalService;
+    private readonly ITaskService                  _taskService;
+    private readonly ILlmRouter                    _llmRouter;
     private readonly ILogger<IdentityAnalysisService> _logger;
 
-    public IdentityAnalysisService( IIdentityService              identityService
-                                  , IJournalService               journalService
-                                  , ITaskService                  taskService
-                                  , ILlmClient                    llmClient
+    public IdentityAnalysisService( IIdentityService               identityService
+                                  , IJournalService                journalService
+                                  , ITaskService                   taskService
+                                  , ILlmRouter                     llmRouter
                                   , ILogger<IdentityAnalysisService> logger )
     {
         _identityService = identityService ?? throw new ArgumentNullException(nameof(identityService));
         _journalService  = journalService  ?? throw new ArgumentNullException(nameof(journalService));
         _taskService     = taskService     ?? throw new ArgumentNullException(nameof(taskService));
-        _llmClient       = llmClient       ?? throw new ArgumentNullException(nameof(llmClient));
+        _llmRouter       = llmRouter       ?? throw new ArgumentNullException(nameof(llmRouter));
         _logger          = logger          ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -38,15 +39,16 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         var completedTasks = _taskService.GetCompleted();
         var assertions     = await _identityService.GetAssertionsAsync(ct);
 
-        var prompt = BuildInsightsPrompt(journalEntries, activeTasks, completedTasks, assertions);
+        var prompt  = BuildInsightsPrompt(journalEntries, activeTasks, completedTasks, assertions);
+        var context = new ConversationContext("system-identity");
 
         string rawResponse;
         try
         {
-            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            var llmResponse = await _llmRouter.SendAsync(prompt, context, TaskComplexity.Heavy, ct);
             rawResponse = llmResponse.Content;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "LLM call failed during GenerateInsightsAsync");
             throw;
@@ -70,15 +72,16 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         var derivedInsights = await _identityService.GetDerivedInsightsAsync(ct);
         var journalEntries  = _journalService.ListEntries(fromUtc: fourteenDaysAgo);
 
-        var prompt = BuildSnapshotPrompt(profile, assertions, derivedInsights, journalEntries);
+        var prompt  = BuildSnapshotPrompt(profile, assertions, derivedInsights, journalEntries);
+        var context = new ConversationContext("system-snapshot");
 
         string rawResponse;
         try
         {
-            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            var llmResponse = await _llmRouter.SendAsync(prompt, context, TaskComplexity.Heavy, ct);
             rawResponse = llmResponse.Content;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "LLM call failed during GenerateSnapshotAsync");
             throw;

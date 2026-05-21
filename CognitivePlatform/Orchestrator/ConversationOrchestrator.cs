@@ -789,6 +789,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.ReplaceLatestTurn(initialTurn with { AssistantMessage = finalMessage });
         }
 
+        // ENH-19: if a Heavy LLM call was downgraded during execution (e.g., IdentityAnalysisService),
+        // the capacity router stores a note in context.Metadata.  Surface it to the user once.
+        if (context.Metadata.TryGetValue("tier_downgrade_note", out var downgradeNote)
+         && !string.IsNullOrEmpty(downgradeNote))
+        {
+            finalMessage += $"\n\n_{downgradeNote}_";
+            context.Metadata.TryRemove("tier_downgrade_note", out _);
+        }
+
         var finalResponse = new ConverseResponse
                             {
                                     Message         = finalMessage

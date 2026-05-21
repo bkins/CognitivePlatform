@@ -46,14 +46,16 @@ public class LlmRouter : ILlmRouter
 
     public async Task<LlmResponse> SendAsync( string              prompt
                                             , ConversationContext context
-                                            , CancellationToken   ct = default )
+                                            , TaskComplexity      complexity = TaskComplexity.Standard
+                                            , CancellationToken   ct         = default )
     {
-        var sessionProvider = ResolveProvider(context);
-        var sessionModel    = ResolveModel(context, sessionProvider);
-        var client          = _factory.Create(sessionProvider);
-        var resolvedModel   = sessionModel;
+        var sessionProvider  = ResolveProvider(context);
+        var sessionModel     = ResolveModel(context, sessionProvider);
+        var client           = _factory.Create(sessionProvider);
+        var resolvedModel    = sessionModel;
         var resolvedProvider = sessionProvider.ToString();
-        string? switchNote  = null;
+        string? switchNote         = null;
+        string? tierDowngradeNote  = null;
 
         // When the session-preferred provider is exhausted (as signalled by its
         // last rate-limit snapshot), delegate to the capacity router to find
@@ -61,15 +63,19 @@ public class LlmRouter : ILlmRouter
         // up through the interpreter so the orchestrator can surface a friendly message.
         if (_rateLimiter.IsExhausted(sessionProvider.ToString()))
         {
-            var capacityModelId = _capacityRouter.SelectModel();
-            var capacityProvider = Enum.TryParse<LlmProvider>(capacityModelId.Provider, ignoreCase: true, out var parsed)
+            var capacity         = _capacityRouter.SelectModel(complexity);
+            var capacityProvider = Enum.TryParse<LlmProvider>(capacity.ModelId.Provider, ignoreCase: true, out var parsed)
                                            ? parsed
                                            : _factory.DefaultProvider;
 
-            client           = _factory.Create(capacityProvider);
-            resolvedModel    = capacityModelId.Model;
-            resolvedProvider = capacityModelId.Provider;
-            switchNote       = $"Switched to {capacityModelId.Provider} ({capacityModelId.Model}) — {sessionProvider} limit reached";
+            client              = _factory.Create(capacityProvider);
+            resolvedModel       = capacity.ModelId.Model;
+            resolvedProvider    = capacity.ModelId.Provider;
+            switchNote          = $"Switched to {capacity.ModelId.Provider} ({capacity.ModelId.Model}) — {sessionProvider} limit reached";
+            tierDowngradeNote   = capacity.TierDowngradeNote;
+
+            if (tierDowngradeNote != null)
+                context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
         }
 
         var response = await client.SendAsync(prompt, resolvedModel, ct);
@@ -82,6 +88,7 @@ public class LlmRouter : ILlmRouter
                              , RateLimits        = response.RateLimits
                              , CapturedUtc       = DateTimeOffset.UtcNow
                              , ProviderSwitchNote = switchNote
+                             , TierDowngradeNote  = tierDowngradeNote
                        };
 
         _usageAggregator.Record(metadata);
@@ -117,7 +124,7 @@ public class LlmRouter : ILlmRouter
 
         _promptLogger.Log("WeaveLlmRouter.WeaveAsync", prompt, _defaults.ToString());
 
-        return (await SendAsync(prompt, context, cancellationToken)).Content;
+        return (await SendAsync(prompt, context, TaskComplexity.Light, cancellationToken)).Content;
     }
 
     private static string BuildWeavePrompt( string                 originalResponse

@@ -148,7 +148,7 @@ public class LlmInterpreter : IInterpreter
             // on this turn. The router re-reads context.Metadata for every call.
             var llmResult  = await _llmRouter.SendAsync(prompt
                                                          , context
-                                                         , CancellationToken.None);
+                                                         , ct: CancellationToken.None);
             rawResponse = llmResult.Content;
         }
         catch (Exception ex)
