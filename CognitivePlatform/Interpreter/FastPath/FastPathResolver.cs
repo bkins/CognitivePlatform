@@ -129,6 +129,21 @@ public sealed class FastPathResolver : IFastPathResolver
         if (TryResolveIdentityListAssertions(input, out action, out parameters))
             return true;
 
+        if (TryResolveIdentityGenerateInsights(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityGenerateSnapshot(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityGetLatestSnapshot(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityListDerivedInsights(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityConfirmDerivedInsight(input, out action, out parameters))
+            return true;
+
         // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
@@ -1636,6 +1651,185 @@ public sealed class FastPathResolver : IFastPathResolver
         parameters = new Dictionary<string, string>();
 
         return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // GenerateInsights
+    // "generate insights", "analyze my behavioral patterns", "find patterns in my journals"
+    // ----------------------------------------------------------------
+    private static readonly string[] GenerateInsightsSignals =
+    {
+            "generate insights"
+          , "generate behavioral insights"
+          , "analyze my behavioral patterns"
+          , "analyze my patterns"
+          , "find behavioral patterns"
+          , "find patterns in my journals"
+          , "discover my patterns"
+          , "analyze my journals for patterns"
+          , "analyze my behavior"
+    };
+
+    private bool TryResolveIdentityGenerateInsights( string                           input
+                                                    , out ActionMetadata?             action
+                                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (GenerateInsightsSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GenerateInsights");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // GenerateSnapshot
+    // "generate snapshot", "create personality analysis", "analyze who i am"
+    // ----------------------------------------------------------------
+    private static readonly string[] GenerateSnapshotSignals =
+    {
+            "generate snapshot"
+          , "generate personality snapshot"
+          , "create personality snapshot"
+          , "create personality analysis"
+          , "personality analysis"
+          , "generate my snapshot"
+          , "analyze who i am"
+          , "create a snapshot of who i am"
+    };
+
+    private bool TryResolveIdentityGenerateSnapshot( string                           input
+                                                    , out ActionMetadata?             action
+                                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (GenerateSnapshotSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GenerateSnapshot");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // GetLatestSnapshot
+    // "show my latest snapshot", "get my personality snapshot", "latest snapshot"
+    // ----------------------------------------------------------------
+    private static readonly string[] GetLatestSnapshotSignals =
+    {
+            "latest snapshot"
+          , "show my latest snapshot"
+          , "get my snapshot"
+          , "show my snapshot"
+          , "show personality snapshot"
+          , "my personality snapshot"
+          , "latest personality snapshot"
+    };
+
+    private bool TryResolveIdentityGetLatestSnapshot( string                           input
+                                                     , out ActionMetadata?             action
+                                                     , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (GetLatestSnapshotSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetLatestSnapshot");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // ListDerivedInsights
+    // "list derived insights", "show ai insights", "show generated insights"
+    // ----------------------------------------------------------------
+    private static readonly string[] ListDerivedInsightsSignals =
+    {
+            "derived insights"
+          , "list derived insights"
+          , "show derived insights"
+          , "show ai insights"
+          , "show generated insights"
+          , "generated insights"
+          , "ai-generated insights"
+    };
+
+    private bool TryResolveIdentityListDerivedInsights( string                           input
+                                                       , out ActionMetadata?             action
+                                                       , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListDerivedInsightsSignals.Any(signal => normalized.Contains(signal)).Not())
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListDerivedInsights");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // ConfirmDerivedInsight
+    // "confirm insight <topic>", "accept the <type> insight"
+    // ----------------------------------------------------------------
+    private static readonly string[] ConfirmDerivedInsightPrefixes =
+    {
+            "confirm insight "
+          , "confirm derived insight "
+          , "accept insight "
+          , "accept the insight "
+    };
+
+    private bool TryResolveIdentityConfirmDerivedInsight( string                           input
+                                                         , out ActionMetadata?             action
+                                                         , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        foreach (var prefix in ConfirmDerivedInsightPrefixes)
+        {
+            var index = normalized.IndexOf(prefix, StringComparison.Ordinal);
+            if (index < 0) continue;
+
+            var topic = normalized.Substring(index + prefix.Length).Trim();
+
+            // Strip trailing "insight" qualifier ("confirm insight the stress-response insight")
+            if (topic.EndsWith(" insight"))
+                topic = topic[..^" insight".Length].Trim();
+
+            if (string.IsNullOrWhiteSpace(topic)) continue;
+
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ConfirmDerivedInsight");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["topic"] = topic };
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />

@@ -203,6 +203,7 @@ public partial class Program
         
     // Identity
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
+        builder.Services.AddSingleton<IIdentityAnalysisService, IdentityAnalysisService>();
 
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();

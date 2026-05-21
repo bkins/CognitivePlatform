@@ -5,12 +5,13 @@ namespace CognitivePlatform.Tests;
 
 public class IdentityActionsTests
 {
-    private readonly Mock<IIdentityService> _serviceMock = new();
-    private readonly IdentityActions        _actions;
+    private readonly Mock<IIdentityService>         _serviceMock  = new();
+    private readonly Mock<IIdentityAnalysisService> _analysisMock = new();
+    private readonly IdentityActions                _actions;
 
     public IdentityActionsTests()
     {
-        _actions = new IdentityActions(_serviceMock.Object);
+        _actions = new IdentityActions(_serviceMock.Object, _analysisMock.Object);
     }
 
     // ================================================================
@@ -435,5 +436,219 @@ public class IdentityActionsTests
         Assert.Contains("No assertion found", result);
         _serviceMock.Verify(service => service.ConfirmAssertionAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
                           , Times.Never);
+    }
+
+    // ================================================================
+    // GenerateInsights
+    // ================================================================
+
+    [Fact]
+    public async Task GenerateInsights_ReturnsFormattedSummary_WhenInsightsFound()
+    {
+        var insights = new List<DerivedInsight>
+        {
+              new() { InsightType = "stress-response", Description = "catastrophizes timelines", Confidence = 0.75 }
+            , new() { InsightType = "work-pattern",    Description = "productive in mornings",   Confidence = 0.85 }
+        };
+
+        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(insights);
+
+        var result = await _actions.GenerateInsights();
+
+        Assert.Contains("2 behavioral patterns",    result);
+        Assert.Contains("stress-response",          result);
+        Assert.Contains("catastrophizes timelines", result);
+        Assert.Contains("work-pattern",             result);
+        Assert.Contains("confirm insight",          result);
+    }
+
+    [Fact]
+    public async Task GenerateInsights_ReturnsNoDataMessage_WhenInsightsEmpty()
+    {
+        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync([]);
+
+        var result = await _actions.GenerateInsights();
+
+        Assert.Contains("No behavioral patterns", result);
+    }
+
+    // ================================================================
+    // GenerateSnapshot
+    // ================================================================
+
+    [Fact]
+    public async Task GenerateSnapshot_ReturnsFormattedSnapshot_WhenGenerated()
+    {
+        var snapshot = new PersonalitySnapshot
+                       {
+                               NarrativeSummary  = "Ben is a thoughtful engineer."
+                             , DominantThemes    = ["productivity", "deep work"]
+                             , ActiveStressors   = ["deadline pressure"]
+                             , Motivators        = ["impact"]
+                             , ObservedStrengths = ["systems thinking"]
+                       };
+
+        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(snapshot);
+
+        var result = await _actions.GenerateSnapshot();
+
+        Assert.Contains("Ben is a thoughtful engineer.", result);
+        Assert.Contains("productivity",                  result);
+        Assert.Contains("deadline pressure",             result);
+        Assert.Contains("impact",                        result);
+        Assert.Contains("systems thinking",              result);
+    }
+
+    [Fact]
+    public async Task GenerateSnapshot_ReturnsNoDataMessage_WhenNarrativeIsEmpty()
+    {
+        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new PersonalitySnapshot { NarrativeSummary = string.Empty });
+
+        var result = await _actions.GenerateSnapshot();
+
+        Assert.Contains("Could not generate a snapshot", result);
+    }
+
+    // ================================================================
+    // GetLatestSnapshot
+    // ================================================================
+
+    [Fact]
+    public async Task GetLatestSnapshot_ReturnsFormattedSnapshot_WhenSnapshotExists()
+    {
+        var snapshot = new PersonalitySnapshot
+                       {
+                               NarrativeSummary = "Ben is a focused builder."
+                             , DominantThemes   = ["focus"]
+                       };
+
+        _serviceMock.Setup(svc => svc.GetLatestSnapshotAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(snapshot);
+
+        var result = await _actions.GetLatestSnapshot();
+
+        Assert.Contains("Ben is a focused builder.", result);
+        Assert.Contains("focus",                     result);
+    }
+
+    [Fact]
+    public async Task GetLatestSnapshot_ReturnsNoSnapshotMessage_WhenNoneExists()
+    {
+        _serviceMock.Setup(svc => svc.GetLatestSnapshotAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((PersonalitySnapshot?)null);
+
+        var result = await _actions.GetLatestSnapshot();
+
+        Assert.Contains("No personality snapshot exists", result);
+    }
+
+    // ================================================================
+    // ListDerivedInsights
+    // ================================================================
+
+    [Fact]
+    public async Task ListDerivedInsights_ReturnsFormattedList_WhenInsightsExist()
+    {
+        _serviceMock.Setup(svc => svc.GetDerivedInsightsAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(
+                     [
+                             new DerivedInsight { InsightType = "stress-response", Description = "catastrophizes",      Confidence = 0.75, UserConfirmed = false }
+                           , new DerivedInsight { InsightType = "work-pattern",    Description = "morning productivity", Confidence = 0.90, UserConfirmed = true  }
+                     ]);
+
+        var result = await _actions.ListDerivedInsights();
+
+        Assert.Contains("stress-response",      result);
+        Assert.Contains("catastrophizes",        result);
+        Assert.Contains("[unconfirmed]",         result);
+        Assert.Contains("work-pattern",          result);
+        Assert.Contains("morning productivity",  result);
+        Assert.Contains("[confirmed]",           result);
+    }
+
+    [Fact]
+    public async Task ListDerivedInsights_ReturnsNoInsightsMessage_WhenEmpty()
+    {
+        _serviceMock.Setup(svc => svc.GetDerivedInsightsAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+
+        var result = await _actions.ListDerivedInsights();
+
+        Assert.Contains("No derived insights", result);
+    }
+
+    // ================================================================
+    // ConfirmDerivedInsight
+    // ================================================================
+
+    [Fact]
+    public async Task ConfirmDerivedInsight_ConfirmsMostRecentUnconfirmedMatchingTopic()
+    {
+        var newerInsight = new DerivedInsight
+                           {
+                                   Id            = "newer-id"
+                                 , InsightType   = "stress-response"
+                                 , Description   = "catastrophizes timelines"
+                                 , Confidence    = 0.75
+                                 , UserConfirmed = false
+                                 , GeneratedAt   = DateTime.UtcNow
+                           };
+        var olderInsight = new DerivedInsight
+                           {
+                                   Id            = "older-id"
+                                 , InsightType   = "stress-response"
+                                 , Description   = "older stress description"
+                                 , Confidence    = 0.60
+                                 , UserConfirmed = false
+                                 , GeneratedAt   = DateTime.UtcNow.AddDays(-1)
+                           };
+
+        _serviceMock.Setup(svc => svc.GetDerivedInsightsAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([newerInsight, olderInsight]);
+
+        _serviceMock.Setup(svc => svc.ConfirmDerivedInsightAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+
+        await _actions.ConfirmDerivedInsight("stress-response");
+
+        _serviceMock.Verify(svc => svc.ConfirmDerivedInsightAsync("newer-id", It.IsAny<CancellationToken>())
+                          , Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmDerivedInsight_SkipsAlreadyConfirmedInsights()
+    {
+        var confirmedInsight = new DerivedInsight
+                               {
+                                       Id            = "confirmed-id"
+                                     , InsightType   = "stress-response"
+                                     , Description   = "already confirmed"
+                                     , UserConfirmed = true
+                                     , GeneratedAt   = DateTime.UtcNow
+                               };
+
+        _serviceMock.Setup(svc => svc.GetDerivedInsightsAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([confirmedInsight]);
+
+        var result = await _actions.ConfirmDerivedInsight("stress-response");
+
+        Assert.Contains("No unconfirmed insight found", result);
+        _serviceMock.Verify(svc => svc.ConfirmDerivedInsightAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmDerivedInsight_ReturnsNotFound_WhenTopicDoesNotMatch()
+    {
+        _serviceMock.Setup(svc => svc.GetDerivedInsightsAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync([]);
+
+        var result = await _actions.ConfirmDerivedInsight("nonexistent-topic");
+
+        Assert.Contains("No unconfirmed insight found", result);
     }
 }

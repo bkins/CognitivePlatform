@@ -84,4 +84,73 @@ public class IdentityService : IIdentityService
                         , partitionKey: _workspaceContext.ActivePartitionKey
                         , id:           assertionId);
     }
+
+    // ================================================================
+    // DerivedInsight persistence
+    // ================================================================
+
+    public Task<IReadOnlyList<DerivedInsight>> GetDerivedInsightsAsync(CancellationToken ct)
+    {
+        IReadOnlyList<DerivedInsight> insights =
+            _store.List<DerivedInsight>(partitionKey: _workspaceContext.ActivePartitionKey)
+                  .Where(insight => insight.IsDeleted.Not())
+                  .OrderByDescending(insight => insight.GeneratedAt)
+                  .ToList();
+
+        return Task.FromResult(insights);
+    }
+
+    public async Task AddDerivedInsightAsync(DerivedInsight insight, CancellationToken ct)
+    {
+        await _store.Save(insight
+                        , partitionKey: _workspaceContext.ActivePartitionKey
+                        , id:           insight.Id);
+    }
+
+    public async Task ConfirmDerivedInsightAsync(string insightId, CancellationToken ct)
+    {
+        var existing = _store.Get<DerivedInsight>(insightId
+                                                , partitionKey: _workspaceContext.ActivePartitionKey);
+
+        if (existing is null || existing.IsDeleted)
+            return;
+
+        var confirmed = existing with { UserConfirmed = true };
+
+        await _store.Save(confirmed
+                        , partitionKey: _workspaceContext.ActivePartitionKey
+                        , id:           insightId);
+    }
+
+    // ================================================================
+    // PersonalitySnapshot persistence
+    // ================================================================
+
+    public Task<IReadOnlyList<PersonalitySnapshot>> GetSnapshotsAsync(CancellationToken ct)
+    {
+        IReadOnlyList<PersonalitySnapshot> snapshots =
+            _store.List<PersonalitySnapshot>(partitionKey: _workspaceContext.ActivePartitionKey)
+                  .Where(snapshot => snapshot.IsDeleted.Not())
+                  .OrderByDescending(snapshot => snapshot.Timestamp)
+                  .ToList();
+
+        return Task.FromResult(snapshots);
+    }
+
+    public async Task AddSnapshotAsync(PersonalitySnapshot snapshot, CancellationToken ct)
+    {
+        await _store.Save(snapshot
+                        , partitionKey: _workspaceContext.ActivePartitionKey
+                        , id:           snapshot.Id);
+    }
+
+    public Task<PersonalitySnapshot?> GetLatestSnapshotAsync(CancellationToken ct)
+    {
+        var latest = _store.List<PersonalitySnapshot>(partitionKey: _workspaceContext.ActivePartitionKey)
+                           .Where(snapshot => snapshot.IsDeleted.Not())
+                           .OrderByDescending(snapshot => snapshot.Timestamp)
+                           .FirstOrDefault();
+
+        return Task.FromResult(latest);
+    }
 }
