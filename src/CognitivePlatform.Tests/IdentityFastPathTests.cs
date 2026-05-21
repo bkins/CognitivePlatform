@@ -109,7 +109,6 @@ public class IdentityFastPathTests
     [InlineData("generate snapshot")]
     [InlineData("generate personality snapshot")]
     [InlineData("create personality snapshot")]
-    [InlineData("personality analysis")]
     [InlineData("generate my snapshot")]
     [InlineData("analyze who i am")]
     public void TryResolve_ResolvesToGenerateSnapshot_ForSnapshotGenerationSignals(string input)
@@ -186,5 +185,16 @@ public class IdentityFastPathTests
         var resolved = _resolver.TryResolve("show my tasks for today", out _, out _);
 
         Assert.False(resolved);
+    }
+
+    [Fact]
+    public void TryResolve_DoesNotResolveGenerateSnapshot_ForBroadPersonalityAnalysisPhrase()
+    {
+        var resolved = _resolver.TryResolve("show the latest personality analysis", out var action, out _);
+
+        // Should NOT route to GenerateSnapshot — that phrase is a retrieval intent, not a generation intent.
+        // Either resolves to GetLatestSnapshot or returns false; either way, not GenerateSnapshot.
+        if (resolved)
+            Assert.NotEqual("GenerateSnapshot", action!.Name);
     }
 }

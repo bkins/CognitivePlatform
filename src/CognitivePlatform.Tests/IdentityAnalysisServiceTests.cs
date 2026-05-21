@@ -303,6 +303,34 @@ public class IdentityAnalysisServiceTests
         Assert.Empty(snapshot.NarrativeSummary);
     }
 
+    [Fact]
+    public async Task GenerateSnapshotAsync_DoesNotPersist_WhenSnapshotNarrativeIsEmpty()
+    {
+        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new LlmResponse { Content = "not json at all" });
+
+        await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
+
+        _identityServiceMock.Verify(
+            svc => svc.AddSnapshotAsync(It.IsAny<PersonalitySnapshot>(), It.IsAny<CancellationToken>())
+          , Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateSnapshotAsync_DoesNotPersist_WhenLlmReturnsEmptyNarrative()
+    {
+        var llmJson = """{ "narrativeSummary": "", "dominantThemes": [], "activeStressors": [], "motivators": [], "observedStrengths": [] }""";
+
+        _llmClientMock.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new LlmResponse { Content = llmJson });
+
+        await _service.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
+
+        _identityServiceMock.Verify(
+            svc => svc.AddSnapshotAsync(It.IsAny<PersonalitySnapshot>(), It.IsAny<CancellationToken>())
+          , Times.Never);
+    }
+
     // ================================================================
     // GenerateInsightsAsync — reads recent data
     // ================================================================

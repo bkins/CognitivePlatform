@@ -86,7 +86,8 @@ public class IdentityAnalysisService : IIdentityAnalysisService
 
         var snapshot = ParseSnapshotResponse(rawResponse);
 
-        await _identityService.AddSnapshotAsync(snapshot, ct);
+        if (!string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
+            await _identityService.AddSnapshotAsync(snapshot, ct);
 
         return snapshot;
     }

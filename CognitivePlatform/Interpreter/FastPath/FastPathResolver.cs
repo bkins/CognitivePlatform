@@ -1698,7 +1698,6 @@ public sealed class FastPathResolver : IFastPathResolver
           , "generate personality snapshot"
           , "create personality snapshot"
           , "create personality analysis"
-          , "personality analysis"
           , "generate my snapshot"
           , "analyze who i am"
           , "create a snapshot of who i am"
