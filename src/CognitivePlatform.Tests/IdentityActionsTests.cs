@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Identity;
 
 namespace CognitivePlatform.Tests;
@@ -451,7 +452,7 @@ public class IdentityActionsTests
             , new() { InsightType = "work-pattern",    Description = "productive in mornings",   Confidence = 0.85 }
         };
 
-        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<ConversationContext?>()))
                      .ReturnsAsync(insights);
 
         var result = await _actions.GenerateInsights();
@@ -466,7 +467,7 @@ public class IdentityActionsTests
     [Fact]
     public async Task GenerateInsights_ReturnsNoDataMessage_WhenInsightsEmpty()
     {
-        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _analysisMock.Setup(svc => svc.GenerateInsightsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<ConversationContext?>()))
                      .ReturnsAsync([]);
 
         var result = await _actions.GenerateInsights();
@@ -490,7 +491,7 @@ public class IdentityActionsTests
                              , ObservedStrengths = ["systems thinking"]
                        };
 
-        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<ConversationContext?>()))
                      .ReturnsAsync(snapshot);
 
         var result = await _actions.GenerateSnapshot();
@@ -505,7 +506,7 @@ public class IdentityActionsTests
     [Fact]
     public async Task GenerateSnapshot_ReturnsNoDataMessage_WhenNarrativeIsEmpty()
     {
-        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _analysisMock.Setup(svc => svc.GenerateSnapshotAsync(It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<ConversationContext?>()))
                      .ReturnsAsync(new PersonalitySnapshot { NarrativeSummary = string.Empty });
 
         var result = await _actions.GenerateSnapshot();

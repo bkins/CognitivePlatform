@@ -1,6 +1,7 @@
 using System.Reflection;
 using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Avails.Extensions;
+using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
@@ -45,6 +46,13 @@ public class ExecutionEngine : IExecutionEngine
                 return $"Failed to execute action '{action.Name}': MethodInfo was null.";
 
             var target = CreateTargetInstance(methodInfo);
+
+            if (target is ISessionAware sessionAware)
+            {
+                var contextStore = (ConversationContextStore?)_serviceProvider.GetService(typeof(ConversationContextStore));
+                if (contextStore is not null)
+                    sessionAware.SetSessionContext(contextStore.GetOrCreate(sessionId));
+            }
 
             var parameters = methodInfo.GetParameters();
             var args       = new object?[parameters.Length];

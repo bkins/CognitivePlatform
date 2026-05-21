@@ -30,8 +30,9 @@ public class IdentityAnalysisService : IIdentityAnalysisService
     }
 
     public async Task<IReadOnlyList<DerivedInsight>> GenerateInsightsAsync(
-        string            partitionKey
-      , CancellationToken ct )
+        string              partitionKey
+      , CancellationToken   ct
+      , ConversationContext? sessionContext = null )
     {
         var thirtyDaysAgo  = DateTimeOffset.UtcNow.AddDays(-30);
         var journalEntries = _journalService.ListEntries(fromUtc: thirtyDaysAgo);
@@ -40,7 +41,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         var assertions     = await _identityService.GetAssertionsAsync(ct);
 
         var prompt  = BuildInsightsPrompt(journalEntries, activeTasks, completedTasks, assertions);
-        var context = new ConversationContext("system-identity");
+        var context = sessionContext ?? new ConversationContext("system-identity");
 
         string rawResponse;
         try
@@ -63,8 +64,9 @@ public class IdentityAnalysisService : IIdentityAnalysisService
     }
 
     public async Task<PersonalitySnapshot> GenerateSnapshotAsync(
-        string            partitionKey
-      , CancellationToken ct )
+        string              partitionKey
+      , CancellationToken   ct
+      , ConversationContext? sessionContext = null )
     {
         var fourteenDaysAgo = DateTimeOffset.UtcNow.AddDays(-14);
         var profile         = await _identityService.GetProfileAsync(ct);
@@ -73,7 +75,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         var journalEntries  = _journalService.ListEntries(fromUtc: fourteenDaysAgo);
 
         var prompt  = BuildSnapshotPrompt(profile, assertions, derivedInsights, journalEntries);
-        var context = new ConversationContext("system-snapshot");
+        var context = sessionContext ?? new ConversationContext("system-snapshot");
 
         string rawResponse;
         try

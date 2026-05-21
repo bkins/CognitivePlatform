@@ -1,13 +1,16 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Execution;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Identity;
 
-public class IdentityActions
+public class IdentityActions : ISessionAware
 {
     private readonly IIdentityService         _identityService;
     private readonly IIdentityAnalysisService _analysisService;
+    private          ConversationContext?      _sessionContext;
 
     public IdentityActions( IIdentityService         identityService
                           , IIdentityAnalysisService analysisService )
@@ -15,6 +18,8 @@ public class IdentityActions
         _identityService = identityService ?? throw new ArgumentNullException(nameof(identityService));
         _analysisService = analysisService ?? throw new ArgumentNullException(nameof(analysisService));
     }
+
+    void ISessionAware.SetSessionContext(ConversationContext context) => _sessionContext = context;
 
     [FastPath]
     [NaturalLanguageAction(
@@ -305,7 +310,7 @@ public class IdentityActions
           , AllowsClarification = false)]
     public async Task<string> GenerateInsights()
     {
-        var insights = await _analysisService.GenerateInsightsAsync(string.Empty, CancellationToken.None);
+        var insights = await _analysisService.GenerateInsightsAsync(string.Empty, CancellationToken.None, _sessionContext);
 
         if (insights.Count == 0)
             return "No behavioral patterns could be identified from the available data. Try adding more journal entries.";
@@ -341,7 +346,7 @@ public class IdentityActions
           , AllowsClarification = false)]
     public async Task<string> GenerateSnapshot()
     {
-        var snapshot = await _analysisService.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
+        var snapshot = await _analysisService.GenerateSnapshotAsync(string.Empty, CancellationToken.None, _sessionContext);
 
         if (string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
             return "Could not generate a snapshot — not enough data available. Try adding journal entries and insights first.";
