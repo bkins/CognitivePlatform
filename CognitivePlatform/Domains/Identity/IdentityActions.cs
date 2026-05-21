@@ -6,11 +6,14 @@ namespace CognitivePlatform.Api.Domains.Identity;
 
 public class IdentityActions
 {
-    private readonly IIdentityService _identityService;
+    private readonly IIdentityService         _identityService;
+    private readonly IIdentityAnalysisService _analysisService;
 
-    public IdentityActions(IIdentityService identityService)
+    public IdentityActions( IIdentityService         identityService
+                          , IIdentityAnalysisService analysisService )
     {
         _identityService = identityService ?? throw new ArgumentNullException(nameof(identityService));
+        _analysisService = analysisService ?? throw new ArgumentNullException(nameof(analysisService));
     }
 
     [FastPath]
@@ -281,6 +284,203 @@ public class IdentityActions
         await _identityService.ConfirmAssertionAsync(match.Id, CancellationToken.None);
 
         return $"Confirmed: [{match.Topic}] {match.Statement}";
+    }
+
+    // ================================================================
+    // AI synthesis actions
+    // ================================================================
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Analyzes recent journal entries and tasks to discover behavioral patterns and generate AI-derived insights about the user."
+          , Examples         =
+            [
+                    "Generate insights from my journals."
+                  , "Analyze my behavioral patterns."
+                  , "Discover patterns in my behavior."
+                  , "Find patterns in my journals."
+                  , "Analyze my journals for insights."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> GenerateInsights()
+    {
+        var insights = await _analysisService.GenerateInsightsAsync(string.Empty, CancellationToken.None);
+
+        if (insights.Count == 0)
+            return "No behavioral patterns could be identified from the available data. Try adding more journal entries.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"I identified {insights.Count} behavioral pattern{(insights.Count == 1 ? string.Empty : "s")} from your recent journals and tasks:");
+        sb.AppendLine();
+
+        foreach (var insight in insights)
+        {
+            var confidencePct = (int)(insight.Confidence * 100);
+            sb.AppendLine($"**[{insight.InsightType}]** {insight.Description} _(confidence: {confidencePct}%)_");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("These are hypotheses, not confirmed facts. Say _'confirm insight [type]'_ to accept any of them.");
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Generates a narrative personality snapshot synthesizing confirmed profile, behavioral insights, and recent journal entries."
+          , Examples         =
+            [
+                    "Generate a personality snapshot."
+                  , "Create a personality analysis."
+                  , "Analyze who I am."
+                  , "Generate my personality snapshot."
+                  , "Create a snapshot of who I am."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> GenerateSnapshot()
+    {
+        var snapshot = await _analysisService.GenerateSnapshotAsync(string.Empty, CancellationToken.None);
+
+        if (string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
+            return "Could not generate a snapshot — not enough data available. Try adding journal entries and insights first.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Personality Snapshot");
+        sb.AppendLine($"_Generated {snapshot.Timestamp:yyyy-MM-dd HH:mm} UTC_");
+        sb.AppendLine();
+        sb.AppendLine(snapshot.NarrativeSummary);
+
+        if (snapshot.DominantThemes.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"**Dominant themes:** {string.Join(", ", snapshot.DominantThemes)}");
+        }
+
+        if (snapshot.ActiveStressors.Count > 0)
+            sb.AppendLine($"**Active stressors:** {string.Join(", ", snapshot.ActiveStressors)}");
+
+        if (snapshot.Motivators.Count > 0)
+            sb.AppendLine($"**Motivators:** {string.Join(", ", snapshot.Motivators)}");
+
+        if (snapshot.ObservedStrengths.Count > 0)
+            sb.AppendLine($"**Observed strengths:** {string.Join(", ", snapshot.ObservedStrengths)}");
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Returns the most recent personality snapshot's narrative summary and themes."
+          , Examples         =
+            [
+                    "Show my latest snapshot."
+                  , "Get my personality snapshot."
+                  , "Show my personality snapshot."
+                  , "What's my latest snapshot?"
+                  , "Show the latest personality analysis."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> GetLatestSnapshot()
+    {
+        var snapshot = await _identityService.GetLatestSnapshotAsync(CancellationToken.None);
+
+        if (snapshot is null)
+            return "No personality snapshot exists yet. Say _'generate snapshot'_ to create one.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Latest Personality Snapshot");
+        sb.AppendLine($"_Generated {snapshot.Timestamp:yyyy-MM-dd HH:mm} UTC_");
+        sb.AppendLine();
+        sb.AppendLine(snapshot.NarrativeSummary);
+
+        if (snapshot.DominantThemes.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"**Dominant themes:** {string.Join(", ", snapshot.DominantThemes)}");
+        }
+
+        if (snapshot.ActiveStressors.Count > 0)
+            sb.AppendLine($"**Active stressors:** {string.Join(", ", snapshot.ActiveStressors)}");
+
+        if (snapshot.Motivators.Count > 0)
+            sb.AppendLine($"**Motivators:** {string.Join(", ", snapshot.Motivators)}");
+
+        if (snapshot.ObservedStrengths.Count > 0)
+            sb.AppendLine($"**Observed strengths:** {string.Join(", ", snapshot.ObservedStrengths)}");
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Lists all AI-derived behavioral insights with their confirmation status and confidence scores."
+          , Examples         =
+            [
+                    "List derived insights."
+                  , "Show derived insights."
+                  , "Show AI-generated insights."
+                  , "What insights have been generated?"
+                  , "Show generated insights."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> ListDerivedInsights()
+    {
+        var insights = await _identityService.GetDerivedInsightsAsync(CancellationToken.None);
+
+        if (insights.Count == 0)
+            return "No derived insights yet. Say _'generate insights'_ to discover behavioral patterns.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Derived Behavioral Insights");
+        sb.AppendLine();
+
+        foreach (var insight in insights)
+        {
+            var confirmedMarker  = insight.UserConfirmed ? "[confirmed]" : "[unconfirmed]";
+            var confidencePct    = (int)(insight.Confidence * 100);
+            sb.AppendLine($"- {confirmedMarker} **[{insight.InsightType}]** {insight.Description} _{confidencePct}% confidence_");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Confirms the most recent unconfirmed derived insight matching a given insight type or keyword, marking it as user-verified."
+          , Examples         =
+            [
+                    "Confirm insight stress-response."
+                  , "Confirm the work-pattern insight."
+                  , "Accept the leadership insight."
+                  , "Confirm derived insight productivity-pattern."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = true)]
+    public async Task<string> ConfirmDerivedInsight(
+        [NaturalLanguageParam(Description = "The insight type or keyword matching the insight to confirm, e.g. 'stress-response', 'work-pattern'."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string topic)
+    {
+        var insights = await _identityService.GetDerivedInsightsAsync(CancellationToken.None);
+
+        var match = insights
+                    .Where(insight => insight.InsightType.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase)
+                                   || insight.Description.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase))
+                    .Where(insight => insight.UserConfirmed.Not())
+                    .OrderByDescending(insight => insight.GeneratedAt)
+                    .FirstOrDefault();
+
+        if (match is null)
+            return $"No unconfirmed insight found matching '{topic}'.";
+
+        await _identityService.ConfirmDerivedInsightAsync(match.Id, CancellationToken.None);
+
+        return $"Confirmed insight: [{match.InsightType}] {match.Description}";
     }
 
     // --- Private helpers ----------------------------------------------------
