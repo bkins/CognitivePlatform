@@ -93,6 +93,166 @@ public class IdentityAnalysisService : IIdentityAnalysisService
     }
 
     // ================================================================
+    // Phase C — reflective intelligence
+    // ================================================================
+
+    public async Task<string> ReflectOnChangeAsync(
+        string            partitionKey
+      , TimeSpan          window
+      , CancellationToken ct )
+    {
+        var allSnapshots = await _identityService.GetSnapshotsAsync(ct);
+        var cutoff       = DateTime.UtcNow - window;
+
+        var windowedSnapshots = allSnapshots
+                               .Where(snapshot => snapshot.Timestamp >= cutoff)
+                               .OrderBy(snapshot => snapshot.Timestamp)
+                               .ToList();
+
+        if (windowedSnapshots.Count < 2)
+            return "Not enough snapshot history yet — try 'generate snapshot' to start building your timeline.";
+
+        var earliest = windowedSnapshots.First();
+        var latest   = windowedSnapshots.Last();
+
+        var prompt = BuildReflectOnChangePrompt(earliest, latest);
+
+        string rawResponse;
+        try
+        {
+            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            rawResponse = llmResponse.Content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM call failed during ReflectOnChangeAsync");
+            throw;
+        }
+
+        return rawResponse.Trim();
+    }
+
+    public async Task<string> IdentifyPatternsAsync(
+        string            partitionKey
+      , CancellationToken ct )
+    {
+        var ninetyDaysAgo   = DateTimeOffset.UtcNow.AddDays(-90);
+        var journalEntries  = _journalService.ListEntries(fromUtc: ninetyDaysAgo);
+        var assertions      = await _identityService.GetAssertionsAsync(ct);
+        var derivedInsights = await _identityService.GetDerivedInsightsAsync(ct);
+
+        var confirmedAssertions = assertions.Where(assertion => assertion.UserConfirmed).ToList();
+        var confirmedInsights   = derivedInsights.Where(insight => insight.UserConfirmed).ToList();
+
+        var prompt = BuildIdentifyPatternsPrompt(journalEntries, confirmedAssertions, confirmedInsights);
+
+        string rawResponse;
+        try
+        {
+            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            rawResponse = llmResponse.Content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM call failed during IdentifyPatternsAsync");
+            throw;
+        }
+
+        return rawResponse.Trim();
+    }
+
+    public async Task<string> AnalyzeStressorsAsync(
+        string            partitionKey
+      , CancellationToken ct )
+    {
+        var profile        = await _identityService.GetProfileAsync(ct);
+        var allSnapshots   = await _identityService.GetSnapshotsAsync(ct);
+        var ninetyDaysAgo  = DateTimeOffset.UtcNow.AddDays(-90);
+        var journalEntries = _journalService.ListEntries(fromUtc: ninetyDaysAgo);
+
+        var prompt = BuildAnalyzeStressorsPrompt(profile, allSnapshots, journalEntries);
+
+        string rawResponse;
+        try
+        {
+            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            rawResponse = llmResponse.Content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM call failed during AnalyzeStressorsAsync");
+            throw;
+        }
+
+        return rawResponse.Trim();
+    }
+
+    public async Task<string> SummarizeGrowthAsync(
+        string            partitionKey
+      , CancellationToken ct )
+    {
+        var allSnapshots = await _identityService.GetSnapshotsAsync(ct);
+
+        if (allSnapshots.Count == 0)
+            return "No snapshot history yet — try 'generate snapshot' to start tracking your growth.";
+
+        var recentSnapshots = allSnapshots
+                             .OrderByDescending(snapshot => snapshot.Timestamp)
+                             .Take(3)
+                             .ToList();
+
+        var prompt = BuildSummarizeGrowthPrompt(recentSnapshots);
+
+        string rawResponse;
+        try
+        {
+            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            rawResponse = llmResponse.Content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM call failed during SummarizeGrowthAsync");
+            throw;
+        }
+
+        return rawResponse.Trim();
+    }
+
+    public async Task<string> CompareSnapshotsAsync(
+        string            partitionKey
+      , DateTime          from
+      , DateTime          to
+      , CancellationToken ct )
+    {
+        var allSnapshots = await _identityService.GetSnapshotsAsync(ct);
+
+        if (allSnapshots.Count < 2)
+            return "Not enough snapshot history to compare — try 'generate snapshot' to build your timeline.";
+
+        var fromSnapshot = allSnapshots.OrderBy(snapshot => Math.Abs((snapshot.Timestamp - from).Ticks)).First();
+        var toSnapshot   = allSnapshots.OrderBy(snapshot => Math.Abs((snapshot.Timestamp - to).Ticks)).First();
+
+        if (fromSnapshot.Id == toSnapshot.Id)
+            return "The two dates refer to the same snapshot — try specifying a wider date range.";
+
+        var prompt = BuildCompareSnapshotsPrompt(fromSnapshot, toSnapshot, from, to);
+
+        string rawResponse;
+        try
+        {
+            var llmResponse = await _llmClient.SendAsync(prompt, cancellationToken: ct);
+            rawResponse = llmResponse.Content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LLM call failed during CompareSnapshotsAsync");
+            throw;
+        }
+
+        return rawResponse.Trim();
+    }
+
+    // ================================================================
     // Prompt builders
     // ================================================================
 
@@ -239,6 +399,199 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         sb.AppendLine("observedStrengths: 2-4 capabilities or qualities appearing consistently");
 
         return sb.ToString();
+    }
+
+    private static string BuildReflectOnChangePrompt(
+        PersonalitySnapshot earliest
+      , PersonalitySnapshot latest )
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("You are analyzing how a person has changed over time by comparing two personality snapshots.");
+        sb.AppendLine("Write a narrative about the evolution — what shifted, grew, or receded between the two points.");
+        sb.AppendLine();
+
+        sb.AppendLine($"=== Earlier snapshot ({earliest.Timestamp:yyyy-MM-dd}) ===");
+        AppendSnapshotFields(sb, earliest);
+        sb.AppendLine();
+
+        sb.AppendLine($"=== More recent snapshot ({latest.Timestamp:yyyy-MM-dd}) ===");
+        AppendSnapshotFields(sb, latest);
+        sb.AppendLine();
+
+        sb.AppendLine("Write a 2-3 paragraph narrative in second person ('you have...', 'you seem to...').");
+        sb.AppendLine("Focus on what has shifted — themes that emerged or faded, stressors that resolved or intensified, strengths that developed.");
+        sb.AppendLine("Be specific and grounded in the data. Write with appropriate epistemic humility.");
+
+        return sb.ToString();
+    }
+
+    private static string BuildIdentifyPatternsPrompt(
+        IReadOnlyList<JournalEntryWithRevision> journalEntries
+      , IReadOnlyList<IdentityAssertion>        confirmedAssertions
+      , IReadOnlyList<DerivedInsight>           confirmedInsights )
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("You are analyzing a person's journal history, confirmed identity facts, and confirmed behavioral insights.");
+        sb.AppendLine("Surface the most significant recurring patterns you observe across this data.");
+        sb.AppendLine();
+
+        if (confirmedAssertions.Count > 0)
+        {
+            sb.AppendLine("=== Confirmed identity facts ===");
+            foreach (var assertion in confirmedAssertions)
+                sb.AppendLine($"- [{assertion.Topic}] {assertion.Statement}");
+            sb.AppendLine();
+        }
+
+        if (confirmedInsights.Count > 0)
+        {
+            sb.AppendLine("=== Confirmed behavioral insights ===");
+            foreach (var insight in confirmedInsights)
+                sb.AppendLine($"- [{insight.InsightType}] {insight.Description}");
+            sb.AppendLine();
+        }
+
+        if (journalEntries.Count > 0)
+        {
+            sb.AppendLine("=== Recent journal entries (last 90 days) ===");
+            foreach (var entry in journalEntries)
+            {
+                var date    = entry.Entry.CreatedUtc.ToString("yyyy-MM-dd");
+                var mood    = entry.LatestRevision.Mood;
+                var moodStr = string.IsNullOrWhiteSpace(mood) ? string.Empty : $" [mood: {mood}]";
+                sb.AppendLine($"[{date}]{moodStr} {entry.LatestRevision.Text}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("Write a bulleted list of 3-6 recurring patterns or tendencies.");
+        sb.AppendLine("Format each as: '- **Pattern name**: description with evidence from the data'");
+        sb.AppendLine("Write in second person ('you tend to...', 'you often...') with appropriate epistemic humility.");
+
+        return sb.ToString();
+    }
+
+    private static string BuildAnalyzeStressorsPrompt(
+        PersonProfile                           profile
+      , IReadOnlyList<PersonalitySnapshot>      snapshots
+      , IReadOnlyList<JournalEntryWithRevision> journalEntries )
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("You are analyzing the stress patterns and burnout cycles of a person.");
+        sb.AppendLine("Synthesize the stressor data below into a narrative about what causes their burnout and stress.");
+        sb.AppendLine();
+
+        if (profile.Stressors.Count > 0)
+        {
+            sb.AppendLine("=== Known stressors from profile ===");
+            foreach (var stressor in profile.Stressors)
+                sb.AppendLine($"- {stressor}");
+            sb.AppendLine();
+        }
+
+        var allActiveStressors = snapshots
+                                .SelectMany(snapshot => snapshot.ActiveStressors)
+                                .Where(stressor => !string.IsNullOrWhiteSpace(stressor))
+                                .ToList();
+
+        if (allActiveStressors.Count > 0)
+        {
+            sb.AppendLine("=== Active stressors across personality snapshots ===");
+
+            var stressorGroups = allActiveStressors
+                                .GroupBy(stressor => stressor, StringComparer.OrdinalIgnoreCase)
+                                .OrderByDescending(group => group.Count());
+
+            foreach (var group in stressorGroups)
+                sb.AppendLine($"- {group.Key} (appeared {group.Count()} time{(group.Count() == 1 ? string.Empty : "s")})");
+
+            sb.AppendLine();
+        }
+
+        var stressSignalWords = new[] { "stressed", "overwhelmed", "burnout", "exhausted", "pressure", "anxious", "frustrated", "stuck", "struggle" };
+
+        var stressfulEntries = journalEntries
+                              .Where(entry => stressSignalWords.Any(word =>
+                                  entry.LatestRevision.Text.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                              .ToList();
+
+        if (stressfulEntries.Count > 0)
+        {
+            sb.AppendLine("=== Journal entries containing stress signals ===");
+            foreach (var entry in stressfulEntries.Take(10))
+            {
+                var date = entry.Entry.CreatedUtc.ToString("yyyy-MM-dd");
+                sb.AppendLine($"[{date}] {entry.LatestRevision.Text}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("Write a 2-3 paragraph narrative synthesizing the stress and burnout patterns.");
+        sb.AppendLine("Identify root causes, recurring triggers, and any cycles you observe.");
+        sb.AppendLine("Write in second person with appropriate epistemic humility.");
+
+        return sb.ToString();
+    }
+
+    private static string BuildSummarizeGrowthPrompt(IReadOnlyList<PersonalitySnapshot> recentSnapshots)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("You are analyzing a person's recent growth by comparing their personality snapshots.");
+        sb.AppendLine("Focus on positive delta — what has strengthened, what new capabilities or qualities have emerged.");
+        sb.AppendLine();
+
+        foreach (var snapshot in recentSnapshots.OrderBy(snapshot => snapshot.Timestamp))
+        {
+            sb.AppendLine($"=== Snapshot ({snapshot.Timestamp:yyyy-MM-dd}) ===");
+            AppendSnapshotFields(sb, snapshot);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("Write a 1-2 paragraph growth narrative in second person.");
+        sb.AppendLine("Frame it as: what you have gotten better at, what has strengthened, and what positive shifts you've made.");
+        sb.AppendLine("Be specific and encouraging, grounded in the data.");
+
+        return sb.ToString();
+    }
+
+    private static string BuildCompareSnapshotsPrompt(
+        PersonalitySnapshot fromSnapshot
+      , PersonalitySnapshot toSnapshot
+      , DateTime            requestedFrom
+      , DateTime            requestedTo )
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("You are performing a side-by-side comparison of two personality snapshots.");
+        sb.AppendLine("Narrate how this person has changed between the two points in time.");
+        sb.AppendLine();
+
+        sb.AppendLine($"=== Snapshot A — {fromSnapshot.Timestamp:yyyy-MM-dd} (nearest to requested {requestedFrom:yyyy-MM-dd}) ===");
+        AppendSnapshotFields(sb, fromSnapshot);
+        sb.AppendLine();
+
+        sb.AppendLine($"=== Snapshot B — {toSnapshot.Timestamp:yyyy-MM-dd} (nearest to requested {requestedTo:yyyy-MM-dd}) ===");
+        AppendSnapshotFields(sb, toSnapshot);
+        sb.AppendLine();
+
+        sb.AppendLine("Write a 2-3 paragraph comparison in second person.");
+        sb.AppendLine("Describe what is the same, what has shifted, and what the overall trajectory suggests.");
+        sb.AppendLine("Be specific about which themes, stressors, motivators, and strengths changed between the two points.");
+
+        return sb.ToString();
+    }
+
+    private static void AppendSnapshotFields(StringBuilder sb, PersonalitySnapshot snapshot)
+    {
+        if (!string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
+            sb.AppendLine($"Narrative: {snapshot.NarrativeSummary}");
+        if (snapshot.DominantThemes.Count > 0)
+            sb.AppendLine($"Dominant themes: {string.Join(", ", snapshot.DominantThemes)}");
+        if (snapshot.ActiveStressors.Count > 0)
+            sb.AppendLine($"Active stressors: {string.Join(", ", snapshot.ActiveStressors)}");
+        if (snapshot.Motivators.Count > 0)
+            sb.AppendLine($"Motivators: {string.Join(", ", snapshot.Motivators)}");
+        if (snapshot.ObservedStrengths.Count > 0)
+            sb.AppendLine($"Observed strengths: {string.Join(", ", snapshot.ObservedStrengths)}");
     }
 
     // ================================================================

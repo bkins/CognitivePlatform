@@ -105,4 +105,68 @@ public sealed class IdentityController : ControllerBase
         var snapshot = await _service.GetLatestSnapshotAsync(ct);
         return Ok(snapshot);
     }
+
+    // ================================================================
+    // Phase C — reflective intelligence
+    // ================================================================
+
+    [HttpGet("reflect")]
+    public async Task<ActionResult<string>> ReflectOnChange( [FromQuery] string            window
+                                                            , CancellationToken             ct )
+    {
+        var timespan = ParseWindowParameter(window);
+        var narrative = await _analysisService.ReflectOnChangeAsync(string.Empty, timespan, ct);
+        return Ok(narrative);
+    }
+
+    [HttpGet("patterns")]
+    public async Task<ActionResult<string>> IdentifyPatterns(CancellationToken ct)
+    {
+        var narrative = await _analysisService.IdentifyPatternsAsync(string.Empty, ct);
+        return Ok(narrative);
+    }
+
+    [HttpGet("stressors/analysis")]
+    public async Task<ActionResult<string>> AnalyzeStressors(CancellationToken ct)
+    {
+        var narrative = await _analysisService.AnalyzeStressorsAsync(string.Empty, ct);
+        return Ok(narrative);
+    }
+
+    [HttpGet("growth")]
+    public async Task<ActionResult<string>> SummarizeGrowth(CancellationToken ct)
+    {
+        var narrative = await _analysisService.SummarizeGrowthAsync(string.Empty, ct);
+        return Ok(narrative);
+    }
+
+    [HttpGet("snapshots/compare")]
+    public async Task<ActionResult<string>> CompareSnapshots( [FromQuery] DateTime          from
+                                                             , [FromQuery] DateTime          to
+                                                             , CancellationToken             ct )
+    {
+        var narrative = await _analysisService.CompareSnapshotsAsync(string.Empty, from, to, ct);
+        return Ok(narrative);
+    }
+
+    // ----------------------------------------------------------------
+
+    private static TimeSpan ParseWindowParameter(string? window)
+    {
+        if (string.IsNullOrWhiteSpace(window))
+            return TimeSpan.FromDays(90);
+
+        var lower = window.ToLowerInvariant();
+
+        if (lower.EndsWith("d") && int.TryParse(lower.TrimEnd('d'), out var days))
+            return TimeSpan.FromDays(days);
+
+        if (lower.EndsWith("m") && int.TryParse(lower.TrimEnd('m'), out var months))
+            return TimeSpan.FromDays(months * 30);
+
+        if (lower.EndsWith("y") && int.TryParse(lower.TrimEnd('y'), out var years))
+            return TimeSpan.FromDays(years * 365);
+
+        return TimeSpan.FromDays(90);
+    }
 }

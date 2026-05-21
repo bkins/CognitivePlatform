@@ -483,6 +483,123 @@ public class IdentityActions
         return $"Confirmed insight: [{match.InsightType}] {match.Description}";
     }
 
+    // ================================================================
+    // Phase C — reflective intelligence
+    // ================================================================
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Reflects on how the user has changed over a time window by comparing personality snapshots and narrating the delta."
+          , Examples         =
+            [
+                    "How have I changed in the last 6 months?"
+                  , "How have I changed over the past year?"
+                  , "How have I changed in the last 3 months?"
+                  , "How did I change recently?"
+                  , "Reflect on how I've changed."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> ReflectOnChange(
+        [NaturalLanguageParam(Description = "The time window to look back, e.g. '6 months', 'year', '3 months', '90 days'. Defaults to 6 months."
+                            , Optional    = true
+                            , AllowEmpty  = true)]
+        string timeframe)
+    {
+        var window    = ParseTimeframeToSpan(timeframe);
+        var narrative = await _analysisService.ReflectOnChangeAsync(string.Empty, window, CancellationToken.None);
+        return narrative;
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Surfaces recurring behavioral patterns by reading 90 days of journals and confirmed identity assertions and insights."
+          , Examples         =
+            [
+                    "What patterns do you notice in me?"
+                  , "What patterns do you see?"
+                  , "Find patterns in my behavior."
+                  , "What recurring themes do I have?"
+                  , "Identify my patterns."
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> IdentifyPatterns()
+    {
+        var narrative = await _analysisService.IdentifyPatternsAsync(string.Empty, CancellationToken.None);
+        return narrative;
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Analyzes what causes the user's burnout cycles and main stressors by synthesizing snapshot active-stressors and journal stress signals."
+          , Examples         =
+            [
+                    "What causes my burnout cycles?"
+                  , "What are my main stressors?"
+                  , "What causes my stress?"
+                  , "Analyze my stressors."
+                  , "Why do I burn out?"
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> AnalyzeStressors()
+    {
+        var narrative = await _analysisService.AnalyzeStressorsAsync(string.Empty, CancellationToken.None);
+        return narrative;
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Summarizes recent growth by comparing ObservedStrengths across the last three personality snapshots and framing positive trends as a growth narrative."
+          , Examples         =
+            [
+                    "What growth have I made recently?"
+                  , "What am I getting better at?"
+                  , "Show my recent growth."
+                  , "Summarize my growth."
+                  , "What have I improved at lately?"
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = false)]
+    public async Task<string> SummarizeGrowth()
+    {
+        var narrative = await _analysisService.SummarizeGrowthAsync(string.Empty, CancellationToken.None);
+        return narrative;
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Compares personality snapshots nearest to two specified dates and narrates the differences."
+          , Examples         =
+            [
+                    "Compare me from January 2026 to May 2026."
+                  , "Compare my profile from 2026-01-01 to 2026-05-01."
+                  , "Compare snapshot from 3 months ago to now."
+                  , "How did I change from January to April?"
+            ]
+          , Category         = "Identity"
+          , AllowsClarification = true)]
+    public async Task<string> CompareSnapshots(
+        [NaturalLanguageParam(Description = "The earlier date to compare from, e.g. '2026-01-01', 'January 2026', '3 months ago'."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string fromDate
+      , [NaturalLanguageParam(Description = "The later date to compare to, e.g. '2026-05-01', 'May 2026', 'now', 'today'."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string toDate)
+    {
+        if (!TryParseSnapshotDate(fromDate, out var from))
+            return $"Could not parse date '{fromDate}'. Please use a format like '2026-01-01' or 'January 2026'.";
+
+        if (!TryParseSnapshotDate(toDate, out var to))
+            return $"Could not parse date '{toDate}'. Please use a format like '2026-05-01' or 'May 2026'.";
+
+        var narrative = await _analysisService.CompareSnapshotsAsync(string.Empty, from, to, CancellationToken.None);
+        return narrative;
+    }
+
     // --- Private helpers ----------------------------------------------------
 
     private static PersonProfile? ResolveListField(
@@ -539,4 +656,44 @@ public class IdentityActions
     private const string ListFieldHint =
         "Valid list fields: CoreValues, PersonalityTraits, LeadershipStyles, "
       + "LongTermGoals, Strengths, Stressors, CommunicationPreferences.";
+
+    private static TimeSpan ParseTimeframeToSpan(string timeframe)
+    {
+        if (string.IsNullOrWhiteSpace(timeframe))
+            return TimeSpan.FromDays(182);
+
+        var lower = timeframe.ToLowerInvariant();
+
+        if (lower.Contains("year"))                                   return TimeSpan.FromDays(365);
+        if (lower.Contains("6 month") || lower.Contains("six month")) return TimeSpan.FromDays(182);
+        if (lower.Contains("quarter") || lower.Contains("3 month")
+                                      || lower.Contains("three month")) return TimeSpan.FromDays(91);
+        if (lower.Contains("month"))                                  return TimeSpan.FromDays(30);
+        if (lower.Contains("week"))                                   return TimeSpan.FromDays(7);
+
+        return TimeSpan.FromDays(182);
+    }
+
+    private static bool TryParseSnapshotDate(string input, out DateTime result)
+    {
+        if (string.IsNullOrWhiteSpace(input)) { result = default; return false; }
+
+        var lower = input.Trim().ToLowerInvariant();
+
+        if (lower is "now" or "today")
+        {
+            result = DateTime.UtcNow;
+            return true;
+        }
+
+        if (lower.Contains("month") && lower.Contains("ago"))
+        {
+            var digits = new string(lower.Where(char.IsDigit).ToArray());
+            var months = int.TryParse(digits, out var parsed) ? parsed : 1;
+            result = DateTime.UtcNow.AddMonths(-months);
+            return true;
+        }
+
+        return DateTime.TryParse(input, out result);
+    }
 }

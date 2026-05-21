@@ -144,6 +144,21 @@ public sealed class FastPathResolver : IFastPathResolver
         if (TryResolveIdentityConfirmDerivedInsight(input, out action, out parameters))
             return true;
 
+        if (TryResolveIdentityReflectOnChange(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityIdentifyPatterns(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityAnalyzeStressors(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentitySummarizeGrowth(input, out action, out parameters))
+            return true;
+
+        if (TryResolveIdentityCompareSnapshots(input, out action, out parameters))
+            return true;
+
         // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
@@ -1829,6 +1844,213 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return false;
+    }
+
+    // ----------------------------------------------------------------
+    // ReflectOnChange
+    // "how have I changed", "how have I changed in the last 6 months"
+    // ----------------------------------------------------------------
+    private static readonly string[] ReflectOnChangeSignals =
+    {
+            "how have i changed"
+          , "how did i change"
+          , "what has changed in me"
+          , "reflect on how i've changed"
+          , "reflect on my changes"
+          , "reflect on my change"
+    };
+
+    private bool TryResolveIdentityReflectOnChange( string                           input
+                                                  , out ActionMetadata?             action
+                                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (!ReflectOnChangeSignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ReflectOnChange");
+        if (action is null) return false;
+
+        var timeframe = ExtractTimeframeText(normalized);
+        parameters    = new Dictionary<string, string> { ["timeframe"] = timeframe };
+
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // IdentifyPatterns
+    // "what patterns do you notice", "find my patterns", "recurring themes"
+    // ----------------------------------------------------------------
+    private static readonly string[] IdentifyPatternsSignals =
+    {
+            "what patterns do you notice"
+          , "what patterns do you see"
+          , "find patterns in my behavior"
+          , "what recurring themes"
+          , "identify my patterns"
+          , "recurring themes in me"
+    };
+
+    private bool TryResolveIdentityIdentifyPatterns( string                           input
+                                                   , out ActionMetadata?             action
+                                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (!IdentifyPatternsSignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "IdentifyPatterns");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // AnalyzeStressors
+    // "what causes my burnout", "what are my stressors", "analyze my stressors"
+    // ----------------------------------------------------------------
+    private static readonly string[] AnalyzeStressorsSignals =
+    {
+            "what causes my burnout"
+          , "why do i burn out"
+          , "what are my main stressors"
+          , "what are my stressors"
+          , "what causes my stress"
+          , "analyze my stressors"
+          , "my burnout cycles"
+    };
+
+    private bool TryResolveIdentityAnalyzeStressors( string                           input
+                                                   , out ActionMetadata?             action
+                                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (!AnalyzeStressorsSignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AnalyzeStressors");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // SummarizeGrowth
+    // "what growth have I made", "what am I getting better at"
+    // ----------------------------------------------------------------
+    private static readonly string[] SummarizeGrowthSignals =
+    {
+            "what growth have i made"
+          , "what am i getting better at"
+          , "show my recent growth"
+          , "summarize my growth"
+          , "what have i improved"
+          , "what have i gotten better at"
+    };
+
+    private bool TryResolveIdentitySummarizeGrowth( string                           input
+                                                  , out ActionMetadata?             action
+                                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (!SummarizeGrowthSignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SummarizeGrowth");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // CompareSnapshots
+    // "compare me from DATE to DATE"
+    // ----------------------------------------------------------------
+    private static readonly string[] CompareSnapshotsPrefixes =
+    {
+            "compare me from "
+          , "compare my profile from "
+          , "compare snapshot from "
+          , "compare snapshots from "
+    };
+
+    private bool TryResolveIdentityCompareSnapshots( string                           input
+                                                   , out ActionMetadata?             action
+                                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (!CompareSnapshotsPrefixes.Any(prefix => normalized.StartsWith(prefix)))
+            return false;
+
+        // Extract "from X to Y"
+        var match = Regex.Match(input, @"from\s+(.+?)\s+to\s+(.+?)$", RegexOptions.IgnoreCase);
+        if (!match.Success) return false;
+
+        var fromText = match.Groups[1].Value.Trim();
+        var toText   = match.Groups[2].Value.Trim();
+
+        if (string.IsNullOrWhiteSpace(fromText) || string.IsNullOrWhiteSpace(toText))
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CompareSnapshots");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>
+                     {
+                             ["fromDate"] = fromText
+                           , ["toDate"]   = toText
+                     };
+
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // Timeframe text extraction helper
+    // "how have I changed in the last 6 months" → "6 months"
+    // ----------------------------------------------------------------
+    private static string ExtractTimeframeText(string normalized)
+    {
+        var timeframePhrases = new[]
+        {
+                "in the last "
+              , "over the last "
+              , "in the past "
+              , "over the past "
+              , "for the last "
+              , "for the past "
+        };
+
+        foreach (var phrase in timeframePhrases)
+        {
+            var index = normalized.IndexOf(phrase, StringComparison.Ordinal);
+            if (index < 0) continue;
+
+            var candidate = normalized.Substring(index + phrase.Length).Trim();
+            if (candidate.Length > 0)
+                return candidate;
+        }
+
+        return "6 months";
     }
 
     /// <inheritdoc />
