@@ -111,7 +111,7 @@ public sealed class IdentityController : ControllerBase
     // ================================================================
 
     [HttpGet("reflect")]
-    public async Task<ActionResult<string>> ReflectOnChange( [FromQuery] string            window
+    public async Task<ActionResult<string>> ReflectOnChange( [FromQuery] string?           window
                                                             , CancellationToken             ct )
     {
         var timespan = ParseWindowParameter(window);

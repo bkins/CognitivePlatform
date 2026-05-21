@@ -664,12 +664,17 @@ public class IdentityActions
 
         var lower = timeframe.ToLowerInvariant();
 
-        if (lower.Contains("year"))                                   return TimeSpan.FromDays(365);
+        if (lower.Contains("year"))                                    return TimeSpan.FromDays(365);
         if (lower.Contains("6 month") || lower.Contains("six month")) return TimeSpan.FromDays(182);
         if (lower.Contains("quarter") || lower.Contains("3 month")
                                       || lower.Contains("three month")) return TimeSpan.FromDays(91);
-        if (lower.Contains("month"))                                  return TimeSpan.FromDays(30);
-        if (lower.Contains("week"))                                   return TimeSpan.FromDays(7);
+        if (lower.Contains("month"))                                   return TimeSpan.FromDays(30);
+        if (lower.Contains("week"))                                    return TimeSpan.FromDays(7);
+
+        // Parse explicit day counts: "90 days", "90d", "30 days"
+        var dayMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(\d+)\s*d(?:ays?)?");
+        if (dayMatch.Success && int.TryParse(dayMatch.Groups[1].Value, out var days))
+            return TimeSpan.FromDays(days);
 
         return TimeSpan.FromDays(182);
     }
