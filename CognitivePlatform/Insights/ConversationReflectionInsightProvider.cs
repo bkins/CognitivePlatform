@@ -58,7 +58,10 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         if (prompt is null)
             yield break;
 
-        var response = (await _router.SendAsync(prompt, context, ct: cancellationToken)).Content;
+        var response = (await _router.SendAsync(prompt
+                                              , context
+                                              , complexity: TaskComplexity.Light
+                                              , ct:         cancellationToken)).Content;
 
         var parsed = TryParse(response, context.SessionId);
         if (parsed is null)

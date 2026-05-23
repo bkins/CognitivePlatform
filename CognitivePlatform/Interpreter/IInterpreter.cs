@@ -7,7 +7,8 @@ namespace CognitivePlatform.Api.Interpreter;
 public interface IInterpreter
 {
     Task<InterpreterResult> InterpretWithContext (string              input
-                                                , ConversationContext context);
+                                                , ConversationContext context
+                                                , TaskComplexity      complexity = TaskComplexity.Standard);
 }
 
 /// <summary>

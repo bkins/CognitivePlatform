@@ -38,7 +38,8 @@ public class LlmInterpreter : IInterpreter
     }
 
     public async Task<InterpreterResult> InterpretWithContext( string              input
-                                                             , ConversationContext context )
+                                                             , ConversationContext context
+                                                             , TaskComplexity      complexity = TaskComplexity.Standard )
     {
         _telemetry.Track(new LlmInterpreterStartedEvent
                          {
@@ -148,7 +149,8 @@ public class LlmInterpreter : IInterpreter
             // on this turn. The router re-reads context.Metadata for every call.
             var llmResult  = await _llmRouter.SendAsync(prompt
                                                          , context
-                                                         , ct: CancellationToken.None);
+                                                         , complexity: complexity
+                                                         , ct:         CancellationToken.None);
             rawResponse = llmResult.Content;
         }
         catch (Exception ex)

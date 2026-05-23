@@ -30,7 +30,11 @@ public class LlmIntentAnalyzer : IIntentAnalyzer
             var prompt      = $"Classify this input into exactly one of [{intentNames}]: {message}\nRespond with only the label, nothing else.";
 
             var ephemeralContext = new ConversationContext("intent-analysis", new ConversationContextOptions());
-            var response         = await _llmRouter.SendAsync(prompt, ephemeralContext, ct: ct).ConfigureAwait(false);
+            var response         = await _llmRouter.SendAsync(prompt
+                                                            , ephemeralContext
+                                                            , complexity: TaskComplexity.Light
+                                                            , ct:         ct)
+                                                   .ConfigureAwait(false);
             var firstLine        = response.Content
                                            .Trim()
                                            .Split('\n', StringSplitOptions.RemoveEmptyEntries)

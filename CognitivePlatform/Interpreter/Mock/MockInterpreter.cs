@@ -44,7 +44,8 @@ public class MockInterpreter : IInterpreter
     }
 
     public async Task<InterpreterResult> InterpretWithContext (string              input
-                                                       , ConversationContext context)
+                                                       , ConversationContext context
+                                                       , TaskComplexity      complexity = TaskComplexity.Standard)
     {
         // Light-weight context logging so you can see it in telemetry
         var ctxSummary = $"[LastAction={context.LastActionName ?? "<none>"}; " +

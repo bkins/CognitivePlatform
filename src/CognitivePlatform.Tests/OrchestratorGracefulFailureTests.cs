@@ -93,7 +93,8 @@ public class OrchestratorGracefulFailureTests
           , _modelCatalog
           , _providerDefaults
           , _rateLimiterMock.Object
-          , _turnStoreMock.Object);
+          , _turnStoreMock.Object
+          , new TaskComplexityClassifier());
 
     // ================================================================
     // NO ACTION RECOGNIZED
@@ -107,7 +108,8 @@ public class OrchestratorGracefulFailureTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
@@ -136,7 +138,8 @@ public class OrchestratorGracefulFailureTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
@@ -184,7 +187,8 @@ public class OrchestratorGracefulFailureTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = "AddTask"
@@ -228,7 +232,8 @@ public class OrchestratorGracefulFailureTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = "AddTask"

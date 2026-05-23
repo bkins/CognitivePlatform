@@ -89,7 +89,8 @@ public class OrchestratorRateLimitTests
           , _modelCatalog
           , _providerDefaults
           , _rateLimiterMock.Object
-          , _turnStoreMock.Object);
+          , _turnStoreMock.Object
+          , new TaskComplexityClassifier());
 
     [Fact]
     public async Task ConverseAsync_ReturnsRateLimitMessage_When429ExceptionOccurs()
@@ -110,7 +111,8 @@ public class OrchestratorRateLimitTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
@@ -142,7 +144,8 @@ public class OrchestratorRateLimitTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
@@ -173,7 +176,8 @@ public class OrchestratorRateLimitTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
@@ -200,7 +204,8 @@ public class OrchestratorRateLimitTests
     {
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName          = null
