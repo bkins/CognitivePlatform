@@ -17,6 +17,7 @@ using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CognitivePlatform.Api.Domains.PersonaEngine;
+using CognitivePlatform.Api.Domains.Personas;
 using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Orchestrator;
@@ -40,6 +41,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly LlmProviderDefaults      _providerDefaults;
     private readonly ILlmRateLimiter          _rateLimiter;
     private readonly IPersonaEngine?          _personaEngine;
+    private readonly IPersonaRuntime?         _personaRuntime;
+    private readonly IPersonaSessionManager?  _personaSessionManager;
     private readonly IConversationTurnStore   _turnStore;
     private readonly ITaskComplexityClassifier _complexityClassifier;
 
@@ -63,7 +66,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , ILlmRateLimiter                                                rateLimiter
                                    , IConversationTurnStore                                         turnStore
                                    , ITaskComplexityClassifier                                      complexityClassifier
-                                   , IPersonaEngine?                                                personaEngine = null )
+                                   , IPersonaEngine?                                                personaEngine        = null
+                                   , IPersonaRuntime?                                               personaRuntime       = null
+                                   , IPersonaSessionManager?                                        personaSessionManager = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -84,6 +89,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
         _personaEngine         = personaEngine;
+        _personaRuntime        = personaRuntime;
+        _personaSessionManager = personaSessionManager;
 
 #if DEBUG
         _isDebug = true;
@@ -154,6 +161,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
 // 🔑 Also wire test actions if they might be fast-pathed
         Actions.TestActions.SetContext(context);
+        Domains.Personas.PersonaActions.SetSessionId(context.SessionId);
         
         // Note: the fast path resolver runs before we persist the model into context.Metadata
         // because some fast path actions might want to make decisions based on the raw user
@@ -456,6 +464,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // turns have already returned above. If the engine is absent or resolves Unknown / null
         // personality, the existing active config is used unchanged.
         await ApplyPersonaPrePassAsync(request.Input, context, request.Model.HasValue(), ct);
+        await InjectPersonaContextAsync(request.Input, context, ct);
 
         // 4. Log interpreter identity
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -676,12 +685,30 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
-        
+
         if (interpretation.ActionName?.HasNoValue() ?? true)
         {
             //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
             // or should it be a valid action choice that just happens to be conversational?
-        
+
+            if (context.Metadata.ContainsKey("persona_system_prompt"))
+            {
+                var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
+                var llmResponse     = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
+                var personaResponse = new ConverseResponse
+                                      {
+                                              Message = llmResponse.Content
+                                            , Debug   = interpretation.DebugInfo
+                                      };
+                return await FinalizeAsync(request
+                                         , personaResponse
+                                         , stopwatch
+                                         , TurnPath.Interpreter
+                                         , actionName: null
+                                         , succeeded:  true
+                                         , ct:         ct);
+            }
+
             var message = BuildNoActionMessage(interpretation);
             var missingActionResponse = new ConverseResponse
                                         {
@@ -1071,6 +1098,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);
+        Domains.Personas.PersonaActions.SetSessionId(context.SessionId);
 
         // ✅ J-01.1: FastPath always wins (for non-destructive actions).
         // In streaming mode: if FastPath resolves a non-destructive action, execute
@@ -1106,7 +1134,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
             yield return "Clarification flows do not support streaming.";
             yield break;
         }
-        
+
+        await InjectPersonaContextAsync(request.Input, context, ct);
+
 //slow here
         var streamComplexity = _complexityClassifier.Classify(request.Input);
         var interpretation   = await _interpreter.InterpretWithContext(request.Input, context, streamComplexity);
@@ -1123,7 +1153,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 🔥 Stream directly from the LLM.
         // Router reads context.Metadata to pick the active provider + model —
         // the "model" key was already populated above based on request/session priority.
-        await foreach (var chunk in _llmRouter.StreamAsync(request.Input
+        var streamPrompt = BuildPersonaContextualPrompt(request.Input, context);
+        await foreach (var chunk in _llmRouter.StreamAsync(streamPrompt
                                                          , context
                                                          , ct))
         {
@@ -1288,6 +1319,58 @@ public class ConversationOrchestrator : IConversationOrchestrator
             // Persona pre-pass failures must never break the turn.
             // Cancellation is allowed to propagate so the caller's CancellationToken is honoured.
         }
+    }
+
+    private async Task InjectPersonaContextAsync(
+        string              userMessage
+      , ConversationContext context
+      , CancellationToken   ct )
+    {
+        if (_personaSessionManager is null || _personaRuntime is null)
+            return;
+
+        if (!_personaSessionManager.IsPersonaConversation(context.SessionId))
+            return;
+
+        var personaId = _personaSessionManager.GetActivePersona(context.SessionId);
+
+        if (personaId is null)
+            return;
+
+        try
+        {
+            var personaContext = await _personaRuntime.BuildConversationContextAsync(personaId.Value
+                                                                                   , userMessage
+                                                                                   , ct)
+                                                      .ConfigureAwait(false);
+
+            context.Metadata["persona_system_prompt"] = personaContext.SystemPrompt;
+            context.Metadata["persona_memories"]      = string.Join("\n"
+                                                                    , personaContext.RelevantMemories
+                                                                                   .Select(memory => memory.Content));
+
+            if (personaContext.IsResurrectionZoneViolation)
+                context.Metadata["persona_guardrail_applied"] = "true";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Persona context injection must never break the turn.
+        }
+    }
+
+    private static string BuildPersonaContextualPrompt(string userMessage, ConversationContext context)
+    {
+        if (!context.Metadata.TryGetValue("persona_system_prompt", out var systemPrompt)
+         || string.IsNullOrWhiteSpace(systemPrompt))
+            return userMessage;
+
+        if (context.Metadata.TryGetValue("persona_memories", out var memories)
+         && !string.IsNullOrWhiteSpace(memories))
+        {
+            return $"{systemPrompt}\n\nRelevant memories:\n{memories}\n\nUser message:\n{userMessage}";
+        }
+
+        return $"{systemPrompt}\n\nUser message:\n{userMessage}";
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action

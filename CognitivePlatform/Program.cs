@@ -214,6 +214,9 @@ public partial class Program
     // Personas
         builder.Services.AddScoped<IPersonaStore, PersonaStore>();
         builder.Services.AddScoped<IPersonaService, PersonaService>();
+        builder.Services.AddScoped<IPersonaBehaviorPolicy, PersonaBehaviorPolicy>();
+        builder.Services.AddScoped<IPersonaRuntime, PersonaRuntime>();
+        builder.Services.AddSingleton<IPersonaSessionManager, PersonaSessionManager>();
         builder.Services.AddScoped<PersonaActions>();
 
     // System
