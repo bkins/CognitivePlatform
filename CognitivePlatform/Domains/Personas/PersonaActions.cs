@@ -73,11 +73,12 @@ public class PersonaActions
                             , DefaultValue = true)]
         bool userAsserted = true )
     {
-        var personas = await _personaService.ListAsync();
+        var personas   = await _personaService.ListAsync();
+        var searchTerm = personaNameOrId.Trim();
 
         var persona = personas.FirstOrDefault(candidate =>
-            candidate.Name.Equals(personaNameOrId.Trim(), StringComparison.OrdinalIgnoreCase)
-         || candidate.Id.ToString().Equals(personaNameOrId.Trim(), StringComparison.OrdinalIgnoreCase));
+            candidate.Name.Equals(searchTerm, StringComparison.OrdinalIgnoreCase)
+         || candidate.Id.ToString().Equals(searchTerm, StringComparison.OrdinalIgnoreCase));
 
         if (persona is null)
             return $"No persona found matching '{personaNameOrId}'. Create one first with 'create persona {personaNameOrId}'.";

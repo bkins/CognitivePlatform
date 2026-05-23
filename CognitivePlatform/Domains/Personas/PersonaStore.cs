@@ -29,11 +29,11 @@ public class PersonaStore : IPersonaStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<CanonicalPersona> personas = _store
-            .List<CanonicalPersona>()
-            .Where(persona => !persona.IsDeleted)
-            .OrderBy(persona => persona.Name)
-            .ToList();
+        IReadOnlyList<CanonicalPersona> personas =
+            _store.List<CanonicalPersona>()
+                  .Where(persona => !persona.IsDeleted)
+                  .OrderBy(persona => persona.Name)
+                  .ToList();
 
         return Task.FromResult(personas);
     }
@@ -102,10 +102,10 @@ public class PersonaStore : IPersonaStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<PersonaMemory> memories = _store
-            .List<PersonaMemory>(partitionKey: $"memory:{personaId}")
-            .OrderByDescending(memory => memory.CreatedUtc)
-            .ToList();
+        IReadOnlyList<PersonaMemory> memories =
+            _store.List<PersonaMemory>(partitionKey: $"memory:{personaId}")
+                  .OrderByDescending(memory => memory.CreatedUtc)
+                  .ToList();
 
         return Task.FromResult(memories);
     }
@@ -123,10 +123,10 @@ public class PersonaStore : IPersonaStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<MemorySnapshot> snapshots = _store
-            .List<MemorySnapshot>(partitionKey: $"snapshot:{personaId}")
-            .OrderByDescending(snapshot => snapshot.CreatedUtc)
-            .ToList();
+        IReadOnlyList<MemorySnapshot> snapshots =
+            _store.List<MemorySnapshot>(partitionKey: $"snapshot:{personaId}")
+                  .OrderByDescending(snapshot => snapshot.CreatedUtc)
+                  .ToList();
 
         return Task.FromResult(snapshots);
     }

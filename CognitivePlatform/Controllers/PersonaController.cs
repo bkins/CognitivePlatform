@@ -58,6 +58,11 @@ public sealed class PersonaController : ControllerBase
                                                             , [FromBody]       AddMemoryRequest  request
                                                             , CancellationToken                  ct )
     {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
         var memory = await _service.AddMemoryAsync(id, request.Content, request.Type, request.UserAsserted, ct);
         return Ok(memory);
     }
@@ -77,6 +82,11 @@ public sealed class PersonaController : ControllerBase
                                                                   , [FromBody]       CreateSnapshotRequest  request
                                                                   , CancellationToken                        ct )
     {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
         var snapshot = await _service.CreateSnapshotAsync(id, request.Name, request.Notes, ct);
         return Ok(snapshot);
     }

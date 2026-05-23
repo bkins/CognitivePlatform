@@ -43,7 +43,7 @@ public class PersonaServiceTests
     {
         var persona = await _service.CreateAsync("Sarah", "A childhood friend.");
 
-        Assert.Equal("Sarah",              persona.Name);
+        Assert.Equal("Sarah",               persona.Name);
         Assert.Equal("A childhood friend.", persona.ScenarioDescription);
     }
 
@@ -136,7 +136,7 @@ public class PersonaServiceTests
 
         var memory = await _service.AddMemoryAsync(personaId, "She loved hiking.", MemoryType.Behavioral, userAsserted: true);
 
-        Assert.Equal(personaId,          memory.PersonaId);
+        Assert.Equal(personaId,           memory.PersonaId);
         Assert.Equal("She loved hiking.", memory.Content);
     }
 
@@ -193,9 +193,9 @@ public class PersonaServiceTests
 
         var snapshot = await _service.CreateSnapshotAsync(personaId, "Week 1", "Initial snapshot");
 
-        Assert.Equal(personaId, snapshot.PersonaId);
-        Assert.Equal("Week 1",          snapshot.Name);
-        Assert.Equal("Initial snapshot", snapshot.Notes);
+        Assert.Equal(personaId,           snapshot.PersonaId);
+        Assert.Equal("Week 1",            snapshot.Name);
+        Assert.Equal("Initial snapshot",  snapshot.Notes);
     }
 
     [Fact]
