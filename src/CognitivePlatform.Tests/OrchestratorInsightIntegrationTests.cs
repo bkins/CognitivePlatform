@@ -44,7 +44,8 @@ public class OrchestratorInsightIntegrationTests
     private readonly Mock<IInsightProvider>    _providerMock     = new(); // unused but engine constructor compatibility
     private readonly Mock<IActivityLog>        _activityLogMock  = new();
     private readonly Mock<ITelemetrySink>      _telemetryMock    = new();
-    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock  = new();
+    private readonly Mock<ILlmRateLimiter>         _rateLimiterMock  = new();
+    private readonly Mock<IConversationTurnStore>  _turnStoreMock    = new();
 
     private readonly InMemoryInsightHistoryStore _historyStore     = new();
     private readonly ConversationContextStore    _contextStore     = new();
@@ -111,7 +112,8 @@ public class OrchestratorInsightIntegrationTests
           , _activityLogMock.Object
           , _modelCatalog
           , _providerDefaults
-          , _rateLimiterMock.Object);
+          , _rateLimiterMock.Object
+          , _turnStoreMock.Object);
 
     private static ConverseRequest Request(string input, string sessionId = "test-session") =>
         new() { SessionId = sessionId, Input = input };

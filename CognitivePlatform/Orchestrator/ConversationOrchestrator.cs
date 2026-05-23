@@ -40,6 +40,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly LlmProviderDefaults      _providerDefaults;
     private readonly ILlmRateLimiter          _rateLimiter;
     private readonly IPersonaEngine?          _personaEngine;
+    private readonly IConversationTurnStore   _turnStore;
 
     private readonly bool _isDebug  = false;
 
@@ -59,6 +60,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , LlmModelCatalog                                                modelCatalog
                                    , LlmProviderDefaults                                            providerDefaults
                                    , ILlmRateLimiter                                                rateLimiter
+                                   , IConversationTurnStore                                         turnStore
                                    , IPersonaEngine?                                                personaEngine = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
@@ -77,6 +79,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
+        _turnStore        = turnStore        ?? throw new ArgumentNullException(nameof(turnStore));
         _personaEngine    = personaEngine;
 
 #if DEBUG
@@ -841,6 +844,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , ActionName:       actionName
                                      , Succeeded:        succeeded));
         }
+
+        // ENH-20: persist the finalised turn so history survives server restarts.
+        // In recordTurn:false paths the in-memory turn was already recorded (and possibly
+        // replaced after insight weaving) before FinalizeAsync was called; in recordTurn:true
+        // paths it was just added above. Either way, the last entry in context.Turns is the
+        // canonical, fully-woven turn to store.
+        var finalContext = _contextStore.GetOrCreate(request.SessionId);
+        var latestTurn   = finalContext.Turns.LastOrDefault();
+        if (latestTurn is not null)
+            await _turnStore.SaveAsync(request.SessionId, latestTurn, ct);
 
         if (request.ClientRequestId.HasValue)
         {
