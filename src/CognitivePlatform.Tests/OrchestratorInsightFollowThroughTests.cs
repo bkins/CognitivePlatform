@@ -36,7 +36,8 @@ public class OrchestratorInsightFollowThroughTests
     private readonly Mock<IInsightHistoryStore> _historyMock      = new();
     private readonly Mock<IActivityLog>        _activityLogMock  = new();
     private readonly Mock<ITelemetrySink>      _telemetryMock    = new();
-    private readonly Mock<ILlmRateLimiter>     _rateLimiterMock  = new();
+    private readonly Mock<ILlmRateLimiter>         _rateLimiterMock  = new();
+    private readonly Mock<IConversationTurnStore>  _turnStoreMock    = new();
 
     private readonly ConversationContextStore _contextStore     = new();
     private readonly TelemetryContext         _telemetryContext = new() { SessionId = "test-session" };
@@ -117,7 +118,8 @@ public class OrchestratorInsightFollowThroughTests
           , _activityLogMock.Object
           , _modelCatalog
           , _providerDefaults
-          , _rateLimiterMock.Object);
+          , _rateLimiterMock.Object
+          , _turnStoreMock.Object);
 
     private static ConverseRequest Request(string input, string sessionId = "test-session") =>
         new() { SessionId = sessionId, Input = input };

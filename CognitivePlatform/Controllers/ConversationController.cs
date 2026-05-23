@@ -15,13 +15,16 @@ public class ConversationController : ControllerBase
 {
     private readonly IConversationOrchestrator _orchestrator;
     private readonly ITelemetrySink            _telemetry;
+    private readonly IConversationTurnStore    _turnStore;
 
     public ConversationController( IConversationOrchestrator orchestrator
                                  , ITelemetrySink            telemetry
-                                 , TelemetryContext          telemetryContext )
+                                 , TelemetryContext          telemetryContext
+                                 , IConversationTurnStore    turnStore )
     {
         _orchestrator     = orchestrator;
         _telemetry        = telemetry;
+        _turnStore        = turnStore;
     }
 
     [HttpPost("converse")]
@@ -53,6 +56,23 @@ public class ConversationController : ControllerBase
             await Response.WriteAsync($"data: {chunk}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
-        
+
+    }
+
+    [HttpGet("{id}/history")]
+    public IActionResult GetHistory([FromRoute] string id, [FromQuery] int last = 20)
+    {
+        if (last <= 0)
+            last = 20;
+
+        var turns = _turnStore.GetRecent(id, last);
+
+        var dtos = turns.SelectMany(turn => new[]
+        {
+            new ConversationTurnDto { Role = "user",      Content = turn.UserMessage,      Timestamp = turn.OccurredAt }
+          , new ConversationTurnDto { Role = "assistant", Content = turn.AssistantMessage, Timestamp = turn.OccurredAt }
+        });
+
+        return Ok(dtos);
     }
 }

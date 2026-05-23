@@ -31,9 +31,10 @@ public class OrchestratorPersonaPrePassTests
     private readonly Mock<IInsightEngine>    _engineMock           = new();
     private readonly Mock<IActivityLog>      _activityLogMock      = new();
     private readonly Mock<ITelemetrySink>    _telemetryMock        = new();
-    private readonly Mock<ILlmRateLimiter>   _rateLimiterMock      = new();
-    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
-    private readonly Mock<IPersonaEngine>    _personaEngineMock    = new();
+    private readonly Mock<ILlmRateLimiter>        _rateLimiterMock      = new();
+    private readonly Mock<IConversationTurnStore> _turnStoreMock        = new();
+    private readonly Mock<IWorkspaceContext>      _workspaceContextMock = new();
+    private readonly Mock<IPersonaEngine>         _personaEngineMock    = new();
 
     private readonly InMemoryInsightHistoryStore _historyStore     = new();
     private readonly ConversationContextStore    _contextStore     = new();
@@ -322,5 +323,6 @@ public class OrchestratorPersonaPrePassTests
           , _modelCatalog
           , _providerDefaults
           , _rateLimiterMock.Object
+          , _turnStoreMock.Object
           , personaEngine);
 }

@@ -105,6 +105,7 @@ public partial class Program
         builder.Services.AddScoped<ITelemetryAggregatorService, TelemetryAggregatorService>();
         
         builder.Services.AddSingleton<ConversationContextStore>();
+        builder.Services.AddSingleton<IConversationTurnStore, ConversationTurnStore>();
 
 // Interpreters
         builder.Services
