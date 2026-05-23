@@ -6,12 +6,20 @@ namespace CognitivePlatform.Api.Domains.Personas;
 
 public class PersonaActions
 {
-    private readonly IPersonaService _personaService;
+    private static string? _sessionId;
 
-    public PersonaActions(IPersonaService personaService)
+    private readonly IPersonaService       _personaService;
+    private readonly IPersonaSessionManager _sessionManager;
+
+    public PersonaActions( IPersonaService        personaService
+                         , IPersonaSessionManager  sessionManager )
     {
         _personaService = personaService ?? throw new ArgumentNullException(nameof(personaService));
+        _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
     }
+
+    public static void SetSessionId(string? sessionId) =>
+        _sessionId = sessionId;
 
     [FastPath]
     [NaturalLanguageAction(
@@ -91,7 +99,7 @@ public class PersonaActions
 
     [FastPath]
     [NaturalLanguageAction(
-            Description      = "Begins a conversation session with a persona by name, returning a summary of who they are."
+            Description      = "Begins a conversation session with a persona by name, entering persona mode for the current conversation."
           , Examples         =
             [
                     "Talk to Sarah."
@@ -116,21 +124,44 @@ public class PersonaActions
         if (persona is null)
             return $"No persona found matching '{personaName}'. Create one first with 'create persona {personaName}'.";
 
+        if (_sessionId is not null)
+            _sessionManager.SetActivePersona(_sessionId, persona.Id);
+
         var sb = new StringBuilder();
-        sb.AppendLine($"# Persona: {persona.Name}");
 
-        if (!string.IsNullOrWhiteSpace(persona.ScenarioDescription))
-            sb.AppendLine($"**Scenario:** {persona.ScenarioDescription}");
+        var scenarioContext = !string.IsNullOrWhiteSpace(persona.ScenarioDescription)
+                                     ? $" {persona.ScenarioDescription}"
+                                     : string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(persona.RelationshipState.RelationshipType))
-            sb.AppendLine($"**Relationship:** {persona.RelationshipState.RelationshipType}");
-
-        if (!string.IsNullOrWhiteSpace(persona.EmotionalState.DominantEmotion))
-            sb.AppendLine($"**Dominant emotion:** {persona.EmotionalState.DominantEmotion}");
-
+        sb.AppendLine($"You're now connected with {persona.Name}.{scenarioContext}");
         sb.AppendLine();
-        sb.AppendLine($"_Persona loaded (id: {persona.Id}). Conversational runtime is Phase B — this is a Phase A context acknowledgement._");
+        sb.Append("Say anything to begin.");
 
         return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Ends the current persona conversation session, returning to normal conversation mode."
+          , Examples         =
+            [
+                    "End conversation."
+                  , "Stop talking to this persona."
+                  , "Disconnect from persona."
+                  , "Exit persona mode."
+                  , "Stop speaking with Sarah."
+            ]
+          , Category         = "Personas")]
+    public string EndPersonaConversation()
+    {
+        if (_sessionId is null)
+            return "No active persona conversation to end.";
+
+        if (!_sessionManager.IsPersonaConversation(_sessionId))
+            return "No active persona conversation to end.";
+
+        _sessionManager.ClearActivePersona(_sessionId);
+
+        return "Persona conversation ended. You're back in normal mode.";
     }
 }

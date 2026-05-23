@@ -8,14 +8,17 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/persona")]
 public sealed class PersonaController : ControllerBase
 {
-    private readonly IPersonaService _service;
-    private readonly IPersonaStore   _store;
+    private readonly IPersonaService        _service;
+    private readonly IPersonaStore          _store;
+    private readonly IPersonaSessionManager _sessionManager;
 
-    public PersonaController( IPersonaService service
-                            , IPersonaStore   store )
+    public PersonaController( IPersonaService        service
+                            , IPersonaStore           store
+                            , IPersonaSessionManager  sessionManager )
     {
-        _service = service;
-        _store   = store;
+        _service        = service;
+        _store          = store;
+        _sessionManager = sessionManager;
     }
 
     [HttpPost]
@@ -103,5 +106,16 @@ public sealed class PersonaController : ControllerBase
         var snapshots = await _store.GetSnapshotsAsync(id, ct);
 
         return Ok(snapshots);
+    }
+
+    [HttpGet("active/{conversationId}")]
+    public ActionResult<Guid> GetActivePersona([FromRoute] string conversationId)
+    {
+        var personaId = _sessionManager.GetActivePersona(conversationId);
+
+        if (personaId is null)
+            return NoContent();
+
+        return Ok(personaId.Value);
     }
 }
