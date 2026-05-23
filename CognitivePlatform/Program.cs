@@ -115,6 +115,10 @@ public partial class Program
 
         builder.Services.AddScoped<IFastPathResolver, FastPathResolver>();
 
+        // ENH-19 Phase B: rule-based task-complexity classifier. Drives the
+        // tier preference the orchestrator forwards to the router.
+        builder.Services.AddSingleton<ITaskComplexityClassifier, TaskComplexityClassifier>();
+
 // LLM
         // LLM — named HttpClients, one per provider
         builder.Services.AddHttpClient();

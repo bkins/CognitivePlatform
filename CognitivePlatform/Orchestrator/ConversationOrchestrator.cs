@@ -41,6 +41,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ILlmRateLimiter          _rateLimiter;
     private readonly IPersonaEngine?          _personaEngine;
     private readonly IConversationTurnStore   _turnStore;
+    private readonly ITaskComplexityClassifier _complexityClassifier;
 
     private readonly bool _isDebug  = false;
 
@@ -61,6 +62,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , LlmProviderDefaults                                            providerDefaults
                                    , ILlmRateLimiter                                                rateLimiter
                                    , IConversationTurnStore                                         turnStore
+                                   , ITaskComplexityClassifier                                      complexityClassifier
                                    , IPersonaEngine?                                                personaEngine = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
@@ -79,8 +81,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _modelCatalog     = modelCatalog     ?? throw new ArgumentNullException(nameof(modelCatalog));
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
-        _turnStore        = turnStore        ?? throw new ArgumentNullException(nameof(turnStore));
-        _personaEngine    = personaEngine;
+        _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
+        _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
+        _personaEngine         = personaEngine;
 
 #if DEBUG
         _isDebug = true;
@@ -465,7 +468,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // TODO: Define `WasResolvedFor` first
         // Debug.Assert(!_fastPath.WasResolvedFor(request),
         //              "Interpreter should not run after FastPath resolution.");
-        var interpretation = await _interpreter.InterpretWithContext(request.Input, context);
+
+        // ENH-19 Phase B: classify task complexity post-FastPath so the router
+        // can pick a model tier appropriate for the work. FastPath turns have
+        // already returned above, so classification here is the only path that
+        // pays the router-tier signal.
+        var complexity     = _complexityClassifier.Classify(request.Input);
+        var interpretation = await _interpreter.InterpretWithContext(request.Input, context, complexity);
        
         
         // 5. Log interpreter outcome and details into telemetry and context for
@@ -1099,7 +1108,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         
 //slow here
-        var interpretation = await _interpreter.InterpretWithContext(request.Input, context);
+        var streamComplexity = _complexityClassifier.Classify(request.Input);
+        var interpretation   = await _interpreter.InterpretWithContext(request.Input, context, streamComplexity);
 
         // 🚫 If an action was selected, DO NOT stream
         if (interpretation.ActionName.HasValue())

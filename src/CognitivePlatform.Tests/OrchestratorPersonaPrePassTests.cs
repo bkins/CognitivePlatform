@@ -81,7 +81,8 @@ public class OrchestratorPersonaPrePassTests
 
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult { ActionName = null });
     }
 
@@ -115,8 +116,9 @@ public class OrchestratorPersonaPrePassTests
         ConversationContext? capturedContext = null;
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
-            .Callback<string, ConversationContext>((_, ctx) => capturedContext = ctx)
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
+            .Callback<string, ConversationContext, TaskComplexity>((_, ctx, _) => capturedContext = ctx)
             .ReturnsAsync(new InterpreterResult { ActionName = null });
 
         var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
@@ -150,8 +152,9 @@ public class OrchestratorPersonaPrePassTests
         ConversationContext? capturedContext = null;
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
-            .Callback<string, ConversationContext>((_, ctx) => capturedContext = ctx)
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
+            .Callback<string, ConversationContext, TaskComplexity>((_, ctx, _) => capturedContext = ctx)
             .ReturnsAsync(new InterpreterResult { ActionName = null });
 
         var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
@@ -206,8 +209,9 @@ public class OrchestratorPersonaPrePassTests
         ConversationContext? capturedContext = null;
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
-            .Callback<string, ConversationContext>((_, ctx) => capturedContext = ctx)
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
+            .Callback<string, ConversationContext, TaskComplexity>((_, ctx, _) => capturedContext = ctx)
             .ReturnsAsync(new InterpreterResult { ActionName = null });
 
         var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
@@ -266,8 +270,9 @@ public class OrchestratorPersonaPrePassTests
         ConversationContext? capturedContext = null;
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                  , It.IsAny<ConversationContext>()))
-            .Callback<string, ConversationContext>((_, ctx) => capturedContext = ctx)
+                                                                                                                                    , It.IsAny<ConversationContext>()
+                                                                                                                                    , It.IsAny<TaskComplexity>()))
+            .Callback<string, ConversationContext, TaskComplexity>((_, ctx, _) => capturedContext = ctx)
             .ReturnsAsync(new InterpreterResult { ActionName = null });
 
         var orchestrator = BuildOrchestrator(personaEngine: _personaEngineMock.Object);
@@ -324,5 +329,6 @@ public class OrchestratorPersonaPrePassTests
           , _providerDefaults
           , _rateLimiterMock.Object
           , _turnStoreMock.Object
+          , new TaskComplexityClassifier()
           , personaEngine);
 }

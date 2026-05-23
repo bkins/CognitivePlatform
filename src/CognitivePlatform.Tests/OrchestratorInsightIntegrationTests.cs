@@ -113,7 +113,8 @@ public class OrchestratorInsightIntegrationTests
           , _modelCatalog
           , _providerDefaults
           , _rateLimiterMock.Object
-          , _turnStoreMock.Object);
+          , _turnStoreMock.Object
+          , new TaskComplexityClassifier());
 
     private static ConverseRequest Request(string input, string sessionId = "test-session") =>
         new() { SessionId = sessionId, Input = input };
@@ -127,7 +128,8 @@ public class OrchestratorInsightIntegrationTests
     private void StubInterpreterReturns(string actionName) =>
         _interpreterMock
             .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                 , It.IsAny<ConversationContext>()))
+                                                                                                                                   , It.IsAny<ConversationContext>()
+                                                                                                                                   , It.IsAny<TaskComplexity>()))
             .ReturnsAsync(new InterpreterResult
                           {
                                   ActionName  = actionName
