@@ -25,6 +25,7 @@ using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Domains.Identity;
+using CognitivePlatform.Api.Domains.Personas;
 using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
@@ -205,6 +206,11 @@ public partial class Program
     // Identity
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
         builder.Services.AddSingleton<IIdentityAnalysisService, IdentityAnalysisService>();
+
+    // Personas
+        builder.Services.AddScoped<IPersonaStore, PersonaStore>();
+        builder.Services.AddScoped<IPersonaService, PersonaService>();
+        builder.Services.AddScoped<PersonaActions>();
 
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();
