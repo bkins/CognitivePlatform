@@ -6,9 +6,14 @@ namespace CognitivePlatform.Api.Domains.Personas;
 
 public class PersonaActions
 {
-    private static string? _sessionId;
+    private static readonly AsyncLocal<string?> _sessionIdLocal = new();
+    private static string? _sessionId
+    {
+        get => _sessionIdLocal.Value;
+        set => _sessionIdLocal.Value = value;
+    }
 
-    private readonly IPersonaService       _personaService;
+    private readonly IPersonaService        _personaService;
     private readonly IPersonaSessionManager _sessionManager;
 
     public PersonaActions( IPersonaService        personaService

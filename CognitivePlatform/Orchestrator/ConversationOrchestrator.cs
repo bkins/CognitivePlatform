@@ -685,12 +685,30 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
-        
+
         if (interpretation.ActionName?.HasNoValue() ?? true)
         {
             //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
             // or should it be a valid action choice that just happens to be conversational?
-        
+
+            if (context.Metadata.ContainsKey("persona_system_prompt"))
+            {
+                var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
+                var llmResponse     = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
+                var personaResponse = new ConverseResponse
+                                      {
+                                              Message = llmResponse.Content
+                                            , Debug   = interpretation.DebugInfo
+                                      };
+                return await FinalizeAsync(request
+                                         , personaResponse
+                                         , stopwatch
+                                         , TurnPath.Interpreter
+                                         , actionName: null
+                                         , succeeded:  true
+                                         , ct:         ct);
+            }
+
             var message = BuildNoActionMessage(interpretation);
             var missingActionResponse = new ConverseResponse
                                         {
@@ -1135,7 +1153,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 🔥 Stream directly from the LLM.
         // Router reads context.Metadata to pick the active provider + model —
         // the "model" key was already populated above based on request/session priority.
-        await foreach (var chunk in _llmRouter.StreamAsync(request.Input
+        var streamPrompt = BuildPersonaContextualPrompt(request.Input, context);
+        await foreach (var chunk in _llmRouter.StreamAsync(streamPrompt
                                                          , context
                                                          , ct))
         {
@@ -1337,6 +1356,21 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             // Persona context injection must never break the turn.
         }
+    }
+
+    private static string BuildPersonaContextualPrompt(string userMessage, ConversationContext context)
+    {
+        if (!context.Metadata.TryGetValue("persona_system_prompt", out var systemPrompt)
+         || string.IsNullOrWhiteSpace(systemPrompt))
+            return userMessage;
+
+        if (context.Metadata.TryGetValue("persona_memories", out var memories)
+         && !string.IsNullOrWhiteSpace(memories))
+        {
+            return $"{systemPrompt}\n\nRelevant memories:\n{memories}\n\nUser message:\n{userMessage}";
+        }
+
+        return $"{systemPrompt}\n\nUser message:\n{userMessage}";
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
