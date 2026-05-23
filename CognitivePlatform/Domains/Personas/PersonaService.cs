@@ -26,6 +26,8 @@ public class PersonaService : IPersonaService
                             , RelationshipState   = new RelationshipModel()
                             , EmotionalState      = new EmotionalModel()
                             , Timeline            = new NarrativeTimeline()
+                            , CanonRules          = new CanonRules()
+                            , Metadata            = new PersonaMetadata()
                             , CreatedUtc          = now
                             , LastModifiedUtc     = now
                       };

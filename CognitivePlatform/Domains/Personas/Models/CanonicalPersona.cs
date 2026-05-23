@@ -12,6 +12,8 @@ public class CanonicalPersona
     public NarrativeTimeline    Timeline            { get; set; } = new();
     public List<PersonaMemory>  Memories            { get; set; } = [];
     public List<MemorySnapshot> Snapshots           { get; set; } = [];
+    public CanonRules           CanonRules          { get; set; } = new();
+    public PersonaMetadata      Metadata            { get; set; } = new();
     public bool                 IsDeleted           { get; set; }
     public DateTime?            DeletedUtc          { get; set; }
     public DateTime             CreatedUtc          { get; set; }
