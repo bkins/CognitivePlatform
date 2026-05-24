@@ -13,20 +13,26 @@ public class PersonaActions
         set => _sessionIdLocal.Value = value;
     }
 
-    private readonly IPersonaService           _personaService;
+    private readonly IPersonaService            _personaService;
     private readonly IPersonaSessionManager    _sessionManager;
     private readonly IPersonaStore             _personaStore;
     private readonly IMemoryConfirmationQueue  _confirmationQueue;
+    private readonly IAlternateTimelineService? _timelineService;
+    private readonly IMemorySnapshotService?   _snapshotService;
 
-    public PersonaActions( IPersonaService          personaService
-                         , IPersonaSessionManager    sessionManager
-                         , IPersonaStore             personaStore
-                         , IMemoryConfirmationQueue  confirmationQueue )
+    public PersonaActions( IPersonaService           personaService
+                         , IPersonaSessionManager     sessionManager
+                         , IPersonaStore              personaStore
+                         , IMemoryConfirmationQueue   confirmationQueue
+                         , IAlternateTimelineService? timelineService = null
+                         , IMemorySnapshotService?    snapshotService = null )
     {
         _personaService    = personaService    ?? throw new ArgumentNullException(nameof(personaService));
         _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
         _personaStore      = personaStore      ?? throw new ArgumentNullException(nameof(personaStore));
         _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
+        _timelineService   = timelineService;
+        _snapshotService   = snapshotService;
     }
 
     public static void SetSessionId(string? sessionId) =>
@@ -245,5 +251,136 @@ public class PersonaActions
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Sets the conversation mode for a persona conversation — controls how the exchange is framed (e.g. DreamMode, Reflection, FreeConversation)."
+          , Examples         =
+            [
+                    "Switch to dream mode."
+                  , "Enter reflection mode."
+                  , "Go back to free conversation."
+                  , "Set conversation mode to alternate timeline."
+                  , "Activate therapeutic distance mode."
+            ]
+          , Category         = "Personas"
+          , IsReplayable     = true)]
+    public string SetConversationMode(
+        [NaturalLanguageParam(Description = "The conversation ID to change mode for."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string conversationId
+      , [NaturalLanguageParam(Description = "The conversation mode to activate: FreeConversation, Reconstruction, Reflection, AlternateTimeline, HistoricalReplay, DreamMode, or TherapeuticDistance."
+                            , Optional    = false)]
+        ConversationMode mode )
+    {
+        _sessionManager.SetConversationMode(conversationId, mode);
+
+        return $"Conversation mode set to '{mode}'.";
+    }
+
+    [NaturalLanguageAction(
+            Description      = "Creates an alternate timeline for a persona — a named 'what if' branch from the main narrative."
+          , Examples         =
+            [
+                    "Create an alternate timeline for Sarah called 'stayed in town' with the premise she never left."
+                  , "What if Emma had taken the job offer? Create a timeline called 'different path'."
+                  , "Add an alternate timeline for James — 'the road not taken'."
+            ]
+          , Category         = "Personas"
+          , AllowsClarification = true
+          , IsReplayable     = true)]
+    public async Task<string> CreateAlternateTimeline(
+        [NaturalLanguageParam(Description = "The id of the persona this timeline belongs to."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string personaId
+      , [NaturalLanguageParam(Description = "A short name for this alternate timeline."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string name
+      , [NaturalLanguageParam(Description = "The premise or 'what if' premise of this timeline."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string premise )
+    {
+        if (_timelineService is null)
+            return "Alternate timeline service is not available.";
+
+        if (!Guid.TryParse(personaId, out var personaGuid))
+            return $"'{personaId}' is not a valid persona id.";
+
+        var timeline = await _timelineService.CreateTimelineAsync(personaGuid, name, premise, DateTime.UtcNow);
+
+        return $"Alternate timeline '{timeline.Name}' created (id: {timeline.Id}). Premise: {premise}";
+    }
+
+    [NaturalLanguageAction(
+            Description      = "Creates a memory snapshot for a persona — captures the current state of memories and configuration as a named, loadable branch reality."
+          , Examples         =
+            [
+                    "Create a snapshot for Sarah called 'romanticized version'."
+                  , "Save a snapshot of James's current memories as 'grounded realism'."
+                  , "Snapshot Emma — name it 'dreamlike reconstruction'."
+            ]
+          , Category         = "Personas"
+          , AllowsClarification = true
+          , IsReplayable     = true)]
+    public async Task<string> CreatePersonaSnapshot(
+        [NaturalLanguageParam(Description = "The id of the persona to snapshot."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string personaId
+      , [NaturalLanguageParam(Description = "A name for this snapshot."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string name
+      , [NaturalLanguageParam(Description = "Optional notes about what this snapshot represents."
+                            , Optional    = true
+                            , AllowEmpty  = true)]
+        string notes = "" )
+    {
+        if (_snapshotService is null)
+            return "Snapshot service is not available.";
+
+        if (!Guid.TryParse(personaId, out var personaGuid))
+            return $"'{personaId}' is not a valid persona id.";
+
+        var snapshot = await _snapshotService.CreateSnapshotAsync(personaGuid, name, notes);
+
+        return $"Snapshot '{snapshot.Name}' created (id: {snapshot.Id}) with {snapshot.IncludedMemories.Count} memories captured.";
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Loads a memory snapshot into a conversation, causing subsequent persona turns to use the snapshot's memories and configuration instead of live state."
+          , Examples         =
+            [
+                    "Load snapshot into this conversation."
+                  , "Activate the romanticized snapshot."
+                  , "Use snapshot version for this session."
+            ]
+          , Category         = "Personas"
+          , IsReplayable     = true)]
+    public async Task<string> LoadSnapshot(
+        [NaturalLanguageParam(Description = "The id of the snapshot to load."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string snapshotId
+      , [NaturalLanguageParam(Description = "The conversation id to load the snapshot into."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        string conversationId )
+    {
+        if (_snapshotService is null)
+            return "Snapshot service is not available.";
+
+        if (!Guid.TryParse(snapshotId, out var snapshotGuid))
+            return $"'{snapshotId}' is not a valid snapshot id.";
+
+        await _snapshotService.LoadSnapshotAsync(snapshotGuid, conversationId);
+
+        return $"Snapshot '{snapshotId}' loaded into conversation '{conversationId}'. Subsequent turns will use snapshot state.";
     }
 }

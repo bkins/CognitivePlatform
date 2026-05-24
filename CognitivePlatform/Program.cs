@@ -231,6 +231,12 @@ public partial class Program
         builder.Services.AddSingleton<IPersonaStabilityTracker, PersonaStabilityTracker>();
         builder.Services.AddScoped<IPersonaModelSelector, PersonaModelSelector>();
 
+    // Personas — Phase E: Advanced Narrative Systems
+        builder.Services.AddSingleton<IDreamModeAdapter, DreamModeAdapter>();
+        builder.Services.AddSingleton<IAlternateTimelineService, AlternateTimelineService>();
+        builder.Services.AddSingleton<IEmotionalTopologyTracker, EmotionalTopologyTracker>();
+        builder.Services.AddScoped<IMemorySnapshotService, MemorySnapshotService>();
+
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();
         builder.Services.Configure<SystemPathsOptions>(builder.Configuration.GetSection("SystemPaths"));

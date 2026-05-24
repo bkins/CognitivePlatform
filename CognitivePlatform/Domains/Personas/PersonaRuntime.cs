@@ -5,23 +5,26 @@ namespace CognitivePlatform.Api.Domains.Personas;
 
 public class PersonaRuntime : IPersonaRuntime
 {
-    private readonly IPersonaService          _personaService;
-    private readonly IPersonaStore            _personaStore;
-    private readonly IPersonaBehaviorPolicy   _behaviorPolicy;
-    private readonly IPersonaModelSelector?   _modelSelector;
+    private readonly IPersonaService           _personaService;
+    private readonly IPersonaStore             _personaStore;
+    private readonly IPersonaBehaviorPolicy    _behaviorPolicy;
+    private readonly IPersonaModelSelector?    _modelSelector;
     private readonly IModelCapabilityRegistry? _capabilityRegistry;
+    private readonly IDreamModeAdapter?        _dreamModeAdapter;
 
-    public PersonaRuntime( IPersonaService           personaService
-                         , IPersonaStore              personaStore
-                         , IPersonaBehaviorPolicy     behaviorPolicy
-                         , IPersonaModelSelector?     modelSelector      = null
-                         , IModelCapabilityRegistry?  capabilityRegistry = null )
+    public PersonaRuntime( IPersonaService            personaService
+                         , IPersonaStore               personaStore
+                         , IPersonaBehaviorPolicy      behaviorPolicy
+                         , IPersonaModelSelector?      modelSelector      = null
+                         , IModelCapabilityRegistry?   capabilityRegistry = null
+                         , IDreamModeAdapter?          dreamModeAdapter   = null )
     {
         _personaService     = personaService     ?? throw new ArgumentNullException(nameof(personaService));
         _personaStore       = personaStore       ?? throw new ArgumentNullException(nameof(personaStore));
         _behaviorPolicy     = behaviorPolicy     ?? throw new ArgumentNullException(nameof(behaviorPolicy));
         _modelSelector      = modelSelector;
         _capabilityRegistry = capabilityRegistry;
+        _dreamModeAdapter   = dreamModeAdapter;
     }
 
     public Task<string> BuildSystemPromptAsync(CanonicalPersona persona, CancellationToken cancellationToken = default)
@@ -49,6 +52,7 @@ public class PersonaRuntime : IPersonaRuntime
     public async Task<PersonaConversationContext> BuildConversationContextAsync(
         Guid              personaId
       , string            userMessage
+      , ConversationMode  mode              = ConversationMode.FreeConversation
       , CancellationToken cancellationToken = default )
     {
         var persona = await _personaService.GetAsync(personaId, cancellationToken);
@@ -64,10 +68,15 @@ public class PersonaRuntime : IPersonaRuntime
         string? preferredModel = null;
         bool    promptAdapted  = false;
 
-        if (_modelSelector is not null)
+        if (_dreamModeAdapter is not null && mode == ConversationMode.DreamMode)
         {
-            var defaultScore   = new PersonaStabilityScore { PersonaId = persona.Id, Score = 1.0f };
-            preferredModel     = _modelSelector.SelectModel(persona, defaultScore);
+            systemPrompt  = _dreamModeAdapter.BuildDreamPrompt(userMessage, persona, relevantMemories);
+            promptAdapted = true;
+        }
+        else if (_modelSelector is not null)
+        {
+            var defaultScore = new PersonaStabilityScore { PersonaId = persona.Id, Score = 1.0f };
+            preferredModel   = _modelSelector.SelectModel(persona, defaultScore);
 
             if (!string.IsNullOrWhiteSpace(preferredModel) && _capabilityRegistry is not null)
             {
@@ -96,6 +105,7 @@ public class PersonaRuntime : IPersonaRuntime
                      , IsResurrectionZoneViolation = isResurrectionViolation
                      , PreferredModelName          = preferredModel
                      , PromptAdapted               = promptAdapted
+                     , ActiveMode                  = mode
                };
     }
 
