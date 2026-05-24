@@ -1092,7 +1092,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Persist model into the per-request "model" slot (same priority as ConverseAsync)
         if (request.Model.HasValue())
         {
-            context.Metadata["model"] = request.Model.Trim();
+            context.Metadata["model"] = request.Model!.Trim();
         }
         else if (context.CurrentLlmSession.HasModel)
         {
