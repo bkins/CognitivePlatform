@@ -8,4 +8,6 @@ public class PersonaConversationContext
     public IReadOnlyList<PersonaMemory> RelevantMemories            { get; set; } = [];
     public PersonaConfiguration         Configuration               { get; set; } = PersonaConfiguration.Default;
     public bool                         IsResurrectionZoneViolation { get; set; }
+    public string?                      PreferredModelName          { get; set; }
+    public bool                         PromptAdapted               { get; set; }
 }

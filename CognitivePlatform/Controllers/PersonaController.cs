@@ -8,20 +8,23 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/persona")]
 public sealed class PersonaController : ControllerBase
 {
-    private readonly IPersonaService          _service;
-    private readonly IPersonaStore            _store;
-    private readonly IPersonaSessionManager   _sessionManager;
-    private readonly IMemoryConfirmationQueue _confirmationQueue;
+    private readonly IPersonaService            _service;
+    private readonly IPersonaStore              _store;
+    private readonly IPersonaSessionManager     _sessionManager;
+    private readonly IMemoryConfirmationQueue   _confirmationQueue;
+    private readonly IPersonaStabilityTracker?  _stabilityTracker;
 
-    public PersonaController( IPersonaService          service
-                            , IPersonaStore             store
-                            , IPersonaSessionManager    sessionManager
-                            , IMemoryConfirmationQueue  confirmationQueue )
+    public PersonaController( IPersonaService           service
+                            , IPersonaStore              store
+                            , IPersonaSessionManager     sessionManager
+                            , IMemoryConfirmationQueue   confirmationQueue
+                            , IPersonaStabilityTracker?  stabilityTracker  = null )
     {
-        _service           = service           ?? throw new ArgumentNullException(nameof(service));
-        _store             = store             ?? throw new ArgumentNullException(nameof(store));
-        _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
+        _service          = service           ?? throw new ArgumentNullException(nameof(service));
+        _store            = store             ?? throw new ArgumentNullException(nameof(store));
+        _sessionManager   = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
         _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
+        _stabilityTracker  = stabilityTracker;
     }
 
     [HttpPost]
@@ -156,6 +159,28 @@ public sealed class PersonaController : ControllerBase
         await _store.MarkMemoryContradictedAsync(memoryId, id, request.ContradictionMemoryIds, ct);
 
         return Ok($"Memory '{memoryId}' marked as contradicted.");
+    }
+
+    // ----------------------------------------------------------------
+    // Phase D — Stability Score endpoint
+    // ----------------------------------------------------------------
+
+    [HttpGet("{id:guid}/stability/{conversationId}")]
+    public async Task<ActionResult<PersonaStabilityScore>> GetStabilityScore(
+        [FromRoute] Guid              id
+      , [FromRoute] string            conversationId
+      , CancellationToken             ct )
+    {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
+        if (_stabilityTracker is null)
+            return StatusCode(503, "Stability tracking is not available.");
+
+        var score = _stabilityTracker.GetScore(conversationId, id);
+        return Ok(score);
     }
 
     [HttpGet("{id:guid}/memory/pending")]
