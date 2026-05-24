@@ -9,3 +9,5 @@ public record AddMemoryRequest(string Content, MemoryType Type, bool UserAsserte
 public record UpdateMemoryStateRequest(MemoryState NewState);
 
 public record CreateSnapshotRequest(string Name, string? Notes);
+
+public record ContradictMemoryRequest(List<Guid> ContradictionMemoryIds);

@@ -219,6 +219,10 @@ public partial class Program
         builder.Services.AddSingleton<IPersonaSessionManager, PersonaSessionManager>();
         builder.Services.AddScoped<PersonaActions>();
 
+    // Personas — Phase C: Memory Reconstruction Engine
+        builder.Services.AddScoped<IMemoryReconstructionEngine, MemoryReconstructionEngine>();
+        builder.Services.AddSingleton<IMemoryConfirmationQueue, MemoryConfirmationQueue>();
+
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();
         builder.Services.Configure<SystemPathsOptions>(builder.Configuration.GetSection("SystemPaths"));

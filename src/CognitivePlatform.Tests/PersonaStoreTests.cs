@@ -172,4 +172,107 @@ public class PersonaStoreTests
                                             , snapshotId.ToString())
                         , Times.Once);
     }
+
+    // ================================================================
+    // MarkMemoryContradictedAsync
+    // ================================================================
+
+    [Fact]
+    public async Task MarkMemoryContradicted_SetsStateAndReferences_WhenMemoryExists()
+    {
+        var personaId             = Guid.NewGuid();
+        var memoryId              = Guid.NewGuid();
+        var conflictingMemoryId   = Guid.NewGuid();
+        var existing              = new PersonaMemory { Id = memoryId, PersonaId = personaId, State = MemoryState.Canonical };
+        var contradictionRefs     = new List<Guid> { conflictingMemoryId };
+
+        _storeMock.Setup(store => store.Get<PersonaMemory>(memoryId.ToString(), $"memory:{personaId}"))
+                  .Returns(existing);
+
+        await _personaStore.MarkMemoryContradictedAsync(memoryId, personaId, contradictionRefs);
+
+        _storeMock.Verify(store => store.Save(
+              It.Is<PersonaMemory>(saved =>
+                  saved.State == MemoryState.Contradicted
+               && saved.ContradictionReferences.Contains(conflictingMemoryId))
+            , $"memory:{personaId}"
+            , memoryId.ToString())
+          , Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkMemoryContradicted_DoesNothing_WhenMemoryNotFound()
+    {
+        var personaId = Guid.NewGuid();
+        var memoryId  = Guid.NewGuid();
+
+        _storeMock.Setup(store => store.Get<PersonaMemory>(memoryId.ToString(), $"memory:{personaId}"))
+                  .Returns((PersonaMemory?)null);
+
+        await _personaStore.MarkMemoryContradictedAsync(memoryId, personaId, []);
+
+        _storeMock.Verify(store => store.Save(It.IsAny<PersonaMemory>()
+                                            , It.IsAny<string?>()
+                                            , It.IsAny<string?>())
+                        , Times.Never);
+    }
+
+    // ================================================================
+    // ConfirmMemoryAsync
+    // ================================================================
+
+    [Fact]
+    public async Task ConfirmMemory_AdvancesProvisional_ToReinforced()
+    {
+        var personaId = Guid.NewGuid();
+        var memoryId  = Guid.NewGuid();
+        var memory    = new PersonaMemory { Id = memoryId, PersonaId = personaId, State = MemoryState.Provisional };
+
+        _storeMock.Setup(store => store.Get<PersonaMemory>(memoryId.ToString(), $"memory:{personaId}"))
+                  .Returns(memory);
+
+        await _personaStore.ConfirmMemoryAsync(memoryId, personaId);
+
+        _storeMock.Verify(store => store.Save(
+              It.Is<PersonaMemory>(saved => saved.State == MemoryState.Reinforced)
+            , $"memory:{personaId}"
+            , memoryId.ToString())
+          , Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmMemory_AdvancesReinforced_ToCanonical()
+    {
+        var personaId = Guid.NewGuid();
+        var memoryId  = Guid.NewGuid();
+        var memory    = new PersonaMemory { Id = memoryId, PersonaId = personaId, State = MemoryState.Reinforced };
+
+        _storeMock.Setup(store => store.Get<PersonaMemory>(memoryId.ToString(), $"memory:{personaId}"))
+                  .Returns(memory);
+
+        await _personaStore.ConfirmMemoryAsync(memoryId, personaId);
+
+        _storeMock.Verify(store => store.Save(
+              It.Is<PersonaMemory>(saved => saved.State == MemoryState.Canonical)
+            , $"memory:{personaId}"
+            , memoryId.ToString())
+          , Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmMemory_DoesNothing_WhenMemoryNotFound()
+    {
+        var personaId = Guid.NewGuid();
+        var memoryId  = Guid.NewGuid();
+
+        _storeMock.Setup(store => store.Get<PersonaMemory>(memoryId.ToString(), $"memory:{personaId}"))
+                  .Returns((PersonaMemory?)null);
+
+        await _personaStore.ConfirmMemoryAsync(memoryId, personaId);
+
+        _storeMock.Verify(store => store.Save(It.IsAny<PersonaMemory>()
+                                            , It.IsAny<string?>()
+                                            , It.IsAny<string?>())
+                        , Times.Never);
+    }
 }

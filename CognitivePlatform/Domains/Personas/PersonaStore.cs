@@ -130,4 +130,52 @@ public class PersonaStore : IPersonaStore
 
         return Task.FromResult(snapshots);
     }
+
+    public async Task MarkMemoryContradictedAsync( Guid              memoryId
+                                                 , Guid              personaId
+                                                 , List<Guid>        contradictionReferences
+                                                 , CancellationToken cancellationToken = default )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var existing = _store.Get<PersonaMemory>(memoryId.ToString()
+                                               , partitionKey: $"memory:{personaId}");
+
+        if (existing is null)
+            return;
+
+        existing.State                   = MemoryState.Contradicted;
+        existing.ContradictionReferences = contradictionReferences;
+        existing.LastModifiedUtc         = DateTime.UtcNow;
+
+        await _store.Save(existing
+                        , partitionKey: $"memory:{personaId}"
+                        , id:           memoryId.ToString());
+    }
+
+    public async Task ConfirmMemoryAsync( Guid              memoryId
+                                        , Guid              personaId
+                                        , CancellationToken cancellationToken = default )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var existing = _store.Get<PersonaMemory>(memoryId.ToString()
+                                               , partitionKey: $"memory:{personaId}");
+
+        if (existing is null)
+            return;
+
+        existing.State = existing.State switch
+        {
+            MemoryState.Provisional => MemoryState.Reinforced
+          , MemoryState.Reinforced  => MemoryState.Canonical
+          , _                       => existing.State
+        };
+
+        existing.LastModifiedUtc = DateTime.UtcNow;
+
+        await _store.Save(existing
+                        , partitionKey: $"memory:{personaId}"
+                        , id:           memoryId.ToString());
+    }
 }
