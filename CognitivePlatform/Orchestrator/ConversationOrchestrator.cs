@@ -40,11 +40,15 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly LlmModelCatalog          _modelCatalog;
     private readonly LlmProviderDefaults      _providerDefaults;
     private readonly ILlmRateLimiter          _rateLimiter;
-    private readonly IPersonaEngine?          _personaEngine;
-    private readonly IPersonaRuntime?         _personaRuntime;
-    private readonly IPersonaSessionManager?  _personaSessionManager;
-    private readonly IConversationTurnStore   _turnStore;
-    private readonly ITaskComplexityClassifier _complexityClassifier;
+    private readonly IPersonaEngine?                _personaEngine;
+    private readonly IPersonaRuntime?               _personaRuntime;
+    private readonly IPersonaSessionManager?        _personaSessionManager;
+    private readonly IMemoryReconstructionEngine?   _memoryReconstructionEngine;
+    private readonly IMemoryConfirmationQueue?      _memoryConfirmationQueue;
+    private readonly IPersonaService?               _personaServiceForReconstruction;
+    private readonly IPersonaStore?                 _personaStoreForReconstruction;
+    private readonly IConversationTurnStore         _turnStore;
+    private readonly ITaskComplexityClassifier      _complexityClassifier;
 
     private readonly bool _isDebug  = false;
 
@@ -66,9 +70,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , ILlmRateLimiter                                                rateLimiter
                                    , IConversationTurnStore                                         turnStore
                                    , ITaskComplexityClassifier                                      complexityClassifier
-                                   , IPersonaEngine?                                                personaEngine        = null
-                                   , IPersonaRuntime?                                               personaRuntime       = null
-                                   , IPersonaSessionManager?                                        personaSessionManager = null )
+                                   , IPersonaEngine?                                                personaEngine                  = null
+                                   , IPersonaRuntime?                                               personaRuntime                 = null
+                                   , IPersonaSessionManager?                                        personaSessionManager          = null
+                                   , IMemoryReconstructionEngine?                                   memoryReconstructionEngine     = null
+                                   , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
+                                   , IPersonaService?                                               personaServiceForReconstruction = null
+                                   , IPersonaStore?                                                 personaStoreForReconstruction   = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -88,9 +96,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
-        _personaEngine         = personaEngine;
-        _personaRuntime        = personaRuntime;
-        _personaSessionManager = personaSessionManager;
+        _personaEngine                   = personaEngine;
+        _personaRuntime                  = personaRuntime;
+        _personaSessionManager           = personaSessionManager;
+        _memoryReconstructionEngine      = memoryReconstructionEngine;
+        _memoryConfirmationQueue         = memoryConfirmationQueue;
+        _personaServiceForReconstruction = personaServiceForReconstruction;
+        _personaStoreForReconstruction   = personaStoreForReconstruction;
 
 #if DEBUG
         _isDebug = true;
@@ -465,6 +477,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // personality, the existing active config is used unchanged.
         await ApplyPersonaPrePassAsync(request.Input, context, request.Model.HasValue(), ct);
         await InjectPersonaContextAsync(request.Input, context, ct);
+        await ProcessMemoryReconstructionAsync(request.Input, context, ct);
 
         // 4. Log interpreter identity
         _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -1136,6 +1149,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         await InjectPersonaContextAsync(request.Input, context, ct);
+        await ProcessMemoryReconstructionAsync(request.Input, context, ct);
 
 //slow here
         var streamComplexity = _complexityClassifier.Classify(request.Input);
@@ -1321,6 +1335,113 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
     }
 
+    /// <summary>
+    /// Phase C — Memory Reconstruction Engine hook.
+    /// Runs after persona context injection on every persona-mode turn.
+    /// Extracts memory fragments from the user message, scores confidence,
+    /// detects contradictions, persists results, and appends a cognitive
+    /// archaeology question when one can be generated.
+    /// All failures are isolated — a faulted reconstruction pass never breaks the turn.
+    /// </summary>
+    private async Task ProcessMemoryReconstructionAsync(
+        string              userMessage
+      , ConversationContext context
+      , CancellationToken   ct )
+    {
+        if (_memoryReconstructionEngine is null
+         || _memoryConfirmationQueue    is null
+         || _personaServiceForReconstruction is null
+         || _personaStoreForReconstruction   is null)
+            return;
+
+        if (_personaSessionManager is null
+         || !_personaSessionManager.IsPersonaConversation(context.SessionId))
+            return;
+
+        var personaId = _personaSessionManager.GetActivePersona(context.SessionId);
+
+        if (personaId is null)
+            return;
+
+        try
+        {
+            var fragments = await _memoryReconstructionEngine
+                                      .ExtractMemoryFragmentsAsync(personaId.Value, userMessage, ct)
+                                      .ConfigureAwait(false);
+
+            foreach (var fragment in fragments)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var scoredFragment   = await _memoryReconstructionEngine
+                                                 .AssignConfidenceAsync(fragment, ct)
+                                                 .ConfigureAwait(false);
+
+                var contradictions   = await _memoryReconstructionEngine
+                                                 .DetectContradictionsAsync(personaId.Value, scoredFragment, ct)
+                                                 .ConfigureAwait(false);
+
+                if (contradictions.Count > 0)
+                {
+                    scoredFragment.State = Domains.Personas.Models.MemoryState.Contradicted;
+                    scoredFragment.ContradictionReferences = contradictions
+                        .Select(contradiction => contradiction.ExistingMemoryId)
+                        .ToList();
+
+                    await _personaStoreForReconstruction
+                              .AddMemoryAsync(scoredFragment, ct)
+                              .ConfigureAwait(false);
+
+                    var conflictingIds = contradictions
+                        .Select(contradiction => contradiction.ExistingMemoryId)
+                        .ToList();
+
+                    foreach (var conflictingId in conflictingIds)
+                    {
+                        await _personaStoreForReconstruction
+                                  .MarkMemoryContradictedAsync(conflictingId
+                                                             , personaId.Value
+                                                             , [scoredFragment.Id]
+                                                             , ct)
+                                  .ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    scoredFragment.State = Domains.Personas.Models.MemoryState.Provisional;
+
+                    // Save directly through the store so the fragment retains its
+                    // LLM-assigned confidence and its Id is preserved for the
+                    // confirmation queue round-trip.
+                    await _personaStoreForReconstruction
+                              .AddMemoryAsync(scoredFragment, ct)
+                              .ConfigureAwait(false);
+
+                    _memoryConfirmationQueue.Enqueue(context.SessionId, scoredFragment);
+                }
+            }
+
+            // Cognitive archaeology — append a memory excavation prompt when available.
+            var persona = await _personaServiceForReconstruction
+                                    .GetAsync(personaId.Value, ct)
+                                    .ConfigureAwait(false);
+
+            if (persona is not null)
+            {
+                var excavationPrompt = await _memoryReconstructionEngine
+                                                 .GenerateExcavationPromptAsync(persona, userMessage, ct)
+                                                 .ConfigureAwait(false);
+
+                if (!string.IsNullOrWhiteSpace(excavationPrompt))
+                    context.Metadata["persona_excavation_prompt"] = excavationPrompt;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Memory reconstruction failures must never break the turn.
+        }
+    }
+
     private async Task InjectPersonaContextAsync(
         string              userMessage
       , ConversationContext context
@@ -1364,13 +1485,20 @@ public class ConversationOrchestrator : IConversationOrchestrator
          || string.IsNullOrWhiteSpace(systemPrompt))
             return userMessage;
 
-        if (context.Metadata.TryGetValue("persona_memories", out var memories)
-         && !string.IsNullOrWhiteSpace(memories))
-        {
-            return $"{systemPrompt}\n\nRelevant memories:\n{memories}\n\nUser message:\n{userMessage}";
-        }
+        var hasMemories = context.Metadata.TryGetValue("persona_memories", out var memories)
+                       && !string.IsNullOrWhiteSpace(memories);
 
-        return $"{systemPrompt}\n\nUser message:\n{userMessage}";
+        context.Metadata.TryGetValue("persona_excavation_prompt", out var excavationPrompt);
+        context.Metadata.TryRemove("persona_excavation_prompt", out _);
+
+        var prompt = hasMemories
+            ? $"{systemPrompt}\n\nRelevant memories:\n{memories}\n\nUser message:\n{userMessage}"
+            : $"{systemPrompt}\n\nUser message:\n{userMessage}";
+
+        if (!string.IsNullOrWhiteSpace(excavationPrompt))
+            prompt += $"\n\n💭 {excavationPrompt}";
+
+        return prompt;
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action

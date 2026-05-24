@@ -8,17 +8,20 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/persona")]
 public sealed class PersonaController : ControllerBase
 {
-    private readonly IPersonaService        _service;
-    private readonly IPersonaStore          _store;
-    private readonly IPersonaSessionManager _sessionManager;
+    private readonly IPersonaService          _service;
+    private readonly IPersonaStore            _store;
+    private readonly IPersonaSessionManager   _sessionManager;
+    private readonly IMemoryConfirmationQueue _confirmationQueue;
 
-    public PersonaController( IPersonaService        service
-                            , IPersonaStore           store
-                            , IPersonaSessionManager  sessionManager )
+    public PersonaController( IPersonaService          service
+                            , IPersonaStore             store
+                            , IPersonaSessionManager    sessionManager
+                            , IMemoryConfirmationQueue  confirmationQueue )
     {
-        _service        = service;
-        _store          = store;
-        _sessionManager = sessionManager;
+        _service           = service           ?? throw new ArgumentNullException(nameof(service));
+        _store             = store             ?? throw new ArgumentNullException(nameof(store));
+        _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
+        _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
     }
 
     [HttpPost]
@@ -117,5 +120,67 @@ public sealed class PersonaController : ControllerBase
             return NoContent();
 
         return Ok(personaId.Value);
+    }
+
+    // ----------------------------------------------------------------
+    // Phase C — Memory Reconstruction Engine endpoints
+    // ----------------------------------------------------------------
+
+    [HttpPost("{id:guid}/memory/{memoryId:guid}/confirm")]
+    public async Task<IActionResult> ConfirmMemory( [FromRoute] Guid              id
+                                                  , [FromRoute] Guid              memoryId
+                                                  , CancellationToken             ct )
+    {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
+        await _store.ConfirmMemoryAsync(memoryId, id, ct);
+
+        return Ok($"Memory '{memoryId}' confirmed.");
+    }
+
+    [HttpPost("{id:guid}/memory/{memoryId:guid}/contradict")]
+    public async Task<IActionResult> MarkMemoryContradicted(
+        [FromRoute] Guid              id
+      , [FromRoute] Guid              memoryId
+      , [FromBody]  ContradictMemoryRequest request
+      , CancellationToken                   ct )
+    {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
+        await _store.MarkMemoryContradictedAsync(memoryId, id, request.ContradictionMemoryIds, ct);
+
+        return Ok($"Memory '{memoryId}' marked as contradicted.");
+    }
+
+    [HttpGet("{id:guid}/memory/pending")]
+    public async Task<ActionResult<IReadOnlyList<PersonaMemory>>> GetPendingMemories(
+        [FromRoute] Guid              id
+      , [FromQuery] string?           conversationId
+      , CancellationToken             ct )
+    {
+        var persona = await _service.GetAsync(id, ct);
+
+        if (persona is null)
+            return NotFound($"Persona '{id}' not found.");
+
+        if (!string.IsNullOrWhiteSpace(conversationId))
+        {
+            var queued = _confirmationQueue.Peek(conversationId, count: 10);
+            return Ok(queued);
+        }
+
+        var allMemories = await _store.GetMemoriesAsync(id, ct);
+
+        var provisional = allMemories
+            .Where(memory => memory.State == MemoryState.Provisional)
+            .ToList();
+
+        return Ok(provisional);
     }
 }

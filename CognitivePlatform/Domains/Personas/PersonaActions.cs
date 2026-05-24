@@ -13,14 +13,20 @@ public class PersonaActions
         set => _sessionIdLocal.Value = value;
     }
 
-    private readonly IPersonaService        _personaService;
-    private readonly IPersonaSessionManager _sessionManager;
+    private readonly IPersonaService           _personaService;
+    private readonly IPersonaSessionManager    _sessionManager;
+    private readonly IPersonaStore             _personaStore;
+    private readonly IMemoryConfirmationQueue  _confirmationQueue;
 
-    public PersonaActions( IPersonaService        personaService
-                         , IPersonaSessionManager  sessionManager )
+    public PersonaActions( IPersonaService          personaService
+                         , IPersonaSessionManager    sessionManager
+                         , IPersonaStore             personaStore
+                         , IMemoryConfirmationQueue  confirmationQueue )
     {
-        _personaService = personaService ?? throw new ArgumentNullException(nameof(personaService));
-        _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
+        _personaService    = personaService    ?? throw new ArgumentNullException(nameof(personaService));
+        _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
+        _personaStore      = personaStore      ?? throw new ArgumentNullException(nameof(personaStore));
+        _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
     }
 
     public static void SetSessionId(string? sessionId) =>
@@ -168,5 +174,76 @@ public class PersonaActions
         _sessionManager.ClearActivePersona(_sessionId);
 
         return "Persona conversation ended. You're back in normal mode.";
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Confirms the next pending memory fragment for the active persona conversation, advancing it toward canonical status."
+          , Examples         =
+            [
+                    "Yes that's right."
+                  , "That's correct."
+                  , "Confirm that memory."
+                  , "Yes I remember."
+                  , "That's accurate."
+            ]
+          , Category         = "Personas")]
+    public async Task<string> ConfirmMemory()
+    {
+        if (_sessionId is null)
+            return "No active persona conversation.";
+
+        if (!_confirmationQueue.HasPending(_sessionId))
+            return "No pending memories to confirm.";
+
+        var memory = _confirmationQueue.Dequeue(_sessionId);
+
+        if (memory is null)
+            return "No pending memories to confirm.";
+
+        await _personaStore.ConfirmMemoryAsync(memory.Id, memory.PersonaId);
+
+        var preview = memory.Content.Length > 60
+                          ? $"{memory.Content[..60]}..."
+                          : memory.Content;
+
+        return $"Memory confirmed [{memory.Type}]: {preview}";
+    }
+
+    [FastPath]
+    [NaturalLanguageAction(
+            Description      = "Lists the next few memory fragments awaiting confirmation for the active persona conversation."
+          , Examples         =
+            [
+                    "What memories are pending?"
+                  , "Show unconfirmed memories."
+                  , "What do you remember so far?"
+                  , "What memories are waiting?"
+                  , "List pending memory fragments."
+            ]
+          , Category         = "Personas")]
+    public string ListPendingMemories()
+    {
+        if (_sessionId is null)
+            return "No active persona conversation.";
+
+        var pending = _confirmationQueue.Peek(_sessionId, count: 3);
+
+        if (pending.Count == 0)
+            return "No memories are currently pending confirmation.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Pending memories ({pending.Count} shown):");
+
+        foreach (var memory in pending)
+        {
+            var preview = memory.Content.Length > 80
+                              ? $"{memory.Content[..80]}..."
+                              : memory.Content;
+
+            sb.AppendLine($"  [{memory.Type}] {preview} (confidence: {memory.Confidence:P0})");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 }
