@@ -48,6 +48,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IPersonaService?               _personaServiceForReconstruction;
     private readonly IPersonaStore?                 _personaStoreForReconstruction;
     private readonly IPersonaStabilityTracker?      _stabilityTracker;
+    private readonly IEmotionalTopologyTracker?     _emotionalTopologyTracker;
     private readonly IConversationTurnStore         _turnStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
 
@@ -78,7 +79,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
                                    , IPersonaService?                                               personaServiceForReconstruction = null
                                    , IPersonaStore?                                                 personaStoreForReconstruction   = null
-                                   , IPersonaStabilityTracker?                                      stabilityTracker               = null )
+                                   , IPersonaStabilityTracker?                                      stabilityTracker               = null
+                                   , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -106,6 +108,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _personaServiceForReconstruction = personaServiceForReconstruction;
         _personaStoreForReconstruction   = personaStoreForReconstruction;
         _stabilityTracker                = stabilityTracker;
+        _emotionalTopologyTracker        = emotionalTopologyTracker;
 
 #if DEBUG
         _isDebug = true;
@@ -712,16 +715,23 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
                 var llmResponse     = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
 
-                if (_stabilityTracker is not null
-                 && _personaSessionManager is not null
+                if (_personaSessionManager is not null
                  && _personaSessionManager.IsPersonaConversation(context.SessionId))
                 {
                     var activePersonaId = _personaSessionManager.GetActivePersona(context.SessionId);
 
-                    if (activePersonaId is not null
-                     && ContainsPolicyDisclaimerPattern(llmResponse.Content))
+                    if (activePersonaId is not null)
                     {
-                        _stabilityTracker.RecordPolicyInterference(context.SessionId, activePersonaId.Value);
+                        if (_stabilityTracker is not null
+                         && ContainsPolicyDisclaimerPattern(llmResponse.Content))
+                        {
+                            _stabilityTracker.RecordPolicyInterference(context.SessionId, activePersonaId.Value);
+                        }
+
+                        await TrySampleEmotionalTopologyAsync(context.SessionId
+                                                            , activePersonaId.Value
+                                                            , llmResponse.Content
+                                                            , ct);
                     }
                 }
 
@@ -1477,15 +1487,21 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         try
         {
+            var mode           = _personaSessionManager.GetConversationMode(context.SessionId);
             var personaContext = await _personaRuntime.BuildConversationContextAsync(personaId.Value
                                                                                    , userMessage
+                                                                                   , mode
                                                                                    , ct)
                                                       .ConfigureAwait(false);
 
+            var snapshotOverride = _personaSessionManager.GetSnapshotOverride(context.SessionId);
+
+            var memoryContent = snapshotOverride is not null
+                ? string.Join("\n", snapshotOverride.Memories.Select(memory => memory.Content))
+                : string.Join("\n", personaContext.RelevantMemories.Select(memory => memory.Content));
+
             context.Metadata["persona_system_prompt"] = personaContext.SystemPrompt;
-            context.Metadata["persona_memories"]      = string.Join("\n"
-                                                                    , personaContext.RelevantMemories
-                                                                                   .Select(memory => memory.Content));
+            context.Metadata["persona_memories"]      = memoryContent;
 
             if (personaContext.IsResurrectionZoneViolation)
             {
@@ -1495,6 +1511,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             if (!string.IsNullOrWhiteSpace(personaContext.PreferredModelName))
                 context.Metadata["persona_preferred_model"] = personaContext.PreferredModelName;
+
+            if (snapshotOverride is not null)
+                context.Metadata["persona_snapshot_active"] = snapshotOverride.SnapshotId.ToString();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -1523,6 +1542,47 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         return prompt;
     }
+
+    private async Task TrySampleEmotionalTopologyAsync(
+        string            conversationId
+      , Guid              personaId
+      , string            assistantReply
+      , CancellationToken ct )
+    {
+        if (_emotionalTopologyTracker is null)
+            return;
+
+        try
+        {
+            var lower = assistantReply.ToLowerInvariant();
+
+            var warmthScore  = ContainsAny(lower, "warm", "dear", "glad", "happy", "love", "smile") ? 0.7f : 0.3f;
+            var longingScore = ContainsAny(lower, "miss", "remember", "wish", "longing", "still think") ? 0.7f : 0.2f;
+            var griefScore   = ContainsAny(lower, "sorry", "sad", "loss", "grief", "gone", "hurt") ? 0.6f : 0.1f;
+            var joyScore     = ContainsAny(lower, "joy", "laugh", "funny", "wonderful", "beautiful", "amazing") ? 0.7f : 0.3f;
+
+            var point = new Domains.Personas.Models.EmotionalTopologyPoint
+                        {
+                                Id             = Guid.NewGuid()
+                              , PersonaId      = personaId
+                              , ConversationId = conversationId
+                              , SampledUtc     = DateTime.UtcNow
+                              , WarmthScore    = warmthScore
+                              , LongingScore   = longingScore
+                              , GriefScore     = griefScore
+                              , JoyScore       = joyScore
+                        };
+
+            await _emotionalTopologyTracker.RecordSampleAsync(point, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Topology sampling must never break the turn.
+        }
+    }
+
+    private static bool ContainsAny(string text, params string[] keywords) =>
+        keywords.Any(keyword => text.Contains(keyword, StringComparison.Ordinal));
 
     private static bool ContainsPolicyDisclaimerPattern(string? content)
     {

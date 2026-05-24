@@ -97,6 +97,7 @@ public class OrchestratorPersonaLlmRoutingTests
         _personaRuntimeMock
             .Setup(runtime => runtime.BuildConversationContextAsync(It.IsAny<Guid>()
                                                                    , It.IsAny<string>()
+                                                                   , It.IsAny<ConversationMode>()
                                                                    , It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PersonaConversationContext
                           {
@@ -199,6 +200,7 @@ public class OrchestratorPersonaLlmRoutingTests
         _personaRuntimeMock
             .Setup(runtime => runtime.BuildConversationContextAsync(It.IsAny<Guid>()
                                                                    , It.IsAny<string>()
+                                                                   , It.IsAny<ConversationMode>()
                                                                    , It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PersonaConversationContext
                           {
@@ -259,6 +261,7 @@ public class OrchestratorPersonaLlmRoutingTests
         _personaRuntimeMock
             .Setup(runtime => runtime.BuildConversationContextAsync(It.IsAny<Guid>()
                                                                    , It.IsAny<string>()
+                                                                   , It.IsAny<ConversationMode>()
                                                                    , It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Persona not found"));
 

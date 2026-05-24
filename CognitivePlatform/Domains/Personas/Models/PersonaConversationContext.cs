@@ -10,4 +10,5 @@ public class PersonaConversationContext
     public bool                         IsResurrectionZoneViolation { get; set; }
     public string?                      PreferredModelName          { get; set; }
     public bool                         PromptAdapted               { get; set; }
+    public ConversationMode             ActiveMode                  { get; set; } = ConversationMode.FreeConversation;
 }
