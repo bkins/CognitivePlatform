@@ -26,6 +26,7 @@ using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.TestDataGeneration;
 using CognitivePlatform.Api.Domains.Identity;
 using CognitivePlatform.Api.Domains.Personas;
+using CognitivePlatform.Api.Domains.Personas.Models;
 using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
@@ -222,6 +223,13 @@ public partial class Program
     // Personas — Phase C: Memory Reconstruction Engine
         builder.Services.AddScoped<IMemoryReconstructionEngine, MemoryReconstructionEngine>();
         builder.Services.AddSingleton<IMemoryConfirmationQueue, MemoryConfirmationQueue>();
+
+    // Personas — Phase D: Multi-Model Rendering
+        builder.Services.Configure<List<ModelCapabilityProfile>>(
+            builder.Configuration.GetSection("PersonaModelCapabilities"));
+        builder.Services.AddSingleton<IModelCapabilityRegistry, ModelCapabilityRegistry>();
+        builder.Services.AddSingleton<IPersonaStabilityTracker, PersonaStabilityTracker>();
+        builder.Services.AddScoped<IPersonaModelSelector, PersonaModelSelector>();
 
     // System
         builder.Services.AddSingleton<ISystemInfoService, SystemService>();

@@ -5,17 +5,23 @@ namespace CognitivePlatform.Api.Domains.Personas;
 
 public class PersonaRuntime : IPersonaRuntime
 {
-    private readonly IPersonaService       _personaService;
-    private readonly IPersonaStore         _personaStore;
-    private readonly IPersonaBehaviorPolicy _behaviorPolicy;
+    private readonly IPersonaService          _personaService;
+    private readonly IPersonaStore            _personaStore;
+    private readonly IPersonaBehaviorPolicy   _behaviorPolicy;
+    private readonly IPersonaModelSelector?   _modelSelector;
+    private readonly IModelCapabilityRegistry? _capabilityRegistry;
 
-    public PersonaRuntime( IPersonaService        personaService
-                         , IPersonaStore           personaStore
-                         , IPersonaBehaviorPolicy  behaviorPolicy )
+    public PersonaRuntime( IPersonaService           personaService
+                         , IPersonaStore              personaStore
+                         , IPersonaBehaviorPolicy     behaviorPolicy
+                         , IPersonaModelSelector?     modelSelector      = null
+                         , IModelCapabilityRegistry?  capabilityRegistry = null )
     {
-        _personaService = personaService ?? throw new ArgumentNullException(nameof(personaService));
-        _personaStore   = personaStore   ?? throw new ArgumentNullException(nameof(personaStore));
-        _behaviorPolicy = behaviorPolicy ?? throw new ArgumentNullException(nameof(behaviorPolicy));
+        _personaService     = personaService     ?? throw new ArgumentNullException(nameof(personaService));
+        _personaStore       = personaStore       ?? throw new ArgumentNullException(nameof(personaStore));
+        _behaviorPolicy     = behaviorPolicy     ?? throw new ArgumentNullException(nameof(behaviorPolicy));
+        _modelSelector      = modelSelector;
+        _capabilityRegistry = capabilityRegistry;
     }
 
     public Task<string> BuildSystemPromptAsync(CanonicalPersona persona, CancellationToken cancellationToken = default)
@@ -55,6 +61,31 @@ public class PersonaRuntime : IPersonaRuntime
         var systemPrompt            = BuildPromptString(persona, guardedConfiguration);
         var relevantMemories        = await RetrieveRelevantMemoriesAsync(persona, userMessage, cancellationToken: cancellationToken);
 
+        string? preferredModel = null;
+        bool    promptAdapted  = false;
+
+        if (_modelSelector is not null)
+        {
+            var defaultScore   = new PersonaStabilityScore { PersonaId = persona.Id, Score = 1.0f };
+            preferredModel     = _modelSelector.SelectModel(persona, defaultScore);
+
+            if (!string.IsNullOrWhiteSpace(preferredModel) && _capabilityRegistry is not null)
+            {
+                var profile = _capabilityRegistry.GetByModel(preferredModel);
+
+                if (profile is not null)
+                {
+                    var adapted = _modelSelector.AdaptPromptForProvider(systemPrompt, profile);
+
+                    if (!string.Equals(adapted, systemPrompt, StringComparison.Ordinal))
+                    {
+                        systemPrompt  = adapted;
+                        promptAdapted = true;
+                    }
+                }
+            }
+        }
+
         return new PersonaConversationContext
                {
                        PersonaId                   = persona.Id
@@ -63,6 +94,8 @@ public class PersonaRuntime : IPersonaRuntime
                      , RelevantMemories            = relevantMemories
                      , Configuration               = guardedConfiguration
                      , IsResurrectionZoneViolation = isResurrectionViolation
+                     , PreferredModelName          = preferredModel
+                     , PromptAdapted               = promptAdapted
                };
     }
 

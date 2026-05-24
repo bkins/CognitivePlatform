@@ -47,6 +47,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IMemoryConfirmationQueue?      _memoryConfirmationQueue;
     private readonly IPersonaService?               _personaServiceForReconstruction;
     private readonly IPersonaStore?                 _personaStoreForReconstruction;
+    private readonly IPersonaStabilityTracker?      _stabilityTracker;
     private readonly IConversationTurnStore         _turnStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
 
@@ -76,7 +77,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IMemoryReconstructionEngine?                                   memoryReconstructionEngine     = null
                                    , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
                                    , IPersonaService?                                               personaServiceForReconstruction = null
-                                   , IPersonaStore?                                                 personaStoreForReconstruction   = null )
+                                   , IPersonaStore?                                                 personaStoreForReconstruction   = null
+                                   , IPersonaStabilityTracker?                                      stabilityTracker               = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -103,6 +105,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _memoryConfirmationQueue         = memoryConfirmationQueue;
         _personaServiceForReconstruction = personaServiceForReconstruction;
         _personaStoreForReconstruction   = personaStoreForReconstruction;
+        _stabilityTracker                = stabilityTracker;
 
 #if DEBUG
         _isDebug = true;
@@ -708,6 +711,20 @@ public class ConversationOrchestrator : IConversationOrchestrator
             {
                 var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
                 var llmResponse     = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
+
+                if (_stabilityTracker is not null
+                 && _personaSessionManager is not null
+                 && _personaSessionManager.IsPersonaConversation(context.SessionId))
+                {
+                    var activePersonaId = _personaSessionManager.GetActivePersona(context.SessionId);
+
+                    if (activePersonaId is not null
+                     && ContainsPolicyDisclaimerPattern(llmResponse.Content))
+                    {
+                        _stabilityTracker.RecordPolicyInterference(context.SessionId, activePersonaId.Value);
+                    }
+                }
+
                 var personaResponse = new ConverseResponse
                                       {
                                               Message = llmResponse.Content
@@ -1471,7 +1488,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                                    .Select(memory => memory.Content));
 
             if (personaContext.IsResurrectionZoneViolation)
+            {
                 context.Metadata["persona_guardrail_applied"] = "true";
+                _stabilityTracker?.RecordImmersionBreak(context.SessionId, personaId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(personaContext.PreferredModelName))
+                context.Metadata["persona_preferred_model"] = personaContext.PreferredModelName;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -1499,6 +1522,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
             prompt += $"\n\n💭 {excavationPrompt}";
 
         return prompt;
+    }
+
+    private static bool ContainsPolicyDisclaimerPattern(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return false;
+
+        return content.Contains("I'm an AI",  StringComparison.OrdinalIgnoreCase)
+            || content.Contains("as an AI",   StringComparison.OrdinalIgnoreCase)
+            || content.Contains("I can't",    StringComparison.OrdinalIgnoreCase);
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action
