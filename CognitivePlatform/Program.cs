@@ -15,6 +15,7 @@ using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
 using System.Text;
@@ -351,6 +352,18 @@ public partial class Program
             var guard = scope.ServiceProvider.GetRequiredService<StartupInvariantGuard>();
             guard.Enforce();
         }
+
+        // Programmatic actions registered via ActionDefinitionBuilder (ENH-22 Phase 2)
+        var actionRegistry = app.Services.GetRequiredService<IActionRegistry>();
+        actionRegistry.Register(
+            new ActionDefinitionBuilder()
+                .Named("GetPlatformInfo")
+                .WithDescription("Returns current platform version and environment.")
+                .InDomain(new SystemDomain())
+                .WithExamples("What version is the platform?", "What environment is this?")
+                .HandledBy(new PlatformInfoHandler())
+                .Build()
+        );
         
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()

@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Models;
@@ -62,4 +63,11 @@ public class ActionMetadata
     /// declaring class. Null for actions whose class is not yet annotated.
     /// </summary>
     public IDomainDefinition? Domain { get; init; }
+
+    /// <summary>
+    /// Programmatic execution handler. When non-null, ExecutionEngine routes here
+    /// instead of MethodInfo.Invoke. Mutually exclusive with MethodInfo in practice,
+    /// but both are nullable for backward compatibility.
+    /// </summary>
+    public IActionHandler? Handler { get; init; }
 }

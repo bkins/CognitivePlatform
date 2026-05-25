@@ -16,4 +16,12 @@ public interface IActionRegistry
     
     IReadOnlyList<ActionMetadata> FastPathActions { get; }
 
+    /// <summary>
+    /// Registers a programmatically-defined action. Must be called before the application
+    /// starts handling requests (pre-startup only).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if an action with the same name is already registered.
+    /// </exception>
+    void Register(ActionMetadata definition);
 }

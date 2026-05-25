@@ -25,6 +25,20 @@ public class ActionRegistry : IActionRegistry
                                                                                                      , name
                                                                                                      , StringComparison.OrdinalIgnoreCase));
 
+    public void Register(ActionMetadata definition)
+    {
+        // TODO: When runtime plugin loading is introduced (future phase), this method
+        // will need to support post-startup registration. For now, pre-startup only.
+        if (_actions.Any(action => string.Equals(action.Name, definition.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException(
+                $"An action named '{definition.Name}' is already registered.");
+
+        _actions.Add(definition);
+
+        if (definition.IsFastPath)
+            _fastPathActions.Add(definition);
+    }
+
     private void LoadActions()
     {
         var assembly = Assembly.GetExecutingAssembly();
