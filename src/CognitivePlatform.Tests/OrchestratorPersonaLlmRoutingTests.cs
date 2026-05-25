@@ -293,6 +293,7 @@ public class OrchestratorPersonaLlmRoutingTests
           , _providerDefaults
           , _rateLimiterMock.Object
           , _turnStoreMock.Object
+          , new Mock<IConversationMetadataStore>().Object
           , new TaskComplexityClassifier()
           , personaEngine:        null
           , personaRuntime:       _personaRuntimeMock.Object

@@ -329,6 +329,7 @@ public class OrchestratorPersonaPrePassTests
           , _providerDefaults
           , _rateLimiterMock.Object
           , _turnStoreMock.Object
+          , new Mock<IConversationMetadataStore>().Object
           , new TaskComplexityClassifier()
           , personaEngine);
 }

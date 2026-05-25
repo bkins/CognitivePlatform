@@ -13,18 +13,21 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/[controller]")]
 public class ConversationController : ControllerBase
 {
-    private readonly IConversationOrchestrator _orchestrator;
-    private readonly ITelemetrySink            _telemetry;
-    private readonly IConversationTurnStore    _turnStore;
+    private readonly IConversationOrchestrator  _orchestrator;
+    private readonly ITelemetrySink             _telemetry;
+    private readonly IConversationTurnStore     _turnStore;
+    private readonly IConversationMetadataStore _metadataStore;
 
-    public ConversationController( IConversationOrchestrator orchestrator
-                                 , ITelemetrySink            telemetry
-                                 , TelemetryContext          telemetryContext
-                                 , IConversationTurnStore    turnStore )
+    public ConversationController( IConversationOrchestrator  orchestrator
+                                 , ITelemetrySink             telemetry
+                                 , TelemetryContext           telemetryContext
+                                 , IConversationTurnStore     turnStore
+                                 , IConversationMetadataStore metadataStore )
     {
-        _orchestrator     = orchestrator;
-        _telemetry        = telemetry;
-        _turnStore        = turnStore;
+        _orchestrator  = orchestrator;
+        _telemetry     = telemetry;
+        _turnStore     = turnStore;
+        _metadataStore = metadataStore;
     }
 
     [HttpPost("converse")]
@@ -74,5 +77,48 @@ public class ConversationController : ControllerBase
         });
 
         return Ok(dtos);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ListConversations()
+    {
+        var conversations = await _metadataStore.ListAllAsync();
+        return Ok(conversations);
+    }
+
+    [HttpGet("{id}/metadata")]
+    public async Task<IActionResult> GetMetadata([FromRoute] string id)
+    {
+        var metadata = await _metadataStore.GetAsync(id);
+        if (metadata is null)
+            return NotFound();
+
+        return Ok(metadata);
+    }
+
+    [HttpPut("{id}/name")]
+    public async Task<IActionResult> RenameConversation( [FromRoute] string                  id
+                                                        , [FromBody]  RenameConversationRequest request )
+    {
+        var metadata = await _metadataStore.GetAsync(id);
+        if (metadata is null)
+            return NotFound();
+
+        metadata.Name = request.Name;
+        await _metadataStore.UpsertAsync(metadata);
+
+        return Ok(metadata);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteConversation([FromRoute] string id)
+    {
+        var metadata = await _metadataStore.GetAsync(id);
+        if (metadata is null)
+            return NotFound();
+
+        await _metadataStore.SoftDeleteAsync(id);
+
+        return NoContent();
     }
 }

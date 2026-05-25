@@ -114,6 +114,7 @@ public class OrchestratorInsightIntegrationTests
           , _providerDefaults
           , _rateLimiterMock.Object
           , _turnStoreMock.Object
+          , new Mock<IConversationMetadataStore>().Object
           , new TaskComplexityClassifier());
 
     private static ConverseRequest Request(string input, string sessionId = "test-session") =>

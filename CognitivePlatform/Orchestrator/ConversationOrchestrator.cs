@@ -50,6 +50,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IPersonaStabilityTracker?      _stabilityTracker;
     private readonly IEmotionalTopologyTracker?     _emotionalTopologyTracker;
     private readonly IConversationTurnStore         _turnStore;
+    private readonly IConversationMetadataStore     _metadataStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
 
     private readonly bool _isDebug  = false;
@@ -71,6 +72,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , LlmProviderDefaults                                            providerDefaults
                                    , ILlmRateLimiter                                                rateLimiter
                                    , IConversationTurnStore                                         turnStore
+                                   , IConversationMetadataStore                                     metadataStore
                                    , ITaskComplexityClassifier                                      complexityClassifier
                                    , IPersonaEngine?                                                personaEngine                  = null
                                    , IPersonaRuntime?                                               personaRuntime                 = null
@@ -99,6 +101,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
+        _metadataStore         = metadataStore        ?? throw new ArgumentNullException(nameof(metadataStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
         _personaEngine                   = personaEngine;
         _personaRuntime                  = personaRuntime;
@@ -930,6 +933,18 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var latestTurn   = finalContext.Turns.LastOrDefault();
         if (latestTurn is not null)
             await _turnStore.SaveAsync(request.SessionId, latestTurn, ct);
+
+        // ENH-21: keep ConversationMetadata in sync after every turn.
+        // Each finalised turn represents one user + one assistant message (2 messages total).
+        var existingMetadata = await _metadataStore.GetAsync(request.SessionId);
+        var metadata = existingMetadata ?? new ConversationMetadata
+                                           {
+                                                   ConversationId = request.SessionId
+                                                 , CreatedUtc     = DateTime.UtcNow
+                                           };
+        metadata.LastActiveUtc  = DateTime.UtcNow;
+        metadata.MessageCount  += 2;
+        await _metadataStore.UpsertAsync(metadata);
 
         if (request.ClientRequestId.HasValue)
         {

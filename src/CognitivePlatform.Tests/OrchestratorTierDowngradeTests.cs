@@ -98,6 +98,7 @@ public class OrchestratorTierDowngradeTests
              , _providerDefaults
              , _rateLimiterMock.Object
              , _turnStoreMock.Object
+             , new Mock<IConversationMetadataStore>().Object
              , new TaskComplexityClassifier());
 
     private void StubInterpreterReturnsAction(string actionName)
