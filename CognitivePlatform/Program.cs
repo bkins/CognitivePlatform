@@ -108,6 +108,7 @@ public partial class Program
         
         builder.Services.AddSingleton<ConversationContextStore>();
         builder.Services.AddSingleton<IConversationTurnStore, ConversationTurnStore>();
+        builder.Services.AddSingleton<IConversationMetadataStore, ConversationMetadataStore>();
 
 // Interpreters
         builder.Services

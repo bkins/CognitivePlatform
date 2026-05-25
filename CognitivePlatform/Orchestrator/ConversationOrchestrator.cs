@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -50,9 +51,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IPersonaStabilityTracker?      _stabilityTracker;
     private readonly IEmotionalTopologyTracker?     _emotionalTopologyTracker;
     private readonly IConversationTurnStore         _turnStore;
+    private readonly IConversationMetadataStore     _metadataStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
 
     private readonly bool _isDebug  = false;
+
+    // One semaphore per session serialises the metadata read-modify-write so concurrent
+    // turns cannot both read the same MessageCount and write back the same incremented value.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> MetadataLocks = new();
 
     public ConversationOrchestrator( IActionRegistry                                                registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
@@ -71,6 +77,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , LlmProviderDefaults                                            providerDefaults
                                    , ILlmRateLimiter                                                rateLimiter
                                    , IConversationTurnStore                                         turnStore
+                                   , IConversationMetadataStore                                     metadataStore
                                    , ITaskComplexityClassifier                                      complexityClassifier
                                    , IPersonaEngine?                                                personaEngine                  = null
                                    , IPersonaRuntime?                                               personaRuntime                 = null
@@ -99,6 +106,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _providerDefaults = providerDefaults ?? throw new ArgumentNullException(nameof(providerDefaults));
         _rateLimiter      = rateLimiter      ?? throw new ArgumentNullException(nameof(rateLimiter));
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
+        _metadataStore         = metadataStore        ?? throw new ArgumentNullException(nameof(metadataStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
         _personaEngine                   = personaEngine;
         _personaRuntime                  = personaRuntime;
@@ -930,6 +938,29 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var latestTurn   = finalContext.Turns.LastOrDefault();
         if (latestTurn is not null)
             await _turnStore.SaveAsync(request.SessionId, latestTurn, ct);
+
+        // ENH-21: keep ConversationMetadata in sync after every turn.
+        // Each finalised turn represents one user + one assistant message (2 messages total).
+        // The semaphore serialises concurrent turns for the same session so both cannot read
+        // the same MessageCount and write back the same incremented value.
+        var metadataLock = MetadataLocks.GetOrAdd(request.SessionId, _ => new SemaphoreSlim(1, 1));
+        await metadataLock.WaitAsync(ct);
+        try
+        {
+            var existingMetadata = await _metadataStore.GetAsync(request.SessionId);
+            var metadata = existingMetadata ?? new ConversationMetadata
+                                               {
+                                                       ConversationId = request.SessionId
+                                                     , CreatedUtc     = DateTime.UtcNow
+                                               };
+            metadata.LastActiveUtc  = DateTime.UtcNow;
+            metadata.MessageCount  += 2;
+            await _metadataStore.UpsertAsync(metadata);
+        }
+        finally
+        {
+            metadataLock.Release();
+        }
 
         if (request.ClientRequestId.HasValue)
         {

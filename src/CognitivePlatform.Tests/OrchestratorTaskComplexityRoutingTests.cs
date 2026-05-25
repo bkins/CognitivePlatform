@@ -220,5 +220,6 @@ public class OrchestratorTaskComplexityRoutingTests
           , _providerDefaults
           , _rateLimiterMock.Object
           , _turnStoreMock.Object
+          , new Mock<IConversationMetadataStore>().Object
           , _classifierMock.Object);
 }
