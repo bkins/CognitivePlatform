@@ -14,7 +14,9 @@ using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Orchestrator;
+using CognitivePlatform.Api.Domains.Journal.Capabilities;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
@@ -100,6 +102,7 @@ public partial class Program
 // Core services
         builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
+        builder.Services.AddSingleton<ICapabilityRegistry, CapabilityRegistry>();
         builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
         builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
         
@@ -114,7 +117,7 @@ public partial class Program
 // Interpreters
         builder.Services
                .AddKeyedScoped<IInterpreter>(KeyedServices.MockInterpreter
-                                           , (sp, key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                           , (sp, key) => new MockInterpreter(sp.GetRequiredService<ICapabilityRegistry>()
                                                                             , sp.GetRequiredService<ITelemetrySink>()));
 
         builder.Services.AddScoped<IFastPathResolver, FastPathResolver>();
@@ -175,7 +178,7 @@ public partial class Program
  
         builder.Services
                .AddKeyedScoped<IInterpreter>(KeyedServices.LlmInterpreter
-                                           , (sp, _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                           , (sp, _) => new LlmInterpreter(sp.GetRequiredService<ICapabilityRegistry>()
                                                                          , sp.GetRequiredService<ITelemetrySink>()
                                                                          , sp.GetRequiredService<ILlmRouter>()
                                                                          , sp.GetRequiredService<LlmModelCatalog>()
@@ -364,6 +367,10 @@ public partial class Program
                 .HandledBy(new PlatformInfoHandler())
                 .Build()
         );
+
+        // Capability-registered actions (ENH-22 Phase 3)
+        var capabilityRegistry = app.Services.GetRequiredService<ICapabilityRegistry>();
+        capabilityRegistry.Register(new JournalSummaryCapability());
         
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()

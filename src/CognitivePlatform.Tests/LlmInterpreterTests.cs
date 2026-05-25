@@ -5,7 +5,7 @@ using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
-using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Telemetry;
 using Moq;
@@ -19,7 +19,7 @@ namespace CognitivePlatform.Tests;
 // paths return a meaningful result rather than throwing.
 public class LlmInterpreterTests
 {
-    private readonly Mock<IActionRegistry> _registryMock  = new();
+    private readonly Mock<ICapabilityRegistry> _registryMock  = new();
     private readonly Mock<ITelemetrySink>  _telemetryMock = new();
     private readonly Mock<ILlmRouter>      _routerMock    = new();
     private readonly Mock<IPromptLogger>   _promptLogMock = new();
@@ -27,7 +27,7 @@ public class LlmInterpreterTests
     private LlmInterpreter BuildInterpreter( LlmModelCatalog   catalog
                                            , LlmClientSettings? settings = null )
     {
-        _registryMock.SetupGet(registry => registry.Actions)
+        _registryMock.Setup(registry => registry.GetAll())
                      .Returns(Array.Empty<ActionMetadata>());
 
         return new LlmInterpreter( _registryMock.Object
