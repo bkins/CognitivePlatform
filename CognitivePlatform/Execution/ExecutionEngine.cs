@@ -40,6 +40,38 @@ public class ExecutionEngine : IExecutionEngine
 
         try
         {
+            if (action.Handler is not null)
+            {
+                var handlerContext = new ActionExecutionContext(
+                    action.Name,
+                    arguments,
+                    _serviceProvider,
+                    sessionId,
+                    ct);
+
+                var handlerResult = await action.Handler.ExecuteAsync(handlerContext).ConfigureAwait(false);
+                var handlerOutput = handlerResult.Message;
+
+                _telemetry.Track(_telemetryContext.CreateEvent(new ExecutionCompletedEvent
+                                                               {
+                                                                       ActionName = action.Name
+                                                                     , Success    = handlerResult.Success
+                                                                     , Output     = handlerOutput
+                                                               }));
+
+                await _auditLog.AppendAsync(new AuditEvent
+                                            {
+                                                    ActionName = action.Name
+                                                  , Parameters = paramSummary
+                                                  , Outcome    = handlerResult.Success
+                                                                     ? AuditOutcome.Success
+                                                                     : AuditOutcome.Failure
+                                                  , Meta       = { ["sessionId"] = sessionId }
+                                            }).ConfigureAwait(false);
+
+                return handlerOutput;
+            }
+
             var methodInfo = action.MethodInfo;
 
             if (methodInfo is null)
