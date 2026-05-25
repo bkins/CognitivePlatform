@@ -4,7 +4,8 @@ namespace CognitivePlatform.Api.Conversation;
 
 public class ConversationMetadataStore : IConversationMetadataStore
 {
-    private const string Partition = "conversation_meta";
+    private const string Partition  = "conversation_meta";
+    private const string KeyPrefix  = "convmeta:";
 
     private readonly IObjectStore _store;
 
@@ -15,12 +16,12 @@ public class ConversationMetadataStore : IConversationMetadataStore
 
     public async Task UpsertAsync(ConversationMetadata metadata)
     {
-        await _store.Save(metadata, partitionKey: Partition, id: metadata.ConversationId);
+        await _store.Save(metadata, partitionKey: Partition, id: StorageKey(metadata.ConversationId));
     }
 
     public Task<ConversationMetadata?> GetAsync(string conversationId)
     {
-        return Task.FromResult(_store.Get<ConversationMetadata>(conversationId, partitionKey: Partition));
+        return Task.FromResult(_store.Get<ConversationMetadata>(StorageKey(conversationId), partitionKey: Partition));
     }
 
     public Task<IEnumerable<ConversationMetadata>> ListAllAsync()
@@ -34,7 +35,12 @@ public class ConversationMetadataStore : IConversationMetadataStore
 
     public Task SoftDeleteAsync(string conversationId)
     {
-        _store.SoftDelete<ConversationMetadata>(conversationId, partitionKey: Partition);
+        _store.SoftDelete<ConversationMetadata>(StorageKey(conversationId), partitionKey: Partition);
         return Task.CompletedTask;
     }
+
+    // Prefix keeps metadata IDs in their own namespace so a session ID that matches
+    // another domain object's ID cannot trigger the ON CONFLICT(Id) upsert path
+    // and overwrite that object's row.
+    private static string StorageKey(string conversationId) => $"{KeyPrefix}{conversationId}";
 }

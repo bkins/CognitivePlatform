@@ -17,7 +17,7 @@ public class ConversationMetadataStoreTests
     // ── UpsertAsync ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpsertAsync_SavesWithConversationMetaPartitionAndConversationIdAsKey()
+    public async Task UpsertAsync_SavesWithConversationMetaPartitionAndPrefixedKey()
     {
         var metadata = new ConversationMetadata
                        {
@@ -38,7 +38,7 @@ public class ConversationMetadataStoreTests
         _storeMock.Verify(store => store.Save(
                               It.IsAny<ConversationMetadata>()
                             , "conversation_meta"
-                            , "conv-abc")
+                            , "convmeta:conv-abc")
                         , Times.Once);
     }
 
@@ -51,9 +51,9 @@ public class ConversationMetadataStoreTests
         _storeMock
             .Setup(store => store.Save(It.IsAny<ConversationMetadata>()
                                       , "conversation_meta"
-                                      , conversationId))
+                                      , $"convmeta:{conversationId}"))
             .Callback<ConversationMetadata, string?, string?>((meta, _, _) => savedCalls.Add(meta.MessageCount))
-            .ReturnsAsync(conversationId);
+            .ReturnsAsync($"convmeta:{conversationId}");
 
         var first = new ConversationMetadata { ConversationId = conversationId, MessageCount = 2 };
         await _sut.UpsertAsync(first);
@@ -74,7 +74,7 @@ public class ConversationMetadataStoreTests
         var expected = new ConversationMetadata { ConversationId = "conv-found", MessageCount = 6 };
 
         _storeMock
-            .Setup(store => store.Get<ConversationMetadata>("conv-found", "conversation_meta"))
+            .Setup(store => store.Get<ConversationMetadata>("convmeta:conv-found", "conversation_meta"))
             .Returns(expected);
 
         var result = await _sut.GetAsync("conv-found");
@@ -153,12 +153,12 @@ public class ConversationMetadataStoreTests
         var conversationId = "conv-del";
 
         _storeMock
-            .Setup(store => store.SoftDelete<ConversationMetadata>("conv-del", "conversation_meta"))
+            .Setup(store => store.SoftDelete<ConversationMetadata>("convmeta:conv-del", "conversation_meta"))
             .Returns(true);
 
         await _sut.SoftDeleteAsync(conversationId);
 
-        _storeMock.Verify(store => store.SoftDelete<ConversationMetadata>("conv-del", "conversation_meta")
+        _storeMock.Verify(store => store.SoftDelete<ConversationMetadata>("convmeta:conv-del", "conversation_meta")
                         , Times.Once);
     }
 }
