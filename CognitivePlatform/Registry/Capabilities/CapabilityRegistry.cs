@@ -8,7 +8,7 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
     // TODO: When runtime plugin loading is introduced (future phase), Register()
     // will need to support post-startup concurrent writes. For now, pre-startup only.
     private readonly IActionRegistry                                _actionRegistry;
-    private readonly ConcurrentDictionary<string, ActionMetadata>  _capabilityActions = new();
+    private readonly ConcurrentDictionary<string, ActionMetadata>  _capabilityActions = new(StringComparer.OrdinalIgnoreCase);
 
     public CapabilityRegistry(IActionRegistry actionRegistry)
     {
