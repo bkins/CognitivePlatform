@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.Activity;
 
@@ -17,6 +18,7 @@ namespace CognitivePlatform.Api.Domains.Activity;
 ///   prompt context and summaries tight. Explicit dates override the default.
 /// </summary>
 [Category("activity")]
+[Domain(typeof(SystemDomain))]
 public sealed class ActivityActions
 {
     private readonly IActivityLog _activityLog;

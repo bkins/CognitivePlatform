@@ -4,6 +4,7 @@ using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -21,6 +22,7 @@ namespace CognitivePlatform.Api.Domains.Insights;
 ///   journal entries when an <see cref="IActivityLog"/> is wired in and contains
 ///   events for the window. Absent/empty activity data is omitted, not stubbed.
 /// </summary>
+[Domain(typeof(KnowledgeDomain))]
 public class InsightsActions
 {
     private readonly ITaskService    _taskService;

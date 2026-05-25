@@ -5,10 +5,12 @@ using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Actions;
 
+[Domain(typeof(SystemDomain))]
 public static class MetaActions
 {
     private static IActionRegistry?     _registry;

@@ -1,4 +1,5 @@
 ﻿using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Tests;
 
@@ -96,5 +97,40 @@ public class ActionRegistryTests
 
         Assert.NotNull(action);
         Assert.False(action.IsReplayable, $"{actionName} should not be replayable");
+    }
+
+    // ================================================================
+    // DOMAIN — ENH-22 Phase 1
+    // ================================================================
+
+    [Fact]
+    public void AddJournalEntry_Domain_HasNameJournal()
+    {
+        var action = _registry.FindByName("AddJournalEntry");
+
+        Assert.NotNull(action);
+        Assert.NotNull(action!.Domain);
+        Assert.Equal("Journal", action.Domain!.Name);
+    }
+
+    [Fact]
+    public void StoreValue_Domain_IsNull_WhenClassNotAnnotated()
+    {
+        var action = _registry.FindByName("StoreValue");
+
+        Assert.NotNull(action);
+        Assert.Null(action!.Domain);
+    }
+
+    [Fact]
+    public void Category_DefaultsToDomainName_AndExplicitCategoryWins()
+    {
+        var noExplicit = _registry.FindByName("AddTask");
+        var withExplicit = _registry.FindByName("AddJournalEntry");
+
+        Assert.NotNull(noExplicit);
+        Assert.NotNull(withExplicit);
+        Assert.Equal("Tasks",   noExplicit!.Category);   // TasksDomain.Name, no explicit Category on [NaturalLanguageAction]
+        Assert.Equal("journal", withExplicit!.Category); // explicit Category = "journal" wins over JournalDomain.Name
     }
 }

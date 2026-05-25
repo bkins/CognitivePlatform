@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
+[Domain(typeof(TasksDomain))]
 public class TaskActions
 {
     private readonly ITaskService       _taskService;

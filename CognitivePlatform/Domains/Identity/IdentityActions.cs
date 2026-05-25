@@ -2,10 +2,12 @@ using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Execution;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Identity;
 
+[Domain(typeof(IdentityDomain))]
 public class IdentityActions : ISessionAware
 {
     private readonly IIdentityService         _identityService;

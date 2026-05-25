@@ -3,6 +3,7 @@ using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Actions;
@@ -18,6 +19,7 @@ namespace CognitivePlatform.Api.Actions;
 /// swapped atomically so that <see cref="ILlmRouter"/> can never observe a
 /// torn (provider, model) pair during a mid-session switch.
 /// </summary>
+[Domain(typeof(SystemDomain))]
 public static class LlmActions
 {
     // Retained for backwards compatibility with existing test fixtures and

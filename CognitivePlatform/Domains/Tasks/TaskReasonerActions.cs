@@ -4,6 +4,7 @@ using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -23,6 +24,7 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// - The date range only applies to journal entries; tasks are always the full active list.
 /// - The early-return "no data" guard only checks tasks + journal; calendar is supplementary.
 /// </summary>
+[Domain(typeof(TasksDomain))]
 public class TaskReasonerActions
 {
     private readonly ITaskService       _taskService;

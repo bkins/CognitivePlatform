@@ -1,9 +1,11 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Personas.Models;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.Personas;
 
+[Domain(typeof(PersonasDomain))]
 public class PersonaActions
 {
     private static readonly AsyncLocal<string?> _sessionIdLocal = new();
