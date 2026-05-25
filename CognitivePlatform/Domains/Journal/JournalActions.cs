@@ -4,12 +4,14 @@ using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
 [Category("journal")]
+[Domain(typeof(JournalDomain))]
 public sealed class JournalActions
 {
     private readonly IJournalService       _journal;

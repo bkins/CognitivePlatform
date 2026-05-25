@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Integrations.Calendar;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Calendar;
@@ -10,6 +11,7 @@ namespace CognitivePlatform.Api.Domains.Calendar;
 /// All actions gracefully return a "not connected" message when the OAuth flow
 /// has not been completed — the user is guided to /auth/google/connect.
 /// </summary>
+[Domain(typeof(CalendarDomain))]
 public class CalendarActions
 {
     private readonly ICalendarProvider _calendar;

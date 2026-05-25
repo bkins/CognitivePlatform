@@ -1,8 +1,10 @@
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.DailyRecord;
 
+[Domain(typeof(DailyRecordDomain))]
 public class DailyRecordActions
 {
     private readonly IDailyRecordService _dailyRecordService;

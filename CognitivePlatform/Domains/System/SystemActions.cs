@@ -2,9 +2,11 @@
 
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Models.SystemInfo;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.System;
 
+[Domain(typeof(SystemDomain))]
 public class SystemActions
 {
     private readonly ISystemInfoService _systemInfoService;

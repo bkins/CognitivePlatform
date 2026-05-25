@@ -1,8 +1,10 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.Personality;
 
+[Domain(typeof(PersonalityDomain))]
 public class PersonalityActions
 {
     private readonly IPersonalityService _personalityService;

@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Models;
 
@@ -55,4 +56,10 @@ public class ActionMetadata
     /// Only meaningful for idempotent, state-mutating actions.
     /// </summary>
     public bool IsReplayable { get; init; }
+
+    /// <summary>
+    /// The domain this action belongs to, resolved from the <c>[Domain]</c> attribute on its
+    /// declaring class. Null for actions whose class is not yet annotated.
+    /// </summary>
+    public IDomainDefinition? Domain { get; init; }
 }

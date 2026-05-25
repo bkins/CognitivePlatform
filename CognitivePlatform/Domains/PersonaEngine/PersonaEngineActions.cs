@@ -1,6 +1,7 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Personality;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Domains.PersonaEngine;
 
@@ -9,6 +10,7 @@ namespace CognitivePlatform.Api.Domains.PersonaEngine;
 /// Delegates to IPersonalityService — the same underlying store and logic —
 /// so users may use either "persona" or "personality" phrasing interchangeably.
 /// </summary>
+[Domain(typeof(PersonaEngineDomain))]
 public class PersonaEngineActions
 {
     private readonly IPersonalityService _personalityService;

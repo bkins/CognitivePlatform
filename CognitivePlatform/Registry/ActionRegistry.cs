@@ -2,6 +2,7 @@
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.Telemetry;
 
 namespace CognitivePlatform.Api.Registry;
@@ -37,6 +38,11 @@ public class ActionRegistry : IActionRegistry
 
             if (methods.Any().Not()) continue;
 
+            var domainAttr = type.GetCustomAttribute<DomainAttribute>();
+            IDomainDefinition? domain = domainAttr is not null
+                                      ? (IDomainDefinition)Activator.CreateInstance(domainAttr.DomainType)!
+                                      : null;
+
             foreach (var method in methods)
             {
                 var nla = method.GetCustomAttribute<NaturalLanguageActionAttribute>()!;
@@ -65,13 +71,14 @@ public class ActionRegistry : IActionRegistry
                            {
                                    Name                = method.Name
                                  , Description         = nla.Description
-                                 , Category            = nla.Category ?? "General"
+                                 , Category            = nla.Category ?? domain?.Name ?? "General"
                                  , MethodInfo          = method
                                  , Parameters          = parameters
                                  , AllowsClarification = nla.AllowsClarification
                                  , IsFastPath          = isFastPath
                                  , IsDestructive       = isDestructive
                                  , IsReplayable        = isReplayable
+                                 , Domain              = domain
                            };
 
                 _actions.Add(meta);
