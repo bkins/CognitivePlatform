@@ -78,7 +78,32 @@ public class LlmRouter : ILlmRouter
                 context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
         }
 
-        var response = await client.SendAsync(prompt, resolvedModel, ct);
+        LlmResponse response;
+    try
+    {
+        response = await client.SendAsync(prompt, resolvedModel, ct);
+    }
+    catch (HttpRequestException ex) when (ex.Message.Contains("429", StringComparison.Ordinal))
+    {
+        // Provider returned 429 — the LLM client already updated _rateLimiter before
+        // throwing. Immediately select the next non-exhausted provider rather than
+        // surfacing the rate-limit error to the user.
+        var fallback         = _capacityRouter.SelectModel(complexity);
+        var fallbackProvider = Enum.TryParse<LlmProvider>(fallback.ModelId.Provider, ignoreCase: true, out var fp)
+                                       ? fp
+                                       : _factory.DefaultProvider;
+
+        client            = _factory.Create(fallbackProvider);
+        resolvedModel     = fallback.ModelId.Model;
+        resolvedProvider  = fallback.ModelId.Provider;
+        switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} rate-limited";
+        tierDowngradeNote = fallback.TierDowngradeNote;
+
+        if (tierDowngradeNote is not null)
+            context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+
+        response = await client.SendAsync(prompt, resolvedModel, ct);
+    }
 
         var metadata = new LlmResponseMetadata
                        {
