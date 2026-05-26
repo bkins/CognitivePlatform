@@ -11,7 +11,7 @@ using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Orchestrator;
-using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Workspace;
 
@@ -26,7 +26,7 @@ namespace CognitivePlatform.Tests;
 [Collection("LlmSharedState")]
 public class OrchestratorTaskComplexityRoutingTests
 {
-    private readonly Mock<IActionRegistry>     _registryMock         = new();
+    private readonly Mock<ICapabilityRegistry>  _registryMock         = new();
     private readonly Mock<IInterpreter>        _interpreterMock      = new();
     private readonly Mock<IExecutionEngine>    _executionMock        = new();
     private readonly Mock<IFastPathResolver>   _fastPathMock         = new();
@@ -80,7 +80,7 @@ public class OrchestratorTaskComplexityRoutingTests
             .Returns(LlmRateLimitSnapshot.Empty);
 
         _registryMock
-            .SetupGet(registry => registry.Actions)
+            .Setup(registry => registry.GetAll())
             .Returns(Array.Empty<ActionMetadata>());
 
         _interpreterMock

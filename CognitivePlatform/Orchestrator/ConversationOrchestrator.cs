@@ -15,6 +15,7 @@ using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CognitivePlatform.Api.Domains.PersonaEngine;
@@ -25,7 +26,7 @@ namespace CognitivePlatform.Api.Orchestrator;
 
 public class ConversationOrchestrator : IConversationOrchestrator
 {
-    private readonly IActionRegistry          _registry;
+    private readonly ICapabilityRegistry      _registry;
     private readonly IInterpreter             _interpreter;   // Keyed: LlmInterpreter
     private readonly IExecutionEngine         _execution;
     private readonly ConversationContextStore _contextStore;
@@ -60,7 +61,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     // turns cannot both read the same MessageCount and write back the same incremented value.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> MetadataLocks = new();
 
-    public ConversationOrchestrator( IActionRegistry                                                registry
+    public ConversationOrchestrator( ICapabilityRegistry                                            registry
                                    , [FromKeyedServices(KeyedServices.LlmInterpreter)] IInterpreter interpreter
                                    , IExecutionEngine                                               execution
                                    , ConversationContextStore                                       contextStore
@@ -279,7 +280,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 {
                     context.PendingAction = null;
 
-                    var confirmedAction = _registry.Actions
+                    var confirmedAction = _registry.GetAll()
                                                    .First(action => string.Equals(action.Name
                                                                                 , pending.ActionName
                                                                                 , StringComparison.OrdinalIgnoreCase));
@@ -344,7 +345,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             }
             
             // Look up action metadata
-            var action = _registry.Actions
+            var action = _registry.GetAll()
                                   .FirstOrDefault(action => string.Equals(action.Name
                                                                         , pending.ActionName
                                                                         , StringComparison.OrdinalIgnoreCase));
@@ -584,7 +585,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             })
         {
             // Look up action metadata
-            var action = _registry.Actions.FirstOrDefault(metadata => string.Equals(metadata.Name
+            var action = _registry.GetAll().FirstOrDefault(metadata => string.Equals(metadata.Name
                                                                                   , interpretation.ActionName
                                                                                   , StringComparison.OrdinalIgnoreCase));
 
@@ -778,7 +779,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // what parameters it needs.
         
         // 8. Look up the action reflectively
-        var selectedAction = _registry.Actions
+        var selectedAction = _registry.GetAll()
                                       .FirstOrDefault(metadata => string.Equals(metadata.Name
                                                                               , interpretation.ActionName
                                                                               , StringComparison.OrdinalIgnoreCase));

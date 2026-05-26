@@ -5,6 +5,7 @@ using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -13,8 +14,9 @@ namespace CognitivePlatform.Api.Actions;
 [Domain(typeof(SystemDomain))]
 public static class MetaActions
 {
-    private static IActionRegistry?     _registry;
-    private static ConversationContext? _context;
+    private static IActionRegistry?      _registry;
+    private static ICapabilityRegistry?  _capabilityRegistry;
+    private static ConversationContext?  _context;
     private static IInsightHistoryStore? _insightHistoryStore;
 
     /// <summary>
@@ -23,6 +25,16 @@ public static class MetaActions
     public static void SetRegistry (IActionRegistry registry)
     {
         _registry = registry;
+    }
+
+    /// <summary>
+    /// Called once per app lifetime (or startup) to inject the combined capability registry.
+    /// When set, the capability registry is preferred over <see cref="SetRegistry(IActionRegistry)"/>
+    /// for listing and describing actions so that capability-registered actions are included.
+    /// </summary>
+    public static void SetRegistry (ICapabilityRegistry registry)
+    {
+        _capabilityRegistry = registry;
     }
 
     /// <summary>
@@ -60,10 +72,12 @@ public static class MetaActions
     )]
     public static string ListActions()
     {
-        if (_registry is null)
+        if (_capabilityRegistry is null && _registry is null)
             return "The action registry is not available yet. MetaActions.SetRegistry(...) was not called.";
 
-        var result = BuildListActionsResult(_registry);
+        var result = _capabilityRegistry is not null
+                         ? BuildListActionsResult(_capabilityRegistry)
+                         : BuildListActionsResult(_registry!);
 
         // For now, we return only the human-readable summary to the user.
         // The structured Metadata is available via BuildListActionsResult for
@@ -77,6 +91,52 @@ public static class MetaActions
     ///
     /// This is the foundation for future meta-behavior (grouping by category, modules, etc.).
     /// </summary>
+    public static ListActionsResult BuildListActionsResult (ICapabilityRegistry registry)
+    {
+        var grouped = registry.GetAll()
+                              .GroupBy(action => action.Category)
+                              .OrderBy(grouping => grouping.Key
+                                     , StringComparer.OrdinalIgnoreCase)
+                              .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("The system currently supports the following actions:");
+
+        foreach (var group in grouped)
+        {
+            var actions = group.OrderBy(metadata => metadata.Name
+                                      , StringComparer.OrdinalIgnoreCase)
+                               .ToList();
+
+            sb.AppendLine();
+            sb.AppendLine($"{group.Key} Actions ({actions.Count}):");
+
+            foreach (var action in actions)
+            {
+                sb.Append(" - ");
+                sb.Append(action.Name);
+
+                if (action.Description.HasValue())
+                {
+                    sb.Append(" — ");
+                    sb.Append(action.Description);
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        var flatSorted = registry.GetAll()
+                                 .OrderBy(metadata => metadata.Name
+                                        , StringComparer.OrdinalIgnoreCase)
+                                 .ToArray();
+
+        return new ListActionsResult(
+                Metadata: flatSorted
+              , Summary: sb.ToString()
+        );
+    }
+
     public static ListActionsResult BuildListActionsResult (IActionRegistry registry)
     {
         // Organize by category (alphabetical), then by action name
@@ -136,13 +196,21 @@ public static class MetaActions
     )]
     public static string DescribeAction (string actionName)
     {
-        if (_registry is null)
+        if (_capabilityRegistry is null && _registry is null)
             return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
 
         if (actionName.HasNoValue())
             return "Please specify the name of the action you want described.";
 
-        var action = _registry.FindByName(actionName);
+        ActionMetadata? action;
+        if (_capabilityRegistry is not null)
+        {
+            _capabilityRegistry.TryGet(actionName, out action);
+        }
+        else
+        {
+            action = _registry!.FindByName(actionName);
+        }
 
         if (action is null)
             return $"I can't find any action named '{actionName}'.";

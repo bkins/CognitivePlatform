@@ -14,7 +14,11 @@ using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Orchestrator;
+using CognitivePlatform.Api.Domains.Journal.Capabilities;
+using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.Telemetry;
 using Microsoft.Extensions.Options;
@@ -100,6 +104,7 @@ public partial class Program
 // Core services
         builder.Services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         builder.Services.AddSingleton<IActionRegistry, ActionRegistry>();
+        builder.Services.AddSingleton<ICapabilityRegistry, CapabilityRegistry>();
         builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
         builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
         
@@ -114,7 +119,7 @@ public partial class Program
 // Interpreters
         builder.Services
                .AddKeyedScoped<IInterpreter>(KeyedServices.MockInterpreter
-                                           , (sp, key) => new MockInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                           , (sp, key) => new MockInterpreter(sp.GetRequiredService<ICapabilityRegistry>()
                                                                             , sp.GetRequiredService<ITelemetrySink>()));
 
         builder.Services.AddScoped<IFastPathResolver, FastPathResolver>();
@@ -175,7 +180,7 @@ public partial class Program
  
         builder.Services
                .AddKeyedScoped<IInterpreter>(KeyedServices.LlmInterpreter
-                                           , (sp, _) => new LlmInterpreter(sp.GetRequiredService<IActionRegistry>()
+                                           , (sp, _) => new LlmInterpreter(sp.GetRequiredService<ICapabilityRegistry>()
                                                                          , sp.GetRequiredService<ITelemetrySink>()
                                                                          , sp.GetRequiredService<ILlmRouter>()
                                                                          , sp.GetRequiredService<LlmModelCatalog>()
@@ -191,6 +196,7 @@ public partial class Program
         builder.Services.AddSingleton<IJournalService, JournalService>();
         builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
         builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
+        builder.Services.AddScoped<ICrudService<JournalEntryWithRevision>, JournalCrudServiceAdapter>();
 
     //Journals-Revisions
         builder.Services.AddSingleton<IJournalRevisionRepository, JournalRevisionRepository>();
@@ -364,6 +370,13 @@ public partial class Program
                 .HandledBy(new PlatformInfoHandler())
                 .Build()
         );
+
+        // Capability-registered actions (ENH-22 Phase 3)
+        var capabilityRegistry = app.Services.GetRequiredService<ICapabilityRegistry>();
+        capabilityRegistry.Register(new JournalSummaryCapability());
+
+        // ENH-22 Phase 4: CRUD template pilot on Journal domain
+        capabilityRegistry.Register(new JournalCrudCapability());
         
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()

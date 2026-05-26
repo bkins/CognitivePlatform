@@ -6,6 +6,7 @@ using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
@@ -15,14 +16,14 @@ namespace CognitivePlatform.Api.Interpreter;
 
 public class LlmInterpreter : IInterpreter
 {
-    private readonly IActionRegistry   _registry;
+    private readonly ICapabilityRegistry _registry;
     private readonly ITelemetrySink    _telemetry;
     private readonly ILlmRouter        _llmRouter;
     private readonly LlmModelCatalog   _modelCatalog;
     private readonly LlmClientSettings _settings;
     private readonly IPromptLogger     _promptLogger;
 
-    public LlmInterpreter( IActionRegistry   registry
+    public LlmInterpreter( ICapabilityRegistry registry
                          , ITelemetrySink    telemetry
                          , ILlmRouter        llmRouter
                          , LlmModelCatalog   modelCatalog
@@ -182,7 +183,7 @@ public class LlmInterpreter : IInterpreter
 
         Console.WriteLine($"rawResponse: {rawResponse}");
 
-        var parsed = ParseModelResponse(rawResponse, _registry.Actions);
+        var parsed = ParseModelResponse(rawResponse, _registry.GetAll());
 
         var debug = new StringBuilder().AppendLine("LlmInterpreter completed.")
                                        .AppendLine($"UserInput: {input}")
@@ -348,7 +349,7 @@ public class LlmInterpreter : IInterpreter
     private async Task<string> BuildPromptAsync(string userInput, ConversationContext context)
     {
         var systemPrompt   = await File.ReadAllTextAsync("Prompts/system.txt");
-        var actionsSummary = BuildActionsSummary(_registry.Actions);
+        var actionsSummary = BuildActionsSummary(_registry.GetAll());
         var sessionState   = BuildSessionStateBlock(context);
 
         systemPrompt = systemPrompt.Replace("{{ACTIONS}}",       actionsSummary)
