@@ -2,6 +2,7 @@
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Integrations.Calendar;
 using System.Collections.Generic;
+using Microsoft.Extensions.Configuration;
 
 namespace CognitivePlatform.Tests;
 
@@ -12,8 +13,13 @@ public class CalendarActionsTests
 
     public CalendarActionsTests()
     {
-        _actions = new CalendarActions(_calendarMock.Object);
+        _actions = new CalendarActions(_calendarMock.Object, BuildConfig());
     }
+
+    private static IConfiguration BuildConfig(string urls = "http://localhost:5273")
+        => new ConfigurationBuilder()
+               .AddInMemoryCollection(new Dictionary<string, string?> { ["ASPNETCORE_URLS"] = urls })
+               .Build();
 
     // ================================================================
     // GetTodayEvents
@@ -455,5 +461,65 @@ public class CalendarActionsTests
 
         Assert.Contains("Family",   result);
         Assert.Contains("excluded", result);
+    }
+
+    // ================================================================
+    // BUG-35 — Relative date parsing
+    // ================================================================
+
+    [Fact]
+    public async Task GetEventsForDate_ResolvesToday_WhenInputIsToday()
+    {
+        var expectedDate = DateTimeOffset.UtcNow.Date;
+
+        DateTimeOffset capturedFrom = default;
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .Callback<DateTimeOffset, DateTimeOffset, CancellationToken>((from, _, _) => capturedFrom = from)
+                     .ReturnsAsync(new List<CalendarEvent>());
+
+        await _actions.GetEventsForDate("today");
+
+        Assert.Equal(expectedDate.Date, capturedFrom.LocalDateTime.Date);
+    }
+
+    [Fact]
+    public async Task GetEventsForDate_ResolvesTomorrow_WhenInputIsTomorrow()
+    {
+        var expectedDate = DateTimeOffset.UtcNow.Date.AddDays(1);
+
+        DateTimeOffset capturedFrom = default;
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.GetEventsAsync( It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .Callback<DateTimeOffset, DateTimeOffset, CancellationToken>((from, _, _) => capturedFrom = from)
+                     .ReturnsAsync(new List<CalendarEvent>());
+
+        await _actions.GetEventsForDate("tomorrow");
+
+        Assert.Equal(expectedDate.Date, capturedFrom.LocalDateTime.Date);
+    }
+
+    // ================================================================
+    // BUG-36 — Re-auth URL port substitution
+    // ================================================================
+
+    [Fact]
+    public async Task NotConnectedMessage_ContainsActualPort_WhenCalendarNotConnected()
+    {
+        var actions = new CalendarActions(_calendarMock.Object
+                                        , BuildConfig("http://localhost:9999"));
+
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(false);
+
+        var result = await actions.GetTodayEvents();
+
+        Assert.DoesNotContain("<environmentPort>", result);
+        Assert.Contains("9999",                    result);
     }
 }

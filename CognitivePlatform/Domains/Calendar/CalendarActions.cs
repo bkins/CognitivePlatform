@@ -1,8 +1,10 @@
 ﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
+using Microsoft.Extensions.Configuration;
 
 namespace CognitivePlatform.Api.Domains.Calendar;
 
@@ -15,10 +17,13 @@ namespace CognitivePlatform.Api.Domains.Calendar;
 public class CalendarActions
 {
     private readonly ICalendarProvider _calendar;
+    private readonly IConfiguration    _configuration;
 
-    public CalendarActions(ICalendarProvider calendar)
+    public CalendarActions( ICalendarProvider calendar
+                          , IConfiguration    configuration )
     {
-        _calendar = calendar ?? throw new ArgumentNullException(nameof(calendar));
+        _calendar      = calendar      ?? throw new ArgumentNullException(nameof(calendar));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     }
 
     // -----------------------------------------------------------------------
@@ -83,8 +88,7 @@ public class CalendarActions
     {
         if (_calendar.IsConnected.Not()) return NotConnectedMessage();
 
-        if (DateTimeOffset.TryParse(date, out var parsed)
-                          .Not())
+        if (TaskDateParser.TryParseDate(date, out var parsed).Not())
             return $"I couldn't parse '{date}' as a date. Please use a format like 'YYYY-MM-DD'.";
 
         var day    = parsed.LocalDateTime.Date;
@@ -272,8 +276,7 @@ public class CalendarActions
     {
         if (_calendar.IsConnected.Not()) return NotConnectedMessage();
 
-        if (DateTimeOffset.TryParse(date
-                                  , out var parsed).Not())
+        if (TaskDateParser.TryParseDate(date, out var parsed).Not())
             return $"I couldn't parse '{date}' as a date. Please use a format like 'YYYY-MM-DD'.";
 
         if (durationMinutes <= 0)
@@ -377,11 +380,23 @@ public class CalendarActions
         return sb.ToString().TrimEnd();
     }
 
-    private static string NotConnectedMessage()
+    private string NotConnectedMessage()
         => "Google Calendar is not connected. "
-         + "Open http://localhost:<environmentPort>/auth/google/connect in your browser to authorise access, then try again.";
+         + $"Open {GetBaseUrl()}/auth/google/connect in your browser to authorise access, then try again.";
 
-    private static string ReAuthMessage()
+    private string ReAuthMessage()
         => "Your Google Calendar session has expired. "
-         + "Open http://localhost:<environmentPort>/auth/google/connect in your browser to re-authorise, then try again.";
+         + $"Open {GetBaseUrl()}/auth/google/connect in your browser to re-authorise, then try again.";
+
+    private string GetBaseUrl()
+    {
+        var urls = _configuration["ASPNETCORE_URLS"] ?? _configuration["urls"] ?? string.Empty;
+
+        var httpLocalhost = urls.Split(';')
+                                .Select(url => url.Trim())
+                                .FirstOrDefault(url => url.StartsWith("http://localhost"
+                                                                     , StringComparison.OrdinalIgnoreCase));
+
+        return httpLocalhost ?? "http://localhost";
+    }
 }
