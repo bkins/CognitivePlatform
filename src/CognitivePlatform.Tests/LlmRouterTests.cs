@@ -293,6 +293,50 @@ public class LlmRouterTests
         _capacityRouterMock.Verify(router => router.SelectModel(TaskComplexity.Light), Times.Once);
     }
 
+    // ----------------------------------------------------------------
+    // BUG-39: 429 retry / fallback
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task SendAsync_RetriesOnFallback_WhenPrimaryProviderReturns429()
+    {
+        var context = new ConversationContext("session-429-retry");
+
+        _groqClient
+            .Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Groq API returned 429: rate limit exceeded"));
+
+        _capacityRouterMock
+            .Setup(router => router.SelectModel(It.IsAny<TaskComplexity>()))
+            .Returns(new LlmModelCapacity { ModelId = new LlmModelId("gemini", "gemini-2.0-flash") });
+
+        _gemini
+            .Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ForContent("gemini-fallback-response"));
+
+        var result = await _router.SendAsync("hello", context);
+
+        Assert.Equal("gemini-fallback-response", result.Content);
+        _factoryMock.Verify(factory => factory.Create(LlmProvider.Gemini), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendAsync_ThrowsCapacityExceeded_WhenAllProviders429ed()
+    {
+        var context = new ConversationContext("session-all-exhausted");
+
+        _groqClient
+            .Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Groq API returned 429: rate limit exceeded"));
+
+        _capacityRouterMock
+            .Setup(router => router.SelectModel(It.IsAny<TaskComplexity>()))
+            .Throws(new LlmCapacityExceededException("All providers exhausted."));
+
+        await Assert.ThrowsAsync<LlmCapacityExceededException>(
+            () => _router.SendAsync("hello", context));
+    }
+
     private static async IAsyncEnumerable<string> AsAsync(params string[] chunks)
     {
         foreach (var chunk in chunks)

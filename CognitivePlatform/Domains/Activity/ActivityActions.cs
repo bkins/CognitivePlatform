@@ -12,7 +12,7 @@ namespace CognitivePlatform.Api.Domains.Activity;
 /// - <c>type</c> is free-text (lowercase-normalised, trimmed). A closed enum would churn
 ///   while the vocabulary is still user-driven.
 /// - <c>tags</c> arrives as a comma-separated string from the NL layer and is split into
-///   a proper <see cref="List{String}"/> before being stored ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â consistent with
+///   a proper <see cref="List{String}"/> before being stored — consistent with
 ///   <c>JournalActions.AddJournalEntry</c>.
 /// - <c>ListActivities</c> defaults to the last 7 days when no range is supplied, to keep
 ///   prompt context and summaries tight. Explicit dates override the default.
@@ -33,7 +33,7 @@ public sealed class ActivityActions
     // ----------------------------------------------------------------------
     [FastPath]
     [NaturalLanguageAction(
-            Description = "Records an explicit activity or habit event ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. running, meditation, reading ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â with optional duration, unit, notes, and tags."
+            Description = "Records an explicit activity or habit event — e.g. running, meditation, reading — with optional duration, unit, notes, and tags."
           , Examples = new[]
                        {
                                "Log that I ran for 30 minutes."
@@ -44,19 +44,19 @@ public sealed class ActivityActions
                        }
           , Category = "activity", IsReplayable = true)]
     public async Task<string> LogActivity (
-            [NaturalLanguageParam(Description = "The activity type ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. 'run', 'meditation', 'reading'."
+            [NaturalLanguageParam(Description = "The activity type — e.g. 'run', 'meditation', 'reading'."
                                 , AllowEmpty  = false)]
             string type
-          , [NaturalLanguageParam(Description  = "Optional quantity ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. 30 (minutes), 40 (pages), 20 (reps)."
+          , [NaturalLanguageParam(Description  = "Optional quantity — e.g. 30 (minutes), 40 (pages), 20 (reps)."
                                 , Optional     = true)]
             int? duration = null
-          , [NaturalLanguageParam(Description  = "Optional unit for the quantity ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. 'minutes', 'pages', 'reps'."
+          , [NaturalLanguageParam(Description  = "Optional unit for the quantity — e.g. 'minutes', 'pages', 'reps'."
                                 , Optional     = true)]
             string? unit = null
           , [NaturalLanguageParam(Description  = "Optional free-text notes about the activity."
                                 , Optional     = true)]
             string? notes = null
-          , [NaturalLanguageParam(Description  = "Optional tags (comma-separated) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â e.g. 'outdoors, cardio'."
+          , [NaturalLanguageParam(Description  = "Optional tags (comma-separated) — e.g. 'outdoors, cardio'."
                                 , Optional     = true
                                 , DefaultValue = "")]
             string? tags = null)
@@ -140,7 +140,7 @@ public sealed class ActivityActions
                 }
 
                 if (!string.IsNullOrWhiteSpace(activityEvent.Notes))
-                    sb.Append($" ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â {RedactGuids(activityEvent.Notes)}");
+                    sb.Append($" — {RedactGuids(activityEvent.Notes)}");
 
                 if (activityEvent.Tags.Count > 0)
                     sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
@@ -164,7 +164,7 @@ public sealed class ActivityActions
 
         if (activityEvent.Duration.HasValue)
         {
-            sb.Append(" ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ").Append(activityEvent.Duration.Value);
+            sb.Append(" — ").Append(activityEvent.Duration.Value);
             if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
                 sb.Append(' ').Append(activityEvent.Unit);
         }
