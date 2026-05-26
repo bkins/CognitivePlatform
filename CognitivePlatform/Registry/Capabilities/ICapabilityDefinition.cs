@@ -7,7 +7,7 @@ namespace CognitivePlatform.Api.Registry.Capabilities;
 /// Defines the set of capabilities supported by a domain entity type T.
 /// Produces ActionMetadata instances consumed by the CapabilityRegistry.
 /// </summary>
-public interface ICapabilityDefinition<T> where T : class
+public interface ICapabilityDefinition<out T> where T : class
 {
     IDomainDefinition Domain { get; }
 

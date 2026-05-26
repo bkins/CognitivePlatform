@@ -15,6 +15,8 @@ using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Domains.Journal.Capabilities;
+using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Registry.Domains;
@@ -194,6 +196,7 @@ public partial class Program
         builder.Services.AddSingleton<IJournalService, JournalService>();
         builder.Services.AddSingleton<IJournalDraftRepository, InMemoryJournalDraftRepository>();
         builder.Services.AddSingleton<IJournalCommandParser, JournalCommandParser>();
+        builder.Services.AddScoped<ICrudService<JournalEntryWithRevision>, JournalCrudServiceAdapter>();
 
     //Journals-Revisions
         builder.Services.AddSingleton<IJournalRevisionRepository, JournalRevisionRepository>();
@@ -371,6 +374,9 @@ public partial class Program
         // Capability-registered actions (ENH-22 Phase 3)
         var capabilityRegistry = app.Services.GetRequiredService<ICapabilityRegistry>();
         capabilityRegistry.Register(new JournalSummaryCapability());
+
+        // ENH-22 Phase 4: CRUD template pilot on Journal domain
+        capabilityRegistry.Register(new JournalCrudCapability());
         
         var diagnosticsLogger = app.Services
                                    .GetRequiredService<ILoggerFactory>()

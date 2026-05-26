@@ -42,6 +42,12 @@ public sealed class ActionDefinitionBuilder
         return this;
     }
 
+    public ActionDefinitionBuilder WithParameters(IEnumerable<ParameterMetadata> parameters)
+    {
+        _parameters.AddRange(parameters);
+        return this;
+    }
+
     public ActionDefinitionBuilder WithParameter( string  parameterName
                                                 , Type    parameterType
                                                 , string  description
