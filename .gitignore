@@ -83,3 +83,9 @@ nunit-*.xml
 /publish/web.config
 /Data/telemetry.db
 platform.db
+
+# Rider / JetBrains
+CognitivePlatform.Admin/.idea/
+
+# Test build output
+src/CognitivePlatform.Tests/bin/
