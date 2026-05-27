@@ -79,6 +79,17 @@ public class MetaActionsTests
         Assert.DoesNotContain("interpreter Actions", result.Summary);
     }
 
+    [Fact]
+    public void BuildListActionsResult_PreservesPascalCase_WhenCategoryHasInternalCapitals()
+    {
+        var registry = RegistryWith(("BeginPersonaConversation", "PersonaEngine", "Starts a persona conversation."));
+
+        var result = MetaActions.BuildListActionsResult(registry.Object);
+
+        Assert.Contains("PersonaEngine Actions (1):", result.Summary);
+        Assert.DoesNotContain("Personaengine Actions",  result.Summary);
+    }
+
     // ================================================================
     // Title-casing — ICapabilityRegistry path
     // ================================================================

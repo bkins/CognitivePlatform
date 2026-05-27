@@ -111,7 +111,10 @@ public static class MetaActions
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
-            var heading = textInfo.ToTitleCase(group.Key.ToLowerInvariant());
+            var key     = group.Key;
+            var heading = key == key.ToLowerInvariant()
+                              ? textInfo.ToTitleCase(key)
+                              : key;
 
             sb.AppendLine();
             sb.AppendLine($"{heading} Actions ({actions.Count}):");
@@ -162,7 +165,10 @@ public static class MetaActions
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
-            var heading = textInfo.ToTitleCase(group.Key.ToLowerInvariant());
+            var key     = group.Key;
+            var heading = key == key.ToLowerInvariant()
+                              ? textInfo.ToTitleCase(key)
+                              : key;
 
             sb.AppendLine();
             sb.AppendLine($"{heading} Actions ({actions.Count}):");
