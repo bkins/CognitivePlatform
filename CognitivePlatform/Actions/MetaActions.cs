@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Conversation;
@@ -102,14 +103,21 @@ public static class MetaActions
         var sb = new StringBuilder();
         sb.AppendLine("The system currently supports the following actions:");
 
+        var textInfo = CultureInfo.InvariantCulture.TextInfo;
+
         foreach (var group in grouped)
         {
             var actions = group.OrderBy(metadata => metadata.Name
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
+            var key     = group.Key;
+            var heading = key == key.ToLowerInvariant()
+                              ? textInfo.ToTitleCase(key)
+                              : key;
+
             sb.AppendLine();
-            sb.AppendLine($"{group.Key} Actions ({actions.Count}):");
+            sb.AppendLine($"{heading} Actions ({actions.Count}):");
 
             foreach (var action in actions)
             {
@@ -149,14 +157,21 @@ public static class MetaActions
         var sb = new StringBuilder();
         sb.AppendLine("The system currently supports the following actions:");
 
+        var textInfo = CultureInfo.InvariantCulture.TextInfo;
+
         foreach (var group in grouped)
         {
             var actions = group.OrderBy(metadata => metadata.Name
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
+            var key     = group.Key;
+            var heading = key == key.ToLowerInvariant()
+                              ? textInfo.ToTitleCase(key)
+                              : key;
+
             sb.AppendLine();
-            sb.AppendLine($"{group.Key} Actions ({actions.Count}):");
+            sb.AppendLine($"{heading} Actions ({actions.Count}):");
 
             foreach (var action in actions)
             {
