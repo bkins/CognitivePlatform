@@ -114,12 +114,13 @@ public class ActionRegistryTests
     }
 
     [Fact]
-    public void StoreValue_Domain_IsNull_WhenClassNotAnnotated()
+    public void StoreValue_Domain_IsSystem_AfterDomainAnnotationAdded()
     {
         var action = _registry.FindByName("StoreValue");
 
         Assert.NotNull(action);
-        Assert.Null(action!.Domain);
+        Assert.NotNull(action!.Domain);
+        Assert.Equal("System", action.Domain!.Name);
     }
 
     [Fact]

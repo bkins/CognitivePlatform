@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -21,6 +22,7 @@ namespace CognitivePlatform.Api.Domains.Feedback;
 ///   is registered Transient but all instances share the same lock object.
 /// </summary>
 [Category("feedback")]
+[Domain(typeof(SystemDomain))]
 public sealed class FeedbackActions
 {
     private static readonly object FileLock = new();

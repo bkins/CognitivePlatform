@@ -20,4 +20,12 @@ public interface ICapabilityRegistry
     /// Thrown if any action produced by the capability has a name already registered.
     /// </exception>
     void Register(ICapabilityDefinition<object> capability);
+
+    /// <summary>
+    /// Returns the aggregated <see cref="ICapabilityDefinition{T}.PromptSummary"/> text
+    /// for all capabilities registered under the given domain, joined by "; ".
+    /// Returns <c>null</c> when no capability has been registered for that domain —
+    /// the caller should fall back to <see cref="IDomainDefinition.Description"/>.
+    /// </summary>
+    string? GetDomainPromptSummary(string domainName);
 }

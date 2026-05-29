@@ -7,6 +7,7 @@ using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Registry.Capabilities;
+using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
@@ -349,7 +350,10 @@ public class LlmInterpreter : IInterpreter
     private async Task<string> BuildPromptAsync(string userInput, ConversationContext context)
     {
         var systemPrompt   = await File.ReadAllTextAsync("Prompts/system.txt");
-        var actionsSummary = BuildActionsSummary(_registry.GetAll());
+        var actionsSummary = BuildDomainAwareActionsSummary(
+            _registry.GetAll()
+          , userInput
+          , domainName => _registry.GetDomainPromptSummary(domainName));
         var sessionState   = BuildSessionStateBlock(context);
 
         systemPrompt = systemPrompt.Replace("{{ACTIONS}}",       actionsSummary)
@@ -425,6 +429,145 @@ public class LlmInterpreter : IInterpreter
             }
 
             sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------------
+    // Domain-aware actions summary — ENH-27
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores which domains are relevant to the user's input by checking whether
+    /// any of a domain's <see cref="IDomainDefinition.Keywords"/> appear in the
+    /// lower-cased input string. Returns the set of matching domain names.
+    ///
+    /// The <c>System</c> domain is excluded from the returned set because it is
+    /// always promoted to full-detail regardless of keyword scoring.
+    /// An empty return set signals "no domain detected" — the caller should fall
+    /// back to the full action catalog.
+    /// </summary>
+    internal static IReadOnlySet<string> ScoreRelevantDomains(
+        string                         userInput
+      , IEnumerable<IDomainDefinition> domains)
+    {
+        if (string.IsNullOrWhiteSpace(userInput))
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var lowerInput = userInput.ToLowerInvariant();
+        var relevant   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var domain in domains)
+        {
+            if (domain.Name.Equals("System", StringComparison.OrdinalIgnoreCase))
+                continue; // System domain handled separately — always full
+
+            foreach (var keyword in domain.Keywords)
+            {
+                if (lowerInput.Contains(keyword))
+                {
+                    relevant.Add(domain.Name);
+                    break;
+                }
+            }
+        }
+
+        return relevant;
+    }
+
+    /// <summary>
+    /// Builds the AVAILABLE ACTIONS block for the system prompt with domain-aware slicing.
+    ///
+    /// <list type="bullet">
+    ///   <item>The <c>System</c> domain is always emitted in full (meta-actions such as
+    ///         ChitChat, ListActions, DescribeAction are needed on every turn).</item>
+    ///   <item>Domains whose keywords match <paramref name="userInput"/> are emitted in full.</item>
+    ///   <item>All other domains are emitted as a compact summary line so the LLM knows
+    ///         they exist without consuming extra tokens.</item>
+    ///   <item>When no non-System domain matches the input, all domains are emitted in full
+    ///         (safe fallback — same as the pre-ENH-27 behaviour).</item>
+    /// </list>
+    /// </summary>
+    internal static string BuildDomainAwareActionsSummary(
+        IEnumerable<ActionMetadata> actions
+      , string                      userInput
+      , Func<string, string?>       getDomainSummary)
+    {
+        var allActions = actions.ToList();
+
+        // Collect unique domain definitions keyed by name.
+        var domainsByName = allActions
+            .Where(action  => action.Domain is not null)
+            .GroupBy(action => action.Domain!.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key
+                        , group => group.First().Domain!
+                        , StringComparer.OrdinalIgnoreCase);
+
+        var relevantDomainNames = ScoreRelevantDomains(userInput, domainsByName.Values);
+
+        // No non-System keyword matched: fall back to the full flat catalog so we
+        // never hide a relevant action from the model (same behaviour as pre-ENH-27).
+        if (relevantDomainNames.Count == 0)
+            return BuildActionsSummary(allActions);
+
+        // Group actions by domain name preserving a stable order.
+        var groupedByDomain = allActions
+            .GroupBy(action => action.Domain?.Name ?? "General", StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var sb = new StringBuilder();
+
+        foreach (var group in groupedByDomain)
+        {
+            var domainName  = group.Key;
+            var isSystem    = domainName.Equals("System", StringComparison.OrdinalIgnoreCase);
+            var isRelevant  = isSystem || relevantDomainNames.Contains(domainName);
+
+            // Actions with no [Domain] attribute always emit in full — they can't be
+            // scored by ScoreRelevantDomains, so compacting them would silently hide
+            // actions such as ReportBug or StoreValue from the LLM.
+            var isNullDomain = !domainsByName.ContainsKey(domainName);
+            if (isRelevant || isNullDomain)
+            {
+                // Full per-action detail for this domain.
+                foreach (var action in group)
+                {
+                    sb.AppendLine($"Action: {action.Name}");
+                    sb.AppendLine($"  Description: {action.Description}");
+
+                    if (action.Parameters.Count > 0)
+                    {
+                        sb.AppendLine("  Parameters:");
+                        foreach (var parameter in action.Parameters)
+                        {
+                            var typeName = GetFriendlyTypeName(parameter.ParameterType);
+                            sb.AppendLine($"    - {parameter.Name} ({typeName}, required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
+                        }
+                    }
+
+                    if (action.Examples is { Length: > 0 })
+                    {
+                        sb.AppendLine("  Examples:");
+                        foreach (var ex in action.Examples)
+                            sb.AppendLine($"    - {ex}");
+                    }
+
+                    sb.AppendLine();
+                }
+            }
+            else
+            {
+                // Compact summary for non-relevant domains.
+                var summary      = getDomainSummary(domainName);
+                var domainDef    = domainsByName.GetValueOrDefault(domainName);
+                var summaryText  = summary ?? domainDef?.Description ?? domainName;
+                var actionNames  = string.Join(", ", group.Select(action => action.Name));
+
+                sb.AppendLine($"Domain: {domainName} — {summaryText}");
+                sb.AppendLine($"  Available actions: {actionNames}");
+                sb.AppendLine();
+            }
         }
 
         return sb.ToString();
