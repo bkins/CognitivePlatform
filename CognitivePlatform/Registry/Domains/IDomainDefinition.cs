@@ -17,4 +17,13 @@ public interface IDomainDefinition
     /// Human-readable description for admin UI and diagnostics.
     /// </summary>
     string Description { get; }
+
+    /// <summary>
+    /// Natural-language keywords used by the LLM interpreter's domain-relevance scorer.
+    /// When any keyword appears in the user's input, this domain's actions are included
+    /// in full in the system prompt; otherwise only a compact summary is emitted.
+    /// Default is empty — an empty list means the domain always falls back to summary mode
+    /// unless another mechanism marks it relevant.
+    /// </summary>
+    IReadOnlyList<string> Keywords => Array.Empty<string>();
 }
