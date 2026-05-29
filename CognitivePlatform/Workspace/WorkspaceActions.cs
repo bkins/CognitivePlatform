@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Workspace;
 
@@ -12,6 +13,7 @@ namespace CognitivePlatform.Api.Workspace;
 /// "personal" is the default workspace and always exists.
 /// </para>
 /// </summary>
+[Domain(typeof(SystemDomain))]
 public class WorkspaceActions
 {
     private readonly IWorkspaceContext _workspaceContext;

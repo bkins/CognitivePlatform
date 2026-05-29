@@ -524,7 +524,11 @@ public class LlmInterpreter : IInterpreter
             var isSystem    = domainName.Equals("System", StringComparison.OrdinalIgnoreCase);
             var isRelevant  = isSystem || relevantDomainNames.Contains(domainName);
 
-            if (isRelevant)
+            // Actions with no [Domain] attribute always emit in full — they can't be
+            // scored by ScoreRelevantDomains, so compacting them would silently hide
+            // actions such as ReportBug or StoreValue from the LLM.
+            var isNullDomain = !domainsByName.ContainsKey(domainName);
+            if (isRelevant || isNullDomain)
             {
                 // Full per-action detail for this domain.
                 foreach (var action in group)

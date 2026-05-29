@@ -262,6 +262,47 @@ public class LlmInterpreterDomainScoringTests
         Assert.Contains("Calendar event management with multi-calendar support", summary);
     }
 
+    [Fact]
+    public void BuildDomainAwareActionsSummary_NullDomainAction_AlwaysIncludesFullDetail()
+    {
+        // An action with no Domain (domain = null) is grouped under "General".
+        // It can never be keyword-scored, so it must always appear in full — otherwise
+        // actions like ReportBug are silently hidden from the interpreter.
+        var undomainedAction = new ActionMetadata
+                              {
+                                      Name        = "ReportBug"
+                                    , Description = "Logs a bug report."
+                                    , Domain      = null
+                                    , Parameters  = new List<ParameterMetadata>
+                                                    {
+                                                        new ParameterMetadata
+                                                        {
+                                                                Name          = "description"
+                                                              , ParameterType = typeof(string)
+                                                              , Description   = "The bug description."
+                                                              , IsOptional    = false
+                                                        }
+                                                    }
+                              };
+        var journalAction = new ActionMetadata
+                            {
+                                    Name        = "AddJournalEntry"
+                                  , Description = "Adds a journal entry."
+                                  , Domain      = new JournalDomain()
+                            };
+
+        var summary = LlmInterpreter.BuildDomainAwareActionsSummary(
+            new[] { undomainedAction, journalAction }
+          , "add a journal entry"    // only journal keyword — ReportBug has no domain
+          , _ => null);
+
+        // ReportBug must appear in full (with description and parameters) even though
+        // its domain never matches any keyword.
+        Assert.Contains("Action: ReportBug",          summary);
+        Assert.Contains("Logs a bug report.",          summary);
+        Assert.Contains("- description (string",       summary);
+    }
+
     // -----------------------------------------------------------------------
     // CapabilityRegistry.GetDomainPromptSummary
     // -----------------------------------------------------------------------

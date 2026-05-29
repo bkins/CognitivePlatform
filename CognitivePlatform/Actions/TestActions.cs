@@ -1,8 +1,10 @@
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Actions;
 
+[Domain(typeof(SystemDomain))]
 public static class TestActions
 {
     private static ConversationContext? _context;
