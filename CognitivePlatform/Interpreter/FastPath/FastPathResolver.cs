@@ -45,6 +45,14 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         // ------------------------------------------------------------
+        // MODE 0.15: DOMAIN GUIDANCE  ("Tell me about Tasks", "How does Journal work?")
+        // Placed before LLM meta commands so guidance phrases never fall through to
+        // the LLM interpreter — they are cheap, parameterless, and always answerable.
+        // ------------------------------------------------------------
+        if (TryResolveDomainGuidance(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 0.1: LLM META COMMANDS  (SetModel / SetProvider / ListModels / ListProviders)
         // Placed before every domain-specific mode so these remain reachable even when
         // the current model is exhausted and the interpreter's pre-flight would block them.
@@ -1479,6 +1487,145 @@ public sealed class FastPathResolver : IFastPathResolver
                                    .Select(match => match.Value)
                                    .Distinct()
                                    .ToList();
+    }
+
+    // ================================================================
+    // MODE 0.15: DOMAIN GUIDANCE
+    // "tell me about X", "how does X work", "what can I do with X", "explain X"
+    // ================================================================
+
+    private static readonly string[] GuidancePrefixes =
+    {
+            "tell me about "
+          , "tell me how "
+          , "explain "
+          , "explain the "
+          , "explain how "
+          , "how does "
+          , "how do "
+          , "what can i do with "
+          , "what can i do in "
+          , "what can you do with "
+          , "what can you do in "
+          , "help me with "
+          , "how do i use "
+          , "how to use "
+          , "guide me on "
+          , "guide me through "
+          , "teach me about "
+    };
+
+    private static readonly string[] GuidanceSuffixes =
+    {
+            " work"
+          , " works"
+          , " feature"
+          , " domain"
+          , " area"
+          , " help"
+          , " guide"
+          , " usage"
+    };
+
+    private bool TryResolveDomainGuidance( string                           input
+                                         , out ActionMetadata?             action
+                                         , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.Trim()
+                              .TrimEnd('?', '!', '.')
+                              .ToLowerInvariant();
+
+        foreach (var prefix in GuidancePrefixes)
+        {
+            if (!normalized.StartsWith(prefix))
+                continue;
+
+            var remainder = normalized.Substring(prefix.Length).Trim();
+
+            // Strip trailing filler suffixes ("how does tasks work" → "tasks")
+            foreach (var suffix in GuidanceSuffixes)
+            {
+                if (remainder.EndsWith(suffix))
+                {
+                    remainder = remainder[..^suffix.Length].Trim();
+                    break;
+                }
+            }
+
+            // Strip leading articles ("tell me about the journal", "what can I do with my calendar")
+            if (remainder.StartsWith("the "))
+                remainder = remainder.Substring(4).Trim();
+            else if (remainder.StartsWith("my "))
+                remainder = remainder.Substring(3).Trim();
+
+            if (string.IsNullOrWhiteSpace(remainder))
+                continue;
+
+            // Map to a canonical domain name. If the extracted term does not resolve
+            // to a known domain we fall through — not every phrase ending in a noun
+            // is a guidance request.
+            var canonical = ResolveDomainAliasForFastPath(remainder);
+            if (canonical is null)
+                continue;
+
+            action = _registry.Actions.FirstOrDefault(
+                registryAction => registryAction.Name == "GetDomainGuidance");
+
+            if (action is null)
+                return false;
+
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         { ["domainName"] = canonical };
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static readonly Dictionary<string, string> GuidanceDomainAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+                { "tasks",        "Tasks"         }
+              , { "task",         "Tasks"         }
+              , { "todo",         "Tasks"         }
+              , { "to-do",        "Tasks"         }
+              , { "journal",      "Journal"       }
+              , { "journaling",   "Journal"       }
+              , { "diary",        "Journal"       }
+              , { "daily",        "Daily"         }
+              , { "daily record", "Daily"         }
+              , { "day",          "Daily"         }
+              , { "calendar",     "Calendar"      }
+              , { "events",       "Calendar"      }
+              , { "knowledge",    "Knowledge"     }
+              , { "insights",     "Knowledge"     }
+              , { "inbox",        "Knowledge"     }
+              , { "identity",     "Identity"      }
+              , { "profile",      "Identity"      }
+              , { "system",       "System"        }
+              , { "personality",  "Personality"   }
+              , { "tone",         "Personality"   }
+              , { "personas",     "Personas"      }
+              , { "persona",      "Personas"      }
+        };
+
+    private static string? ResolveDomainAliasForFastPath(string normalized)
+    {
+        if (GuidanceDomainAliases.TryGetValue(normalized, out var direct))
+            return direct;
+
+        // Prefix match — "task management" → "Tasks"
+        foreach (var kvp in GuidanceDomainAliases)
+        {
+            if (normalized.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                return kvp.Value;
+        }
+
+        return null;
     }
 
     // ================================================================

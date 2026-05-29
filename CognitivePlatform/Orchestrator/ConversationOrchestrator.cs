@@ -182,6 +182,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
         Actions.MetaActions.SetInsightHistoryStore(_insightHistory);
+        Actions.GuidanceActions.SetRegistry(_registry);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);
@@ -1167,6 +1168,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.MetaActions.SetRegistry(_registry);
         Actions.MetaActions.SetContext(context);
         Actions.MetaActions.SetInsightHistoryStore(_insightHistory);
+        Actions.GuidanceActions.SetRegistry(_registry);
         Actions.LlmActions.SetContext(context);
         Actions.LlmActions.SetCatalog(_modelCatalog);
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);
