@@ -104,6 +104,65 @@ public class LlmInterpreterDomainScoringTests
     }
 
     // -----------------------------------------------------------------------
+    // IdentityDomain keyword coverage (Codex review fix)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void ScoreRelevantDomains_PersonalityTraitsPhrase_MatchesIdentityNotOnlyPersonality()
+    {
+        // Codex-reported failure: "my personality traits" matched PersonalityDomain
+        // via "personality" but NOT IdentityDomain, so AddToProfileList was hidden.
+        var domains = new IDomainDefinition[]
+                      {
+                          new IdentityDomain()
+                        , new PersonalityDomain()
+                      };
+
+        var relevant = LlmInterpreter.ScoreRelevantDomains(
+            "Add 'empathy' to my personality traits"
+          , domains);
+
+        Assert.Contains("Identity",    relevant);
+        Assert.Contains("Personality", relevant);   // both should be included — no information loss
+    }
+
+    [Fact]
+    public void ScoreRelevantDomains_CoreValuesPhrase_MatchesIdentityDomain()
+    {
+        var domains = new IDomainDefinition[] { new IdentityDomain(), new TasksDomain() };
+
+        var relevant = LlmInterpreter.ScoreRelevantDomains(
+            "Add 'integrity' to my core values"
+          , domains);
+
+        Assert.Contains("Identity", relevant);
+    }
+
+    [Fact]
+    public void ScoreRelevantDomains_LeadershipPhrase_MatchesIdentityDomain()
+    {
+        var domains = new IDomainDefinition[] { new IdentityDomain(), new TasksDomain() };
+
+        var relevant = LlmInterpreter.ScoreRelevantDomains(
+            "Add 'servant leadership' to my leadership styles"
+          , domains);
+
+        Assert.Contains("Identity", relevant);
+    }
+
+    [Fact]
+    public void ScoreRelevantDomains_LongTermGoalsPhrase_MatchesIdentityDomain()
+    {
+        var domains = new IDomainDefinition[] { new IdentityDomain(), new TasksDomain() };
+
+        var relevant = LlmInterpreter.ScoreRelevantDomains(
+            "Add 'build a scalable product' to my long-term goals"
+          , domains);
+
+        Assert.Contains("Identity", relevant);
+    }
+
+    // -----------------------------------------------------------------------
     // BuildDomainAwareActionsSummary — relevant domain gets full detail
     // -----------------------------------------------------------------------
 

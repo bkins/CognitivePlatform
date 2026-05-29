@@ -161,17 +161,32 @@ public sealed record IdentityDomain : IDomainDefinition
 
     public IReadOnlyList<string> Keywords => new[]
     {
+        // Domain-level terms
         "identity"
       , "profile"
       , "who am i"
       , "about me"
+      , "assertion"
+      , "snapshot"
+      , "behavioral"
+
+        // Profile list-field phrases (the actual phrases users say to AddToProfileList /
+        // RemoveFromProfileList — must match the full phrase, not just a root word, to
+        // avoid collisions with PersonalityDomain ("personality") or TasksDomain ("goals"))
+      , "personality traits"          // "add 'empathy' to my personality traits"
+      , "core values"                 // "add 'integrity' to my core values"
+      , "leadership"                  // "add 'servant leadership' to my leadership styles"
+      , "long-term goals"             // "add X to my long-term goals"
+      , "long term goals"             // no-hyphen variant
+      , "communication preferences"   // "add X to my communication preferences"
+
+        // Shorter aliases that also appear in action examples
       , "my traits"
       , "my values"
       , "my goals"
-      , "assertion"
-      , "snapshot"
       , "strengths"
       , "stressors"
+      , "occupation"                  // "update my occupation to Software Engineer"
     };
 }
 
