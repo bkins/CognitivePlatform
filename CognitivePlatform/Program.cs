@@ -39,6 +39,8 @@ using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Integrations.Health;
 using CognitivePlatform.Api.Integrations.Notifications;
 using CognitivePlatform.Api.Domains.Health;
+using CognitivePlatform.Api.Integrations.FileSync;
+using CognitivePlatform.Api.Domains.FileSync;
 using CognitivePlatform.Api.Services;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
@@ -321,6 +323,10 @@ public partial class Program
             builder.Services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
 
         builder.Services.AddTransient<HealthActions>();
+
+    // File Sync — DisconnectedFileSyncProvider is the default until Phase F.1-B wires the HTTP provider
+        builder.Services.AddSingleton<IFileSyncProvider, DisconnectedFileSyncProvider>();
+        builder.Services.AddTransient<FileSyncActions>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
