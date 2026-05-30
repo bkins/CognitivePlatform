@@ -270,5 +270,6 @@ public sealed record WellbeingDomain : IDomainDefinition
       , "burnout"
       , "balance"
       , "correlation"
+      , "health check"
     };
 }

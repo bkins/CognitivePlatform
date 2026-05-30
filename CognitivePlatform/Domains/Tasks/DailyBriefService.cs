@@ -1,5 +1,6 @@
 using System.Text;
 using CognitivePlatform.Api.Integrations.Calendar;
+using CognitivePlatform.Api.Wellbeing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,18 +20,24 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public class DailyBriefService : IDailyBriefService
 {
-    private readonly ITaskService               _taskService;
-    private readonly ICalendarProvider?         _calendar;
-    private readonly ILogger<DailyBriefService> _logger;
-    private readonly EisenhowerReasoner         _eisenhower = new();
+    private readonly ITaskService                _taskService;
+    private readonly ICalendarProvider?          _calendar;
+    private readonly IWellbeingSignalCollector?  _wellbeingCollector;
+    private readonly IWellbeingPatternService?   _wellbeingPatterns;
+    private readonly ILogger<DailyBriefService>  _logger;
+    private readonly EisenhowerReasoner          _eisenhower = new();
 
-    public DailyBriefService( ITaskService                  taskService
-                             , ICalendarProvider?             calendarProvider = null
-                             , ILogger<DailyBriefService>?   logger           = null )
+    public DailyBriefService( ITaskService                   taskService
+                             , ICalendarProvider?             calendarProvider     = null
+                             , IWellbeingSignalCollector?     wellbeingCollector   = null
+                             , IWellbeingPatternService?      wellbeingPatterns    = null
+                             , ILogger<DailyBriefService>?   logger               = null )
     {
-        _taskService = taskService ?? throw new ArgumentNullException(nameof(taskService));
-        _calendar    = calendarProvider;
-        _logger      = logger ?? NullLogger<DailyBriefService>.Instance;
+        _taskService         = taskService ?? throw new ArgumentNullException(nameof(taskService));
+        _calendar            = calendarProvider;
+        _wellbeingCollector  = wellbeingCollector;
+        _wellbeingPatterns   = wellbeingPatterns;
+        _logger              = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
     // WORKSPACE NOTE (EPIC-10):
@@ -46,7 +53,31 @@ public class DailyBriefService : IDailyBriefService
         // the server's UTC date. Fallback preserves pre-fix behaviour.
         var effectiveDate = localDate ?? DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
         var today         = effectiveDate.ToDateTime(TimeOnly.MinValue).Date;
-        var active        = _taskService.GetActive();
+
+        // Refresh today's wellbeing signals so pattern analysis has fresh data.
+        // Runs before task/calendar work; errors are swallowed — signals being stale
+        // never blocks the brief.
+        WellbeingReport? wellbeingReport = null;
+        if (_wellbeingCollector is not null && _wellbeingPatterns is not null)
+        {
+            try
+            {
+                _wellbeingCollector.CollectSignalsAsync(effectiveDate)
+                                   .GetAwaiter()
+                                   .GetResult();
+
+                wellbeingReport = _wellbeingPatterns
+                    .AnalyseAsync(effectiveDate.AddDays(-7), effectiveDate)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Wellbeing section omitted: signal collection or pattern analysis threw");
+            }
+        }
+
+        var active = _taskService.GetActive();
 
         var eisenhower = _eisenhower.Analyze(active);
 
@@ -156,6 +187,24 @@ public class DailyBriefService : IDailyBriefService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Today's Calendar section omitted: calendar provider threw");
+            }
+        }
+
+        // ---- Wellbeing Snapshot ----
+        // Include one sentence when at least one Attention or Concern pattern exists;
+        // omit the section entirely when patterns are Neutral/Positive or data is insufficient.
+        if (wellbeingReport is not null)
+        {
+            var notable = wellbeingReport.Patterns
+                .Where(pattern => pattern.Severity is PatternSeverity.Concern or PatternSeverity.Attention)
+                .OrderByDescending(pattern => pattern.Severity)
+                .FirstOrDefault();
+
+            if (notable is not null)
+            {
+                sb.AppendLine();
+                sb.AppendLine("--- Wellbeing ---");
+                sb.AppendLine(notable.Description);
             }
         }
 

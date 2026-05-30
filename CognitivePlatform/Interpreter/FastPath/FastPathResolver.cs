@@ -159,6 +159,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.9: WELLBEING FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveWellbeing(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
@@ -1540,7 +1546,96 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
-    // SIGNAL DETECTION â€" NATURAL LANGUAGE INTENT MARKERS (journal/add)
+    // MODE 2.9: WELLBEING FAST PATHS
+    // ================================================================
+
+    private static readonly string[] WellbeingReportSignals =
+    {
+            "how am i doing"
+          , "wellbeing check"
+          , "wellbeing report"
+          , "wellbeing summary"
+          , "how's my wellbeing"
+          , "how is my wellbeing"
+          , "how has my wellbeing been"
+          , "how have i been doing"
+    };
+
+    private static readonly string[] WellbeingPatternSignals =
+    {
+            "what patterns do you see"
+          , "any concerning trends"
+          , "what trends have you noticed"
+          , "what does the data show"
+          , "wellbeing patterns"
+    };
+
+    private static readonly string[] WellbeingSleepHealthSignals =
+    {
+            "am i sleeping enough"
+          , "sleep quality this week"
+          , "sleep quality last week"
+          , "how has my sleep been"
+          , "how's my sleep been"
+          , "am i getting enough sleep"
+          , "sleep health"
+    };
+
+    private bool TryResolveWellbeing( string                           input
+                                     , out ActionMetadata?             action
+                                     , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (WellbeingReportSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetWellbeingReport");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractWellbeingDateRange(normalized) };
+            return true;
+        }
+
+        if (WellbeingPatternSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetWellbeingPatterns");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractWellbeingDateRange(normalized) };
+            return true;
+        }
+
+        if (WellbeingSleepHealthSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CheckSleepHealth");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractWellbeingDateRange(normalized) };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string ExtractWellbeingDateRange(string normalized)
+    {
+        if (normalized.Contains("last week"))   return "last week";
+        if (normalized.Contains("this week"))   return "this week";
+        if (normalized.Contains("last 7 days")) return "last 7 days";
+        if (normalized.Contains("past week"))   return "past week";
+        if (normalized.Contains("last 30 days") || normalized.Contains("this month")) return "last 30 days";
+
+        return string.Empty;
+    }
+
+    // ================================================================
+    // SIGNAL DETECTION — NATURAL LANGUAGE INTENT MARKERS (journal/add)
     // ================================================================
     private static readonly string[] FastPathSignals =
     {
