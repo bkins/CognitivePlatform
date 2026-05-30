@@ -36,7 +36,9 @@ using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
+using CognitivePlatform.Api.Integrations.Health;
 using CognitivePlatform.Api.Integrations.Notifications;
+using CognitivePlatform.Api.Domains.Health;
 using CognitivePlatform.Api.Services;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
@@ -306,6 +308,10 @@ public partial class Program
           , (sp, _) => new LlmIntentAnalyzer(sp.GetRequiredService<ILlmRouter>()));
 
         builder.Services.AddSingleton<IPersonaEngine, HybridPersonaEngine>();
+
+    // Health (Phase H.1-A: disconnected stub; replaced by HttpHealthProvider in H.1-B)
+        builder.Services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
+        builder.Services.AddTransient<HealthActions>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
