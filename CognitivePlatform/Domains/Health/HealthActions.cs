@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -54,10 +55,14 @@ public class HealthActions
 
             return sb.ToString();
         }
+        catch (HealthProviderException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            return PermissionDeniedMessage();
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _ = ex;
-            return "Unable to retrieve step count. Please try again.";
+            return HealthUnavailableMessage();
         }
     }
 
@@ -106,10 +111,14 @@ public class HealthActions
 
             return sb.ToString();
         }
+        catch (HealthProviderException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            return PermissionDeniedMessage();
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _ = ex;
-            return "Unable to retrieve sleep data. Please try again.";
+            return HealthUnavailableMessage();
         }
     }
 
@@ -150,10 +159,14 @@ public class HealthActions
 
             return sb.ToString();
         }
+        catch (HealthProviderException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            return PermissionDeniedMessage();
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _ = ex;
-            return "Unable to retrieve heart rate data. Please try again.";
+            return HealthUnavailableMessage();
         }
     }
 
@@ -195,10 +208,14 @@ public class HealthActions
 
             return sb.ToString();
         }
+        catch (HealthProviderException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            return PermissionDeniedMessage();
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _ = ex;
-            return "Unable to retrieve distance data. Please try again.";
+            return HealthUnavailableMessage();
         }
     }
 
@@ -244,4 +261,12 @@ public class HealthActions
     private static string NotConnectedMessage()
         => "Your health data is not connected yet. "
          + "Make sure the CP app is running on your phone and on the same local network, then try again.";
+
+    private static string PermissionDeniedMessage()
+        => "Health Connect permissions need to be granted on your phone. "
+         + "Open Health Connect and allow the CP app to read your data.";
+
+    private static string HealthUnavailableMessage()
+        => "Your health data isn't available right now. "
+         + "Make sure your phone is on the same network and the CP app is running, then try again.";
 }

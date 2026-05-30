@@ -153,6 +153,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.8: HEALTH FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveHealth(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
@@ -1413,6 +1419,124 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         return BatchIntentSignals.Any(signal => normalizedInput.Contains(signal));
+    }
+
+    // ================================================================
+    // MODE 2.8: HEALTH FAST PATHS
+    // ================================================================
+
+    private static readonly string[] StepSignals =
+    {
+            "steps today"
+          , "steps yesterday"
+          , "steps this week"
+          , "steps last week"
+          , "step count"
+          , "how many steps"
+          , "steps i walked"
+          , "steps i took"
+          , "steps taken"
+    };
+
+    private static readonly string[] SleepSignals =
+    {
+            "sleep last night"
+          , "how was my sleep"
+          , "sleep yesterday"
+          , "sleep summary"
+          , "how much sleep"
+          , "how much did i sleep"
+          , "how long did i sleep"
+          , "sleep last week"
+          , "sleep this week"
+    };
+
+    private static readonly string[] HeartRateSignals =
+    {
+            "heart rate today"
+          , "heart rate yesterday"
+          , "heart rate last week"
+          , "heart rate this week"
+          , "resting heart rate"
+          , "average bpm"
+          , "my bpm"
+    };
+
+    private static readonly string[] DistanceSignals =
+    {
+            "distance today"
+          , "distance yesterday"
+          , "distance this week"
+          , "distance last week"
+          , "how far did i walk"
+          , "how far did i run"
+          , "how far have i walked"
+          , "how far have i run"
+    };
+
+    private bool TryResolveHealth( string                           input
+                                  , out ActionMetadata?             action
+                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (StepSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetStepCount");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractHealthDateRange(normalized, defaultRange: "today") };
+            return true;
+        }
+
+        if (SleepSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetSleepSummary");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractHealthDateRange(normalized, defaultRange: "yesterday") };
+            return true;
+        }
+
+        if (HeartRateSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetHeartRate");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractHealthDateRange(normalized, defaultRange: "today") };
+            return true;
+        }
+
+        if (DistanceSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetDistance");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>
+                         { ["dateRange"] = ExtractHealthDateRange(normalized, defaultRange: "today") };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string ExtractHealthDateRange(string normalized, string defaultRange)
+    {
+        if (normalized.Contains("last night"))  return "yesterday";
+        if (normalized.Contains("yesterday"))   return "yesterday";
+        if (normalized.Contains("today"))       return "today";
+        if (normalized.Contains("last week"))   return "last week";
+        if (normalized.Contains("this week"))   return "this week";
+        if (normalized.Contains("past week"))   return "past week";
+        if (normalized.Contains("past 7 days")) return "past 7 days";
+
+        return defaultRange;
     }
 
     // ================================================================
