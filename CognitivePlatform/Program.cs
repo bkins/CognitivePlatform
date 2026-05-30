@@ -309,8 +309,17 @@ public partial class Program
 
         builder.Services.AddSingleton<IPersonaEngine, HybridPersonaEngine>();
 
-    // Health (Phase H.1-A: disconnected stub; replaced by HttpHealthProvider in H.1-B)
-        builder.Services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
+    // Health — HttpHealthProvider when a phone URL is configured; otherwise the disconnected stub.
+        var healthConnectSection = builder.Configuration.GetSection("HealthConnect");
+        builder.Services.Configure<HealthConnectSettings>(healthConnectSection);
+        builder.Services.AddHttpClient("HealthConnect");
+
+        var phoneBaseUrl = healthConnectSection.GetValue<string>(nameof(HealthConnectSettings.PhoneBaseUrl)) ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(phoneBaseUrl))
+            builder.Services.AddSingleton<IHealthProvider, HttpHealthProvider>();
+        else
+            builder.Services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
+
         builder.Services.AddTransient<HealthActions>();
 
     // Calendar
