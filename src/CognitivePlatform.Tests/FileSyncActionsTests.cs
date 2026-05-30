@@ -8,11 +8,12 @@ namespace CognitivePlatform.Tests;
 public class FileSyncActionsTests
 {
     private readonly Mock<IFileSyncProvider> _providerMock = new();
+    private readonly Mock<IFileSyncService>  _serviceMock  = new();
     private readonly FileSyncActions         _actions;
 
     public FileSyncActionsTests()
     {
-        _actions = new FileSyncActions(_providerMock.Object);
+        _actions = new FileSyncActions(_providerMock.Object, _serviceMock.Object);
     }
 
     // ================================================================
@@ -107,19 +108,44 @@ public class FileSyncActionsTests
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(false);
 
-        var result = await _actions.SyncFolder(@"C:\Documents\Notes", "phone");
+        var result = await _actions.SyncFolder(@"C:\Documents\Notes", "/storage/Notes");
 
         Assert.Contains("not connected", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task SyncFolder_ReturnsNonEmptyMessage_WhenProviderConnected()
+    public async Task SyncFolder_ReturnsSyncSummary_WhenSyncSucceeds()
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _providerMock.SetupGet(provider => provider.DeviceName).Returns("Pixel 8");
+        _serviceMock.Setup(service => service.SyncFolderAsync( It.IsAny<string>()
+                                                             , It.IsAny<string>()
+                                                             , It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new SyncResult
+                                  {
+                                      FilesCopied  = 3
+                                    , FilesSkipped = 1
+                                    , Summary      = "3 files synced, 1 unchanged."
+                                  });
 
-        var result = await _actions.SyncFolder(@"C:\Documents\Notes", "phone");
+        var result = await _actions.SyncFolder(@"C:\Documents\Notes", "/storage/Notes");
 
+        Assert.Contains("Pixel 8", result);
         Assert.NotEmpty(result);
+    }
+
+    [Fact]
+    public async Task SyncFolder_ReturnsUnavailable_WhenServiceThrows()
+    {
+        _providerMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _serviceMock.Setup(service => service.SyncFolderAsync( It.IsAny<string>()
+                                                             , It.IsAny<string>()
+                                                             , It.IsAny<CancellationToken>()))
+                    .ThrowsAsync(new HttpRequestException("connection refused"));
+
+        var result = await _actions.SyncFolder(@"C:\Documents\Notes", "/storage/Notes");
+
+        Assert.Contains("unavailable", result, StringComparison.OrdinalIgnoreCase);
     }
 
     // ================================================================
@@ -131,18 +157,22 @@ public class FileSyncActionsTests
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(false);
 
-        var result = await _actions.GetSyncStatus();
+        var result = await _actions.GetSyncStatus(@"C:\Documents\Notes", "/storage/Notes");
 
         Assert.Contains("not connected", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task GetSyncStatus_IncludesDeviceName_WhenProviderConnected()
+    public async Task GetSyncStatus_IncludesDeviceName_WhenPreviewSucceeds()
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(true);
         _providerMock.SetupGet(provider => provider.DeviceName).Returns("Pixel 8");
+        _serviceMock.Setup(service => service.PreviewSyncAsync( It.IsAny<string>()
+                                                              , It.IsAny<string>()
+                                                              , It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new SyncResult { Summary = "Everything is in sync." });
 
-        var result = await _actions.GetSyncStatus();
+        var result = await _actions.GetSyncStatus(@"C:\Documents\Notes", "/storage/Notes");
 
         Assert.Contains("Pixel 8", result);
     }
@@ -162,22 +192,31 @@ public class FileSyncActionsTests
     }
 
     [Fact]
-    public async Task ResolveSyncConflict_IncludesConflictId_WhenProviderConnected()
+    public async Task ResolveSyncConflict_ReturnsServiceResponse_WhenProviderConnected()
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _serviceMock.Setup(service => service.ResolveSyncConflictAsync( "README.md"
+                                                                      , "laptop"
+                                                                      , It.IsAny<CancellationToken>()))
+                    .ReturnsAsync("Conflict resolved: 'README.md' updated to use the laptop version.");
 
         var result = await _actions.ResolveSyncConflict("README.md", "laptop");
 
         Assert.Contains("README.md", result);
+        Assert.Contains("laptop",    result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ResolveSyncConflict_IncludesResolution_WhenProviderConnected()
+    public async Task ResolveSyncConflict_ReturnsUnavailable_WhenServiceThrows()
     {
         _providerMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _serviceMock.Setup(service => service.ResolveSyncConflictAsync( It.IsAny<string>()
+                                                                      , It.IsAny<string>()
+                                                                      , It.IsAny<CancellationToken>()))
+                    .ThrowsAsync(new InvalidOperationException("store failure"));
 
         var result = await _actions.ResolveSyncConflict("notes.txt", "phone");
 
-        Assert.Contains("phone", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unavailable", result, StringComparison.OrdinalIgnoreCase);
     }
 }
