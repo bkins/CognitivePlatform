@@ -36,6 +36,8 @@ using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
+using CognitivePlatform.Api.Integrations.Notifications;
+using CognitivePlatform.Api.Services;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.Models.SystemInfo;
@@ -280,6 +282,10 @@ public partial class Program
 
     // Daily Brief
         builder.Services.AddSingleton<IDailyBriefService, DailyBriefService>();
+
+    // Notifications
+        builder.Services.Configure<NotificationSettings>(builder.Configuration.GetSection("Notifications"));
+        builder.Services.AddSingleton<INotificationScheduleProvider, NotificationScheduleService>();
 
     // Personality
         builder.Services.AddSingleton<IPersonalityService, PersonalityService>();
