@@ -2,6 +2,7 @@ using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Notifications;
+using CognitivePlatform.Api.Wellbeing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -10,7 +11,7 @@ namespace CognitivePlatform.Api.Services;
 
 /// <summary>
 /// Rule-based implementation of <see cref="INotificationScheduleProvider"/> for Phase N.1.
-/// Evaluates current state across Tasks, DailyRecord, and Journal and returns only
+/// Evaluates current state across Tasks, DailyRecord, Journal, and Wellbeing, and returns only
 /// the reminders whose conditions are currently unmet. Guard rules (max-per-day,
 /// min-gap, quiet hours) are applied before returning.
 /// </summary>
@@ -19,23 +20,26 @@ public sealed class NotificationScheduleService : INotificationScheduleProvider
     private readonly ITaskService                           _taskService;
     private readonly IDailyRecordService                    _dailyRecordService;
     private readonly IJournalService                        _journalService;
+    private readonly IWellbeingPatternService               _wellbeingPatternService;
     private readonly NotificationSettings                   _settings;
     private readonly ILogger<NotificationScheduleService>   _logger;
 
     public NotificationScheduleService( ITaskService                             taskService
                                       , IDailyRecordService                       dailyRecordService
                                       , IJournalService                           journalService
+                                      , IWellbeingPatternService                  wellbeingPatternService
                                       , IOptions<NotificationSettings>            settings
                                       , ILogger<NotificationScheduleService>?     logger = null )
     {
-        _taskService        = taskService        ?? throw new ArgumentNullException(nameof(taskService));
-        _dailyRecordService = dailyRecordService ?? throw new ArgumentNullException(nameof(dailyRecordService));
-        _journalService     = journalService     ?? throw new ArgumentNullException(nameof(journalService));
-        _settings           = settings?.Value    ?? new NotificationSettings();
-        _logger             = logger             ?? NullLogger<NotificationScheduleService>.Instance;
+        _taskService             = taskService             ?? throw new ArgumentNullException(nameof(taskService));
+        _dailyRecordService      = dailyRecordService      ?? throw new ArgumentNullException(nameof(dailyRecordService));
+        _journalService          = journalService          ?? throw new ArgumentNullException(nameof(journalService));
+        _wellbeingPatternService = wellbeingPatternService ?? throw new ArgumentNullException(nameof(wellbeingPatternService));
+        _settings                = settings?.Value         ?? new NotificationSettings();
+        _logger                  = logger                  ?? NullLogger<NotificationScheduleService>.Instance;
     }
 
-    public Task<NotificationSchedule> GetScheduleAsync(DateTimeOffset from, CancellationToken ct = default)
+    public async Task<NotificationSchedule> GetScheduleAsync(DateTimeOffset from, CancellationToken ct = default)
     {
         try
         {
@@ -49,16 +53,17 @@ public sealed class NotificationScheduleService : INotificationScheduleProvider
             BuildDayCloseCandidate(from, today, localFrom, candidates);
             BuildJournalCandidate(from, today, candidates);
             BuildTaskDueCandidates(from, today, tomorrow, candidates);
+            await BuildWellbeingCheckInCandidateAsync(from, today, candidates, ct);
 
             var ordered  = candidates.OrderBy(notification => notification.FireAt).ToList();
             var filtered = ApplyGuardRules(ordered);
 
-            return Task.FromResult(new NotificationSchedule { Notifications = filtered });
+            return new NotificationSchedule { Notifications = filtered };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogWarning(ex, "NotificationScheduleService failed to build schedule");
-            return Task.FromResult(new NotificationSchedule());
+            return new NotificationSchedule();
         }
     }
 
@@ -172,6 +177,40 @@ public sealed class NotificationScheduleService : INotificationScheduleProvider
                                     });
                 }
             }
+        }
+    }
+
+    private async Task BuildWellbeingCheckInCandidateAsync(
+        DateTimeOffset              from
+      , DateOnly                    today
+      , List<ScheduledNotification> candidates
+      , CancellationToken           ct )
+    {
+        var fireAt = ToLocalDateTimeOffset(today, new TimeOnly(14, 0));
+        if (fireAt <= from) return;
+
+        try
+        {
+            var report  = await _wellbeingPatternService.AnalyseAsync(today, today, ct);
+            var pattern = report.Patterns
+                .Where(p => p.Severity is PatternSeverity.Concern or PatternSeverity.Attention)
+                .OrderByDescending(p => (int)p.Severity)
+                .FirstOrDefault();
+
+            if (pattern is null) return;
+
+            candidates.Add(new ScheduledNotification
+                            {
+                                ExternalId = $"wellbeing-checkin-{today:yyyy-MM-dd}"
+                              , Title      = "Wellbeing check-in"
+                              , Body       = pattern.Description
+                              , FireAt     = fireAt
+                              , Category   = NotificationCategory.CheckIn
+                            });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Wellbeing check-in rule skipped due to analysis failure");
         }
     }
 
