@@ -7,14 +7,16 @@ using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Wellbeing;
 
 namespace CognitivePlatform.Tests;
 
 public class NotificationScheduleServiceTests
 {
-    private readonly Mock<ITaskService>        _tasksMock   = new();
-    private readonly Mock<IDailyRecordService> _recordMock  = new();
-    private readonly Mock<IJournalService>     _journalMock = new();
+    private readonly Mock<ITaskService>              _tasksMock       = new();
+    private readonly Mock<IDailyRecordService>       _recordMock      = new();
+    private readonly Mock<IJournalService>           _journalMock     = new();
+    private readonly Mock<IWellbeingPatternService>  _wellbeingMock   = new();
 
     public NotificationScheduleServiceTests()
     {
@@ -26,6 +28,9 @@ public class NotificationScheduleServiceTests
 
         _tasksMock.Setup(svc => svc.GetActive())
                   .Returns(new List<TaskItem>());
+
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport { Patterns = [] });
     }
 
     // Guard rules are disabled by default so category tests stay isolated.
@@ -43,6 +48,7 @@ public class NotificationScheduleServiceTests
         return new NotificationScheduleService(_tasksMock.Object
                                              , _recordMock.Object
                                              , _journalMock.Object
+                                             , _wellbeingMock.Object
                                              , Options.Create(effective));
     }
 
@@ -371,5 +377,166 @@ public class NotificationScheduleServiceTests
         var result = await MakeService().GetScheduleAsync(LocalMidnight());
 
         Assert.Empty(result.Notifications);
+    }
+
+    // ================================================================
+    // WellbeingCheckIn
+    // ================================================================
+
+    [Fact]
+    public async Task GetScheduleAsync_EmitsCheckIn_WhenConcernPatternExists()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [new WellbeingPattern
+                                                    {
+                                                        Name        = "SleepTaskCorrelation"
+                                                      , Description = "Your sleep has been short and task completion is down."
+                                                      , Severity    = PatternSeverity.Concern
+                                                    }]
+                                    });
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.Contains(result.Notifications
+                      , notification => notification.Category == NotificationCategory.CheckIn
+                                     && notification.Body     == "Your sleep has been short and task completion is down.");
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_EmitsCheckIn_WhenAttentionPatternExists()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [new WellbeingPattern
+                                                    {
+                                                        Name        = "JournalEngagementDrop"
+                                                      , Description = "You've been consistent with your days but haven't journalled much."
+                                                      , Severity    = PatternSeverity.Attention
+                                                    }]
+                                    });
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.Contains(result.Notifications
+                      , notification => notification.Category == NotificationCategory.CheckIn);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_SuppressesCheckIn_WhenAllPatternsArePositiveOrNeutral()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [ new WellbeingPattern { Severity = PatternSeverity.Positive }
+                                                   , new WellbeingPattern { Severity = PatternSeverity.Neutral  } ]
+                                    });
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.DoesNotContain(result.Notifications
+                            , notification => notification.Category == NotificationCategory.CheckIn);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_SuppressesCheckIn_WhenNoPatternsDetected()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport { Patterns = [] });
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.DoesNotContain(result.Notifications
+                            , notification => notification.Category == NotificationCategory.CheckIn);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_SuppressesCheckIn_WhenAnalyseThrows()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ThrowsAsync(new InvalidOperationException("Wellbeing store unavailable"));
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.DoesNotContain(result.Notifications
+                            , notification => notification.Category == NotificationCategory.CheckIn);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_SuppressesCheckIn_WhenAnalyseThrows_OtherNotificationsStillEmitted()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ThrowsAsync(new InvalidOperationException("Wellbeing store unavailable"));
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        Assert.Contains(result.Notifications
+                      , notification => notification.Category == NotificationCategory.DayOpen);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_CheckIn_HasStableExternalId()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [new WellbeingPattern
+                                                    {
+                                                        Severity    = PatternSeverity.Concern
+                                                      , Description = "Something concerning."
+                                                    }]
+                                    });
+        var today = DateOnly.FromDateTime(DateTimeOffset.Now.ToLocalTime().DateTime);
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        var checkIn = result.Notifications.Single(notification => notification.Category == NotificationCategory.CheckIn);
+        Assert.Equal($"wellbeing-checkin-{today:yyyy-MM-dd}", checkIn.ExternalId);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_CheckIn_UsesConcernDescription_WhenBothConcernAndAttentionPresent()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [ new WellbeingPattern { Severity    = PatternSeverity.Attention
+                                                                           , Description = "Attention description." }
+                                                   , new WellbeingPattern { Severity    = PatternSeverity.Concern
+                                                                           , Description = "Concern description." } ]
+                                    });
+
+        var result = await MakeService().GetScheduleAsync(LocalMidnight());
+
+        var checkIn = result.Notifications.Single(notification => notification.Category == NotificationCategory.CheckIn);
+        Assert.Equal("Concern description.", checkIn.Body);
+    }
+
+    [Fact]
+    public async Task GetScheduleAsync_MaxPerDay_CapsTotal_AcrossAllRulesIncludingCheckIn()
+    {
+        _wellbeingMock.Setup(svc => svc.AnalyseAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new WellbeingReport
+                                    {
+                                        Patterns = [new WellbeingPattern
+                                                    {
+                                                        Severity    = PatternSeverity.Concern
+                                                      , Description = "Sleep and productivity are down."
+                                                    }]
+                                    });
+
+        var service = MakeService(new NotificationSettings
+                                  {
+                                      MaxPerDay       = 1
+                                    , MinGapMinutes   = 0
+                                    , QuietHoursStart = 23
+                                    , QuietHoursEnd   = 23
+                                  });
+
+        var result = await service.GetScheduleAsync(LocalMidnight());
+
+        Assert.True(result.Notifications.Count <= 1);
     }
 }
