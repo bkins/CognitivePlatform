@@ -343,6 +343,8 @@ public partial class Program
         else
             builder.Services.AddSingleton<IFileSyncProvider, DisconnectedFileSyncProvider>();
 
+        builder.Services.AddSingleton<ILocalFileSystem, LocalFileSystem>();
+        builder.Services.AddSingleton<IFileSyncService, FileSyncService>();
         builder.Services.AddTransient<FileSyncActions>();
 
     // Calendar

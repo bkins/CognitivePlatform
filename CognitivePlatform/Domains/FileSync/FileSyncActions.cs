@@ -1,6 +1,7 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Integrations.FileSync;
+using CognitivePlatform.Api.Integrations.FileSync.Models;
 using CognitivePlatform.Api.Registry.Domains;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -10,10 +11,12 @@ namespace CognitivePlatform.Api.Domains.FileSync;
 public class FileSyncActions
 {
     private readonly IFileSyncProvider _phoneProvider;
+    private readonly IFileSyncService  _syncService;
 
-    public FileSyncActions(IFileSyncProvider phoneProvider)
+    public FileSyncActions(IFileSyncProvider phoneProvider, IFileSyncService syncService)
     {
         _phoneProvider = phoneProvider ?? throw new ArgumentNullException(nameof(phoneProvider));
+        _syncService   = syncService   ?? throw new ArgumentNullException(nameof(syncService));
     }
 
     // -----------------------------------------------------------------------
@@ -63,51 +66,70 @@ public class FileSyncActions
     // SyncFolder
     // -----------------------------------------------------------------------
 
-    [NaturalLanguageAction(Description = "Synchronises a local folder to the connected phone."
+    [NaturalLanguageAction(Description = "Synchronises a local folder to a path on the connected phone."
                          , Examples = new[]
                                       {
                                               "Sync my notes folder to my phone"
-                                            , "Copy my Documents to the phone"
-                                            , "Sync Documents folder to my phone"
+                                            , "Copy my Documents to /storage/Documents on the phone"
+                                            , "Sync C:\\Notes to /storage/Notes on my phone"
                                             , "Transfer my notes to the phone"
                                             , "Backup my documents to my phone"
                                       }
                          , Category = "file-sync")]
-    public Task<string> SyncFolder( [NaturalLanguageParam(Description = "The local source folder path to sync, e.g. 'C:\\Users\\ben\\Documents\\Notes'."
-                                                        , AllowEmpty  = false)]
-                                    string sourcePath
-                                  , [NaturalLanguageParam(Description = "The destination device, e.g. 'phone' or 'my phone'."
-                                                        , AllowEmpty  = false)]
-                                    string destinationDevice )
+    public async Task<string> SyncFolder( [NaturalLanguageParam(Description = "The local source folder path to sync, e.g. 'C:\\Users\\ben\\Documents\\Notes'."
+                                                               , AllowEmpty  = false)]
+                                          string localPath
+                                        , [NaturalLanguageParam(Description = "The destination path on the phone, e.g. '/storage/emulated/0/Documents/Notes'."
+                                                               , AllowEmpty  = false)]
+                                          string remotePath )
     {
-        if (_phoneProvider.IsConnected.Not()) return Task.FromResult(NotConnectedMessage());
+        if (_phoneProvider.IsConnected.Not()) return NotConnectedMessage();
 
-        return Task.FromResult(
-            $"Sync from '{sourcePath}' to '{destinationDevice}' queued. "
-          + "Full sync execution will be available in Phase F.1-D.");
+        try
+        {
+            var result = await _syncService.SyncFolderAsync(localPath, remotePath);
+            return FormatSyncResult(result, _phoneProvider.DeviceName);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _ = ex;
+            return FileSyncUnavailableMessage();
+        }
     }
 
     // -----------------------------------------------------------------------
     // GetSyncStatus
     // -----------------------------------------------------------------------
 
-    [NaturalLanguageAction(Description = "Reports the current sync status between this device and the connected phone."
+    [NaturalLanguageAction(Description = "Shows the current sync delta between a local folder and a path on the connected phone — no files are copied."
                          , Examples = new[]
                                       {
                                               "Is my phone in sync?"
-                                            , "What's the sync status?"
+                                            , "What's the sync status of my Documents folder?"
                                             , "Are my files up to date on my phone?"
-                                            , "What files have changed?"
-                                            , "Check sync status"
+                                            , "Preview sync for my notes"
+                                            , "Check sync status between C:\\Notes and /storage/Notes"
                                       }
                          , Category = "file-sync")]
-    public Task<string> GetSyncStatus()
+    public async Task<string> GetSyncStatus( [NaturalLanguageParam(Description = "The local folder to check, e.g. 'C:\\Users\\ben\\Documents\\Notes'."
+                                                                  , AllowEmpty  = false)]
+                                             string localPath
+                                           , [NaturalLanguageParam(Description = "The path on the phone to compare against, e.g. '/storage/emulated/0/Documents/Notes'."
+                                                                  , AllowEmpty  = false)]
+                                             string remotePath )
     {
-        if (_phoneProvider.IsConnected.Not()) return Task.FromResult(NotConnectedMessage());
+        if (_phoneProvider.IsConnected.Not()) return NotConnectedMessage();
 
-        return Task.FromResult(
-            "Sync status: delta reporting will be available in Phase F.1-D. "
-          + $"Phone device: {_phoneProvider.DeviceName}.");
+        try
+        {
+            var result = await _syncService.PreviewSyncAsync(localPath, remotePath);
+            return FormatPreviewResult(result, _phoneProvider.DeviceName);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _ = ex;
+            return FileSyncUnavailableMessage();
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -123,23 +145,56 @@ public class FileSyncActions
                                             , "Keep the newest version of the conflict"
                                       }
                          , Category = "file-sync")]
-    public Task<string> ResolveSyncConflict( [NaturalLanguageParam(Description = "The file path or conflict identifier reported in the conflict list."
-                                                                  , AllowEmpty  = false)]
-                                             string conflictId
-                                           , [NaturalLanguageParam(Description = "Which version to keep: 'laptop', 'phone', or 'newest'."
-                                                                  , AllowEmpty  = false)]
-                                             string resolution )
+    public async Task<string> ResolveSyncConflict( [NaturalLanguageParam(Description = "The relative file path reported in the conflict list, e.g. 'notes/README.md'."
+                                                                        , AllowEmpty  = false)]
+                                                   string conflictId
+                                                 , [NaturalLanguageParam(Description = "Which version to keep: 'laptop', 'phone', or 'newest'."
+                                                                        , AllowEmpty  = false)]
+                                                   string resolution )
     {
-        if (_phoneProvider.IsConnected.Not()) return Task.FromResult(NotConnectedMessage());
+        if (_phoneProvider.IsConnected.Not()) return NotConnectedMessage();
 
-        return Task.FromResult(
-            $"Conflict for '{conflictId}' marked to keep: {resolution}. "
-          + "Full conflict resolution will be applied in Phase F.1-D.");
+        try
+        {
+            return await _syncService.ResolveSyncConflictAsync(conflictId, resolution);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _ = ex;
+            return FileSyncUnavailableMessage();
+        }
     }
 
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    private static string FormatSyncResult(SyncResult result, string deviceName)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Sync to {deviceName}: {result.Summary}");
+
+        foreach (var conflict in result.Conflicts)
+        {
+            sb.AppendLine($"  ⚠ Conflict: {conflict.RelativePath}");
+            sb.AppendLine($"    Laptop: modified {conflict.SourceModified.ToLocalTime():yyyy-MM-dd HH:mm}");
+            sb.AppendLine($"    Phone:  modified {conflict.DestinationModified.ToLocalTime():yyyy-MM-dd HH:mm}");
+            sb.AppendLine($"    Say ‘resolve conflict {conflict.RelativePath} — keep laptop/phone/newest’ to resolve.");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatPreviewResult(SyncResult result, string deviceName)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Sync preview ({deviceName}): {result.Summary}");
+
+        foreach (var conflict in result.Conflicts)
+            sb.AppendLine($"  ⚠ Conflict: {conflict.RelativePath}");
+
+        return sb.ToString().TrimEnd();
+    }
 
     private static string NotConnectedMessage()
         => "Your phone is not connected for file sync. "
