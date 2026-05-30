@@ -47,6 +47,7 @@ using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.SystemPromptLogging;
+using CognitivePlatform.Api.Wellbeing;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
@@ -323,6 +324,10 @@ public partial class Program
             builder.Services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
 
         builder.Services.AddTransient<HealthActions>();
+
+    // Wellbeing
+        builder.Services.AddSingleton<IWellbeingSignalStore, WellbeingSignalStore>();
+        builder.Services.AddSingleton<IWellbeingSignalCollector, WellbeingSignalCollector>();
 
     // File Sync — DisconnectedFileSyncProvider is the default until Phase F.1-B wires the HTTP provider
         builder.Services.AddSingleton<IFileSyncProvider, DisconnectedFileSyncProvider>();
