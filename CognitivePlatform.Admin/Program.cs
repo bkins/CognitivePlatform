@@ -1,7 +1,9 @@
 using CognitivePlatform.Admin;
 using CognitivePlatform.Admin.CpAdminClients;
 using CognitivePlatform.Admin.Services;
+
 using CP.Shared.Primitives.Avails.Extensions;
+
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);

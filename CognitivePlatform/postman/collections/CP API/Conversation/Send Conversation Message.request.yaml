@@ -1,4 +1,5 @@
 $kind: http-request
+name: Send Conversation Message
 url: "{{baseUrl}}/api/conversation/converse"
 method: POST
 headers:
@@ -7,11 +8,7 @@ body:
   type: json
   content: |-
     {
-      "sessionId": "{{sessionId}}",
-      "clientRequestId": null,
-      "input": "What tasks do I have today?",
-      "model": null,
-      "fastPath": false,
-      "streaming": false
+        "sessionId": "test-bug25-01",
+        "input": "Plan:\nFinish the sprint report by tomorrow"
     }
 order: 1000
