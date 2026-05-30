@@ -332,8 +332,17 @@ public partial class Program
         builder.Services.AddSingleton<IWellbeingPatternService, WellbeingPatternService>();
         builder.Services.AddTransient<WellbeingActions>();
 
-    // File Sync — DisconnectedFileSyncProvider is the default until Phase F.1-B wires the HTTP provider
-        builder.Services.AddSingleton<IFileSyncProvider, DisconnectedFileSyncProvider>();
+    // File Sync — HttpFileSyncProvider when a gateway URL is configured; otherwise the disconnected stub.
+        var fileSyncSection = builder.Configuration.GetSection("FileSync");
+        builder.Services.Configure<FileSyncSettings>(fileSyncSection);
+        builder.Services.AddHttpClient("FileSync");
+
+        var fileSyncGatewayBaseUrl = fileSyncSection.GetValue<string>(nameof(FileSyncSettings.GatewayBaseUrl)) ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(fileSyncGatewayBaseUrl))
+            builder.Services.AddSingleton<IFileSyncProvider, HttpFileSyncProvider>();
+        else
+            builder.Services.AddSingleton<IFileSyncProvider, DisconnectedFileSyncProvider>();
+
         builder.Services.AddTransient<FileSyncActions>();
 
     // Calendar
