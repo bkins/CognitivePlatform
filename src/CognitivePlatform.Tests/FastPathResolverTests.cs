@@ -45,6 +45,10 @@ public class FastPathResolverTests
             , MakeAction("ListPersonas")
             , MakeAction("GetActivePersona")
             , MakeAction("SetPersona")
+            , MakeAction("GetStepCount")
+            , MakeAction("GetSleepSummary")
+            , MakeAction("GetHeartRate")
+            , MakeAction("GetDistance")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -838,5 +842,139 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("SetPersonality", action!.Name);
         Assert.Equal("zen",            parameters!["name"]);
+    }
+
+    // ================================================================
+    // MODE 2.8: HEALTH FAST PATHS
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToGetStepCount_ForStepsTodayPhrase()
+    {
+        var resolved = _resolver.TryResolve("steps today", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetStepCount", action!.Name);
+        Assert.Equal("today",        parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetStepCount_ForHowManyStepsPhrase()
+    {
+        var resolved = _resolver.TryResolve("how many steps did I walk yesterday?", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetStepCount", action!.Name);
+        Assert.Equal("yesterday",    parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetStepCount_DefaultsToToday_WhenNoDateInPhrase()
+    {
+        var resolved = _resolver.TryResolve("step count", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetStepCount", action!.Name);
+        Assert.Equal("today",        parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetStepCount_ForLastWeekPhrase()
+    {
+        var resolved = _resolver.TryResolve("steps last week", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetStepCount", action!.Name);
+        Assert.Equal("last week",    parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetSleepSummary_ForSleepLastNightPhrase()
+    {
+        var resolved = _resolver.TryResolve("sleep last night", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetSleepSummary", action!.Name);
+        Assert.Equal("yesterday",       parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetSleepSummary_ForHowWasMySleepPhrase()
+    {
+        var resolved = _resolver.TryResolve("how was my sleep last night?", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetSleepSummary", action!.Name);
+        Assert.Equal("yesterday",       parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetSleepSummary_DefaultsToYesterday_WhenNoDateInPhrase()
+    {
+        var resolved = _resolver.TryResolve("sleep summary", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetSleepSummary", action!.Name);
+        Assert.Equal("yesterday",       parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetHeartRate_ForHeartRateTodayPhrase()
+    {
+        var resolved = _resolver.TryResolve("heart rate today", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetHeartRate", action!.Name);
+        Assert.Equal("today",        parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetHeartRate_ForRestingHeartRatePhrase()
+    {
+        var resolved = _resolver.TryResolve("resting heart rate", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetHeartRate", action!.Name);
+        Assert.Equal("today",        parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetHeartRate_ForAverageBpmPhrase()
+    {
+        var resolved = _resolver.TryResolve("average bpm yesterday", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetHeartRate", action!.Name);
+        Assert.Equal("yesterday",    parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetDistance_ForDistanceTodayPhrase()
+    {
+        var resolved = _resolver.TryResolve("distance today", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetDistance", action!.Name);
+        Assert.Equal("today",       parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetDistance_ForHowFarDidIWalkPhrase()
+    {
+        var resolved = _resolver.TryResolve("how far did I walk yesterday?", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetDistance", action!.Name);
+        Assert.Equal("yesterday",   parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetDistance_ForDistanceLastWeekPhrase()
+    {
+        var resolved = _resolver.TryResolve("distance last week", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetDistance", action!.Name);
+        Assert.Equal("last week",   parameters!["dateRange"]);
     }
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using Moq;
 using CognitivePlatform.Api.Domains.Health;
 using CognitivePlatform.Api.Integrations.Health;
@@ -402,5 +403,125 @@ public class HealthActionsTests
         await _actions.GetDistance("today");
 
         Assert.Equal(DateTimeOffset.UtcNow.Date, capturedFrom.LocalDateTime.Date);
+    }
+
+    // ================================================================
+    // Permission denied path (HTTP 403 from phone gateway)
+    // ================================================================
+
+    [Fact]
+    public async Task GetStepCount_ReturnsPermissionDenied_WhenProviderThrowsForbidden()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetStepCountAsync( It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.Forbidden, "forbidden"));
+
+        var result = await _actions.GetStepCount("today");
+
+        Assert.Contains("Health Connect permissions", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetSleepSummary_ReturnsPermissionDenied_WhenProviderThrowsForbidden()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetSleepAsync( It.IsAny<DateTimeOffset>()
+                                                            , It.IsAny<DateTimeOffset>()
+                                                            , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.Forbidden, "forbidden"));
+
+        var result = await _actions.GetSleepSummary("yesterday");
+
+        Assert.Contains("Health Connect permissions", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetHeartRate_ReturnsPermissionDenied_WhenProviderThrowsForbidden()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetHeartRateAsync( It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.Forbidden, "forbidden"));
+
+        var result = await _actions.GetHeartRate("today");
+
+        Assert.Contains("Health Connect permissions", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetDistance_ReturnsPermissionDenied_WhenProviderThrowsForbidden()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetDistanceAsync( It.IsAny<DateTimeOffset>()
+                                                               , It.IsAny<DateTimeOffset>()
+                                                               , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.Forbidden, "forbidden"));
+
+        var result = await _actions.GetDistance("today");
+
+        Assert.Contains("Health Connect permissions", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ================================================================
+    // Phone offline mid-conversation (HealthProviderException, non-403)
+    // ================================================================
+
+    [Fact]
+    public async Task GetStepCount_ReturnsUnavailable_WhenProviderThrowsNonForbiddenException()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetStepCountAsync( It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.ServiceUnavailable, "offline"));
+
+        var result = await _actions.GetStepCount("today");
+
+        Assert.Contains("isn't available right now", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetSleepSummary_ReturnsUnavailable_WhenProviderThrowsNonForbiddenException()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetSleepAsync( It.IsAny<DateTimeOffset>()
+                                                            , It.IsAny<DateTimeOffset>()
+                                                            , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.ServiceUnavailable, "offline"));
+
+        var result = await _actions.GetSleepSummary("yesterday");
+
+        Assert.Contains("isn't available right now", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetHeartRate_ReturnsUnavailable_WhenProviderThrowsNonForbiddenException()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetHeartRateAsync( It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<DateTimeOffset>()
+                                                                 , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.ServiceUnavailable, "offline"));
+
+        var result = await _actions.GetHeartRate("today");
+
+        Assert.Contains("isn't available right now", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetDistance_ReturnsUnavailable_WhenProviderThrowsNonForbiddenException()
+    {
+        _healthMock.SetupGet(provider => provider.IsConnected).Returns(true);
+        _healthMock.Setup(provider => provider.GetDistanceAsync( It.IsAny<DateTimeOffset>()
+                                                               , It.IsAny<DateTimeOffset>()
+                                                               , It.IsAny<CancellationToken>()))
+                   .ThrowsAsync(new HealthProviderException(HttpStatusCode.ServiceUnavailable, "offline"));
+
+        var result = await _actions.GetDistance("today");
+
+        Assert.Contains("isn't available right now", result, StringComparison.OrdinalIgnoreCase);
     }
 }
