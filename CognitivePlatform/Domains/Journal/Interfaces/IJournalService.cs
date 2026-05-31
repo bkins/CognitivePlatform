@@ -26,6 +26,13 @@ public interface IJournalService
                                                        , DateTimeOffset? toUtc   = null);
 
     /// <summary>
+    /// Lists all non-deleted journal entries across every workspace, ordered oldest-first.
+    /// Use this when workspace isolation must not apply — e.g. the Knowledge Inbox.
+    /// </summary>
+    IReadOnlyList<JournalEntryWithRevision> ListAllEntries (DateTimeOffset? fromUtc = null
+                                                          , DateTimeOffset? toUtc   = null);
+
+    /// <summary>
     /// Returns entries whose latest revision text, tags, or mood contain the keyword
     /// (case-insensitive). Both fromUtc and toUtc are optional date bounds.
     /// </summary>

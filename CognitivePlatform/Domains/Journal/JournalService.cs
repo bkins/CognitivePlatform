@@ -145,8 +145,17 @@ public sealed class JournalService : IJournalService
 
     public IReadOnlyList<JournalEntryWithRevision> ListEntries(DateTimeOffset?  fromUtc = null
                                                               , DateTimeOffset? toUtc   = null)
+        => FetchEntries(_workspaceContext.ActivePartitionKey, fromUtc, toUtc);
+
+    public IReadOnlyList<JournalEntryWithRevision> ListAllEntries(DateTimeOffset? fromUtc = null
+                                                                 , DateTimeOffset? toUtc   = null)
+        => FetchEntries(partitionKey: null, fromUtc, toUtc);
+
+    private IReadOnlyList<JournalEntryWithRevision> FetchEntries(string?         partitionKey
+                                                                , DateTimeOffset? fromUtc
+                                                                , DateTimeOffset? toUtc)
     {
-        var entries = _store.List<JournalEntry>(partitionKey: _workspaceContext.ActivePartitionKey
+        var entries = _store.List<JournalEntry>(partitionKey: partitionKey
                                               , fromUtc: fromUtc
                                               , toUtc:   toUtc);
 

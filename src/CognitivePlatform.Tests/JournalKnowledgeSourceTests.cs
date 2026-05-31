@@ -26,7 +26,7 @@ public class JournalKnowledgeSourceTests
     public void ListHeaders_ReturnsJournalKindTypeOnHeader()
     {
         var entry = MakeEntry();
-        SetupListEntries(entry);
+        SetupListAllEntries(entry);
 
         var results = _source.ListHeaders(fromUtc: null, toUtc: null);
 
@@ -39,7 +39,7 @@ public class JournalKnowledgeSourceTests
     {
         var created = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.Zero);
         var entry   = MakeEntry(entryCreatedUtc: created);
-        SetupListEntries(entry);
+        SetupListAllEntries(entry);
 
         var results = _source.ListHeaders(fromUtc: null, toUtc: null);
 
@@ -51,7 +51,7 @@ public class JournalKnowledgeSourceTests
     {
         var revisionCreated = new DateTimeOffset(2026, 3, 20, 12, 0, 0, TimeSpan.Zero);
         var entry           = MakeEntry(revisionCreatedUtc: revisionCreated);
-        SetupListEntries(entry);
+        SetupListAllEntries(entry);
 
         var results = _source.ListHeaders(fromUtc: null, toUtc: null);
 
@@ -63,11 +63,41 @@ public class JournalKnowledgeSourceTests
     {
         var from = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var to   = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
-        SetupListEntries();
+        SetupListAllEntries();
 
         _source.ListHeaders(from, to);
 
-        _journalServiceMock.Verify(service => service.ListEntries(from, to), Times.Once);
+        _journalServiceMock.Verify(service => service.ListAllEntries(from, to), Times.Once);
+    }
+
+    // ================================================================
+    // GetKnowledgeItems
+    // ================================================================
+
+    [Fact]
+    public void GetKnowledgeItems_ReturnsItemsAcrossAllWorkspaces()
+    {
+        var entry = MakeEntry();
+        SetupListAllEntries(entry);
+
+        var results = _source.GetKnowledgeItems(new Api.KnowledgeInbox.KnowledgeQuery(), CancellationToken.None).ToList();
+
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public void GetKnowledgeItems_UsesListAllEntries_NotListEntries()
+    {
+        SetupListAllEntries();
+
+        _ = _source.GetKnowledgeItems(new Api.KnowledgeInbox.KnowledgeQuery(), CancellationToken.None).ToList();
+
+        _journalServiceMock.Verify(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
+                                                                , It.IsAny<DateTimeOffset?>())
+                                 , Times.Never);
+        _journalServiceMock.Verify(service => service.ListAllEntries(It.IsAny<DateTimeOffset?>()
+                                                                   , It.IsAny<DateTimeOffset?>())
+                                 , Times.Once);
     }
 
     // ================================================================
@@ -93,10 +123,10 @@ public class JournalKnowledgeSourceTests
         return new JournalEntryWithRevision(entry, revision, IsEdited: false);
     }
 
-    private void SetupListEntries(params JournalEntryWithRevision[] entries)
+    private void SetupListAllEntries(params JournalEntryWithRevision[] entries)
     {
-        _journalServiceMock.Setup(service => service.ListEntries(It.IsAny<DateTimeOffset?>()
-                                                               , It.IsAny<DateTimeOffset?>()))
+        _journalServiceMock.Setup(service => service.ListAllEntries(It.IsAny<DateTimeOffset?>()
+                                                                  , It.IsAny<DateTimeOffset?>()))
                            .Returns(entries.ToList());
     }
 }
