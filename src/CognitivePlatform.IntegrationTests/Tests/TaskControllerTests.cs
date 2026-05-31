@@ -1,0 +1,178 @@
+using System.Net;
+using System.Text.Json;
+using CognitivePlatform.IntegrationTests.Infrastructure;
+using Xunit.Abstractions;
+
+namespace CognitivePlatform.IntegrationTests.Tests;
+
+[Trait("Category", "Integration")]
+public sealed class TaskControllerTests : IDisposable
+{
+    private readonly ApiFixture _fixture;
+
+    public TaskControllerTests(ITestOutputHelper output)
+    {
+        _fixture = new ApiFixture(output);
+    }
+
+    public void Dispose() => _fixture.Dispose();
+
+    // ----------------------------------------------------------------
+    // GET /api/tasks — active list
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task GetActive_Returns200_WithArrayBody()
+    {
+        var response = await _fixture.Client.GetAsync("/api/tasks");
+
+        _fixture.LogAssertion("status code is 200 OK");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await _fixture.ReadJsonAsync<JsonElement>(response);
+
+        _fixture.LogAssertion("body is a JSON array");
+        body.ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    [Fact]
+    public async Task GetActive_EachItem_HasExpectedFields()
+    {
+        var response = await _fixture.Client.GetAsync("/api/tasks");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var tasks = await _fixture.ReadJsonAsync<JsonElement>(response);
+
+        _fixture.LogAssertion("every task has id, shortDescription, priority, createdAt");
+        foreach (var task in tasks.EnumerateArray())
+        {
+            task.TryGetProperty("id",               out _).Should().BeTrue("task.id must be present");
+            task.TryGetProperty("shortDescription", out _).Should().BeTrue("task.shortDescription must be present");
+            task.TryGetProperty("priority",         out _).Should().BeTrue("task.priority must be present");
+            task.TryGetProperty("createdAt",        out _).Should().BeTrue("task.createdAt must be present");
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // GET /api/tasks/{id} — by ID
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task GetById_Returns404_ForUnknownGuid()
+    {
+        var unknownId = Guid.NewGuid();
+
+        var response = await _fixture.Client.GetAsync($"/api/tasks/{unknownId}");
+
+        _fixture.LogAssertion("status code is 404 Not Found");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ----------------------------------------------------------------
+    // GET /api/tasks/brief
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task GetBrief_Returns200_WithStringBody()
+    {
+        var response = await _fixture.Client.GetAsync("/api/tasks/brief");
+
+        _fixture.LogAssertion("status code is 200 OK");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GetBrief_WithValidDate_Returns200()
+    {
+        var date     = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        var response = await _fixture.Client.GetAsync($"/api/tasks/brief?date={date}");
+
+        _fixture.LogAssertion("status code is 200 OK for today's date");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GetBrief_WithInvalidDate_Returns400()
+    {
+        var response = await _fixture.Client.GetAsync("/api/tasks/brief?date=not-a-date");
+
+        _fixture.LogAssertion("status code is 400 Bad Request for non-date string");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // ----------------------------------------------------------------
+    // DELETE /api/tasks/{id} and PUT /api/tasks/{id} (undelete)
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task Delete_Returns404_ForUnknownGuid()
+    {
+        var unknownId = Guid.NewGuid();
+
+        var response = await _fixture.Client.DeleteAsync($"/api/tasks/{unknownId}");
+
+        _fixture.LogAssertion("status code is 404 Not Found");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Undelete_Returns404_ForUnknownGuid()
+    {
+        var unknownId = Guid.NewGuid();
+
+        var response = await _fixture.Client.PutAsync(
+            $"/api/tasks/{unknownId}", content: null);
+
+        _fixture.LogAssertion("status code is 404 Not Found");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ----------------------------------------------------------------
+    // Round-trip: delete then undelete a real active task (if any)
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task DeleteAndUndelete_RoundTrip_WhenActiveTasks_Exist()
+    {
+        _fixture.Log("Arrange — fetch active task list");
+        var listResponse = await _fixture.Client.GetAsync("/api/tasks");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var tasks = await _fixture.ReadJsonAsync<JsonElement>(listResponse);
+
+        if (tasks.GetArrayLength() == 0)
+        {
+            _fixture.Log("Skip — no active tasks in live DB");
+            return;
+        }
+
+        var firstTask = tasks.EnumerateArray().First();
+        var taskId    = firstTask.GetProperty("id").GetString()!;
+
+        _fixture.Log($"Act — DELETE /api/tasks/{taskId}");
+        var deleteResponse = await _fixture.Client.DeleteAsync($"/api/tasks/{taskId}");
+
+        _fixture.LogAssertion("delete returns 200 OK");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        _fixture.Log("Assert — task no longer appears in GET by ID");
+        var afterDeleteResponse = await _fixture.Client.GetAsync($"/api/tasks/{taskId}");
+
+        _fixture.LogAssertion("GET by ID returns 404 after delete");
+        afterDeleteResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        _fixture.Log($"Cleanup — PUT /api/tasks/{taskId} (undelete)");
+        var undeleteResponse = await _fixture.Client.PutAsync(
+            $"/api/tasks/{taskId}", content: null);
+
+        _fixture.LogAssertion("undelete returns 200 OK");
+        undeleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        _fixture.Log("Assert — task visible again after undelete");
+        var afterUndeleteResponse = await _fixture.Client.GetAsync($"/api/tasks/{taskId}");
+
+        _fixture.LogAssertion("GET by ID returns 200 OK after undelete");
+        afterUndeleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+}

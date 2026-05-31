@@ -4,6 +4,7 @@
     <Project Path="CognitivePlatform/CognitivePlatform.Api.csproj" />
     <Project Path="CognitivePlatform.Admin/CognitivePlatform.Admin.csproj" />
     <Project Path="src/CognitivePlatform.Tests/CognitivePlatform.Tests.csproj" />
+    <Project Path="src/CognitivePlatform.IntegrationTests/CognitivePlatform.IntegrationTests.csproj" />
   </Folder>
   <Project Path="../LocalAIAssistant/LaaUnitTests/LaaUnitTests.csproj" />
 </Solution>
