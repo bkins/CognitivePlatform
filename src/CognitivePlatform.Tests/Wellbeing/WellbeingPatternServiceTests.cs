@@ -264,6 +264,254 @@ public sealed class WellbeingPatternServiceTests
     }
 
     // ====================================================================
+    // W.2 Rule 5 — Weekly activity trend (steps + distance both down >15%)
+    // ====================================================================
+
+    [Fact]
+    public async Task AnalyseAsync_DetectsWeeklyActivityTrend_WhenBothStepsAndDistanceDownMoreThan15Pct()
+    {
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 10000, sleepMinutes: 480, taskRate: 0.9);
+        AddDistanceSignals(currentSignals,  4, distanceMetres: 5000);
+        AddDistanceSignals(previousSignals, 4, distanceMetres: 7000);
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        var pattern = report.Patterns.SingleOrDefault(p => p.Name == "WeeklyActivityTrend");
+        Assert.NotNull(pattern);
+        Assert.Equal(PatternSeverity.Attention, pattern.Severity);
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectWeeklyActivityTrend_WhenOnlyStepsAreDown()
+    {
+        // Steps down 20% but distance unchanged — both must drop >15% to fire
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 10000, sleepMinutes: 480, taskRate: 0.9);
+        AddDistanceSignals(currentSignals,  4, distanceMetres: 7000);
+        AddDistanceSignals(previousSignals, 4, distanceMetres: 7000);
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "WeeklyActivityTrend");
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectWeeklyActivityTrend_WhenNoPreviousDistanceData()
+    {
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 10000, sleepMinutes: 480, taskRate: 0.9);
+        AddDistanceSignals(currentSignals, 4, distanceMetres: 5000);
+        // No distance in previous signals — guard returns null
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "WeeklyActivityTrend");
+    }
+
+    // ====================================================================
+    // W.2 Rule 6 — Sleep consistency (population stddev > 90 min)
+    // ====================================================================
+
+    [Fact]
+    public async Task AnalyseAsync_DetectsSleepConsistency_WhenStdDevExceeds90Minutes()
+    {
+        // Values 240, 300, 360, 480, 540 → stddev ≈ 111 min > 90
+        var signals = new List<WellbeingSignal>();
+        var sleepValues = new[] { 240.0, 300.0, 360.0, 480.0, 540.0 };
+        for (var i = 0; i < sleepValues.Length; i++)
+        {
+            var date = TestFrom.AddDays(i);
+            signals.Add(Signal(date, WellbeingSignalSource.Health, WellbeingMetrics.Steps,              8000));
+            signals.Add(Signal(date, WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       sleepValues[i]));
+            signals.Add(Signal(date, WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.9));
+            signals.Add(Signal(date, WellbeingSignalSource.Tasks,  WellbeingMetrics.TasksCompleted,     3));
+        }
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        var pattern = report.Patterns.SingleOrDefault(p => p.Name == "SleepConsistency");
+        Assert.NotNull(pattern);
+        Assert.Equal(PatternSeverity.Attention, pattern.Severity);
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectSleepConsistency_WhenSleepIsUniform()
+    {
+        // Same sleep every day → stddev = 0
+        SetupSignals(BuildSignalsForDays(5, steps: 8000, sleepMinutes: 420, taskRate: 0.9));
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "SleepConsistency");
+    }
+
+    // ====================================================================
+    // W.2 Rule 7 — Journal word count drop (<50% of previous period avg)
+    // ====================================================================
+
+    [Fact]
+    public async Task AnalyseAsync_DetectsJournalWordCountDrop_WhenCurrentWordCountBelow50PctOfPrevious()
+    {
+        // 4 entries this week (>3 threshold); avg 100 words vs prev avg 300 → ratio 0.33 < 0.50
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        currentSignals.AddRange(BuildJournalWordSignals(4, entryCount: 1, wordCount: 100));
+        previousSignals.AddRange(BuildJournalWordSignals(4, entryCount: 1, wordCount: 300));
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        var pattern = report.Patterns.SingleOrDefault(p => p.Name == "JournalWordCountDrop");
+        Assert.NotNull(pattern);
+        Assert.Equal(PatternSeverity.Attention, pattern.Severity);
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectJournalWordCountDrop_WhenRatioIsAbove50Pct()
+    {
+        // avg 200 words vs prev avg 300 → ratio 0.67 ≥ 0.50
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        currentSignals.AddRange(BuildJournalWordSignals(4, entryCount: 1, wordCount: 200));
+        previousSignals.AddRange(BuildJournalWordSignals(4, entryCount: 1, wordCount: 300));
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "JournalWordCountDrop");
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectJournalWordCountDrop_WhenJournalEntryCountIsThreeOrFewer()
+    {
+        // Only 3 total entries (not >3) — proxy guard suppresses the rule
+        var currentSignals  = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        var previousSignals = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        currentSignals.Add(Signal(TestFrom, WellbeingSignalSource.Journal, WellbeingMetrics.JournalEntryCount, 3));
+        currentSignals.Add(Signal(TestFrom, WellbeingSignalSource.Journal, WellbeingMetrics.JournalWordCount,  100));
+        previousSignals.AddRange(BuildJournalWordSignals(4, entryCount: 1, wordCount: 300));
+        SetupSignalsWithPrevious(currentSignals, previousSignals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "JournalWordCountDrop");
+    }
+
+    // ====================================================================
+    // W.2 Rule 8 — Good recovery (≥2 rest days, no Concern patterns)
+    // ====================================================================
+
+    [Fact]
+    public async Task AnalyseAsync_DetectsGoodRecovery_WhenTwoOrMoreRestDaysAndNoConcernPatterns()
+    {
+        // 3 active days (offset 2+) + 2 rest days at offsets 0 and 1 (steps < 2000)
+        // Adequate sleep and task rate so no Concern pattern fires
+        var signals = BuildSignalsForDays(3, steps: 8000, sleepMinutes: 480, taskRate: 0.9, startOffset: 2);
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Health, WellbeingMetrics.Steps,              1500));
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       480));
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.9));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Health, WellbeingMetrics.Steps,              1200));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       480));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.9));
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        var pattern = report.Patterns.SingleOrDefault(p => p.Name == "GoodRecovery");
+        Assert.NotNull(pattern);
+        Assert.Equal(PatternSeverity.Positive, pattern.Severity);
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectGoodRecovery_WhenConcernPatternExists()
+    {
+        // Low sleep + low task rate → SleepTaskCorrelation (Concern) fires; suppresses GoodRecovery
+        var signals = BuildSignalsForDays(3, steps: 8000, sleepMinutes: 300, taskRate: 0.60, startOffset: 2);
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Health, WellbeingMetrics.Steps,              1500));
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       300));
+        signals.Add(Signal(TestFrom,            WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.60));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Health, WellbeingMetrics.Steps,              1200));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       300));
+        signals.Add(Signal(TestFrom.AddDays(1), WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.60));
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.Contains(report.Patterns,    p => p.Severity == PatternSeverity.Concern);
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "GoodRecovery");
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectGoodRecovery_WhenFewerThanTwoRestDays()
+    {
+        // Only 1 day with steps < 2000
+        var signals = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9, startOffset: 1);
+        signals.Add(Signal(TestFrom, WellbeingSignalSource.Health, WellbeingMetrics.Steps,              1500));
+        signals.Add(Signal(TestFrom, WellbeingSignalSource.Health, WellbeingMetrics.SleepMinutes,       480));
+        signals.Add(Signal(TestFrom, WellbeingSignalSource.Tasks,  WellbeingMetrics.TaskCompletionRate, 0.9));
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "GoodRecovery");
+    }
+
+    // ====================================================================
+    // W.2 Rule 9 — Open/close streak (≥5 consecutive days)
+    // ====================================================================
+
+    [Fact]
+    public async Task AnalyseAsync_DetectsOpenCloseStreak_WhenFiveConsecutiveDaysOpenedAndClosed()
+    {
+        var signals = BuildSignalsForDays(5, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        signals.AddRange(BuildDailyRecordSignals(5, opened: true, closed: true));
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        var pattern = report.Patterns.SingleOrDefault(p => p.Name == "OpenCloseStreak");
+        Assert.NotNull(pattern);
+        Assert.Equal(PatternSeverity.Positive, pattern.Severity);
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectOpenCloseStreak_WhenOnlyFourConsecutiveDays()
+    {
+        var signals = BuildSignalsForDays(4, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        signals.AddRange(BuildDailyRecordSignals(4, opened: true, closed: true));
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "OpenCloseStreak");
+    }
+
+    [Fact]
+    public async Task AnalyseAsync_DoesNotDetectOpenCloseStreak_WhenStreakIsBrokenBeforeFiveDays()
+    {
+        // 7 days total: days 0-2 open+close, day 3 no open/close (gap), days 4-6 open+close
+        // Max streak = 3, which is < 5
+        var signals = BuildSignalsForDays(7, steps: 8000, sleepMinutes: 480, taskRate: 0.9);
+        for (var i = 0; i < 7; i++)
+        {
+            if (i == 3) continue;
+            var date = TestFrom.AddDays(i);
+            signals.Add(Signal(date, WellbeingSignalSource.DailyRecord, WellbeingMetrics.DayOpened, 1.0));
+            signals.Add(Signal(date, WellbeingSignalSource.DailyRecord, WellbeingMetrics.DayClosed, 1.0));
+        }
+        SetupSignals(signals);
+
+        var report = await _service.AnalyseAsync(TestFrom, TestTo);
+
+        Assert.DoesNotContain(report.Patterns, p => p.Name == "OpenCloseStreak");
+    }
+
+    // ====================================================================
     // Narrative summary
     // ====================================================================
 
@@ -384,6 +632,24 @@ public sealed class WellbeingPatternServiceTests
             signals.Add(Signal(date, WellbeingSignalSource.Journal, WellbeingMetrics.JournalEntryCount, entryCount));
         }
 
+        return signals;
+    }
+
+    private static void AddDistanceSignals(List<WellbeingSignal> signals, int dayCount, double distanceMetres, int startOffset = 0)
+    {
+        for (var i = 0; i < dayCount; i++)
+            signals.Add(Signal(TestFrom.AddDays(startOffset + i), WellbeingSignalSource.Health, WellbeingMetrics.DistanceMetres, distanceMetres));
+    }
+
+    private static List<WellbeingSignal> BuildJournalWordSignals(int dayCount, int entryCount, double wordCount)
+    {
+        var signals = new List<WellbeingSignal>();
+        for (var i = 0; i < dayCount; i++)
+        {
+            var date = TestFrom.AddDays(i);
+            signals.Add(Signal(date, WellbeingSignalSource.Journal, WellbeingMetrics.JournalEntryCount, entryCount));
+            signals.Add(Signal(date, WellbeingSignalSource.Journal, WellbeingMetrics.JournalWordCount,  wordCount));
+        }
         return signals;
     }
 
