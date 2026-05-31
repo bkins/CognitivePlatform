@@ -237,4 +237,17 @@ public class WorkspaceScopingTests
                                                    , It.IsAny<string?>())
                    , Times.Once);
     }
+
+    [Fact]
+    public void JournalService_ListAllEntries_AlwaysPassesNullPartitionKey_RegardlessOfWorkspace()
+    {
+        var (service, store, _) = BuildJournalService("work");
+        store.Setup(objectStore => objectStore.List<JournalEntry>((string?)null, null, null))
+             .Returns(new List<JournalEntry>());
+
+        service.ListAllEntries();
+
+        store.Verify(objectStore => objectStore.List<JournalEntry>((string?)null, null, null), Times.Once);
+        store.Verify(objectStore => objectStore.List<JournalEntry>("work", null, null), Times.Never);
+    }
 }

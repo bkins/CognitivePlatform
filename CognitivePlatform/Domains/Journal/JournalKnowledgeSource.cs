@@ -38,7 +38,7 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
         // TODO: introduce filtering
         // NOTE: Filtering is intentionally deferred to the aggregator for now
         
-        var entryWithRevisions = _journalService.ListEntries();
+        var entryWithRevisions = _journalService.ListAllEntries();
         
         foreach (var entryWithRevision in entryWithRevisions)
         {
@@ -69,7 +69,7 @@ public sealed class JournalKnowledgeSource : IKnowledgeSource
     public IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
                                                    , DateTimeOffset? toUtc)
     {
-        return _journalService.ListEntries(fromUtc, toUtc)
+        return _journalService.ListAllEntries(fromUtc, toUtc)
                               .Select(entryWithRevision => new ObjectHeader(entryWithRevision.Entry.Id
                                                                           , nameof(KnowledgeKind.Journal)
                                                                           , entryWithRevision.Entry.CreatedUtc
