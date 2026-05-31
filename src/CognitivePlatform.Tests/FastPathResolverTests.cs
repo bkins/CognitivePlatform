@@ -977,4 +977,79 @@ public class FastPathResolverTests
         Assert.Equal("GetDistance", action!.Name);
         Assert.Equal("last week",   parameters!["dateRange"]);
     }
+
+    // ================================================================
+    // BUG-28: CloseDay fast-path synonyms
+    // "close day", "end of day", "day done", "eod" (no colon) must all
+    // resolve to CloseDay without requiring the LLM.
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ForCloseDayPhrase()
+    {
+        var resolved = _resolver.TryResolve("close day", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay", action!.Name);
+        Assert.NotNull(parameters);
+        Assert.False(parameters!.ContainsKey("closingText")
+                   , "closingText must not be set when none follows the phrase");
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ForCloseDayWithPeriod()
+    {
+        var resolved = _resolver.TryResolve("Close day.", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ForEndOfDayPhrase()
+    {
+        var resolved = _resolver.TryResolve("End of day.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay", action!.Name);
+        Assert.False(parameters!.ContainsKey("closingText"));
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ForDayDonePhrase()
+    {
+        var resolved = _resolver.TryResolve("Day done", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ForEodWithoutColon()
+    {
+        var resolved = _resolver.TryResolve("eod", out var action, out _);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay", action!.Name);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ExtractsClosingText_WhenTextFollowsPhrase()
+    {
+        var resolved = _resolver.TryResolve("close day Good work today.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay",          action!.Name);
+        Assert.Equal("Good work today.", parameters!["closingText"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCloseDay_ExtractsClosingText_AfterEndOfDayPeriod()
+    {
+        var resolved = _resolver.TryResolve("End of day. Solid session.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("CloseDay",       action!.Name);
+        Assert.Equal("Solid session.", parameters!["closingText"]);
+    }
 }

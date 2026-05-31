@@ -401,4 +401,79 @@ public class LlmInterpreterTests
         Assert.Contains("HTTP 429:", result.Reason);
     }
 
+    // BUG-28 (close-day Phase 3.9 regression):
+    // When the LLM returns actionName "none" with a single candidateAction whose
+    // only "missing" parameter is optional, Phase 3.9 must promote the candidate to
+    // the selected action and clear the failure so the orchestrator can execute it.
+    [Fact]
+    public void ParseModelResponse_NoneActionName_WithSingleCandidateAndOptionalOnlyMissing_PromotesCandidate()
+    {
+        const string raw = """
+                           {
+                             "actionName": "none",
+                             "parameters": {},
+                             "reason": "Missing required parameter(s).",
+                             "failureType": "MissingParameters",
+                             "candidateActions": ["CloseDay"],
+                             "missingParameters": ["closingText"]
+                           }
+                           """;
+
+        var actions = new[]
+        {
+            new ActionMetadata
+            {
+                    Name        = "CloseDay"
+                  , Description = "Close today."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "closingText", IsOptional = true, AllowEmpty = true }
+                                    , new() { Name = "mood",        IsOptional = true, AllowEmpty = true }
+                                    , new() { Name = "moodScore",   IsOptional = true, AllowEmpty = true }
+                                  }
+            }
+        };
+
+        var result = LlmInterpreter.ParseModelResponse(raw, actions);
+
+        Assert.Equal("CloseDay",                      result.ActionName);
+        Assert.Equal(InterpreterFailureType.None,     result.FailureType);
+        Assert.Empty(result.MissingParameters ?? []);
+    }
+
+    [Fact]
+    public void ParseModelResponse_NoneActionName_WithMixedRequiredAndOptionalMissing_PreservesRequiredMissing()
+    {
+        const string raw = """
+                           {
+                             "actionName": "none",
+                             "parameters": {},
+                             "reason": "Missing required parameter(s).",
+                             "failureType": "MissingParameters",
+                             "candidateActions": ["AddCalendarEvent"],
+                             "missingParameters": ["title", "closingNote"]
+                           }
+                           """;
+
+        var actions = new[]
+        {
+            new ActionMetadata
+            {
+                    Name        = "AddCalendarEvent"
+                  , Description = "Add a calendar event."
+                  , Parameters  = new List<ParameterMetadata>
+                                  {
+                                      new() { Name = "title",       IsOptional = false, AllowEmpty = false }
+                                    , new() { Name = "closingNote", IsOptional = true,  AllowEmpty = true  }
+                                  }
+            }
+        };
+
+        var result = LlmInterpreter.ParseModelResponse(raw, actions);
+
+        Assert.Null(result.ActionName);
+        Assert.Equal(InterpreterFailureType.MissingParameters, result.FailureType);
+        Assert.Contains("title", result.MissingParameters!);
+    }
+
 }

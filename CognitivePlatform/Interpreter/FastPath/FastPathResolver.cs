@@ -71,6 +71,9 @@ public sealed class FastPathResolver : IFastPathResolver
         if (TryResolveClaimRolledOver(input, out action, out parameters))
             return true;
 
+        if (TryResolveCloseDay(input, out action, out parameters))
+            return true;
+
         // ------------------------------------------------------------
         // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
         // ------------------------------------------------------------
@@ -231,6 +234,57 @@ public sealed class FastPathResolver : IFastPathResolver
                 if (parsed.MoodScore.HasValue)    parameters["moodScore"] = parsed.MoodScore.Value.ToString();
                 break;
         }
+
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // CloseDay synonyms (no colon required)
+    // "close day", "end of day", "day done", "eod" (without colon), …
+    // ----------------------------------------------------------------
+    private static readonly string[] CloseDaySynonyms =
+    {
+            "close day"
+          , "end of day"
+          , "day done"
+          , "eod"
+    };
+
+    private bool TryResolveCloseDay( string                           input
+                                   , out ActionMetadata?             action
+                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.Trim().ToLowerInvariant();
+
+        string? matchedSynonym = null;
+        foreach (var synonym in CloseDaySynonyms)
+        {
+            if (!normalized.StartsWith(synonym)) continue;
+
+            // Require a word boundary: end of string, a space, or punctuation
+            if (normalized.Length == synonym.Length
+             || (normalized.Length > synonym.Length
+              && (normalized[synonym.Length] == ' '
+               || char.IsPunctuation(normalized[synonym.Length]))))
+            {
+                matchedSynonym = synonym;
+                break;
+            }
+        }
+
+        if (matchedSynonym is null) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CloseDay");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var remainder = input.Trim().Substring(matchedSynonym.Length).TrimStart(' ', '.', ':');
+        if (remainder.Length > 0)
+            parameters["closingText"] = remainder;
 
         return true;
     }

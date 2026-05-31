@@ -746,11 +746,17 @@ public class LlmInterpreter : IInterpreter
 
             var actionsList = actions.ToList();
 
-            // Phase 3.9: Filter out optional parameters from missingParameters
-            if (actionName is not null && missingParameters.Count > 0)
+            // Phase 3.9: Filter out optional parameters from missingParameters.
+            // When the LLM returns actionName "none" but reports a single candidate,
+            // use that candidate for the lookup so that actions where every parameter
+            // is optional (e.g. CloseDay) are not blocked by a spurious MissingParameters.
+            var phase39LookupName = actionName
+                                 ?? (candidateActions.Count == 1 ? candidateActions[0] : null);
+
+            if (phase39LookupName is not null && missingParameters.Count > 0)
             {
-                var meta = actionsList.FirstOrDefault(action =>
-                    action.Name.Equals(actionName, StringComparison.OrdinalIgnoreCase));
+                var meta = actionsList.FirstOrDefault(candidate =>
+                    candidate.Name.Equals(phase39LookupName, StringComparison.OrdinalIgnoreCase));
 
                 if (meta is not null)
                 {
@@ -768,6 +774,7 @@ public class LlmInterpreter : IInterpreter
                  && failureType == InterpreterFailureType.MissingParameters)
                 {
                     failureType = InterpreterFailureType.None;
+                    actionName ??= phase39LookupName;
                 }
             }
 
