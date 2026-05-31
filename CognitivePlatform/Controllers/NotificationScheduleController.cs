@@ -8,10 +8,13 @@ namespace CognitivePlatform.Api.Controllers;
 public sealed class NotificationScheduleController : ControllerBase
 {
     private readonly INotificationScheduleProvider _provider;
+    private readonly INotificationPatternService   _patternService;
 
-    public NotificationScheduleController(INotificationScheduleProvider provider)
+    public NotificationScheduleController( INotificationScheduleProvider provider
+                                         , INotificationPatternService   patternService )
     {
-        _provider = provider;
+        _provider       = provider;
+        _patternService = patternService;
     }
 
     /// <summary>
@@ -26,5 +29,28 @@ public sealed class NotificationScheduleController : ControllerBase
         var fromTime = from ?? DateTimeOffset.Now;
         var schedule = await _provider.GetScheduleAsync(fromTime, ct);
         return Ok(schedule);
+    }
+
+    /// <summary>
+    /// Records user interaction with a notification. Used to learn engagement patterns
+    /// for adaptive scheduling. Valid actions: tapped, dismissed, acted.
+    /// </summary>
+    [HttpPost("feedback")]
+    public async Task<IActionResult> PostFeedback( [FromBody] NotificationFeedbackRequest request
+                                                 , CancellationToken                      ct = default )
+    {
+        var feedback = request.Action.ToLowerInvariant() switch
+        {
+            "tapped"    => (NotificationFeedback?)NotificationFeedback.Tapped
+          , "dismissed" => NotificationFeedback.Dismissed
+          , "acted"     => NotificationFeedback.ActedUpon
+          , _           => null
+        };
+
+        if (feedback is null)
+            return BadRequest($"Unknown action '{request.Action}'. Valid values: tapped, dismissed, acted.");
+
+        await _patternService.RecordFeedbackAsync(request.ExternalId, feedback.Value, ct);
+        return NoContent();
     }
 }

@@ -291,7 +291,8 @@ public partial class Program
 
     // Notifications
         builder.Services.Configure<NotificationSettings>(builder.Configuration.GetSection("Notifications"));
-        builder.Services.AddSingleton<INotificationScheduleProvider, NotificationScheduleService>();
+        builder.Services.AddSingleton<INotificationPatternService, NotificationPatternService>();
+        builder.Services.AddSingleton<INotificationScheduleProvider, PatternAwareNotificationScheduleService>();
 
     // Personality
         builder.Services.AddSingleton<IPersonalityService, PersonalityService>();
