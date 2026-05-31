@@ -8,15 +8,23 @@ namespace CognitivePlatform.Api.Wellbeing;
 /// </summary>
 public sealed class WellbeingPatternService : IWellbeingPatternService
 {
-    // Thresholds — named constants so callers and tests can reason about them.
-    private const double SleepDeficitHoursThreshold       = 6.0;
-    private const double LowTaskCompletionThreshold        = 0.70;
-    private const double RestDayStepThreshold              = 2000.0;
-    private const double StepTrendPositiveRatio            = 1.10;   // 10% increase
-    private const double StepTrendAttentionRatio           = 0.80;   // 20% decrease
-    private const int    MinimumDataDays                   = 3;
-    private const int    LowJournalEntryThreshold          = 3;
-    private const int    MinOpenCloseDaysForJournalPattern = 3;
+    // W.1 thresholds
+    private const double SleepDeficitHoursThreshold        = 6.0;
+    private const double LowTaskCompletionThreshold         = 0.70;
+    private const double RestDayStepThreshold               = 2000.0;
+    private const double StepTrendPositiveRatio             = 1.10;   // 10% increase
+    private const double StepTrendAttentionRatio            = 0.80;   // 20% decrease
+    private const int    MinimumDataDays                    = 3;
+    private const int    LowJournalEntryThreshold           = 3;
+    private const int    MinOpenCloseDaysForJournalPattern  = 3;
+
+    // W.2 thresholds
+    private const double ActivityTrendDropThreshold         = 0.85;   // both steps AND distance down >15%
+    private const double SleepStdDevMinutesThreshold        = 90.0;   // inconsistent if population stddev > 90 min
+    private const double JournalWordCountDropRatio          = 0.50;   // current avg < 50% of previous avg
+    private const int    MinJournalEntriesForWordCountProxy = 3;      // >3 entries required to use proxy
+    private const int    MinRecoveryRestDays                = 2;      // ≥2 rest days for a positive recovery signal
+    private const int    OpenCloseStreakDays                = 5;      // ≥5 consecutive open+close days
 
     private readonly IWellbeingSignalStore             _store;
     private readonly ILogger<WellbeingPatternService>  _logger;
@@ -47,29 +55,48 @@ public sealed class WellbeingPatternService : IWellbeingPatternService
                    };
         }
 
+        var windowDays  = to.DayNumber - from.DayNumber + 1;
+        var prevTo      = from.AddDays(-1);
+        var prevFrom    = from.AddDays(-windowDays);
+        var prevSignals = await _store.GetSignalsAsync(ToStartOfDay(prevFrom), ToStartOfDay(prevTo), ct);
+
         var patterns = new List<WellbeingPattern>();
 
-        // Rule 1: Sleep-task correlation
+        // Rule 1: Sleep–task correlation (Concern)
         var sleepTask = DetectSleepTaskCorrelation(byDate);
         if (sleepTask is not null) patterns.Add(sleepTask);
 
-        // Rule 2: Step count trend — requires previous period for comparison
-        var windowDays     = to.DayNumber - from.DayNumber + 1;
-        var prevTo         = from.AddDays(-1);
-        var prevFrom       = from.AddDays(-windowDays);
-        var prevFromOffset = ToStartOfDay(prevFrom);
-        var prevToOffset   = ToStartOfDay(prevTo);
-        var prevSignals    = await _store.GetSignalsAsync(prevFromOffset, prevToOffset, ct);
-        var stepTrend      = DetectStepCountTrend(signals, prevSignals);
+        // Rule 2: Step count trend — previous period for comparison
+        var stepTrend = DetectStepCountTrend(signals, prevSignals);
         if (stepTrend is not null) patterns.Add(stepTrend);
 
         // Rule 3: Journal engagement drop
         var journalEngagement = DetectJournalEngagement(signals, byDate);
         if (journalEngagement is not null) patterns.Add(journalEngagement);
 
-        // Rule 4: Rest day detection (per-day, may produce multiple patterns collapsed into one)
+        // Rule 4: Rest day detection (may produce multiple rest days collapsed into one pattern)
         var restDay = DetectRestDays(byDate);
         if (restDay is not null) patterns.Add(restDay);
+
+        // W.2 Rule 5: Weekly activity trend — both steps and distance down >15%
+        var activityTrend = DetectWeeklyActivityTrend(signals, prevSignals);
+        if (activityTrend is not null) patterns.Add(activityTrend);
+
+        // W.2 Rule 6: Sleep schedule consistency over the window
+        var sleepConsistency = DetectSleepConsistency(byDate);
+        if (sleepConsistency is not null) patterns.Add(sleepConsistency);
+
+        // W.2 Rule 7: Journal word count drop relative to previous period
+        var wordCountDrop = DetectJournalWordCountDrop(signals, prevSignals);
+        if (wordCountDrop is not null) patterns.Add(wordCountDrop);
+
+        // W.2 Rule 8: Good recovery — ≥2 rest days AND no Concern patterns already detected
+        var goodRecovery = DetectGoodRecovery(byDate, patterns);
+        if (goodRecovery is not null) patterns.Add(goodRecovery);
+
+        // W.2 Rule 9: Open/close streak — ≥5 consecutive days with both opened and closed
+        var streak = DetectOpenCloseStreak(byDate);
+        if (streak is not null) patterns.Add(streak);
 
         return new WellbeingReport
                {
@@ -242,6 +269,173 @@ public sealed class WellbeingPatternService : IWellbeingPatternService
                  , Description = description
                  , Sources     = [WellbeingSignalSource.Health, WellbeingSignalSource.Tasks]
                  , Severity    = PatternSeverity.Neutral
+                 , Correlation = null
+               };
+    }
+
+    // ------------------------------------------------------------------
+    // W.2 Rule 5 — Weekly activity trend (steps + distance both down >15%)
+    // ------------------------------------------------------------------
+
+    private static WellbeingPattern? DetectWeeklyActivityTrend(
+        IReadOnlyList<WellbeingSignal> currentSignals
+      , IReadOnlyList<WellbeingSignal> previousSignals)
+    {
+        var currentStepsAvg    = GetAverageMetric(currentSignals,  WellbeingMetrics.Steps);
+        var previousStepsAvg   = GetAverageMetric(previousSignals, WellbeingMetrics.Steps);
+        var currentDistanceAvg = GetAverageMetric(currentSignals,  WellbeingMetrics.DistanceMetres);
+        var previousDistAvg    = GetAverageMetric(previousSignals, WellbeingMetrics.DistanceMetres);
+
+        if (!currentStepsAvg.HasValue || !previousStepsAvg.HasValue || previousStepsAvg.Value <= 0) return null;
+        if (!currentDistanceAvg.HasValue || !previousDistAvg.HasValue || previousDistAvg.Value <= 0) return null;
+
+        var stepsRatio    = currentStepsAvg.Value    / previousStepsAvg.Value;
+        var distanceRatio = currentDistanceAvg.Value / previousDistAvg.Value;
+
+        if (stepsRatio > ActivityTrendDropThreshold || distanceRatio > ActivityTrendDropThreshold) return null;
+
+        return new WellbeingPattern
+               {
+                   Name        = "WeeklyActivityTrend"
+                 , Description = "Your activity level has dropped noticeably this week compared to last."
+                 , Sources     = [WellbeingSignalSource.Health]
+                 , Severity    = PatternSeverity.Attention
+                 , Correlation = null
+               };
+    }
+
+    // ------------------------------------------------------------------
+    // W.2 Rule 6 — Sleep schedule consistency (population stddev over window)
+    // ------------------------------------------------------------------
+
+    private static WellbeingPattern? DetectSleepConsistency(Dictionary<DateOnly, List<WellbeingSignal>> byDate)
+    {
+        var sleepMinutesPerDay = byDate
+            .Select(day => GetMetricValue(day.Value, WellbeingMetrics.SleepMinutes))
+            .Where(minutes => minutes.HasValue)
+            .Select(minutes => minutes!.Value)
+            .ToList();
+
+        if (sleepMinutesPerDay.Count < MinimumDataDays) return null;
+
+        var mean   = sleepMinutesPerDay.Average();
+        var stdDev = Math.Sqrt(sleepMinutesPerDay.Average(minutes => Math.Pow(minutes - mean, 2)));
+
+        if (stdDev <= SleepStdDevMinutesThreshold) return null;
+
+        return new WellbeingPattern
+               {
+                   Name        = "SleepConsistency"
+                 , Description = "Your sleep schedule has been inconsistent this week — irregular sleep patterns can affect energy and focus."
+                 , Sources     = [WellbeingSignalSource.Health]
+                 , Severity    = PatternSeverity.Attention
+                 , Correlation = null
+               };
+    }
+
+    // ------------------------------------------------------------------
+    // W.2 Rule 7 — Journal word count drop relative to previous period
+    // ------------------------------------------------------------------
+
+    private static WellbeingPattern? DetectJournalWordCountDrop(
+        IReadOnlyList<WellbeingSignal> currentSignals
+      , IReadOnlyList<WellbeingSignal> previousSignals)
+    {
+        var totalEntries = (int)currentSignals
+            .Where(signal => signal.MetricName == WellbeingMetrics.JournalEntryCount)
+            .Sum(signal => signal.Value);
+
+        if (totalEntries <= MinJournalEntriesForWordCountProxy) return null;
+
+        var currentWordCountAvg  = GetAverageMetric(currentSignals,  WellbeingMetrics.JournalWordCount);
+        var previousWordCountAvg = GetAverageMetric(previousSignals, WellbeingMetrics.JournalWordCount);
+
+        if (!currentWordCountAvg.HasValue || !previousWordCountAvg.HasValue || previousWordCountAvg.Value <= 0) return null;
+
+        var ratio = currentWordCountAvg.Value / previousWordCountAvg.Value;
+        if (ratio >= JournalWordCountDropRatio) return null;
+
+        return new WellbeingPattern
+               {
+                   Name        = "JournalWordCountDrop"
+                 , Description = "You're journaling less than usual this week."
+                 , Sources     = [WellbeingSignalSource.Journal]
+                 , Severity    = PatternSeverity.Attention
+                 , Correlation = null
+               };
+    }
+
+    // ------------------------------------------------------------------
+    // W.2 Rule 8 — Good recovery (≥2 rest days, no Concern patterns)
+    // ------------------------------------------------------------------
+
+    private static WellbeingPattern? DetectGoodRecovery(
+        Dictionary<DateOnly, List<WellbeingSignal>> byDate
+      , IReadOnlyCollection<WellbeingPattern>       detectedPatterns)
+    {
+        if (detectedPatterns.Any(pattern => pattern.Severity == PatternSeverity.Concern)) return null;
+
+        var restDayCount = byDate.Count(day =>
+        {
+            var steps = GetMetricValue(day.Value, WellbeingMetrics.Steps);
+            return steps.HasValue && steps.Value < RestDayStepThreshold;
+        });
+
+        if (restDayCount < MinRecoveryRestDays) return null;
+
+        return new WellbeingPattern
+               {
+                   Name        = "GoodRecovery"
+                 , Description = "You've taken some good recovery time this week."
+                 , Sources     = [WellbeingSignalSource.Health]
+                 , Severity    = PatternSeverity.Positive
+                 , Correlation = null
+               };
+    }
+
+    // ------------------------------------------------------------------
+    // W.2 Rule 9 — Open/close streak (≥5 consecutive days)
+    // ------------------------------------------------------------------
+
+    private static WellbeingPattern? DetectOpenCloseStreak(Dictionary<DateOnly, List<WellbeingSignal>> byDate)
+    {
+        var openCloseDates = byDate
+            .Where(day =>
+            {
+                var opened = GetMetricValue(day.Value, WellbeingMetrics.DayOpened);
+                var closed = GetMetricValue(day.Value, WellbeingMetrics.DayClosed);
+                return opened is >= 1.0 && closed is >= 1.0;
+            })
+            .Select(day => day.Key)
+            .OrderBy(date => date)
+            .ToList();
+
+        if (openCloseDates.Count < OpenCloseStreakDays) return null;
+
+        var maxStreak     = 1;
+        var currentStreak = 1;
+
+        for (var i = 1; i < openCloseDates.Count; i++)
+        {
+            if (openCloseDates[i] == openCloseDates[i - 1].AddDays(1))
+            {
+                currentStreak++;
+                if (currentStreak > maxStreak) maxStreak = currentStreak;
+            }
+            else
+            {
+                currentStreak = 1;
+            }
+        }
+
+        if (maxStreak < OpenCloseStreakDays) return null;
+
+        return new WellbeingPattern
+               {
+                   Name        = "OpenCloseStreak"
+                 , Description = "You've been consistently opening and closing your days — great habit!"
+                 , Sources     = [WellbeingSignalSource.DailyRecord]
+                 , Severity    = PatternSeverity.Positive
                  , Correlation = null
                };
     }
