@@ -50,6 +50,7 @@ using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Wellbeing;
 using CognitivePlatform.Api.Domains.Wellbeing;
+using CognitivePlatform.Api.Domains.Cognition;
 using CognitivePlatform.Api.Domains.Search;
 using CognitivePlatform.Api.Domains.Document;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
@@ -272,6 +273,7 @@ public partial class Program
         builder.Services.AddScoped<IInsightProvider, HealthCorrelationInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, GoalAlignmentInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, HabitReinforcementInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, CognitiveDistortionInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
         var insightPolicy = builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
@@ -344,6 +346,7 @@ public partial class Program
         builder.Services.AddSingleton<IWellbeingSignalCollector, WellbeingSignalCollector>();
         builder.Services.AddSingleton<IWellbeingPatternService, WellbeingPatternService>();
         builder.Services.AddTransient<WellbeingActions>();
+        builder.Services.AddTransient<CognitionActions>();
 
     // File Sync — HttpFileSyncProvider when a gateway URL is configured; otherwise the disconnected stub.
         var fileSyncSection = builder.Configuration.GetSection("FileSync");

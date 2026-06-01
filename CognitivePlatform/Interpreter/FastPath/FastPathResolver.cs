@@ -168,6 +168,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.91: COGNITIVE DISTORTION FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveCognition(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3.0: SEMANTIC SEARCH FAST PATHS
         // ------------------------------------------------------------
         if (TryResolveSemanticSearch(input, out action, out parameters))
@@ -1760,6 +1766,58 @@ public sealed class FastPathResolver : IFastPathResolver
         if (normalized.Contains("last 30 days") || normalized.Contains("this month")) return "last 30 days";
 
         return string.Empty;
+    }
+
+    // ================================================================
+    // MODE 2.91 — COGNITIVE DISTORTION FAST PATHS
+    // ================================================================
+
+    private static readonly string[] CognitionEnableSignals =
+    {
+            "enable distortion detection"
+          , "turn on cognitive distortion"
+          , "start noticing my thinking patterns"
+          , "enable cognitive distortion"
+          , "turn on distortion detection"
+    };
+
+    private static readonly string[] CognitionDisableSignals =
+    {
+            "disable distortion detection"
+          , "turn off cognitive distortion"
+          , "stop noticing my thinking patterns"
+          , "disable cognitive distortion"
+          , "turn off distortion detection"
+    };
+
+    private bool TryResolveCognition( string                           input
+                                    , out ActionMetadata?             action
+                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (CognitionEnableSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "EnableCognitiveDistortionDetector");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>();
+            return true;
+        }
+
+        if (CognitionDisableSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DisableCognitiveDistortionDetector");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>();
+            return true;
+        }
+
+        return false;
     }
 
     // ================================================================
