@@ -60,6 +60,36 @@ public sealed class SqliteVectorStore : IVectorStore
                .ToList();
     }
 
+    public async Task<VectorEntry?> GetByReferenceAsync(string domain, string referenceId, CancellationToken ct = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(ct);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT id, domain, referenceId, text, embedding, embeddedAt FROM vectors WHERE domain = $domain AND referenceId = $referenceId LIMIT 1";
+        command.Parameters.AddWithValue("$domain",      domain);
+        command.Parameters.AddWithValue("$referenceId", referenceId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        var blob      = (byte[])reader["embedding"];
+        var embedding = MemoryMarshal.Cast<byte, float>(new Span<byte>(blob)).ToArray();
+
+        return new VectorEntry
+               {
+                   Id          = (string)reader["id"]
+                 , Domain      = (string)reader["domain"]
+                 , ReferenceId = (string)reader["referenceId"]
+                 , Text        = (string)reader["text"]
+                 , Embedding   = embedding
+                 , EmbeddedAt  = DateTimeOffset.Parse((string)reader["embeddedAt"])
+               };
+    }
+
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
         await using var connection = new SqliteConnection(_connectionString);

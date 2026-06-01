@@ -50,6 +50,7 @@ using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Wellbeing;
 using CognitivePlatform.Api.Domains.Wellbeing;
+using CognitivePlatform.Api.Domains.Search;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
@@ -348,6 +349,9 @@ public partial class Program
         builder.Services.AddSingleton<ILocalFileSystem, LocalFileSystem>();
         builder.Services.AddSingleton<IFileSyncService, FileSyncService>();
         builder.Services.AddTransient<FileSyncActions>();
+
+    // Semantic Search
+        builder.Services.AddTransient<SemanticSearchActions>();
 
     // Embeddings — OllamaEmbeddingService when OllamaBaseUrl is configured; otherwise disconnected stub.
         var embeddingSection = builder.Configuration.GetSection("Embedding");
