@@ -156,6 +156,11 @@ else if (_error is not null)
     private async Task OpenScalarAsync()
         => await Js.InvokeVoidAsync("open", ScalarUrl, "_blank");
 
+    protected override void OnInitialized()
+    {
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
@@ -169,6 +174,13 @@ else if (_error is not null)
                                 , TimeSpan.FromSeconds(30)
                                 , TimeSpan.FromSeconds(30));
     }
+
+    private void OnEnvironmentChanged()
+        => InvokeAsync(async () =>
+        {
+            await RefreshAsync();
+            StateHasChanged();
+        });
 
     private async Task RefreshAsync()
     {
@@ -199,6 +211,7 @@ else if (_error is not null)
 
     public void Dispose()
     {
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
         _refreshTimer?.Dispose();
     }
 }

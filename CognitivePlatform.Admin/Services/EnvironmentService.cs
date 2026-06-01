@@ -19,7 +19,18 @@ public sealed class EnvironmentService
         ProdUrl = config["AdminSettings:Environments:Prod"] ?? "http://localhost:5275";
     }
 
-    public void Switch(string env) => Current = env.ToUpperInvariant();
+    /// <summary>
+    /// Fired on every environment switch. Pages subscribe here and reload
+    /// their data. Use InvokeAsync inside the handler (Singleton fires on
+    /// whichever circuit called Switch, not necessarily the subscriber's circuit).
+    /// </summary>
+    public event Action? EnvironmentChanged;
+
+    public void Switch(string env)
+    {
+        Current = env.ToUpperInvariant();
+        EnvironmentChanged?.Invoke();
+    }
 
     public string BaseUrl => Current switch
     {

@@ -1,6 +1,7 @@
 @page "/logs"
 @implements IDisposable
 @inject IAdminLogsClient LogsClient
+@inject EnvironmentService EnvService
 
 <PageTitle>Log Viewer — CP Admin</PageTitle>
 
@@ -146,6 +147,11 @@ else
 
     private static readonly string?[] _levelFilters = [null, "INF", "WRN", "ERR", "CRT", "DBG", "TRC"];
 
+    protected override void OnInitialized()
+    {
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
@@ -221,8 +227,16 @@ else
       , _     => Color.Default
     };
 
+    private void OnEnvironmentChanged()
+        => InvokeAsync(async () =>
+        {
+            await RefreshAsync();
+            StateHasChanged();
+        });
+
     public void Dispose()
     {
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
         _timer?.Dispose();
     }
 }

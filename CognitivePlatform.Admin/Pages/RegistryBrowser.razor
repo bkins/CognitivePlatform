@@ -1,5 +1,7 @@
 @page "/registry"
+@implements IDisposable
 @inject IAdminRegistryClient RegistryClient
+@inject EnvironmentService   EnvService
 
 <PageTitle>Registry Browser — CP Admin</PageTitle>
 
@@ -281,9 +283,29 @@ else if (_error is not null)
                               || action.Category.Contains(_search, StringComparison.OrdinalIgnoreCase))
                 .GroupBy(action => action.Category);
 
+    protected override void OnInitialized()
+    {
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+    }
+
+    private void OnEnvironmentChanged()
+        => InvokeAsync(async () =>
+        {
+            _selected     = null;
+            _invokeResult = null;
+            _invokeInput  = string.Empty;
+            await LoadAsync();
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
     }
 
     private async Task LoadAsync()

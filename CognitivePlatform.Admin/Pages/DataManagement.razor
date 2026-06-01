@@ -1,6 +1,8 @@
 @page "/data"
+@implements IDisposable
 @inject IAdminKnowledgeClient KnowledgeClient
-@inject IDialogService DialogService
+@inject IDialogService        DialogService
+@inject EnvironmentService    EnvService
 
 <PageTitle>Data Management — CP Admin</PageTitle>
 
@@ -213,7 +215,24 @@ else if (_error is not null)
         }
     }
 
+    protected override void OnInitialized()
+    {
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private void OnEnvironmentChanged()
+        => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
+    }
 
     private async Task LoadAsync()
     {

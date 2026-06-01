@@ -1,5 +1,7 @@
 @page "/journals"
+@implements IDisposable
 @inject IAdminJournalClient JournalClient
+@inject EnvironmentService  EnvService
 @using Markdig
 
 <PageTitle>Journal Admin — CP Admin</PageTitle>
@@ -315,7 +317,29 @@ else if (_entriesError is not null)
                   (entry.LatestText?.Contains(_entrySearch, StringComparison.OrdinalIgnoreCase) ?? false)
                || entry.Id.Contains(_entrySearch, StringComparison.OrdinalIgnoreCase));
 
+    protected override void OnInitialized()
+    {
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+    }
+
     protected override async Task OnInitializedAsync() => await LoadEntriesAsync();
+
+    private void OnEnvironmentChanged()
+        => InvokeAsync(async () =>
+        {
+            _selectedEntry     = null;
+            _selectedRevision  = null;
+            _renderMarkdown    = false;
+            _revisions         = [];
+            _correctionMessage = null;
+            await LoadEntriesAsync();
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
+    }
 
     private async Task LoadEntriesAsync()
     {
