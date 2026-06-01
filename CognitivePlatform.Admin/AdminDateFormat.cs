@@ -24,4 +24,19 @@ internal static class AdminDateFormat
 
     internal static string Long(DateTimeOffset? dt)
         => dt.HasValue ? Long(dt.Value) : "—";
+
+    // DateTime overloads — assumes UTC storage (ReleaseConsole audit log / metadata.json)
+    internal static string Short(DateTime dt)
+        => Short(new DateTimeOffset(dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime()
+                                  , TimeSpan.Zero));
+
+    internal static string Short(DateTime? dt)
+        => dt.HasValue ? Short(dt.Value) : "—";
+
+    internal static string Long(DateTime dt)
+        => Long(new DateTimeOffset(dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime()
+                                 , TimeSpan.Zero));
+
+    internal static string Long(DateTime? dt)
+        => dt.HasValue ? Long(dt.Value) : "—";
 }

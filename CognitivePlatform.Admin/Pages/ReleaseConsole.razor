@@ -1,5 +1,7 @@
 @page "/release"
 @using System.Diagnostics
+@using System.IO.Compression
+@using System.Text.Json
 @implements IAsyncDisposable
 @inject IConfiguration Configuration
 @inject IJSRuntime Js
@@ -31,6 +33,11 @@
             <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_exitCode — Failed</MudChip>
         }
     }
+    <MudTooltip Text="Reload artifact store, deployment state, and audit log">
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                       OnClick="@ReloadPanelsAsync"
+                       Disabled="@_running" />
+    </MudTooltip>
 </MudStack>
 
 @* ── Working directory (for build/deploy scripts) ── *@
@@ -53,7 +60,7 @@
     <MudTextField Value="_gitDirectory"
                   ValueChanged="@((string val) => SaveGitDirectoryAsync(val))"
                   Label="Git repository directory"
-                  HelperText="Used exclusively for the Git Status / Pull buttons below. Saved in your browser."
+                  HelperText="Used exclusively for Git Status / Pull buttons. Saved in your browser."
                   FullWidth="true"
                   Adornment="Adornment.Start"
                   AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
@@ -195,6 +202,285 @@
     </MudButton>
 </MudStack>
 
+@* ═══════════════════════════════════════════════════════════════════════════
+   INFO PANELS  (Artifact Store · Deployment State · Audit Log · DB Actions)
+   ═══════════════════════════════════════════════════════════════════════════ *@
+<MudExpansionPanels MultiExpansion="true" Class="mb-4">
+
+    @* ── Artifact Store ── *@
+    <MudExpansionPanel @bind-IsExpanded="_artifactsExpanded"
+                       Text="Artifact Store"
+                       Icon="@Icons.Material.Filled.Inventory2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:monospace">
+                @ArtifactsRoot
+            </MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           OnClick="@LoadArtifacts" />
+        </MudStack>
+
+        @if (!Directory.Exists(ArtifactsRoot))
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Artifact root not found: @ArtifactsRoot
+            </MudAlert>
+        }
+        else if (_artifacts.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No artifacts found.</MudText>
+        }
+        else
+        {
+            @foreach (var group in _artifacts.GroupBy(artifact => artifact.Component)
+                                             .OrderBy(group => group.Key))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1">@group.Key</MudText>
+                <MudDataGrid Items="@group.AsEnumerable()"
+                             Dense="true"
+                             Hover="true"
+                             SortMode="SortMode.None"
+                             Elevation="1">
+                    <Columns>
+                        <PropertyColumn Property="@(a => a.Version)" Title="Version" />
+                        <TemplateColumn Title="Built">
+                            <CellTemplate>
+                                <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                                    @AdminDateFormat.Short(context.Item.Meta?.BuildTimestamp)
+                                </MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Env">
+                            <CellTemplate>
+                                <MudText Typo="Typo.caption">@(context.Item.Meta?.BuiltFor ?? "—")</MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Commit">
+                            <CellTemplate>
+                                @{
+                                    var hash = context.Item.Meta?.GitCommitHash;
+                                    var shortHash = hash?.Length > 7 ? hash[..7] : hash;
+                                }
+                                <MudText Typo="Typo.caption" Style="font-family:monospace">@(shortHash ?? "—")</MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Deploy to environment" SortBy="@(_ => string.Empty)">
+                            <CellTemplate>
+                                @if (context.Item.CanDeployFromArtifact)
+                                {
+                                    <MudStack Row="true" Spacing="1">
+                                        @foreach (var env in new[] { "DEV", "QA", "PROD" })
+                                        {
+                                            var capturedEnv     = env;
+                                            var capturedArtifact = context.Item;
+                                            <MudButton Size="Size.Small"
+                                                       Variant="Variant.Outlined"
+                                                       Color="@EnvButtonColor(capturedEnv)"
+                                                       Disabled="@_running"
+                                                       OnClick="@(() => DeployArtifactAsync(capturedArtifact, capturedEnv))">
+                                                @capturedEnv
+                                            </MudButton>
+                                        }
+                                    </MudStack>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Deploy via ReleaseConsole
+                                    </MudText>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+        }
+    </MudExpansionPanel>
+
+    @* ── Deployment State ── *@
+    <MudExpansionPanel @bind-IsExpanded="_stateExpanded"
+                       Text="Deployment State"
+                       Icon="@Icons.Material.Filled.Dashboard">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:monospace">
+                @DeploymentStatePath
+            </MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           OnClick="@LoadDeploymentState" />
+        </MudStack>
+
+        @if (!File.Exists(DeploymentStatePath))
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                No deployment state file found — run a deployment from ReleaseConsole to create it.
+            </MudAlert>
+        }
+        else if (_deployments.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No deployment entries.</MudText>
+        }
+        else
+        {
+            <MudDataGrid Items="@_deployments"
+                         Dense="true"
+                         Hover="true"
+                         SortMode="SortMode.Single"
+                         Elevation="1">
+                <Columns>
+                    <PropertyColumn Property="@(d => d.ComponentName)" Title="Component" />
+                    <TemplateColumn Title="Environment" SortBy="@(d => d.Environment)">
+                        <CellTemplate>
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@EnvChipColor(context.Item.Environment)">
+                                @context.Item.Environment
+                            </MudChip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="@(d => d.Version)" Title="Version" />
+                    <TemplateColumn Title="Deployed">
+                        <CellTemplate>
+                            <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                                @AdminDateFormat.Short(context.Item.DeployedAt)
+                            </MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="@(d => d.DeployedBy)" Title="By" />
+                </Columns>
+            </MudDataGrid>
+        }
+    </MudExpansionPanel>
+
+    @* ── Audit Log ── *@
+    <MudExpansionPanel @bind-IsExpanded="_auditExpanded"
+                       Text="Audit Log (last 30)"
+                       Icon="@Icons.Material.Filled.History">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:monospace">
+                @AuditLogPath
+            </MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           OnClick="@LoadAuditLog" />
+        </MudStack>
+
+        @if (!File.Exists(AuditLogPath))
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                No audit log found — run a build or deployment from ReleaseConsole to create it.
+            </MudAlert>
+        }
+        else if (_auditEntries.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No audit entries.</MudText>
+        }
+        else
+        {
+            <MudDataGrid Items="@_auditEntries"
+                         Dense="true"
+                         Hover="true"
+                         SortMode="SortMode.None"
+                         Elevation="1">
+                <Columns>
+                    <TemplateColumn Title="Time">
+                        <CellTemplate>
+                            <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                                @AdminDateFormat.Short(context.Item.Timestamp)
+                            </MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Cmd" SortBy="@(e => e.Command)">
+                        <CellTemplate>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                @context.Item.Command
+                            </MudChip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="@(e => e.Component)"  Title="Component" />
+                    <PropertyColumn Property="@(e => e.Environment)" Title="Env" />
+                    <TemplateColumn Title="✓">
+                        <CellTemplate>
+                            @if (context.Item.Success)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                         Color="Color.Success"
+                                         Size="Size.Small" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Error"
+                                         Color="Color.Error"
+                                         Size="Size.Small" />
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Details">
+                        <CellTemplate>
+                            <MudText Typo="Typo.caption"
+                                     Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px"
+                                     Color="@(context.Item.Success ? Color.Default : Color.Error)">
+                                @(context.Item.ErrorMessage ?? context.Item.Details)
+                            </MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    </MudExpansionPanel>
+
+    @* ── Database Actions ── *@
+    <MudExpansionPanel Text="Database Actions"
+                       Icon="@Icons.Material.Filled.Storage">
+        <MudStack Row="true" Spacing="3" Wrap="Wrap.Wrap">
+            <MudCard Elevation="1" Style="max-width:340px">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2">Swap Prod → Dev</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        Copies <code>C:\CP\Data\Prod\platform.db</code> to dev, then resets
+                        the workspace to <em>"personal"</em> so all production rows are visible
+                        in the dev environment. Backs up the existing dev DB first.
+                        Requires the API to be stopped.
+                    </MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.SwapHoriz"
+                               Disabled="@_running"
+                               OnClick="@SwapDbAsync">
+                        Swap DB
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+
+            <MudCard Elevation="1" Style="max-width:340px">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2">Restore Dev DB</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        Restores the most recent dev backup created by a previous Swap operation
+                        (<code>platform.dev.backup-*.db</code>).
+                        Requires the API to be stopped.
+                    </MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.Restore"
+                               Disabled="@_running"
+                               OnClick="@RestoreDbAsync">
+                        Restore Dev DB
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudStack>
+    </MudExpansionPanel>
+
+</MudExpansionPanels>
+
 @* ── Custom command ── *@
 <MudPaper Elevation="1" Class="pa-3 mb-4">
     <MudText Typo="Typo.subtitle2" Class="mb-2">Custom Command</MudText>
@@ -247,11 +533,74 @@
 </MudPaper>
 
 @code {
+    // ── Record types ───────────────────────────────────────────────────────────
+
     private sealed record OutputLine(string Text, bool IsError);
+
+    private sealed record ArtifactEntry(
+        string        Component
+      , string        Version
+      , string        Directory
+      , string?       ZipPath
+      , ArtifactMeta? Meta)
+    {
+        // API artifacts have a single zip; LAA artifacts are env-specific APK subdirs
+        public bool CanDeployFromArtifact => ZipPath is not null && File.Exists(ZipPath);
+    }
+
+    private sealed record ArtifactMeta
+    {
+        public string?   ComponentName  { get; init; }
+        public string?   Version        { get; init; }
+        public string?   BuiltFor       { get; init; }
+        public string?   GitCommitHash  { get; init; }
+        public DateTime? BuildTimestamp { get; init; }
+        public string?   BuildMachine   { get; init; }
+        public string?   ConsoleVersion { get; init; }
+    }
+
+    private sealed record DeployStateEntry
+    {
+        public string    ComponentName { get; init; } = string.Empty;
+        public string    Environment   { get; init; } = string.Empty;
+        public string    Version       { get; init; } = string.Empty;
+        public string?   ApkName       { get; init; }
+        public string?   AppId         { get; init; }
+        public DateTime? DeployedAt    { get; init; }
+        public string?   DeployedBy    { get; init; }
+    }
+
+    private sealed record AuditLogEntry
+    {
+        public DateTime Timestamp    { get; init; }
+        public string   Command      { get; init; } = string.Empty;
+        public string   Component    { get; init; } = string.Empty;
+        public string?  Environment  { get; init; }
+        public string   User         { get; init; } = string.Empty;
+        public string   Details      { get; init; } = string.Empty;
+        public bool     Success      { get; init; }
+        public string?  ErrorMessage { get; init; }
+    }
+
+    // ── Static paths ───────────────────────────────────────────────────────────
 
     private static readonly string ScriptsDir    = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
     private static readonly string StagingApiDir = @"C:\CP\Deploy\Api";
     private static readonly string StagingLaaDir = @"C:\CP\Deploy\Laa";
+    private static readonly string ArtifactsRoot = @"C:\CP\Artifacts";
+
+    private static readonly string DeploymentStatePath =
+        Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
+                   , "ReleaseConsole", "deployment-state.json");
+
+    private static readonly string AuditLogPath =
+        Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile)
+                   , "ReleaseConsole", "audit.log");
+
+    private static readonly JsonSerializerOptions JsonOpts =
+        new() { PropertyNameCaseInsensitive = true };
+
+    // ── Terminal state ─────────────────────────────────────────────────────────
 
     private string             _workingDirectory = string.Empty;
     private string             _gitDirectory     = string.Empty;
@@ -267,6 +616,17 @@
     private readonly List<OutputLine> _output = [];
     private CancellationTokenSource?  _cts;
     private Process?                  _process;
+
+    // ── Panel state ────────────────────────────────────────────────────────────
+
+    private bool                   _artifactsExpanded;
+    private bool                   _stateExpanded;
+    private bool                   _auditExpanded;
+    private List<ArtifactEntry>    _artifacts   = [];
+    private List<DeployStateEntry> _deployments = [];
+    private List<AuditLogEntry>    _auditEntries = [];
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
 
     // LAA scripts use Pascal-cased environment names (Dev / QA / Prod)
     private string LaaEnvironment => _selectedEnvironment switch
@@ -284,9 +644,28 @@
 
     private void RegenerateVersion() => _version = GenerateVersion();
 
+    private static Color EnvButtonColor(string env) => env switch
+    {
+        "PROD" => Color.Error
+      , "QA"   => Color.Warning
+      , _      => Color.Success
+    };
+
+    private static Color EnvChipColor(string env) => env.ToUpperInvariant() switch
+    {
+        "PROD" or "PRODUCTION" => Color.Error
+      , "QA"                   => Color.Warning
+      , _                      => Color.Success
+    };
+
+    // ── Lifecycle ──────────────────────────────────────────────────────────────
+
     protected override void OnInitialized()
     {
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
+        LoadArtifacts();
+        LoadDeploymentState();
+        LoadAuditLog();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -306,6 +685,16 @@
         StateHasChanged();
     }
 
+    private Task ReloadPanelsAsync()
+    {
+        LoadArtifacts();
+        LoadDeploymentState();
+        LoadAuditLog();
+        return Task.CompletedTask;
+    }
+
+    // ── Directory persistence ──────────────────────────────────────────────────
+
     private async Task SaveWorkingDirectoryAsync(string value)
     {
         _workingDirectory = value;
@@ -317,7 +706,7 @@
 
     private async Task SaveGitDirectoryAsync(string value)
     {
-        _gitDirectory = value;
+        _gitDirectory  = value;
         _gitDirWarning = ValidateDirectory(value);
         await Js.InvokeVoidAsync("localStorage.setItem"
                                , "releaseConsole:gitDirectory"
@@ -328,6 +717,83 @@
         => !string.IsNullOrWhiteSpace(path) && !Directory.Exists(path)
                ? $"Directory not found: {path}"
                : null;
+
+    // ── Panel data loading ─────────────────────────────────────────────────────
+
+    private void LoadArtifacts()
+    {
+        _artifacts.Clear();
+        if (!Directory.Exists(ArtifactsRoot)) return;
+
+        foreach (var compDir in Directory.GetDirectories(ArtifactsRoot))
+        {
+            var component = Path.GetFileName(compDir);
+
+            foreach (var versionDir in Directory.GetDirectories(compDir)
+                                                .OrderByDescending(Path.GetFileName))
+            {
+                ArtifactMeta? meta = null;
+                var metaFile = Path.Combine(versionDir, "metadata.json");
+                if (File.Exists(metaFile))
+                {
+                    try { meta = JsonSerializer.Deserialize<ArtifactMeta>(File.ReadAllText(metaFile), JsonOpts); }
+                    catch { /* skip malformed metadata */ }
+                }
+
+                var zipPath = Path.Combine(versionDir, $"{component}.zip");
+                _artifacts.Add(new ArtifactEntry(
+                    Component : component
+                  , Version   : Path.GetFileName(versionDir)
+                  , Directory : versionDir
+                  , ZipPath   : File.Exists(zipPath) ? zipPath : null
+                  , Meta      : meta));
+            }
+        }
+    }
+
+    private void LoadDeploymentState()
+    {
+        _deployments.Clear();
+        if (!File.Exists(DeploymentStatePath)) return;
+
+        try
+        {
+            var dict = JsonSerializer.Deserialize<Dictionary<string, DeployStateEntry>>(
+                           File.ReadAllText(DeploymentStatePath), JsonOpts);
+            if (dict is null) return;
+
+            _deployments = [..dict.Values
+                                  .OrderBy(d => d.Environment)
+                                  .ThenBy(d => d.ComponentName)];
+        }
+        catch { /* ignore parse errors */ }
+    }
+
+    private void LoadAuditLog()
+    {
+        _auditEntries.Clear();
+        if (!File.Exists(AuditLogPath)) return;
+
+        try
+        {
+            // Read last 30 lines (newest first in the file = append order)
+            var lines = File.ReadAllLines(AuditLogPath)
+                            .Reverse()
+                            .Where(l => !string.IsNullOrWhiteSpace(l))
+                            .Take(30);
+
+            foreach (var line in lines)
+            {
+                try
+                {
+                    var entry = JsonSerializer.Deserialize<AuditLogEntry>(line, JsonOpts);
+                    if (entry is not null) _auditEntries.Add(entry);
+                }
+                catch { /* skip malformed lines */ }
+            }
+        }
+        catch { /* ignore file errors */ }
+    }
 
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
@@ -375,13 +841,54 @@
         return RunAsync(_customExe.Trim(), _customArgs.Trim());
     }
 
-    // ── Execution helpers ─────────────────────────────────────────────────────
+    // ── Deploy from artifact store ─────────────────────────────────────────────
 
-    // Runs in the general working directory (build / deploy / custom commands)
+    private async Task DeployArtifactAsync(ArtifactEntry artifact, string environment)
+    {
+        if (artifact.ZipPath is null || !File.Exists(artifact.ZipPath))
+        {
+            _output.Clear();
+            _output.Add(new($"[Error: zip not found — {artifact.ZipPath}]", IsError: true));
+            StateHasChanged();
+            return;
+        }
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"cp-deploy-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            ZipFile.ExtractToDirectory(artifact.ZipPath, tempDir);
+
+            await RunCoreAsync(tempDir
+                             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); }
+            catch { /* ignore cleanup failure */ }
+
+            // Refresh deployment state so the table reflects the new deploy
+            LoadDeploymentState();
+            LoadAuditLog();
+            StateHasChanged();
+        }
+    }
+
+    // ── Database actions ───────────────────────────────────────────────────────
+
+    private Task SwapDbAsync()
+        => RunCoreAsync(string.Empty
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Swap-ProdDbToDev.ps1""" ));
+
+    private Task RestoreDbAsync()
+        => RunCoreAsync(string.Empty
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Restore-DevDb.ps1""" ));
+
+    // ── Execution helpers ──────────────────────────────────────────────────────
+
     private Task RunAsync(string exe, string args)
         => RunCoreAsync(_workingDirectory, ( exe, args ));
 
-    // Runs in the dedicated git repository directory
     private Task RunInGitRepoAsync(string exe, string args)
         => RunCoreAsync(_gitDirectory, ( exe, args ));
 
@@ -401,8 +908,6 @@
 
         StateHasChanged();
 
-        // Validate working directory; fall back to empty string (process inherits CWD)
-        // so the process can at least start even if the configured directory is wrong.
         var effectiveWorkDir = workDir;
         if (!string.IsNullOrWhiteSpace(effectiveWorkDir) && !Directory.Exists(effectiveWorkDir))
         {
@@ -513,7 +1018,7 @@
             await Js.InvokeVoidAsync("eval"
                                    , "var el=document.getElementById('terminal-end');if(el)el.scrollIntoView({behavior:'instant'});");
         }
-        catch { /* Ignore errors during disposal or when the DOM is not ready */ }
+        catch { /* Ignore during disposal or when DOM is not ready */ }
     }
 
     public async ValueTask DisposeAsync()
