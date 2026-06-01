@@ -360,6 +360,8 @@ public partial class Program
         else
             builder.Services.AddSingleton<IEmbeddingService, DisconnectedEmbeddingService>();
 
+        builder.Services.AddHostedService<EmbeddingBackfillService>();
+
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
         builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection(googleCalendarSection));

@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Workspace;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -11,18 +12,28 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public class TaskService : ITaskService
 {
-    private readonly IObjectStore      _store;
-    private readonly IWorkspaceContext _workspaceContext;
+    private readonly IObjectStore          _store;
+    private readonly IWorkspaceContext     _workspaceContext;
+    private readonly IEmbeddingService     _embeddingService;
+    private readonly IVectorStore          _vectorStore;
+    private readonly ILogger<TaskService>  _logger;
 
     // Provides a stable, monotonically increasing tiebreaker for tasks whose
     // CreatedAt timestamps are identical (e.g. tasks created in a batch loop).
     // Volatile ensures visibility across threads without a full lock.
     private static volatile int _sequenceCounter = 0;
 
-    public TaskService(IObjectStore store, IWorkspaceContext workspaceContext)
+    public TaskService( IObjectStore          store
+                      , IWorkspaceContext     workspaceContext
+                      , IEmbeddingService     embeddingService
+                      , IVectorStore          vectorStore
+                      , ILogger<TaskService>  logger )
     {
         _store            = store;
         _workspaceContext = workspaceContext;
+        _embeddingService = embeddingService;
+        _vectorStore      = vectorStore;
+        _logger           = logger;
     }
 
     public TaskItem Create(TaskItem task)
@@ -37,6 +48,8 @@ public class TaskService : ITaskService
         task.SequenceNumber = Interlocked.Increment(ref _sequenceCounter);
 
         SaveInternal(task);
+
+        QueueEmbedding("task", task.Id, BuildTaskEmbeddingText(task));
 
         return task;
     }
@@ -182,6 +195,8 @@ public class TaskService : ITaskService
 
         SaveInternal(task);
 
+        QueueEmbedding("task", task.Id, BuildTaskEmbeddingText(task));
+
         return task;
     }
 
@@ -210,6 +225,8 @@ public class TaskService : ITaskService
         task.DeletedUtc = DateTimeOffset.UtcNow;
 
         SaveInternal(task);
+
+        QueueVectorDelete("task", task.Id);
     }
 
     public void Delete(string id)
@@ -240,6 +257,56 @@ public class TaskService : ITaskService
     }
 
     // --- Private helpers ----------------------------------------------------
+
+    private void QueueEmbedding(string domain, string referenceId, string text)
+    {
+        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var embedding = await _embeddingService.EmbedAsync(text);
+
+                if (embedding.Length == 0) return;
+
+                await _vectorStore.SaveAsync(new VectorEntry
+                                             {
+                                                     Id          = $"{domain}:{referenceId}"
+                                                   , Domain      = domain
+                                                   , ReferenceId = referenceId
+                                                   , Text        = text
+                                                   , Embedding   = embedding
+                                             });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Embedding failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
+    }
+
+    private void QueueVectorDelete(string domain, string referenceId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _vectorStore.DeleteByReferenceAsync(domain, referenceId);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Vector deletion failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
+    }
+
+    private static string BuildTaskEmbeddingText(TaskItem task)
+    {
+        var parts = new[] { task.ShortDescription, task.Details }
+                    .Where(text => !string.IsNullOrWhiteSpace(text));
+        return string.Join(" ", parts);
+    }
 
     private BatchCompleteResult CompleteOne(string taskId)
     {
