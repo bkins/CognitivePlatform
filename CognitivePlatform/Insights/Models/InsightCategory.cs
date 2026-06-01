@@ -8,4 +8,5 @@ public enum InsightCategory
   , Health
   , Reflection
   , Habit
+  , Wellbeing
 }
