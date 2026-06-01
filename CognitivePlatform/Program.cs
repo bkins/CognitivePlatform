@@ -36,6 +36,7 @@ using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Integrations.Calendar;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Integrations.Health;
 using CognitivePlatform.Api.Integrations.Notifications;
 using CognitivePlatform.Api.Domains.Health;
@@ -348,6 +349,17 @@ public partial class Program
         builder.Services.AddSingleton<IFileSyncService, FileSyncService>();
         builder.Services.AddTransient<FileSyncActions>();
 
+    // Embeddings — OllamaEmbeddingService when OllamaBaseUrl is configured; otherwise disconnected stub.
+        var embeddingSection = builder.Configuration.GetSection("Embedding");
+        builder.Services.Configure<EmbeddingSettings>(embeddingSection);
+        builder.Services.AddHttpClient("OllamaEmbedding");
+
+        var embeddingBaseUrl = embeddingSection.GetValue<string>(nameof(EmbeddingSettings.OllamaBaseUrl)) ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(embeddingBaseUrl))
+            builder.Services.AddSingleton<IEmbeddingService, OllamaEmbeddingService>();
+        else
+            builder.Services.AddSingleton<IEmbeddingService, DisconnectedEmbeddingService>();
+
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";
         builder.Services.Configure<GoogleCalendarSettings>(builder.Configuration.GetSection(googleCalendarSection));
@@ -544,8 +556,10 @@ public partial class Program
             dataBuilder.Services.AddSingleton<IObjectStore>(objectStore);
             dataBuilder.Services.AddSingleton<SqliteObjectStore>(objectStore);
             dataBuilder.Services.AddSingleton<StartupInvariantGuard>();
-            
+
             dataBuilder.Services.AddSingleton<IIdempotencyStore, ObjectStoreIdempotencyStore>();
+
+            dataBuilder.Services.AddSingleton<IVectorStore>(_ => new SqliteVectorStore(connectionString));
         }
     }
 
