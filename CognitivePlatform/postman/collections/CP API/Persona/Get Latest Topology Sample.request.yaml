@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns the most recent EmotionalTopologyPoint. Returns 204 No Content if none exists.
+url: "{{baseUrl}}/api/persona/:id/topology/latest"
+method: GET
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+order: 19000

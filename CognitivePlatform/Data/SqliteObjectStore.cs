@@ -434,6 +434,31 @@ public class SqliteObjectStore : IObjectStore
         return rowsAffected > 0;
     }
 
+    /// <summary>
+    /// Sets PartitionKey = NULL for any rows of the given type where PartitionKey = Id.
+    /// Repairs records written by old pre-workspace code that stored the object's own Id
+    /// as its PartitionKey instead of leaving it NULL (the personal-workspace sentinel).
+    /// Idempotent. Admin use only.
+    /// </summary>
+    public int NullifyOrphanedPartitionKeys(string typeName)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Objects
+            SET    PartitionKey = NULL
+            WHERE  Type         = $type
+              AND  PartitionKey = Id;
+            """;
+
+        command.Parameters.AddWithValue("$type", typeName);
+
+        return command.ExecuteNonQuery();
+    }
+
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------

@@ -1,0 +1,13 @@
+$kind: http-request
+description: Returns the most recent turns for the given conversation session, interleaved as user/assistant pairs.
+url: "{{baseUrl}}/api/conversation/:id/history?last=20"
+method: GET
+queryParams:
+  - key: last
+    value: "20"
+    description: "Number of most recent turns to return (default: 20)"
+pathVariables:
+  - key: id
+    value: ""
+    description: Session ID (string)
+order: 4000

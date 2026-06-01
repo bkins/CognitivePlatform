@@ -1,0 +1,3 @@
+$kind: collection
+description: Persona engine — resolves the active persona context for a given message.
+order: 12000

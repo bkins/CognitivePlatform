@@ -1,0 +1,17 @@
+$kind: http-request
+description: Adds a new identity assertion. Returns the persisted assertion.
+url: "{{baseUrl}}/api/identity/assertions"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": null,
+      "content": "I prefer concise, direct communication.",
+      "source": "manual",
+      "confidenceLevel": 0.9,
+      "confirmedAt": null
+    }
+order: 4000

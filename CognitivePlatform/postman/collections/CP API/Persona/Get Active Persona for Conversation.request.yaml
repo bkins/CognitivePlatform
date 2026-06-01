@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns the active persona GUID for the conversation, or 204 No Content if none is set.
+url: "{{baseUrl}}/api/persona/active/:conversationId"
+method: GET
+pathVariables:
+  - key: conversationId
+    value: "{{sessionId}}"
+    description: Conversation session ID
+order: 7000

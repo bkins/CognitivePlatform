@@ -125,8 +125,31 @@ public sealed class AdminJournalController : AdminControllerBase
                        };
 
         var savedId = await _store.Save(revision, id: revision.RevisionId);
-        
+
         return Ok(new { revisionId = savedId });
+    }
+
+    /// <summary>
+    /// Sets PartitionKey = NULL for all JournalEntry and JournalRevision rows where
+    /// PartitionKey = Id — the fingerprint of records written by old pre-workspace code.
+    /// Idempotent: re-running after all rows are repaired returns zeros.
+    /// </summary>
+    [HttpPost("repair-partition-keys")]
+    public IActionResult RepairPartitionKeys()
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        var entryTypeName    = typeof(JournalEntry).FullName    ?? nameof(JournalEntry);
+        var revisionTypeName = typeof(JournalRevision).FullName ?? nameof(JournalRevision);
+
+        var entriesRepaired   = _store.NullifyOrphanedPartitionKeys(entryTypeName);
+        var revisionsRepaired = _store.NullifyOrphanedPartitionKeys(revisionTypeName);
+
+        return Ok(new
+                  {
+                      EntriesRepaired   = entriesRepaired
+                    , RevisionsRepaired = revisionsRepaired
+                  });
     }
 }
 

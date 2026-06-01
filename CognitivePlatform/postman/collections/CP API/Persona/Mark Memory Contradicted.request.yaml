@@ -1,0 +1,20 @@
+$kind: http-request
+description: Marks a memory as contradicted, linking it to the memories that contradict it.
+url: "{{baseUrl}}/api/persona/:id/memory/:memoryId/contradict"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+  - key: memoryId
+    value: ""
+    description: Memory ID (GUID) to mark as contradicted
+body:
+  type: json
+  content: |-
+    {
+      "contradictionMemoryIds": ["00000000-0000-0000-0000-000000000001"]
+    }
+order: 9000

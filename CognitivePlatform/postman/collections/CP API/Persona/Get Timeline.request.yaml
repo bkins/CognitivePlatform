@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns a single AlternateTimeline by ID. Returns 404 if not found.
+url: "{{baseUrl}}/api/persona/timelines/:timelineId"
+method: GET
+pathVariables:
+  - key: timelineId
+    value: ""
+    description: Timeline ID (GUID)
+order: 16000

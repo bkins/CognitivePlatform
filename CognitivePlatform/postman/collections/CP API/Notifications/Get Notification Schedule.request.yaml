@@ -1,0 +1,10 @@
+$kind: http-request
+description: Returns upcoming notifications evaluated from the given time. Satisfied conditions and suppressed slots are excluded.
+url: "{{baseUrl}}/api/notifications/schedule"
+method: GET
+queryParams:
+  - key: from
+    value: null
+    disabled: true
+    description: Evaluate schedule from this point in time (ISO 8601 DateTimeOffset). Defaults to now.
+order: 1000

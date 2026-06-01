@@ -1,0 +1,18 @@
+$kind: http-request
+description: Creates a MemorySnapshot via the managed IMemorySnapshotService. Supports branching / restore flows.
+url: "{{baseUrl}}/api/persona/:id/snapshots"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "name": "Before timeline exploration",
+      "notes": "Baseline state prior to creating alternate timelines."
+    }
+order: 20000

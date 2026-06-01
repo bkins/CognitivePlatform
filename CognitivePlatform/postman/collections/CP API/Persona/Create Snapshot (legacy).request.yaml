@@ -1,0 +1,18 @@
+$kind: http-request
+description: Creates a MemorySnapshot via the persona store directly.
+url: "{{baseUrl}}/api/persona/:id/snapshot"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "name": "Pre-development baseline",
+      "notes": "Captured before starting creative writing sessions."
+    }
+order: 12000

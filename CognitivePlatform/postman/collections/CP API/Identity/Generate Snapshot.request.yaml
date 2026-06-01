@@ -1,0 +1,5 @@
+$kind: http-request
+description: Triggers the analysis service to generate a new PersonalitySnapshot from current identity data. Returns the generated snapshot.
+url: "{{baseUrl}}/api/identity/snapshots/generate"
+method: POST
+order: 10000

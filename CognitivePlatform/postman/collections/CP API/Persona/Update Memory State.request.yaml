@@ -1,0 +1,20 @@
+$kind: http-request
+description: Transitions a memory to a new state (e.g. Provisional → Confirmed).
+url: "{{baseUrl}}/api/persona/:id/memory/:memoryId/state"
+method: PATCH
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+  - key: memoryId
+    value: ""
+    description: Memory ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "newState": "Confirmed"
+    }
+order: 6000

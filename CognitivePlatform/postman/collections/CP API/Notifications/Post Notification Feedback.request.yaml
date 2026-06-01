@@ -1,0 +1,14 @@
+$kind: http-request
+description: "Records user interaction with a notification for adaptive scheduling. Valid action values: tapped, dismissed, acted."
+url: "{{baseUrl}}/api/notifications/feedback"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "externalId": "notif-001",
+      "action": "tapped"
+    }
+order: 2000

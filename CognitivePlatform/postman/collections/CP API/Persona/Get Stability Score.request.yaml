@@ -1,0 +1,12 @@
+$kind: http-request
+description: Returns the current PersonaStabilityScore for the given persona in the given conversation.
+url: "{{baseUrl}}/api/persona/:id/stability/:conversationId"
+method: GET
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+  - key: conversationId
+    value: "{{sessionId}}"
+    description: Conversation session ID
+order: 10000

@@ -1,0 +1,14 @@
+$kind: http-request
+description: Creates a new CanonicalPersona. Returns the created persona.
+url: "{{baseUrl}}/api/persona"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Alex",
+      "scenarioDescription": "A curious, introspective persona exploring creative writing."
+    }
+order: 1000

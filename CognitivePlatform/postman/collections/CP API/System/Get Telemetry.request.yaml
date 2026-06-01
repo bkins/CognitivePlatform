@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns aggregated telemetry metrics grouped by operation name.
+url: "{{baseUrl}}/api/system/telemetry"
+method: GET
+order: 3000

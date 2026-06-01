@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns the current PersonProfile.
+url: "{{baseUrl}}/api/identity/profile"
+method: GET
+order: 1000
