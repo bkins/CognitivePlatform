@@ -1,0 +1,113 @@
+@page "/maintenance"
+@inject IAdminJournalClient JournalClient
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Maintenance — CP Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Maintenance</MudText>
+
+@* ── Data Repair ── *@
+<MudText Typo="Typo.h6" Class="mb-3">Data Repair</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1">Repair Orphaned Partition Keys</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Build"
+                                   Color="Color.Default"
+                                   Disabled="true" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Sets <code>PartitionKey = NULL</code> for journal entries and revisions whose
+                    <code>PartitionKey</code> was incorrectly set to their own ID by old pre-workspace
+                    code. Idempotent — safe to run multiple times. Rows already repaired return 0.
+                </MudText>
+
+                @if (_repairResult is not null)
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">
+                        Entries repaired: <strong>@_repairResult.EntriesRepaired</strong> &nbsp;|&nbsp;
+                        Revisions repaired: <strong>@_repairResult.RevisionsRepaired</strong>
+                    </MudAlert>
+                }
+                else if (_repairError is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@_repairError</MudAlert>
+                }
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.Build"
+                           Disabled="@_repairing"
+                           OnClick="@ConfirmRepairPartitionKeysAsync">
+                    @if (_repairing)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Running…</span>
+                    }
+                    else
+                    {
+                        <span>Run Repair</span>
+                    }
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool                         _repairing;
+    private RepairPartitionKeysResultDto? _repairResult;
+    private string?                      _repairError;
+
+    private async Task ConfirmRepairPartitionKeysAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Repair"
+          , "This will nullify orphaned PartitionKey values on journal entries and revisions. Continue?"
+          , yesText:    "Run Repair"
+          , cancelText: "Cancel");
+
+        if (confirmed == true)
+            await RunRepairPartitionKeysAsync();
+    }
+
+    private async Task RunRepairPartitionKeysAsync()
+    {
+        _repairing    = true;
+        _repairResult = null;
+        _repairError  = null;
+
+        try
+        {
+            var result = await JournalClient.RepairPartitionKeysAsync();
+
+            if (result is not null)
+            {
+                _repairResult = result;
+                Snackbar.Add($"Repair complete — {result.EntriesRepaired + result.RevisionsRepaired} rows updated."
+                           , Severity.Success);
+            }
+            else
+            {
+                _repairError = "Repair endpoint returned an error — check the API logs.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _repairError = $"Repair failed: {ex.Message}";
+        }
+        finally
+        {
+            _repairing = false;
+        }
+    }
+}

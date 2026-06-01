@@ -42,5 +42,14 @@ public sealed class AdminJournalClient : IAdminJournalClient
         return result?.RevisionId;
     }
 
+    public async Task<RepairPartitionKeysResultDto?> RepairPartitionKeysAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/admin/journal/repair-partition-keys", content: null, ct);
+
+        if (response.IsSuccessStatusCode.Not()) return null;
+
+        return await response.Content.ReadFromJsonAsync<RepairPartitionKeysResultDto>(cancellationToken: ct);
+    }
+
     private sealed record CorrectionResultDto { public string? RevisionId { get; init; } }
 }

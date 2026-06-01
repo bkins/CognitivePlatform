@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all stored PersonalityDefinitions.
+url: "{{baseUrl}}/api/personality"
+method: GET
+order: 1000

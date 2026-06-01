@@ -14,28 +14,20 @@ public class ParameterValidatorTests
     }
 
     // ================================================================
-    // Required
+    // Required — invalid values
     // ================================================================
 
-    [Fact]
-    public void Validate_Required_ReturnsError_WhenValueIsNull()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    public void Validate_Required_ReturnsError_WhenValueIsAbsent(string? value)
     {
         var param = MakeParam("Name", ParameterValidator.Required);
 
-        var errors = ParameterValidator.Validate(param, null).ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Single(errors);
         Assert.Contains("required", errors[0], StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Validate_Required_ReturnsError_WhenValueIsWhitespace()
-    {
-        var param = MakeParam("Name", ParameterValidator.Required);
-
-        var errors = ParameterValidator.Validate(param, "   ").ToList();
-
-        Assert.Single(errors);
     }
 
     [Fact]
@@ -63,22 +55,14 @@ public class ParameterValidatorTests
         Assert.Contains("10", errors[0]);
     }
 
-    [Fact]
-    public void Validate_MaxLength_ReturnsNoErrors_WhenValueIsExactlyLimit()
+    [Theory]
+    [InlineData("12345")]       // exactly at limit
+    [InlineData("")]            // empty — under limit
+    public void Validate_MaxLength_ReturnsNoErrors_WhenValueIsAtOrUnderLimit(string value)
     {
         var param = MakeParam("Bio", "MaxLength:5");
 
-        var errors = ParameterValidator.Validate(param, "12345").ToList();
-
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public void Validate_MaxLength_ReturnsNoErrors_WhenValueIsEmpty()
-    {
-        var param = MakeParam("Bio", "MaxLength:5");
-
-        var errors = ParameterValidator.Validate(param, string.Empty).ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Empty(errors);
     }
@@ -87,23 +71,29 @@ public class ParameterValidatorTests
     // Integer
     // ================================================================
 
-    [Fact]
-    public void Validate_Integer_ReturnsError_WhenValueIsNotNumeric()
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("1.5")]
+    [InlineData("")]
+    public void Validate_Integer_ReturnsError_WhenValueIsNotNumeric(string value)
     {
         var param = MakeParam("Age", ParameterValidator.Integer);
 
-        var errors = ParameterValidator.Validate(param, "abc").ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Single(errors);
         Assert.Contains("integer", errors[0], StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void Validate_Integer_ReturnsNoErrors_WhenValueIsNumeric()
+    [Theory]
+    [InlineData("42")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    public void Validate_Integer_ReturnsNoErrors_WhenValueIsInteger(string value)
     {
         var param = MakeParam("Age", ParameterValidator.Integer);
 
-        var errors = ParameterValidator.Validate(param, "42").ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Empty(errors);
     }
@@ -122,33 +112,37 @@ public class ParameterValidatorTests
     // Date
     // ================================================================
 
-    [Fact]
-    public void Validate_Date_ReturnsError_WhenValueIsNotDate()
+    [Theory]
+    [InlineData("not-a-date")]
+    [InlineData("32/13/2026")]
+    public void Validate_Date_ReturnsError_WhenValueIsNotDate(string value)
     {
         var param = MakeParam("DueDate", ParameterValidator.Date);
 
-        var errors = ParameterValidator.Validate(param, "not-a-date").ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Single(errors);
         Assert.Contains("date", errors[0], StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void Validate_Date_ReturnsNoErrors_WhenValueIsValidDate()
+    [Theory]
+    [InlineData("2025-04-19")]
+    [InlineData("April 19, 2025")]
+    public void Validate_Date_ReturnsNoErrors_WhenValueIsValidDate(string value)
     {
         var param = MakeParam("DueDate", ParameterValidator.Date);
 
-        var errors = ParameterValidator.Validate(param, "2025-04-19").ToList();
+        var errors = ParameterValidator.Validate(param, value).ToList();
 
         Assert.Empty(errors);
     }
 
     // ================================================================
-    // Multi-rule
+    // Multi-rule / edge cases
     // ================================================================
 
     [Fact]
-    public void Validate_MultipleRules_ReturnsAllErrors_WhenValueViolatesAll()
+    public void Validate_MultipleRules_StopsAtFirstError_WhenValueIsNull()
     {
         var param = MakeParam("Code", ParameterValidator.Required, "MaxLength:3");
 

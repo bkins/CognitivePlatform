@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns all MemorySnapshots for the persona via the persona store directly.
+url: "{{baseUrl}}/api/persona/:id/snapshot"
+method: GET
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+order: 13000

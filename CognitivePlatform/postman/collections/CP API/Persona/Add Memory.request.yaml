@@ -1,0 +1,19 @@
+$kind: http-request
+description: Adds a new PersonaMemory to the persona. Returns the created memory.
+url: "{{baseUrl}}/api/persona/:id/memory"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "content": "The user values deep focus and dislikes interruptions.",
+      "type": "Preference",
+      "userAsserted": true
+    }
+order: 5000

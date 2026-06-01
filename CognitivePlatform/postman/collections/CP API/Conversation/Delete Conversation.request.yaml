@@ -1,0 +1,9 @@
+$kind: http-request
+description: Soft-deletes the conversation metadata. Returns 204 No Content.
+url: "{{baseUrl}}/api/conversation/:id"
+method: DELETE
+pathVariables:
+  - key: id
+    value: ""
+    description: Session ID (string)
+order: 7000

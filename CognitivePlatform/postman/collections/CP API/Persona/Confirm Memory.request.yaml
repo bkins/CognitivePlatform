@@ -1,0 +1,12 @@
+$kind: http-request
+description: Marks the memory as confirmed, promoting it from Provisional to Confirmed state.
+url: "{{baseUrl}}/api/persona/:id/memory/:memoryId/confirm"
+method: POST
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+  - key: memoryId
+    value: ""
+    description: Memory ID (GUID)
+order: 8000

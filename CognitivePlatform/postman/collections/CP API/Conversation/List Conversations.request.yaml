@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all conversations including their metadata (name, last active, etc.).
+url: "{{baseUrl}}/api/conversation"
+method: GET
+order: 3000

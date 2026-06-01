@@ -1,0 +1,3 @@
+$kind: collection
+description: Persona domain — canonical personas, memories, snapshots, timelines, topology, and session management.
+order: 11000

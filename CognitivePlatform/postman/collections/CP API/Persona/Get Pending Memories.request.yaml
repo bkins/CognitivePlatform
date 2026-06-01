@@ -1,0 +1,14 @@
+$kind: http-request
+description: Returns Provisional memories awaiting confirmation. Pass conversationId to scope to the active queue.
+url: "{{baseUrl}}/api/persona/:id/memory/pending"
+method: GET
+queryParams:
+  - key: conversationId
+    value: null
+    disabled: true
+    description: If provided, returns the confirmation queue for this conversation instead of all Provisional memories.
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+order: 11000

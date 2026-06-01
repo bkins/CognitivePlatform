@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all identity assertions for the user.
+url: "{{baseUrl}}/api/identity/assertions"
+method: GET
+order: 3000

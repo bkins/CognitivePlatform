@@ -1,0 +1,9 @@
+$kind: http-request
+description: Sets the named personality as active. Returns the activated PersonalityDefinition. Returns 404 if not found.
+url: "{{baseUrl}}/api/personality/:id/activate"
+method: PUT
+pathVariables:
+  - key: id
+    value: ""
+    description: Personality ID (string slug)
+order: 3000

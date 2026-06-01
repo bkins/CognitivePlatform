@@ -27,6 +27,10 @@ public class InsightEngineTests
         _registryMock.Setup(reg => reg.FindByName(It.IsAny<string>())).Returns((ActionMetadata?)null);
     }
 
+    // MaxPerTurn is 2 in the default InsightPolicy. The cap test relies on this value.
+    // If the default changes, update the [InlineData] in the cap test below.
+    private const int DefaultMaxPerTurn = 2;
+
     private InsightEngine BuildEngine(params IInsightProvider[] providers) =>
         new(providers
           , _registryMock.Object
@@ -122,6 +126,8 @@ public class InsightEngineTests
     [Fact]
     public async Task GenerateInsightsAsync_CapsResults_AtMaxPerTurn_HighestPriorityWins()
     {
+        Assert.Equal(DefaultMaxPerTurn, _policy.MaxPerTurn);
+
         var low    = MakeInsight("low.key",    priority: InsightPriority.Low);
         var normal = MakeInsight("normal.key", priority: InsightPriority.Normal);
         var high   = MakeInsight("high.key",   priority: InsightPriority.High);
@@ -129,7 +135,7 @@ public class InsightEngineTests
         var engine = BuildEngine(MakeProvider(InsightCategory.General, low, normal, high).Object);
         var result = await engine.GenerateInsightsAsync(MakeContext());
 
-        Assert.Equal(2, result.Count);
+        Assert.Equal(DefaultMaxPerTurn, result.Count);
         Assert.Contains(result,         insight => insight.DeduplicationKey == "high.key");
         Assert.Contains(result,         insight => insight.DeduplicationKey == "normal.key");
         Assert.DoesNotContain(result,   insight => insight.DeduplicationKey == "low.key");

@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all stored PersonalitySnapshots.
+url: "{{baseUrl}}/api/identity/snapshots"
+method: GET
+order: 9000

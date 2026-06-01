@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns the currently active PersonalityDefinition. Returns 404 if none is set.
+url: "{{baseUrl}}/api/personality/active"
+method: GET
+order: 2000

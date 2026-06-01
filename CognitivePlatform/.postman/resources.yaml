@@ -1,6 +1,5 @@
-# Use this workspace to collaborate
 workspace:
-  id: ""
+  id: 9985a2e1-f7f0-4b9b-8b80-db8f7c2a4f45
 
 # Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
 
@@ -10,10 +9,14 @@ cloudResources:
     ..\postman\collections\TCC: 10918171-b3547396-b03b-4199-b71b-44a7a04219bc
     ..\postman\collections\OFM: 10918171-c9a8612e-3661-4f9b-9182-be7c0321b7e6
     ..\postman\collections\NLCS: 10918171-e9f9f694-624e-4ef6-bbc0-c10e11cfdd9d
-    ..\postman\collections\CP API: 457a7ab0-523c-404d-81c0-9c57495a3a6a
+    ../postman/collections/TCC: 10918171-b3547396-b03b-4199-b71b-44a7a04219bc
+    ../postman/collections/NLCS: 10918171-e9f9f694-624e-4ef6-bbc0-c10e11cfdd9d
+    ..\postman\collections\CP API: 91edd2e8-bdab-418d-9117-dfd6a9fef096
 
-# All resources in the `postman/` folder are automatically registered in Local View.
-# Point to additional files outside the `postman/` folder to register them individually. Example:
-#localResources:
-#  collections:
-#    - ../tests/E2E Test Collection/
+localResources:
+  docs:
+    - ..\Domains\Source_Vs_Service.md
+    - ..\appsettings.NOTES.json.md
+  collections:
+    - ../postman/collections/TCC
+    - ../postman/collections/NLCS

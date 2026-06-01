@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all stored DerivedInsights.
+url: "{{baseUrl}}/api/identity/insights"
+method: GET
+order: 6000

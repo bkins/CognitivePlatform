@@ -1,0 +1,5 @@
+$kind: http-request
+description: Triggers the analysis service to generate new DerivedInsights from current assertions. Returns the generated insights.
+url: "{{baseUrl}}/api/identity/insights/generate"
+method: POST
+order: 7000

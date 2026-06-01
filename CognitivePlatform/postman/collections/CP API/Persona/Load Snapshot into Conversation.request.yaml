@@ -1,0 +1,12 @@
+$kind: http-request
+description: Loads a saved MemorySnapshot into the given conversation, replacing its active persona memory context.
+url: "{{baseUrl}}/api/persona/snapshots/:snapshotId/load/:conversationId"
+method: POST
+pathVariables:
+  - key: snapshotId
+    value: ""
+    description: Snapshot ID (GUID)
+  - key: conversationId
+    value: "{{sessionId}}"
+    description: Conversation session ID to load snapshot into
+order: 22000

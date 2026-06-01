@@ -1,0 +1,19 @@
+$kind: http-request
+description: Creates an AlternateTimeline branching from a point in the persona's history.
+url: "{{baseUrl}}/api/persona/:id/timelines"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "name": "Creative Career Path",
+      "premise": "What if Alex had pursued writing instead of engineering?",
+      "branchPointUtc": "2020-01-01T00:00:00Z"
+    }
+order: 14000

@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns all stored CanonicalPersonas.
+url: "{{baseUrl}}/api/persona"
+method: GET
+order: 2000

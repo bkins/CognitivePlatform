@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns a single CanonicalPersona by ID. Returns 404 if not found.
+url: "{{baseUrl}}/api/persona/:id"
+method: GET
+pathVariables:
+  - key: id
+    value: ""
+    description: Persona ID (GUID)
+order: 3000

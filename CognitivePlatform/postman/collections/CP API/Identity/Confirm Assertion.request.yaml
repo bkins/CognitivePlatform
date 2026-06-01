@@ -1,0 +1,9 @@
+$kind: http-request
+description: Marks the assertion as confirmed by the user.
+url: "{{baseUrl}}/api/identity/assertions/:id/confirm"
+method: PUT
+pathVariables:
+  - key: id
+    value: ""
+    description: Assertion ID (GUID)
+order: 5000

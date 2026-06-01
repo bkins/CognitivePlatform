@@ -1,0 +1,9 @@
+$kind: http-request
+description: Removes any loaded snapshot from the conversation, restoring normal memory resolution.
+url: "{{baseUrl}}/api/persona/snapshots/unload/:conversationId"
+method: POST
+pathVariables:
+  - key: conversationId
+    value: "{{sessionId}}"
+    description: Conversation session ID to unload the snapshot from
+order: 23000

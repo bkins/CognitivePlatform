@@ -1,0 +1,13 @@
+$kind: http-request
+description: Resolves the persona context for a given message. Returns a PersonaContextResult containing the system prompt and active persona details.
+url: "{{baseUrl}}/api/persona-engine/resolve"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "message": "Tell me about yourself and how you can help me today."
+    }
+order: 1000

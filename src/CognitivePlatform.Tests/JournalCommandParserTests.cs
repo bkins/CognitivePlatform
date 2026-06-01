@@ -182,20 +182,13 @@ public class JournalCommandParserTests
 
     // --- Edge-case inputs ---
 
-    [Fact]
-    public void Parse_ReturnsEmptyText_WhenInputIsWhitespaceOnly()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Parse_ReturnsEmptyResult_WhenInputIsNullOrEmpty(string? input)
     {
-        var result = _parser.Parse("   ");
-
-        Assert.Equal(string.Empty, result.Text);
-        Assert.Empty(result.Tags);
-        Assert.Null(result.Mood);
-    }
-
-    [Fact]
-    public void Parse_ReturnsEmptyText_WhenInputIsEmpty()
-    {
-        var result = _parser.Parse(string.Empty);
+        var result = _parser.Parse(input!);
 
         Assert.Equal(string.Empty, result.Text);
         Assert.Empty(result.Tags);

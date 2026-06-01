@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns the ConversationMetadata record for the given session. Returns 404 if not found.
+url: "{{baseUrl}}/api/conversation/:id/metadata"
+method: GET
+pathVariables:
+  - key: id
+    value: ""
+    description: Session ID (string)
+order: 5000

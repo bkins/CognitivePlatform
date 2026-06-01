@@ -14,4 +14,6 @@ public interface IAdminJournalClient
     Task<string?> AddCorrectionAsync( string                       entryId
                                     , AddCorrectionRevisionRequest request
                                     , CancellationToken            ct = default );
+
+    Task<RepairPartitionKeysResultDto?> RepairPartitionKeysAsync(CancellationToken ct = default);
 }

@@ -1,0 +1,16 @@
+$kind: http-request
+description: Stores a new PersonalityDefinition. Returns 201 Created with the saved definition.
+url: "{{baseUrl}}/api/personality"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": "precise",
+      "name": "Precise Assistant",
+      "systemPrompt": "You are a precise, structured assistant. Favour clarity, brevity, and accuracy above all else.",
+      "description": "A direct, no-nonsense personality for efficient task completion."
+    }
+order: 4000

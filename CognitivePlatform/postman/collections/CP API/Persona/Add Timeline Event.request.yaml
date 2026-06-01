@@ -1,0 +1,20 @@
+$kind: http-request
+description: Appends a TimelineEvent to an existing AlternateTimeline. Returns the updated timeline.
+url: "{{baseUrl}}/api/persona/timelines/:timelineId/events"
+method: POST
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: timelineId
+    value: ""
+    description: Timeline ID (GUID)
+body:
+  type: json
+  content: |-
+    {
+      "eventDate": "2021-06-15T00:00:00Z",
+      "description": "Published first novel.",
+      "emotionalWeight": 0.9,
+      "isCanon": false
+    }
+order: 17000

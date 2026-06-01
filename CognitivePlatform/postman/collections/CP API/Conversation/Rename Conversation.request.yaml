@@ -1,0 +1,17 @@
+$kind: http-request
+description: Updates the display name of the conversation. Returns the updated metadata.
+url: "{{baseUrl}}/api/conversation/:id/name"
+method: PUT
+headers:
+  Content-Type: application/json
+pathVariables:
+  - key: id
+    value: ""
+    description: Session ID (string)
+body:
+  type: json
+  content: |-
+    {
+      "name": "New Conversation Name"
+    }
+order: 6000

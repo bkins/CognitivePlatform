@@ -67,22 +67,17 @@ public class TaskDateParserTests
         Assert.Equal(expected, value.DayOfWeek);
     }
 
-    [Fact]
-    public void TryParseDate_ReturnsRelativeDate_ForInNDaysFormat()
+    [Theory]
+    [InlineData("in 3 days",  3)]
+    [InlineData("in 1 day",   1)]
+    [InlineData("in 2 weeks", 14)]
+    [InlineData("in 1 week",  7)]
+    public void TryParseDate_ReturnsRelativeDate_ForInNUnitsFormat(string token, int expectedDaysFromNow)
     {
-        var result = TaskDateParser.TryParseDate("in 3 days", out var value);
+        var result = TaskDateParser.TryParseDate(token, out var value);
 
         Assert.True(result);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(3), value.Date);
-    }
-
-    [Fact]
-    public void TryParseDate_ReturnsRelativeDate_ForInNWeeksFormat()
-    {
-        var result = TaskDateParser.TryParseDate("in 2 weeks", out var value);
-
-        Assert.True(result);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(14), value.Date);
+        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(expectedDaysFromNow), value.Date);
     }
 
     [Fact]
@@ -94,6 +89,32 @@ public class TaskDateParserTests
         Assert.Equal(2026,         value.Year);
         Assert.Equal(7,            value.Month);
         Assert.Equal(4,            value.Day);
+    }
+
+    // NextDayOfWeek always skips to the NEXT week when today matches the target.
+    // This is the documented behavior: "monday" when today IS Monday = next Monday.
+    // The existing TryParseDate_ReturnsNextOccurrence_ForWeekdayToken only checks
+    // DayOfWeek equality — it does NOT verify same-week vs next-week semantics.
+
+    [Fact]
+    public void NextDayOfWeek_ReturnsSevenDaysAhead_WhenFromDayMatchesTarget()
+    {
+        var monday = new DateTimeOffset(2026, 6, 8, 0, 0, 0, TimeSpan.Zero); // a known Monday
+
+        var result = TaskDateParser.NextDayOfWeek(monday, DayOfWeek.Monday);
+
+        Assert.Equal(monday.Date.AddDays(7), result.Date);
+    }
+
+    [Fact]
+    public void NextDayOfWeek_ReturnsCorrectDaysAhead_WhenTargetIsLaterInWeek()
+    {
+        var monday = new DateTimeOffset(2026, 6, 8, 0, 0, 0, TimeSpan.Zero); // Monday
+
+        var result = TaskDateParser.NextDayOfWeek(monday, DayOfWeek.Friday);
+
+        Assert.Equal(monday.Date.AddDays(4), result.Date);
+        Assert.Equal(DayOfWeek.Friday, result.DayOfWeek);
     }
 
     // ================================================================

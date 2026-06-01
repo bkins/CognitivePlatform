@@ -1,0 +1,9 @@
+$kind: http-request
+description: Marks the derived insight as confirmed by the user.
+url: "{{baseUrl}}/api/identity/insights/:id/confirm"
+method: PUT
+pathVariables:
+  - key: id
+    value: ""
+    description: Insight ID (GUID)
+order: 8000

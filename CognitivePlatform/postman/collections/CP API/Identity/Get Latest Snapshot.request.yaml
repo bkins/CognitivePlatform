@@ -1,0 +1,5 @@
+$kind: http-request
+description: Returns the most recent PersonalitySnapshot, or null if none exists.
+url: "{{baseUrl}}/api/identity/snapshots/latest"
+method: GET
+order: 11000
