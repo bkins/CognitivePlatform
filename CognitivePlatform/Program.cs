@@ -271,6 +271,7 @@ public partial class Program
     // ENH-31 — Reflective Intelligence Phase Two
         builder.Services.AddScoped<IInsightProvider, HealthCorrelationInsightProvider>();
         builder.Services.AddScoped<IInsightProvider, GoalAlignmentInsightProvider>();
+        builder.Services.AddScoped<IInsightProvider, HabitReinforcementInsightProvider>();
         builder.Services.AddScoped<IInsightEngine, InsightEngine>();
         builder.Services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
         var insightPolicy = builder.Configuration.GetSection("Insights").Get<InsightPolicy>()
