@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Workspace;
 
@@ -31,18 +32,24 @@ public sealed class JournalService : IJournalService
     private readonly IJournalRevisionRepository _revisionRepository;
     private readonly IJournalDraftRepository    _draftRepository;
     private readonly IWorkspaceContext          _workspaceContext;
+    private readonly IEmbeddingService          _embeddingService;
+    private readonly IVectorStore               _vectorStore;
 
     public JournalService (IObjectStore               store
                          , IJournalRevisionRepository revisionRepository
                          , IJournalDraftRepository    draftRepository
                          , ILogger<JournalService>    logger
-                         , IWorkspaceContext          workspaceContext)
+                         , IWorkspaceContext          workspaceContext
+                         , IEmbeddingService          embeddingService
+                         , IVectorStore               vectorStore)
     {
         _store              = store;
         _revisionRepository = revisionRepository;
         _draftRepository    = draftRepository;
         _logger             = logger;
         _workspaceContext   = workspaceContext;
+        _embeddingService   = embeddingService;
+        _vectorStore        = vectorStore;
     }
 
     public async Task<string> AddEntryAsync(string                 text
@@ -96,6 +103,9 @@ public sealed class JournalService : IJournalService
                                               , State      = JournalDraftState.Local
                                               , CreatedUtc = DateTimeOffset.UtcNow
                                         });
+
+        QueueEmbedding("journal", actualEntryId, text);
+
         return actualEntryId;
     }
 
@@ -131,6 +141,8 @@ public sealed class JournalService : IJournalService
         _store.Save(newRevision
                   , partitionKey: _workspaceContext.ActivePartitionKey
                   , id:           newRevision.RevisionId);
+
+        QueueEmbedding("journal", entryId, newRevision.Text);
 
         return newRevision;
     }
@@ -265,6 +277,8 @@ public sealed class JournalService : IJournalService
                   , partitionKey: _workspaceContext.ActivePartitionKey
                   , id:           entry.Id);
 
+        QueueVectorDelete("journal", id);
+
         return true;
     }
 
@@ -309,6 +323,49 @@ public sealed class JournalService : IJournalService
               , MoodLevel.VeryPositive => "😄"
               , _                      => "❓"
         };
+    }
+
+    private void QueueEmbedding(string domain, string referenceId, string text)
+    {
+        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var embedding = await _embeddingService.EmbedAsync(text);
+
+                if (embedding.Length == 0) return;
+
+                await _vectorStore.SaveAsync(new VectorEntry
+                                             {
+                                                     Id          = $"{domain}:{referenceId}"
+                                                   , Domain      = domain
+                                                   , ReferenceId = referenceId
+                                                   , Text        = text
+                                                   , Embedding   = embedding
+                                             });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Embedding failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
+    }
+
+    private void QueueVectorDelete(string domain, string referenceId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _vectorStore.DeleteByReferenceAsync(domain, referenceId);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Vector deletion failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
     }
 
     private static List<string> NormalizeMediaPaths (IEnumerable<string>? mediaPaths

@@ -1,15 +1,20 @@
 using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Workspace;
+using Microsoft.Extensions.Logging;
 
 namespace CognitivePlatform.Tests;
 
 public class TaskServiceTests
 {
-    private readonly Mock<IObjectStore>      _storeMock            = new();
-    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
-    private readonly TaskService             _service;
+    private readonly Mock<IObjectStore>          _storeMock            = new();
+    private readonly Mock<IWorkspaceContext>      _workspaceContextMock = new();
+    private readonly Mock<IEmbeddingService>      _embeddingMock        = new();
+    private readonly Mock<IVectorStore>           _vectorStoreMock      = new();
+    private readonly Mock<ILogger<TaskService>>   _loggerMock           = new();
+    private readonly TaskService                  _service;
 
     public TaskServiceTests()
     {
@@ -21,7 +26,13 @@ public class TaskServiceTests
         _workspaceContextMock.Setup(ctx => ctx.ActivePartitionKey)
                              .Returns((string?)null); // personal workspace
 
-        _service = new TaskService(_storeMock.Object, _workspaceContextMock.Object);
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false); // off by default
+
+        _service = new TaskService(_storeMock.Object
+                                 , _workspaceContextMock.Object
+                                 , _embeddingMock.Object
+                                 , _vectorStoreMock.Object
+                                 , _loggerMock.Object);
     }
 
     // ================================================================
@@ -334,6 +345,21 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public void Complete_IsIdempotent_WhenTaskAlreadyCompleted()
+    {
+        var id          = Guid.NewGuid();
+        var completedAt = DateTimeOffset.UtcNow.AddHours(-1);
+        var task        = new TaskItem { Id = id.ToString("N"), CompletedAt = completedAt };
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns(task);
+
+        _service.Complete(id);
+
+        Assert.Equal(completedAt, task.CompletedAt);
+    }
+
+    [Fact]
     public void Complete_Throws_WhenTaskNotFound()
     {
         var id = Guid.NewGuid();
@@ -394,6 +420,19 @@ public class TaskServiceTests
     // ================================================================
     // UN-DELETE
     // ================================================================
+
+    [Fact]
+    public void UnDelete_DoesNotThrow_WhenTaskNotFound()
+    {
+        var id = Guid.NewGuid();
+
+        _storeMock.Setup(store => store.Get<TaskItem>(id.ToString("N"), null))
+                  .Returns((TaskItem?)null);
+
+        var exception = Record.Exception(() => _service.UnDelete(id));
+
+        Assert.Null(exception);
+    }
 
     [Fact]
     public void UnDelete_ClearsIsDeletedAndDeletedUtc_WhenTaskExists()
@@ -564,6 +603,70 @@ public class TaskServiceTests
         Assert.Equal("soon",  result[0].Id);
         Assert.Equal("later", result[1].Id);
         Assert.Equal("none",  result[2].Id);
+    }
+
+    // ================================================================
+    // EMBEDDING (fire-and-forget)
+    // ================================================================
+
+    [Fact]
+    public async Task Create_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
+    {
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
+        _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new float[] { 0.1f, 0.2f });
+        _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
+                        .Returns(Task.CompletedTask);
+
+        var task = new TaskItem { ShortDescription = "Write tests", Details = "Unit tests for the parser" };
+
+        _service.Create(task);
+
+        await Task.Delay(100);
+
+        _embeddingMock.Verify(service => service.EmbedAsync("Write tests Unit tests for the parser"
+                                                           , It.IsAny<CancellationToken>())
+                            , Times.Once);
+        _vectorStoreMock.Verify(store => store.SaveAsync(It.Is<VectorEntry>(entry => entry.Domain == "task"
+                                                                                  && entry.ReferenceId == task.Id)
+                                                       , It.IsAny<CancellationToken>())
+                              , Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_SkipsEmbedding_WhenEmbeddingServiceIsUnavailable()
+    {
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false);
+
+        _service.Create(new TaskItem { ShortDescription = "Write tests" });
+
+        await Task.Delay(50);
+
+        _embeddingMock.Verify(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Delete_QueuesVectorDelete_WhenTaskExists()
+    {
+        var taskId = Guid.NewGuid();
+        var task   = new TaskItem { Id = taskId.ToString("N"), ShortDescription = "Old task" };
+
+        _storeMock.Setup(store => store.Get<TaskItem>(taskId.ToString("N")
+                                                     , It.IsAny<string?>()))
+                  .Returns(task);
+        _vectorStoreMock.Setup(store => store.DeleteByReferenceAsync(It.IsAny<string>()
+                                                                    , It.IsAny<string>()
+                                                                    , It.IsAny<CancellationToken>()))
+                        .Returns(Task.CompletedTask);
+
+        _service.Delete(taskId);
+
+        await Task.Delay(100);
+
+        _vectorStoreMock.Verify(store => store.DeleteByReferenceAsync("task"
+                                                                     , taskId.ToString("N")
+                                                                     , It.IsAny<CancellationToken>())
+                              , Times.Once);
     }
 
 }

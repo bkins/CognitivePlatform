@@ -168,6 +168,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 3.0: SEMANTIC SEARCH FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveSemanticSearch(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3: GENERAL FAST PATH (ATTRIBUTE + METADATA DRIVEN)
         // ------------------------------------------------------------
         if (TryResolveGenericFastPath(input, out action, out parameters))
@@ -1373,6 +1379,74 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return null;
+    }
+
+    // ================================================================
+    // MODE 3.0: SEMANTIC SEARCH FAST PATHS
+    // ================================================================
+
+    // Signal prefixes that map to SemanticSearch (cross-domain)
+    private static readonly (string Prefix, string? Domain)[] SemanticSearchPrefixes =
+    {
+            ("what have i written about ",    null)
+          , ("what have i journaled about ",  null)
+          , ("find anything about ",          null)
+          , ("find anything related to ",     null)
+          , ("search my notes for ",          null)
+          , ("what do i know about ",         null)
+          , ("find entries about ",           null)
+          , ("find journal entries about ",   "journal")
+          , ("search my journal for ",        "journal")
+          , ("look in my journal for ",       "journal")
+          , ("search tasks for ",             "task")
+          , ("search my tasks for ",          "task")
+          , ("find tasks about ",             "task")
+          , ("find daily records about ",     "daily")
+          , ("search my daily records for ",  "daily")
+    };
+
+    private bool TryResolveSemanticSearch( string                           input
+                                         , out ActionMetadata?             action
+                                         , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        foreach (var (prefix, domain) in SemanticSearchPrefixes)
+        {
+            if (!normalized.StartsWith(prefix))
+                continue;
+
+            var query = normalized.Substring(prefix.Length).Trim();
+            if (string.IsNullOrWhiteSpace(query))
+                continue;
+
+            if (domain is null)
+            {
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SemanticSearch");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                             { ["query"] = query };
+            }
+            else
+            {
+                action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SemanticSearchInDomain");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                             {
+                                     ["domain"] = domain
+                                   , ["query"]  = query
+                             };
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     // ================================================================

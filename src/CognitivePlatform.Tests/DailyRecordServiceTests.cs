@@ -2,16 +2,21 @@ using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Embeddings;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace CognitivePlatform.Tests;
 
 public class DailyRecordServiceTests
 {
-    private readonly Mock<IObjectStore>    _storeMock    = new();
-    private readonly Mock<ITaskService>    _taskMock     = new();
-    private readonly Mock<IJournalService> _journalMock  = new();
-    private readonly DailyRecordService    _service;
+    private readonly Mock<IObjectStore>                    _storeMock        = new();
+    private readonly Mock<ITaskService>                    _taskMock         = new();
+    private readonly Mock<IJournalService>                 _journalMock      = new();
+    private readonly Mock<IEmbeddingService>               _embeddingMock    = new();
+    private readonly Mock<IVectorStore>                    _vectorStoreMock  = new();
+    private readonly Mock<ILogger<DailyRecordService>>     _loggerMock       = new();
+    private readonly DailyRecordService                    _service;
 
     private static readonly string TodayKey
         = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
@@ -39,9 +44,14 @@ public class DailyRecordServiceTests
                                                          , It.IsAny<string?>()))
             .ReturnsAsync("checkpoint-id");
 
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false); // off by default
+
         _service = new DailyRecordService(_storeMock.Object
                                         , _taskMock.Object
-                                        , _journalMock.Object);
+                                        , _journalMock.Object
+                                        , _embeddingMock.Object
+                                        , _vectorStoreMock.Object
+                                        , _loggerMock.Object);
     }
 
     // ================================================================
@@ -542,5 +552,44 @@ public class DailyRecordServiceTests
         Assert.Equal("Write release notes", capturedTask!.ShortDescription);
         Assert.NotNull(capturedTask.DueDate);
         Assert.Equal(DayOfWeek.Friday,      capturedTask.DueDate!.Value.DayOfWeek);
+    }
+
+    // ================================================================
+    // EMBEDDING (fire-and-forget)
+    // ================================================================
+
+    [Fact]
+    public async Task OpenDayAsync_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
+    {
+        _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns((DailyRecord?)null);
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
+        _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new float[] { 0.1f, 0.2f });
+        _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
+                        .Returns(Task.CompletedTask);
+
+        await _service.OpenDayAsync("Deep work session.", Array.Empty<string>());
+
+        await Task.Delay(100);
+
+        _embeddingMock.Verify(service => service.EmbedAsync(It.Is<string>(text => text.Contains("Deep work session."))
+                                                           , It.IsAny<CancellationToken>())
+                            , Times.Once);
+        _vectorStoreMock.Verify(store => store.SaveAsync(It.Is<VectorEntry>(entry => entry.Domain == "daily")
+                                                       , It.IsAny<CancellationToken>())
+                              , Times.Once);
+    }
+
+    [Fact]
+    public async Task OpenDayAsync_SkipsEmbedding_WhenEmbeddingServiceIsUnavailable()
+    {
+        _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns((DailyRecord?)null);
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false);
+
+        await _service.OpenDayAsync("Focus day.", Array.Empty<string>());
+
+        await Task.Delay(50);
+
+        _embeddingMock.Verify(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

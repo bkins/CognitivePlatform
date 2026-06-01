@@ -50,6 +50,8 @@ using CognitivePlatform.Api.SystemInfo;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Wellbeing;
 using CognitivePlatform.Api.Domains.Wellbeing;
+using CognitivePlatform.Api.Domains.Search;
+using CognitivePlatform.Api.Domains.Document;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
@@ -349,6 +351,14 @@ public partial class Program
         builder.Services.AddSingleton<IFileSyncService, FileSyncService>();
         builder.Services.AddTransient<FileSyncActions>();
 
+    // Semantic Search
+        builder.Services.AddTransient<SemanticSearchActions>();
+
+    // Document Indexing
+        builder.Services.AddSingleton<DocumentChunkingService>();
+        builder.Services.AddSingleton<IDocumentIndexingService, DocumentIndexingService>();
+        builder.Services.AddTransient<DocumentActions>();
+
     // Embeddings — OllamaEmbeddingService when OllamaBaseUrl is configured; otherwise disconnected stub.
         var embeddingSection = builder.Configuration.GetSection("Embedding");
         builder.Services.Configure<EmbeddingSettings>(embeddingSection);
@@ -359,6 +369,8 @@ public partial class Program
             builder.Services.AddSingleton<IEmbeddingService, OllamaEmbeddingService>();
         else
             builder.Services.AddSingleton<IEmbeddingService, DisconnectedEmbeddingService>();
+
+        builder.Services.AddHostedService<EmbeddingBackfillService>();
 
     // Calendar
         var googleCalendarSection = $"GoogleCalendar:{envName}";

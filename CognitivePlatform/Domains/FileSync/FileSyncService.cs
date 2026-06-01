@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Document;
 using CognitivePlatform.Api.Integrations.FileSync;
 using CognitivePlatform.Api.Integrations.FileSync.Models;
 using Microsoft.Extensions.Logging;
@@ -15,17 +16,20 @@ public sealed class FileSyncService : IFileSyncService
     private readonly IFileSyncProvider         _phoneProvider;
     private readonly ILocalFileSystem          _localFileSystem;
     private readonly IObjectStore              _objectStore;
+    private readonly IDocumentIndexingService? _documentIndexingService;
     private readonly ILogger<FileSyncService>  _logger;
 
-    public FileSyncService( IFileSyncProvider        phoneProvider
-                          , ILocalFileSystem          localFileSystem
-                          , IObjectStore              objectStore
-                          , ILogger<FileSyncService>  logger )
+    public FileSyncService( IFileSyncProvider         phoneProvider
+                          , ILocalFileSystem           localFileSystem
+                          , IObjectStore               objectStore
+                          , ILogger<FileSyncService>   logger
+                          , IDocumentIndexingService?  documentIndexingService = null )
     {
-        _phoneProvider   = phoneProvider   ?? throw new ArgumentNullException(nameof(phoneProvider));
-        _localFileSystem = localFileSystem ?? throw new ArgumentNullException(nameof(localFileSystem));
-        _objectStore     = objectStore     ?? throw new ArgumentNullException(nameof(objectStore));
-        _logger          = logger          ?? throw new ArgumentNullException(nameof(logger));
+        _phoneProvider           = phoneProvider           ?? throw new ArgumentNullException(nameof(phoneProvider));
+        _localFileSystem         = localFileSystem         ?? throw new ArgumentNullException(nameof(localFileSystem));
+        _objectStore             = objectStore             ?? throw new ArgumentNullException(nameof(objectStore));
+        _logger                  = logger                  ?? throw new ArgumentNullException(nameof(logger));
+        _documentIndexingService = documentIndexingService;
     }
 
     // -----------------------------------------------------------------------
@@ -321,6 +325,22 @@ public sealed class FileSyncService : IFileSyncService
 
         await using var stream = await _phoneProvider.DownloadFileAsync(remotePath, ct);
         await _localFileSystem.WriteAsync(localFullPath, stream, ct);
+
+        // ENH-25: fire-and-forget document indexing for newly synced files
+        if (_documentIndexingService is not null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _documentIndexingService.IndexAsync(localFullPath);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Document indexing failed for synced file '{Path}'", localFullPath);
+                }
+            }, CancellationToken.None);
+        }
     }
 
     private async Task StoreConflictRecordAsync( string relativePath

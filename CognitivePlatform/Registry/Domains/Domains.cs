@@ -253,6 +253,43 @@ public sealed record FileSyncDomain : IDomainDefinition
     };
 }
 
+public sealed record DocumentDomain : IDomainDefinition
+{
+    public string Name        => "Document";
+    public string Description => "Indexing and semantic search over arbitrary files on disk.";
+
+    public IReadOnlyList<string> Keywords => new[]
+    {
+        "document"
+      , "documents"
+      , "file"
+      , "files"
+      , "index"
+      , "indexed"
+      , "pdf"
+      , "markdown"
+      , "text file"
+    };
+}
+
+public sealed record SemanticSearchDomain : IDomainDefinition
+{
+    public string Name        => "Search";
+    public string Description => "Semantic search across all domain content using vector embeddings.";
+
+    public IReadOnlyList<string> Keywords => new[]
+    {
+        "semantic"
+      , "search"
+      , "find"
+      , "similar"
+      , "related"
+      , "about"
+      , "written"
+      , "notes"
+    };
+}
+
 public sealed record WellbeingDomain : IDomainDefinition
 {
     public string Name        => "Wellbeing";

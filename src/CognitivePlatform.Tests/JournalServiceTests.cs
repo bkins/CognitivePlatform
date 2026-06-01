@@ -2,6 +2,7 @@ using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Workspace;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,8 @@ public class JournalServiceTests
     private readonly Mock<IJournalDraftRepository>    _draftRepoMock        = new();
     private readonly Mock<ILogger<JournalService>>    _loggerMock           = new();
     private readonly Mock<IWorkspaceContext>           _workspaceContextMock = new();
+    private readonly Mock<IEmbeddingService>           _embeddingMock        = new();
+    private readonly Mock<IVectorStore>                _vectorStoreMock      = new();
     private readonly JournalService                    _service;
 
     public JournalServiceTests()
@@ -36,11 +39,15 @@ public class JournalServiceTests
         _workspaceContextMock.Setup(ctx => ctx.ActivePartitionKey)
                              .Returns((string?)null); // personal workspace
 
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false); // off by default
+
         _service = new JournalService(_storeMock.Object
                                     , _revisionRepoMock.Object
                                     , _draftRepoMock.Object
                                     , _loggerMock.Object
-                                    , _workspaceContextMock.Object);
+                                    , _workspaceContextMock.Object
+                                    , _embeddingMock.Object
+                                    , _vectorStoreMock.Object);
     }
 
     // ================================================================
@@ -541,37 +548,16 @@ public class JournalServiceTests
     // ================================================================
 
     [Theory]
+    [InlineData(-5, MoodLevel.VeryNegative)]
     [InlineData(0,  MoodLevel.VeryNegative)]
     [InlineData(1,  MoodLevel.VeryNegative)]
-    [InlineData(-5, MoodLevel.VeryNegative)]
-    public void MapMoodLevel_ReturnsVeryNegative_ForScoresAtOrBelowOne(int score, MoodLevel expected)
-    {
-        Assert.Equal(expected, JournalService.MapMoodLevel(score));
-    }
-
-    [Fact]
-    public void MapMoodLevel_ReturnsNegative_ForScoreOfTwo()
-    {
-        Assert.Equal(MoodLevel.Negative, JournalService.MapMoodLevel(2));
-    }
-
-    [Fact]
-    public void MapMoodLevel_ReturnsNeutral_ForScoreOfThree()
-    {
-        Assert.Equal(MoodLevel.Neutral, JournalService.MapMoodLevel(3));
-    }
-
-    [Fact]
-    public void MapMoodLevel_ReturnsPositive_ForScoreOfFour()
-    {
-        Assert.Equal(MoodLevel.Positive, JournalService.MapMoodLevel(4));
-    }
-
-    [Theory]
+    [InlineData(2,  MoodLevel.Negative)]
+    [InlineData(3,  MoodLevel.Neutral)]
+    [InlineData(4,  MoodLevel.Positive)]
     [InlineData(5,  MoodLevel.VeryPositive)]
     [InlineData(6,  MoodLevel.VeryPositive)]
     [InlineData(10, MoodLevel.VeryPositive)]
-    public void MapMoodLevel_ReturnsVeryPositive_ForScoresAtOrAboveFive(int score, MoodLevel expected)
+    public void MapMoodLevel_ReturnsExpectedLevel_ForScore(int score, MoodLevel expected)
     {
         Assert.Equal(expected, JournalService.MapMoodLevel(score));
     }
@@ -700,6 +686,25 @@ public class JournalServiceTests
         Assert.Single(results);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void SearchEntries_ReturnsAllEntries_WhenKeywordIsEmptyOrWhitespace(string keyword)
+    {
+        var entry = MakeEntry(Guid.NewGuid().ToString("N"));
+        var rev   = MakeRevision(entry.Id, "Some text.");
+
+        _storeMock.Setup(store => store.List<JournalEntry>(null, null, null))
+                  .Returns(new List<JournalEntry> { entry });
+        _revisionRepoMock.Setup(repo => repo.GetRevisionsByEntryId(entry.Id))
+                         .Returns(new List<JournalRevision> { rev });
+
+        var results = _service.SearchEntries(keyword);
+
+        Assert.Single(results);
+        Assert.Equal(entry.Id, results[0].Entry.Id);
+    }
+
     [Fact]
     public void SearchEntries_ReturnsEmpty_WhenNoMatch()
     {
@@ -714,5 +719,79 @@ public class JournalServiceTests
         var results = _service.SearchEntries("Jake");
 
         Assert.Empty(results);
+    }
+
+    // ================================================================
+    // EMBEDDING (fire-and-forget)
+    // ================================================================
+
+    [Fact]
+    public async Task AddEntryAsync_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        _storeMock.Setup(store => store.Save(It.IsAny<JournalEntry>()
+                                           , It.IsAny<string?>()
+                                           , It.IsAny<string?>()))
+                  .ReturnsAsync(entryId);
+
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
+        _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(new float[] { 0.1f, 0.2f, 0.3f });
+        _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
+                        .Returns(Task.CompletedTask);
+
+        await _service.AddEntryAsync("Great day."
+                                   , Array.Empty<string>()
+                                   , mood:       null
+                                   , moodScore:  null
+                                   , moodLevel:  null
+                                   , mediaPaths: Array.Empty<string>());
+
+        await Task.Delay(100);
+
+        _embeddingMock.Verify(service => service.EmbedAsync("Great day.", It.IsAny<CancellationToken>()), Times.Once);
+        _vectorStoreMock.Verify(store => store.SaveAsync(It.Is<VectorEntry>(entry => entry.Domain      == "journal"
+                                                                                  && entry.ReferenceId == entryId)
+                                                       , It.IsAny<CancellationToken>())
+                              , Times.Once);
+    }
+
+    [Fact]
+    public async Task AddEntryAsync_SkipsEmbedding_WhenEmbeddingServiceIsUnavailable()
+    {
+        _embeddingMock.Setup(service => service.IsAvailable).Returns(false);
+
+        await _service.AddEntryAsync("Great day."
+                                   , Array.Empty<string>()
+                                   , mood:       null
+                                   , moodScore:  null
+                                   , moodLevel:  null
+                                   , mediaPaths: Array.Empty<string>());
+
+        await Task.Delay(50);
+
+        _embeddingMock.Verify(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteEntry_QueuesVectorDelete_WhenEntryExists()
+    {
+        var id    = Guid.NewGuid().ToString("N");
+        var entry = MakeEntry(id);
+
+        _storeMock.Setup(store => store.Get<JournalEntry>(id, null)).Returns(entry);
+        _vectorStoreMock.Setup(store => store.DeleteByReferenceAsync(It.IsAny<string>()
+                                                                    , It.IsAny<string>()
+                                                                    , It.IsAny<CancellationToken>()))
+                        .Returns(Task.CompletedTask);
+
+        _service.DeleteEntry(id, "no longer needed");
+
+        await Task.Delay(100);
+
+        _vectorStoreMock.Verify(store => store.DeleteByReferenceAsync("journal"
+                                                                     , id
+                                                                     , It.IsAny<CancellationToken>())
+                              , Times.Once);
     }
 }

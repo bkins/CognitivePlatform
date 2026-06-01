@@ -4,6 +4,7 @@ using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Workspace;
 using Microsoft.Extensions.Logging;
@@ -29,10 +30,15 @@ public class WorkspaceScopingTests
                                                   , It.IsAny<string?>()))
              .ReturnsAsync(string.Empty);
 
-        var ctx = new Mock<IWorkspaceContext>();
-        ctx.Setup(workspaceContext => workspaceContext.ActivePartitionKey).Returns(partitionKey);
+        var ctx           = new Mock<IWorkspaceContext>();
+        var embeddingMock = new Mock<IEmbeddingService>();
+        var vectorMock    = new Mock<IVectorStore>();
+        var loggerMock    = new Mock<ILogger<TaskService>>();
 
-        return (new TaskService(store.Object, ctx.Object), store, ctx);
+        ctx.Setup(workspaceContext => workspaceContext.ActivePartitionKey).Returns(partitionKey);
+        embeddingMock.Setup(service => service.IsAvailable).Returns(false);
+
+        return (new TaskService(store.Object, ctx.Object, embeddingMock.Object, vectorMock.Object, loggerMock.Object), store, ctx);
     }
 
     [Fact]
@@ -170,9 +176,13 @@ public class WorkspaceScopingTests
                                  new() { RevisionId = Guid.NewGuid().ToString("N"), Text = "test", Tags = [], MediaPaths = [] }
                              });
 
-        ctx.Setup(workspaceContext => workspaceContext.ActivePartitionKey).Returns(partitionKey);
+        var embeddingMock = new Mock<IEmbeddingService>();
+        var vectorMock    = new Mock<IVectorStore>();
 
-        return (new JournalService(store.Object, revisionRepo.Object, draftRepo.Object, logger.Object, ctx.Object), store, ctx);
+        ctx.Setup(workspaceContext => workspaceContext.ActivePartitionKey).Returns(partitionKey);
+        embeddingMock.Setup(service => service.IsAvailable).Returns(false);
+
+        return (new JournalService(store.Object, revisionRepo.Object, draftRepo.Object, logger.Object, ctx.Object, embeddingMock.Object, vectorMock.Object), store, ctx);
     }
 
     [Fact]

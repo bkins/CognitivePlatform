@@ -1,6 +1,7 @@
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.DailyRecord;
@@ -19,17 +20,26 @@ namespace CognitivePlatform.Api.Domains.DailyRecord;
 /// All _store calls in this service use partitionKey: null deliberately.
 public class DailyRecordService : IDailyRecordService
 {
-    private readonly IObjectStore    _store;
-    private readonly ITaskService    _taskService;
-    private readonly IJournalService _journalService;
+    private readonly IObjectStore                  _store;
+    private readonly ITaskService                  _taskService;
+    private readonly IJournalService               _journalService;
+    private readonly IEmbeddingService             _embeddingService;
+    private readonly IVectorStore                  _vectorStore;
+    private readonly ILogger<DailyRecordService>   _logger;
 
-    public DailyRecordService( IObjectStore    store
-                              , ITaskService    taskService
-                              , IJournalService journalService)
+    public DailyRecordService( IObjectStore                  store
+                              , ITaskService                  taskService
+                              , IJournalService               journalService
+                              , IEmbeddingService             embeddingService
+                              , IVectorStore                  vectorStore
+                              , ILogger<DailyRecordService>   logger )
     {
-        _store          = store;
-        _taskService    = taskService;
-        _journalService = journalService;
+        _store            = store;
+        _taskService      = taskService;
+        _journalService   = journalService;
+        _embeddingService = embeddingService;
+        _vectorStore      = vectorStore;
+        _logger           = logger;
     }
 
     public async Task<DailyRecord> OpenDayAsync( string                  openingText
@@ -91,6 +101,8 @@ public class DailyRecordService : IDailyRecordService
         }
 
         await _store.Save(record, partitionKey: null, id: record.Id);
+
+        QueueEmbedding("daily", record.Id, BuildDailyRecordText(record));
 
         return record;
     }
@@ -198,6 +210,8 @@ public class DailyRecordService : IDailyRecordService
 
         await _store.Save(record, partitionKey: null, id: record.Id);
 
+        QueueEmbedding("daily", record.Id, BuildDailyRecordText(record));
+
         return record;
     }
 
@@ -233,6 +247,8 @@ public class DailyRecordService : IDailyRecordService
         record.DeletedUtc = DateTimeOffset.UtcNow;
 
         await _store.Save(record, partitionKey: null, id: record.Id);
+
+        QueueVectorDelete("daily", record.Id);
 
         return record;
     }
@@ -281,6 +297,57 @@ public class DailyRecordService : IDailyRecordService
             throw new InvalidOperationException($"Day {record.Id} is already closed.");
 
         return record;
+    }
+
+    private void QueueEmbedding(string domain, string referenceId, string text)
+    {
+        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var embedding = await _embeddingService.EmbedAsync(text);
+
+                if (embedding.Length == 0) return;
+
+                await _vectorStore.SaveAsync(new VectorEntry
+                                             {
+                                                     Id          = $"{domain}:{referenceId}"
+                                                   , Domain      = domain
+                                                   , ReferenceId = referenceId
+                                                   , Text        = text
+                                                   , Embedding   = embedding
+                                             });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Embedding failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
+    }
+
+    private void QueueVectorDelete(string domain, string referenceId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _vectorStore.DeleteByReferenceAsync(domain, referenceId);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Vector deletion failed for {Domain}:{ReferenceId}", domain, referenceId);
+            }
+        });
+    }
+
+    private static string BuildDailyRecordText(DailyRecord record)
+    {
+        var parts = new[] { record.OpeningText, record.ClosingText }
+                    .Where(text => !string.IsNullOrWhiteSpace(text));
+        var body  = string.Join(" ", parts);
+        return string.IsNullOrWhiteSpace(body) ? string.Empty : $"Day {record.Date}: {body}";
     }
 
     private static IReadOnlyList<string> BuildJournalTags( IEnumerable<string>     systemTags
