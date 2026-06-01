@@ -35,3 +35,10 @@ public sealed record AddCorrectionRevisionRequest
     public int?     MoodScore { get; init; }
     public int?     MoodLevel { get; init; }
 }
+
+/// <summary>Response from POST /api/admin/journal/repair-partition-keys.</summary>
+public sealed record RepairPartitionKeysResultDto
+{
+    public int EntriesRepaired   { get; init; }
+    public int RevisionsRepaired { get; init; }
+}

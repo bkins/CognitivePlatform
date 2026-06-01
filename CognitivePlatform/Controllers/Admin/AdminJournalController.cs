@@ -143,7 +143,7 @@ public sealed class AdminJournalController : AdminControllerBase
         var revisionTypeName = typeof(JournalRevision).FullName ?? nameof(JournalRevision);
 
         var entriesRepaired   = _store.NullifyOrphanedPartitionKeys(entryTypeName);
-        var revisionsRepaired = _store.NullifyOrphanedPartitionKeys(revisionTypeName);
+        var revisionsRepaired = _store.NullifyOrphanedPartitionKeys(revisionTypeName, jsonIdField: "revisionId");
 
         return Ok(new
                   {

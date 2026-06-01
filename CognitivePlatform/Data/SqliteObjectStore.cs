@@ -438,25 +438,48 @@ public class SqliteObjectStore : IObjectStore
     /// Sets PartitionKey = NULL for any rows of the given type where PartitionKey = Id.
     /// Repairs records written by old pre-workspace code that stored the object's own Id
     /// as its PartitionKey instead of leaving it NULL (the personal-workspace sentinel).
+    /// When jsonIdField is provided, a second pass also nullifies rows where PartitionKey
+    /// equals the value of that JSON field — needed for types whose key property is not
+    /// named "Id" (e.g. JournalRevision whose key is revisionId in JSON).
     /// Idempotent. Admin use only.
     /// </summary>
-    public int NullifyOrphanedPartitionKeys(string typeName)
+    public int NullifyOrphanedPartitionKeys(string typeName, string? jsonIdField = null)
     {
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            UPDATE Objects
-            SET    PartitionKey = NULL
-            WHERE  Type         = $type
-              AND  PartitionKey = Id;
-            """;
+        var repaired = 0;
 
-        command.Parameters.AddWithValue("$type", typeName);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                UPDATE Objects
+                SET    PartitionKey = NULL
+                WHERE  Type         = $type
+                  AND  PartitionKey = Id;
+                """;
+            command.Parameters.AddWithValue("$type", typeName);
+            repaired += command.ExecuteNonQuery();
+        }
 
-        return command.ExecuteNonQuery();
+        if (jsonIdField is not null)
+        {
+            using var command2 = connection.CreateCommand();
+            command2.CommandText =
+                """
+                UPDATE Objects
+                SET    PartitionKey = NULL
+                WHERE  Type         = $type
+                  AND  PartitionKey != Id
+                  AND  PartitionKey  = json_extract(Json, $jsonPath);
+                """;
+            command2.Parameters.AddWithValue("$type",     typeName);
+            command2.Parameters.AddWithValue("$jsonPath", $"$.{jsonIdField}");
+            repaired += command2.ExecuteNonQuery();
+        }
+
+        return repaired;
     }
 
     // ---------------------------------------------------------------------
