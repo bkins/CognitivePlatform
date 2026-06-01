@@ -142,13 +142,15 @@ public sealed class AdminJournalController : AdminControllerBase
         var entryTypeName    = typeof(JournalEntry).FullName    ?? nameof(JournalEntry);
         var revisionTypeName = typeof(JournalRevision).FullName ?? nameof(JournalRevision);
 
-        var entriesRepaired   = _store.NullifyOrphanedPartitionKeys(entryTypeName);
-        var revisionsRepaired = _store.NullifyOrphanedPartitionKeys(revisionTypeName, jsonIdField: "revisionId");
+        var repairedEntryIds    = _store.NullifyOrphanedPartitionKeys(entryTypeName);
+        var repairedRevisionIds = _store.NullifyOrphanedPartitionKeys(revisionTypeName, jsonIdField: "revisionId");
 
         return Ok(new
                   {
-                      EntriesRepaired   = entriesRepaired
-                    , RevisionsRepaired = revisionsRepaired
+                      EntriesRepaired     = repairedEntryIds.Count
+                    , RevisionsRepaired   = repairedRevisionIds.Count
+                    , RepairedEntryIds    = repairedEntryIds.ToArray()
+                    , RepairedRevisionIds = repairedRevisionIds.ToArray()
                   });
     }
 }

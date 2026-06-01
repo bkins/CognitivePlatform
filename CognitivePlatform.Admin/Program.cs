@@ -15,34 +15,43 @@ builder.Services.AddMudServices();
 
 builder.Services.AddScoped<AdminSessionService>();
 builder.Services.AddTransient<AdminSecretHandler>();
+builder.Services.AddSingleton<EnvironmentService>();
+builder.Services.AddTransient<EnvironmentRoutingHandler>();
 
-var cpApiBaseUrl = builder.Configuration["AdminSettings:CpApiBaseUrl"]
-               ?? "http://localhost:5273";
+// All typed clients use this placeholder base address.
+// EnvironmentRoutingHandler rewrites it to the currently selected environment URL
+// (DEV / QA / PROD) before each request leaves the process.
+const string PlaceholderBase = "http://cp-placeholder/";
 
 builder.Services
        .AddHttpClient<IAdminSystemClient, AdminSystemClient>(client =>
-           client.BaseAddress = new Uri(cpApiBaseUrl))
-       .AddHttpMessageHandler<AdminSecretHandler>();
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
        .AddHttpClient<IAdminRegistryClient, AdminRegistryClient>(client =>
-           client.BaseAddress = new Uri(cpApiBaseUrl))
-       .AddHttpMessageHandler<AdminSecretHandler>();
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
        .AddHttpClient<IAdminKnowledgeClient, AdminKnowledgeClient>(client =>
-           client.BaseAddress = new Uri(cpApiBaseUrl))
-       .AddHttpMessageHandler<AdminSecretHandler>();
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
        .AddHttpClient<IAdminJournalClient, AdminJournalClient>(client =>
-           client.BaseAddress = new Uri(cpApiBaseUrl))
-       .AddHttpMessageHandler<AdminSecretHandler>();
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
        .AddHttpClient<IAdminLogsClient, AdminLogsClient>(client =>
-           client.BaseAddress = new Uri(cpApiBaseUrl))
-       .AddHttpMessageHandler<AdminSecretHandler>();
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 var app = builder.Build();
 

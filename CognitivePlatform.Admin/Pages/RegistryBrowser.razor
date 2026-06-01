@@ -37,40 +37,44 @@ else if (_error is not null)
                       DebounceInterval="200"
                       Class="mb-3" />
 
-        @foreach (var category in GroupedActions)
-        {
-            <MudExpansionPanels Dense="true" Class="mb-1">
-                <MudExpansionPanel Text="@category.Key"
-                                   Expanded="true">
-                    <MudList Dense="true" T="ActionMetadataDto" SelectedValue="_selected"
-                             SelectedValueChanged="@OnActionSelected">
-                        @foreach (var action in category)
-                        {
-                            <MudListItem Value="@action"
-                                         Dense="true">
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    <MudText Typo="Typo.body2">@action.Name</MudText>
-                                    @if (action.IsFastPath)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.FlashOn"
-                                                 Size="Size.Small"
-                                                 Color="Color.Warning"
-                                                 Title="FastPath" />
-                                    }
-                                    @if (action.IsDestructive)
-                                    {
-                                        <MudIcon Icon="@Icons.Material.Filled.Warning"
-                                                 Size="Size.Small"
-                                                 Color="Color.Error"
-                                                 Title="Destructive" />
-                                    }
-                                </MudStack>
-                            </MudListItem>
-                        }
-                    </MudList>
-                </MudExpansionPanel>
-            </MudExpansionPanels>
-        }
+        @* Scrolls independently so selecting an item near the bottom of the list *@
+        @* doesn't force the user to scroll back up to see the right-panel details. *@
+        <div style="overflow-y:auto;max-height:calc(100vh - 220px);">
+            @foreach (var category in GroupedActions)
+            {
+                <MudExpansionPanels Dense="true" Class="mb-1">
+                    <MudExpansionPanel Text="@category.Key"
+                                       Expanded="true">
+                        <MudList Dense="true" T="ActionMetadataDto" SelectedValue="_selected"
+                                 SelectedValueChanged="@OnActionSelected">
+                            @foreach (var action in category)
+                            {
+                                <MudListItem Value="@action"
+                                             Dense="true">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudText Typo="Typo.body2">@action.Name</MudText>
+                                        @if (action.IsFastPath)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.FlashOn"
+                                                     Size="Size.Small"
+                                                     Color="Color.Warning"
+                                                     Title="FastPath" />
+                                        }
+                                        @if (action.IsDestructive)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                                     Size="Size.Small"
+                                                     Color="Color.Error"
+                                                     Title="Destructive" />
+                                        }
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        </div>
     </MudItem>
 
     @* ── Right panel: detail + test invoke ── *@
@@ -117,15 +121,26 @@ else if (_error is not null)
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">@_selected.Category</MudText>
                     <MudText Typo="Typo.body1" Class="mb-4">@_selected.Description</MudText>
 
-                    @* Examples *@
+                    @* Examples — click the arrow to load an example into Test Invoke *@
                     @if (_selected.Examples is { Length: > 0 })
                     {
                         <MudText Typo="Typo.subtitle2" Class="mb-1">Examples</MudText>
                         <MudList Dense="true" T="string">
                             @foreach (var example in _selected.Examples)
                             {
-                                <MudListItem Dense="true" Icon="@Icons.Material.Filled.FormatQuote">
-                                    <MudText Typo="Typo.body2" Style="font-style:italic">@example</MudText>
+                                <MudListItem Dense="true">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudIcon Icon="@Icons.Material.Filled.FormatQuote"
+                                                 Size="Size.Small"
+                                                 Color="Color.Tertiary" />
+                                        <MudText Typo="Typo.body2" Style="font-style:italic;flex:1">@example</MudText>
+                                        <MudTooltip Text="Load into Test Invoke">
+                                            <MudIconButton Icon="@Icons.Material.Filled.PlayCircleOutline"
+                                                           Size="Size.Small"
+                                                           Color="Color.Primary"
+                                                           OnClick="@(() => UseExample(example))" />
+                                        </MudTooltip>
+                                    </MudStack>
                                 </MudListItem>
                             }
                         </MudList>
@@ -297,6 +312,8 @@ else if (_error is not null)
         _invokeResult = null;
         _invokeInput  = string.Empty;
     }
+
+    private void UseExample(string example) => _invokeInput = example;
 
     private async Task InvokeAsync()
     {

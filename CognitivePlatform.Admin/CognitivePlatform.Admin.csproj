@@ -13,6 +13,8 @@
     <PackageReference Include="CP.Shared.Primitives" Version="0.1.45" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
+    <!-- Markdown rendering in Journal Admin (revision text view) -->
+    <PackageReference Include="Markdig"              Version="0.38.0" />
   </ItemGroup>
 
 </Project>

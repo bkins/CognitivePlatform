@@ -36,6 +36,44 @@
                         Entries repaired: <strong>@_repairResult.EntriesRepaired</strong> &nbsp;|&nbsp;
                         Revisions repaired: <strong>@_repairResult.RevisionsRepaired</strong>
                     </MudAlert>
+
+                    @if (_repairResult.RepairedEntryIds.Length > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-1">
+                            Repaired Entry IDs (@_repairResult.RepairedEntryIds.Length):
+                        </MudText>
+                        <MudPaper Elevation="0"
+                                  Class="pa-2"
+                                  Style="background:var(--mud-palette-background-grey);font-family:monospace;font-size:0.78rem;max-height:130px;overflow-y:auto;">
+                            @foreach (var id in _repairResult.RepairedEntryIds)
+                            {
+                                <div>@id</div>
+                            }
+                        </MudPaper>
+                    }
+
+                    @if (_repairResult.RepairedRevisionIds.Length > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-1">
+                            Repaired Revision IDs (@_repairResult.RepairedRevisionIds.Length):
+                        </MudText>
+                        <MudPaper Elevation="0"
+                                  Class="pa-2"
+                                  Style="background:var(--mud-palette-background-grey);font-family:monospace;font-size:0.78rem;max-height:130px;overflow-y:auto;">
+                            @foreach (var id in _repairResult.RepairedRevisionIds)
+                            {
+                                <div>@id</div>
+                            }
+                        </MudPaper>
+                    }
+
+                    @if (_repairResult.RepairedEntryIds.Length == 0
+                      && _repairResult.RepairedRevisionIds.Length == 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                            No records required repair — all partition keys were already correct.
+                        </MudText>
+                    }
                 }
                 else if (_repairError is not null)
                 {
@@ -64,9 +102,9 @@
 </MudGrid>
 
 @code {
-    private bool                         _repairing;
+    private bool                          _repairing;
     private RepairPartitionKeysResultDto? _repairResult;
-    private string?                      _repairError;
+    private string?                       _repairError;
 
     private async Task ConfirmRepairPartitionKeysAsync()
     {
@@ -93,7 +131,10 @@
             if (result is not null)
             {
                 _repairResult = result;
-                Snackbar.Add($"Repair complete — {result.EntriesRepaired + result.RevisionsRepaired} rows updated."
+                var total = result.EntriesRepaired + result.RevisionsRepaired;
+                Snackbar.Add(total > 0
+                                 ? $"Repair complete — {total} rows updated."
+                                 : "Repair ran — no rows required changes."
                            , Severity.Success);
             }
             else

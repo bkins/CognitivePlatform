@@ -1,5 +1,6 @@
 @page "/journals"
 @inject IAdminJournalClient JournalClient
+@using Markdig
 
 <PageTitle>Journal Admin — CP Admin</PageTitle>
 
@@ -53,7 +54,7 @@ else if (_entriesError is not null)
                                 }
                                 <MudSpacer />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @entry.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm")
+                                    @AdminDateFormat.Short(entry.CreatedUtc)
                                 </MudText>
                             </MudStack>
                             @if (entry.LatestText is not null)
@@ -101,7 +102,7 @@ else if (_entriesError is not null)
                         }
                     </MudStack>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Created @_selectedEntry.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                        Created @AdminDateFormat.Long(_selectedEntry.CreatedUtc)
                     </MudText>
                     @if (_selectedEntry.DeletedReason is not null)
                     {
@@ -140,7 +141,7 @@ else if (_entriesError is not null)
                         <TemplateColumn Title="Date">
                             <CellTemplate>
                                 <MudText Typo="Typo.caption" Style="white-space:nowrap">
-                                    @context.Item.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")
+                                    @AdminDateFormat.Short(context.Item.CreatedUtc)
                                 </MudText>
                             </CellTemplate>
                         </TemplateColumn>
@@ -189,8 +190,14 @@ else if (_entriesError is not null)
                             <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
                                 <MudText Typo="Typo.subtitle2">Revision @_selectedRevision.RevisionId[..8]…</MudText>
                                 <MudSpacer />
+                                <MudTooltip Text="@(_renderMarkdown ? "Showing rendered Markdown" : "Showing raw text — toggle to render Markdown")">
+                                    <MudSwitch @bind-Value="_renderMarkdown"
+                                               Label="Markdown"
+                                               Color="Color.Primary"
+                                               Size="Size.Small" />
+                                </MudTooltip>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @_selectedRevision.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                                    @AdminDateFormat.Long(_selectedRevision.CreatedUtc)
                                 </MudText>
                             </MudStack>
                             @if (_selectedRevision.Tags is { Length: > 0 })
@@ -202,10 +209,20 @@ else if (_entriesError is not null)
                                     }
                                 </MudStack>
                             }
-                            <MudPaper Elevation="0" Class="pa-3"
-                                      Style="background:var(--mud-palette-background-grey);white-space:pre-wrap;font-size:0.9rem;">
-                                @_selectedRevision.Text
-                            </MudPaper>
+                            @if (_renderMarkdown)
+                            {
+                                <MudPaper Elevation="0" Class="pa-3 markdown-body"
+                                          Style="background:var(--mud-palette-background-grey);font-size:0.9rem;">
+                                    @((MarkupString)Markdown.ToHtml(_selectedRevision.Text, _markdownPipeline))
+                                </MudPaper>
+                            }
+                            else
+                            {
+                                <MudPaper Elevation="0" Class="pa-3"
+                                          Style="background:var(--mud-palette-background-grey);white-space:pre-wrap;font-size:0.9rem;">
+                                    @_selectedRevision.Text
+                                </MudPaper>
+                            }
                         </MudCardContent>
                     </MudCard>
                 }
@@ -269,12 +286,16 @@ else if (_entriesError is not null)
 </MudGrid>
 
 @code {
+    private static readonly MarkdownPipeline _markdownPipeline =
+        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
     private List<JournalEntryAdminDto>    _entries           = [];
     private List<JournalRevisionAdminDto> _revisions         = [];
     private JournalEntryAdminDto?         _selectedEntry;
     private JournalRevisionAdminDto?      _selectedRevision;
     private bool                          _loadingEntries;
     private bool                          _loadingRevisions;
+    private bool                          _renderMarkdown;
     private string?                       _entriesError;
     private string?                       _revisionsError;
     private string                        _entrySearch       = string.Empty;
@@ -318,9 +339,10 @@ else if (_entriesError is not null)
 
     private async Task OnEntrySelected(JournalEntryAdminDto? entry)
     {
-        _selectedEntry    = entry;
-        _selectedRevision = null;
-        _revisions        = [];
+        _selectedEntry     = entry;
+        _selectedRevision  = null;
+        _renderMarkdown    = false;
+        _revisions         = [];
         _correctionMessage = null;
 
         if (entry is null) return;

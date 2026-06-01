@@ -4,6 +4,15 @@
 
 <PageTitle>Data Management — CP Admin</PageTitle>
 
+<MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+    This page manages the <strong>Knowledge Inbox</strong> — items queued for background
+    categorisation (not yet assigned to a Journal or Task domain).
+    If you haven't explicitly queued any inbox items the list will be empty — that is normal.
+    Your journal entries live in <MudLink Href="/journals" Color="Color.Primary">Journal Admin</MudLink>,
+    and object-store counts for all types are on the
+    <MudLink Href="/" Color="Color.Primary">System Health</MudLink> page.
+</MudAlert>
+
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
     <MudText Typo="Typo.h4">Data Management</MudText>
     <MudSpacer />
@@ -97,7 +106,7 @@ else if (_error is not null)
         <TemplateColumn Title="Modified" SortBy="@(item => item.LastModifiedAt)">
             <CellTemplate>
                 <MudText Typo="Typo.caption" Style="white-space:nowrap">
-                    @context.Item.LastModifiedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                    @AdminDateFormat.Short(context.Item.LastModifiedAt)
                 </MudText>
             </CellTemplate>
         </TemplateColumn>

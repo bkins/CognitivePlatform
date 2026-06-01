@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject AdminSessionService SessionService
 @inject NavigationManager   NavManager
+@inject EnvironmentService  EnvService
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -9,6 +10,32 @@
 
 @if (SessionService.IsAuthenticated)
 {
+    @* ── Environment banner ── *@
+    <div style="@BannerStyle">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="px-4 py-1">
+            <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" />
+            <MudText Typo="Typo.caption" Style="font-weight:700;letter-spacing:2px">
+                @EnvService.Current
+            </MudText>
+            <MudText Typo="Typo.caption" Style="opacity:0.75">
+                @EnvService.BaseUrl
+            </MudText>
+            <MudSpacer />
+            @foreach (var env in new[] { "DEV", "QA", "PROD" })
+            {
+                <MudButton Size="Size.Small"
+                           Variant="@(EnvService.Current == env ? Variant.Filled : Variant.Text)"
+                           Style="@(EnvService.Current == env
+                                        ? "color:white;min-width:52px"
+                                        : "color:rgba(255,255,255,0.75);min-width:52px")"
+                           Disabled="@(EnvService.Current == env)"
+                           OnClick="@(() => SwitchEnvironment(env))">
+                    @env
+                </MudButton>
+            }
+        </MudStack>
+    </div>
+
     <MudLayout>
         <MudAppBar Elevation="1" Color="Color.Dark">
             <MudIconButton Icon="@Icons.Material.Filled.Menu"
@@ -37,12 +64,25 @@
 @code {
     private bool _drawerOpen = true;
 
+    private string BannerStyle => EnvService.Current switch
+    {
+        "QA"   => "background:#e65100;color:white;user-select:none;"
+      , "PROD" => "background:#b71c1c;color:white;user-select:none;"
+      , _      => "background:#1b5e20;color:white;user-select:none;"
+    };
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender.Not()) return;
 
         if (SessionService.IsAuthenticated.Not())
             NavManager.NavigateTo("/login");
+    }
+
+    private void SwitchEnvironment(string env)
+    {
+        EnvService.Switch(env);
+        StateHasChanged();
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;

@@ -443,43 +443,94 @@ public class SqliteObjectStore : IObjectStore
     /// named "Id" (e.g. JournalRevision whose key is revisionId in JSON).
     /// Idempotent. Admin use only.
     /// </summary>
-    public int NullifyOrphanedPartitionKeys(string typeName, string? jsonIdField = null)
+    /// <summary>
+    /// Returns the IDs of every repaired row so the caller can show the user which records changed.
+    /// Idempotent — re-running after all rows are clean returns an empty list.
+    /// </summary>
+    public IReadOnlyList<string> NullifyOrphanedPartitionKeys(string typeName, string? jsonIdField = null)
     {
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        var repaired = 0;
+        var repairedIds = new List<string>();
 
-        using (var command = connection.CreateCommand())
+        using var tx = connection.BeginTransaction();
+
+        // Pass 1: rows where PartitionKey mistakenly equals the row's own Id
+        using (var sel = connection.CreateCommand())
         {
-            command.CommandText =
+            sel.Transaction  = tx;
+            sel.CommandText  =
+                """
+                SELECT Id FROM Objects
+                WHERE  Type         = $type
+                  AND  PartitionKey = Id;
+                """;
+            sel.Parameters.AddWithValue("$type", typeName);
+
+            using var reader = sel.ExecuteReader();
+            while (reader.Read())
+                repairedIds.Add(reader.GetString(0));
+        }
+
+        if (repairedIds.Count > 0)
+        {
+            using var upd = connection.CreateCommand();
+            upd.Transaction = tx;
+            upd.CommandText =
                 """
                 UPDATE Objects
                 SET    PartitionKey = NULL
                 WHERE  Type         = $type
                   AND  PartitionKey = Id;
                 """;
-            command.Parameters.AddWithValue("$type", typeName);
-            repaired += command.ExecuteNonQuery();
+            upd.Parameters.AddWithValue("$type", typeName);
+            upd.ExecuteNonQuery();
         }
 
+        // Pass 2 (optional): rows where PartitionKey matches a JSON field value instead of the row Id
         if (jsonIdField is not null)
         {
-            using var command2 = connection.CreateCommand();
-            command2.CommandText =
+            var extraIds = new List<string>();
+
+            using var sel2 = connection.CreateCommand();
+            sel2.Transaction = tx;
+            sel2.CommandText =
                 """
-                UPDATE Objects
-                SET    PartitionKey = NULL
+                SELECT Id FROM Objects
                 WHERE  Type         = $type
                   AND  PartitionKey != Id
                   AND  PartitionKey  = json_extract(Json, $jsonPath);
                 """;
-            command2.Parameters.AddWithValue("$type",     typeName);
-            command2.Parameters.AddWithValue("$jsonPath", $"$.{jsonIdField}");
-            repaired += command2.ExecuteNonQuery();
+            sel2.Parameters.AddWithValue("$type",     typeName);
+            sel2.Parameters.AddWithValue("$jsonPath", $"$.{jsonIdField}");
+
+            using var reader2 = sel2.ExecuteReader();
+            while (reader2.Read())
+                extraIds.Add(reader2.GetString(0));
+
+            if (extraIds.Count > 0)
+            {
+                using var upd2 = connection.CreateCommand();
+                upd2.Transaction = tx;
+                upd2.CommandText =
+                    """
+                    UPDATE Objects
+                    SET    PartitionKey = NULL
+                    WHERE  Type         = $type
+                      AND  PartitionKey != Id
+                      AND  PartitionKey  = json_extract(Json, $jsonPath);
+                    """;
+                upd2.Parameters.AddWithValue("$type",     typeName);
+                upd2.Parameters.AddWithValue("$jsonPath", $"$.{jsonIdField}");
+                upd2.ExecuteNonQuery();
+
+                repairedIds.AddRange(extraIds);
+            }
         }
 
-        return repaired;
+        tx.Commit();
+        return repairedIds;
     }
 
     // ---------------------------------------------------------------------

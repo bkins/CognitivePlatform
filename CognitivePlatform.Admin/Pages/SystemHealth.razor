@@ -95,7 +95,7 @@ else if (_error is not null)
             </MudItem>
         </MudGrid>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-            Captured at @(usage.CapturedAt?.ToLocalTime().ToString("HH:mm:ss") ?? "—")
+            Captured at @AdminDateFormat.Short(usage.CapturedAt)
         </MudText>
     }
     else

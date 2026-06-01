@@ -33,15 +33,34 @@
     }
 </MudStack>
 
-@* ── Working directory ── *@
+@* ── Working directory (for build/deploy scripts) ── *@
 <MudPaper Elevation="1" Class="pa-3 mb-4">
     <MudTextField Value="_workingDirectory"
                   ValueChanged="@((string val) => SaveWorkingDirectoryAsync(val))"
-                  Label="Working directory"
-                  HelperText="Used as CWD for Git and custom commands. Saved automatically in your browser."
+                  Label="Working directory (build / deploy scripts)"
+                  HelperText="CWD for Build, Deploy, NuGet, and Custom commands. Saved in your browser."
                   FullWidth="true"
                   Adornment="Adornment.Start"
                   AdornmentIcon="@Icons.Material.Filled.Folder" />
+    @if (_workDirWarning is not null)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mt-1">@_workDirWarning</MudText>
+    }
+</MudPaper>
+
+@* ── Git repository directory ── *@
+<MudPaper Elevation="1" Class="pa-3 mb-4">
+    <MudTextField Value="_gitDirectory"
+                  ValueChanged="@((string val) => SaveGitDirectoryAsync(val))"
+                  Label="Git repository directory"
+                  HelperText="Used exclusively for the Git Status / Pull buttons below. Saved in your browser."
+                  FullWidth="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
+    @if (_gitDirWarning is not null)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mt-1">@_gitDirWarning</MudText>
+    }
 </MudPaper>
 
 @* ── Version + Environment ── *@
@@ -157,14 +176,14 @@
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Info"
                Disabled="@_running"
-               OnClick="@(() => RunAsync("git", "status"))">
+               OnClick="@(() => RunInGitRepoAsync("git", "status"))">
         Git Status
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Download"
                Disabled="@_running"
-               OnClick="@(() => RunAsync("git", "pull"))">
+               OnClick="@(() => RunInGitRepoAsync("git", "pull"))">
         Git Pull
     </MudButton>
     <MudButton Variant="Variant.Outlined"
@@ -234,7 +253,10 @@
     private static readonly string StagingApiDir = @"C:\CP\Deploy\Api";
     private static readonly string StagingLaaDir = @"C:\CP\Deploy\Laa";
 
-    private string             _workingDirectory    = string.Empty;
+    private string             _workingDirectory = string.Empty;
+    private string             _gitDirectory     = string.Empty;
+    private string?            _workDirWarning;
+    private string?            _gitDirWarning;
     private string             _version             = GenerateVersion();
     private string             _selectedEnvironment = "DEV";
     private string             _customExe           = string.Empty;
@@ -242,7 +264,7 @@
     private bool               _running;
     private int?               _exitCode;
     private string?            _runError;
-    private readonly List<OutputLine> _output      = [];
+    private readonly List<OutputLine> _output = [];
     private CancellationTokenSource?  _cts;
     private Process?                  _process;
 
@@ -251,7 +273,7 @@
     {
         "DEV"  => "Dev"
       , "PROD" => "Prod"
-      , _      => _selectedEnvironment   // "QA" stays "QA"
+      , _      => _selectedEnvironment
     };
 
     private static string GenerateVersion()
@@ -271,22 +293,41 @@
     {
         if (!firstRender) return;
 
-        var saved = await Js.InvokeAsync<string?>("localStorage.getItem"
-                                                 , "releaseConsole:workingDirectory");
-        if (!string.IsNullOrWhiteSpace(saved))
-        {
-            _workingDirectory = saved;
-            StateHasChanged();
-        }
+        var savedCwd = await Js.InvokeAsync<string?>("localStorage.getItem"
+                                                    , "releaseConsole:workingDirectory");
+        if (!string.IsNullOrWhiteSpace(savedCwd))
+            _workingDirectory = savedCwd;
+
+        var savedGit = await Js.InvokeAsync<string?>("localStorage.getItem"
+                                                    , "releaseConsole:gitDirectory");
+        if (!string.IsNullOrWhiteSpace(savedGit))
+            _gitDirectory = savedGit;
+
+        StateHasChanged();
     }
 
     private async Task SaveWorkingDirectoryAsync(string value)
     {
         _workingDirectory = value;
+        _workDirWarning   = ValidateDirectory(value);
         await Js.InvokeVoidAsync("localStorage.setItem"
                                , "releaseConsole:workingDirectory"
                                , value);
     }
+
+    private async Task SaveGitDirectoryAsync(string value)
+    {
+        _gitDirectory = value;
+        _gitDirWarning = ValidateDirectory(value);
+        await Js.InvokeVoidAsync("localStorage.setItem"
+                               , "releaseConsole:gitDirectory"
+                               , value);
+    }
+
+    private static string? ValidateDirectory(string? path)
+        => !string.IsNullOrWhiteSpace(path) && !Directory.Exists(path)
+               ? $"Directory not found: {path}"
+               : null;
 
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
@@ -299,9 +340,9 @@
                   , $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
 
     private Task BuildAndDeployApiAsync()
-        => RunPipelineAsync(
-               ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
-             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
+        => RunCoreAsync(_workingDirectory
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
 
     private Task BuildLaaAsync()
         => RunAsync("pwsh"
@@ -312,9 +353,9 @@
                   , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
 
     private Task BuildAndDeployLaaAsync()
-        => RunPipelineAsync(
-               ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
-             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+        => RunCoreAsync(_workingDirectory
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
 
     private Task PublishNuGetsAsync()
         => RunAsync("pwsh"
@@ -334,24 +375,41 @@
         return RunAsync(_customExe.Trim(), _customArgs.Trim());
     }
 
+    // ── Execution helpers ─────────────────────────────────────────────────────
+
+    // Runs in the general working directory (build / deploy / custom commands)
+    private Task RunAsync(string exe, string args)
+        => RunCoreAsync(_workingDirectory, ( exe, args ));
+
+    // Runs in the dedicated git repository directory
+    private Task RunInGitRepoAsync(string exe, string args)
+        => RunCoreAsync(_gitDirectory, ( exe, args ));
+
     // ── Core execution ─────────────────────────────────────────────────────────
 
-    private Task RunAsync(string exe, string args)
-        => RunPipelineAsync(( exe, args ));
-
-    private async Task RunPipelineAsync(params (string Exe, string Args)[] steps)
+    private async Task RunCoreAsync(string workDir, params (string Exe, string Args)[] steps)
     {
         if (_running) return;
 
         _running  = true;
         _exitCode = null;
         _runError = null;
-        
+
         _output.Clear();
-        
+
         _cts = new CancellationTokenSource();
 
         StateHasChanged();
+
+        // Validate working directory; fall back to empty string (process inherits CWD)
+        // so the process can at least start even if the configured directory is wrong.
+        var effectiveWorkDir = workDir;
+        if (!string.IsNullOrWhiteSpace(effectiveWorkDir) && !Directory.Exists(effectiveWorkDir))
+        {
+            _output.Add(new($"[Warning: directory '{effectiveWorkDir}' does not exist — running without a set CWD]"
+                          , IsError: true));
+            effectiveWorkDir = string.Empty;
+        }
 
         try
         {
@@ -359,7 +417,7 @@
             {
                 _output.Add(new($"$ {exe} {args}", false));
                 _output.Add(new(string.Empty, false));
-                
+
                 await InvokeAsync(StateHasChanged);
                 await ScrollToBottomAsync();
 
@@ -367,7 +425,7 @@
                 {
                     FileName               = exe
                   , Arguments              = args
-                  , WorkingDirectory       = _workingDirectory
+                  , WorkingDirectory       = effectiveWorkDir
                   , RedirectStandardOutput = true
                   , RedirectStandardError  = true
                   , UseShellExecute        = false
@@ -379,9 +437,7 @@
                 _process.OutputDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
-                    
                     _output.Add(new(eventArgs.Data, false));
-                    
                     await InvokeAsync(StateHasChanged);
                     await ScrollToBottomAsync();
                 };
@@ -389,9 +445,7 @@
                 _process.ErrorDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
-                    
                     _output.Add(new(eventArgs.Data, true));
-                    
                     await InvokeAsync(StateHasChanged);
                     await ScrollToBottomAsync();
                 };
@@ -402,22 +456,20 @@
                     _process.Start();
                     _process.BeginOutputReadLine();
                     _process.BeginErrorReadLine();
-                    
+
                     await _process.WaitForExitAsync(_cts.Token);
-                    
+
                     _exitCode = _process.ExitCode;
                 }
                 catch (OperationCanceledException)
                 {
                     _output.Add(new("[Aborted by user]", true));
-                    
                     stepAborted = true;
                 }
                 catch (Exception ex)
                 {
                     _runError = ex.Message;
                     _output.Add(new($"[Error: {ex.Message}]", true));
-                    
                     stepAborted = true;
                 }
                 finally
@@ -426,10 +478,9 @@
                     _process = null;
                 }
 
-                if (stepAborted 
+                if (stepAborted
                  || _exitCode != 0) break;
 
-                // blank separator between pipeline steps
                 _output.Add(new(string.Empty, false));
             }
         }
@@ -444,7 +495,6 @@
     private void Abort()
     {
         _cts?.Cancel();
-        
         try { _process?.Kill(entireProcessTree: true); }
         catch { /* process may have already exited */ }
     }
@@ -463,17 +513,15 @@
             await Js.InvokeVoidAsync("eval"
                                    , "var el=document.getElementById('terminal-end');if(el)el.scrollIntoView({behavior:'instant'});");
         }
-        catch { /* Ignore errors during disposal or when the DOM is not ready*/ }
+        catch { /* Ignore errors during disposal or when the DOM is not ready */ }
     }
 
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();
         _cts?.Dispose();
-        
         try { _process?.Kill(entireProcessTree: true); }
         catch { /* ignore */ }
-        
         _process?.Dispose();
     }
 }
