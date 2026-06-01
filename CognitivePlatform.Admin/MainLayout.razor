@@ -10,41 +10,33 @@
 
 @if (SessionService.IsAuthenticated)
 {
-    @* ── Environment banner ── *@
-    <div style="@BannerStyle">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="px-4 py-1">
-            <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" />
-            <MudText Typo="Typo.caption" Style="font-weight:700;letter-spacing:2px">
-                @EnvService.Current
-            </MudText>
-            <MudText Typo="Typo.caption" Style="opacity:0.75">
+    <MudLayout>
+        <MudAppBar Elevation="2" Style="@AppBarStyle">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@ToggleDrawer" />
+
+            <MudText Typo="Typo.h6" Class="ml-3" Style="color:white">CP Admin</MudText>
+
+            <MudSpacer />
+
+            @* ── Environment switcher ── *@
+            <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.65);margin-right:8px;font-family:monospace">
                 @EnvService.BaseUrl
             </MudText>
-            <MudSpacer />
             @foreach (var env in new[] { "DEV", "QA", "PROD" })
             {
                 <MudButton Size="Size.Small"
-                           Variant="@(EnvService.Current == env ? Variant.Filled : Variant.Text)"
+                           Variant="@(EnvService.Current == env ? Variant.Filled : Variant.Outlined)"
                            Style="@(EnvService.Current == env
-                                        ? "color:white;min-width:52px"
-                                        : "color:rgba(255,255,255,0.75);min-width:52px")"
+                                        ? "color:white;border-color:rgba(255,255,255,0.9);min-width:52px;margin-left:4px;font-weight:700"
+                                        : "color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.4);min-width:52px;margin-left:4px")"
                            Disabled="@(EnvService.Current == env)"
                            OnClick="@(() => SwitchEnvironment(env))">
                     @env
                 </MudButton>
             }
-        </MudStack>
-    </div>
-
-    <MudLayout>
-        <MudAppBar Elevation="1" Color="Color.Dark">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu"
-                           Color="Color.Inherit"
-                           Edge="Edge.Start"
-                           OnClick="@ToggleDrawer" />
-            <MudText Typo="Typo.h6" Class="ml-3">CP Admin</MudText>
-            <MudSpacer />
-            <MudText Typo="Typo.caption" Color="Color.Default">Developer access only</MudText>
         </MudAppBar>
 
         <MudDrawer @bind-Open="_drawerOpen"
@@ -64,11 +56,11 @@
 @code {
     private bool _drawerOpen = true;
 
-    private string BannerStyle => EnvService.Current switch
+    private string AppBarStyle => EnvService.Current switch
     {
-        "QA"   => "background:#e65100;color:white;user-select:none;"
-      , "PROD" => "background:#b71c1c;color:white;user-select:none;"
-      , _      => "background:#1b5e20;color:white;user-select:none;"
+        "QA"   => "background:#e65100;"
+      , "PROD" => "background:#b71c1c;"
+      , _      => "background:#1b5e20;"
     };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
