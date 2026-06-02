@@ -29,13 +29,13 @@ public static class ParameterValidator
 
             if (rule == Integer)
             {
-                if (!string.IsNullOrWhiteSpace(rawValue) && !int.TryParse(rawValue, out _))
+                if (rawValue is not null && !int.TryParse(rawValue, out _))
                     yield return $"{parameterDefinition.DisplayName} must be a valid integer.";
             }
 
             if (rule == Date)
             {
-                if (!string.IsNullOrWhiteSpace(rawValue) && !DateOnly.TryParse(rawValue, out _))
+                if (rawValue is not null && !DateOnly.TryParse(rawValue, out _))
                     yield return $"{parameterDefinition.DisplayName} must be a valid date.";
             }
         }
