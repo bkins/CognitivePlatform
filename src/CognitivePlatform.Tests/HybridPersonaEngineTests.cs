@@ -30,11 +30,12 @@ public class HybridPersonaEngineTests
     [Fact]
     public async Task ResolveAsync_UsesLlmResult_WhenLlmAloneExceedsThreshold()
     {
+        // "error" is a persona keyword so the pre-gate allows the LLM path.
         ArrangeAnalyzers(rule:    (Intent.Unknown,       0.0,  null)
                         , keyword: (Intent.Unknown,       0.0,  null)
                         , llm:     (Intent.TechnicalHelp, 0.9,  null));
 
-        var result = await _engine.ResolveAsync("some message");
+        var result = await _engine.ResolveAsync("there is an error in the code");
 
         Assert.Equal(Intent.TechnicalHelp, result.Intent);
     }
@@ -174,6 +175,47 @@ public class HybridPersonaEngineTests
 
         Assert.NotNull(result.Personality);
         Assert.Equal("Motivator", result.Personality!.Name);
+    }
+
+    // ================================================================
+    // Keyword pre-gate — skips all analyzers for non-persona messages
+    // ================================================================
+
+    [Theory]
+    [InlineData("add a journal entry for today")]
+    [InlineData("show me my tasks")]
+    [InlineData("what is the weather today")]
+    [InlineData("hello")]
+    public async Task ResolveAsync_ReturnsUnknown_WhenMessageContainsNoPersonaKeyword(string message)
+    {
+        ArrangeAnalyzers(rule:    (Intent.TechnicalHelp, 0.9, null)
+                        , keyword: (Intent.TechnicalHelp, 0.9, null)
+                        , llm:     (Intent.TechnicalHelp, 0.9, null));
+
+        var result = await _engine.ResolveAsync(message);
+
+        Assert.Equal(Intent.Unknown, result.Intent);
+        _llmAnalyzerMock.Verify(analyzer => analyzer.AnalyzeAsync(It.IsAny<string>()
+                                                                  , It.IsAny<CancellationToken>())
+                               , Times.Never);
+    }
+
+    [Theory]
+    [InlineData("help me fix this bug in my code")]
+    [InlineData("I need to motivate my team")]
+    [InlineData("how do I manage a conflict with a colleague")]
+    [InlineData("I'm feeling burnout")]
+    public async Task ResolveAsync_CallsAllAnalyzers_WhenMessageContainsPersonaKeyword(string message)
+    {
+        ArrangeAnalyzers(rule:    (Intent.Unknown, 0.0, null)
+                        , keyword: (Intent.Unknown, 0.0, null)
+                        , llm:     (Intent.Unknown, 0.0, null));
+
+        await _engine.ResolveAsync(message);
+
+        _llmAnalyzerMock.Verify(analyzer => analyzer.AnalyzeAsync(It.IsAny<string>()
+                                                                  , It.IsAny<CancellationToken>())
+                               , Times.Once);
     }
 
     // --- Helpers -----------------------------------------------------------------

@@ -18,6 +18,15 @@ public class HybridPersonaEngine : IPersonaEngine
     private const double RuleWeight     = 0.2;
     private const double WinnerThreshold = 0.4;
 
+    // Cheap pre-gate: any of these keywords signals possible persona intent.
+    // Mirrors DefaultKeywordRules so the gate stays in sync with the keyword analyzer.
+    private static readonly string[] PersonaKeywords =
+    {
+        "code", "bug", "compile", "error"
+      , "team", "lead", "manage", "conflict"
+      , "motivate", "inspire", "encourage", "burnout"
+    };
+
     public HybridPersonaEngine(
         [FromKeyedServices(KeyedServices.RuleBasedIntentAnalyzer)] IIntentAnalyzer  ruleBasedAnalyzer
       , [FromKeyedServices(KeyedServices.KeywordIntentAnalyzer)]   IIntentAnalyzer  keywordAnalyzer
@@ -33,6 +42,18 @@ public class HybridPersonaEngine : IPersonaEngine
     public async Task<PersonaContextResult> ResolveAsync(string userMessage, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(userMessage))
+        {
+            return new PersonaContextResult
+                   {
+                       Intent               = Intent.Unknown
+                     , IntentAnalysisResult = new IntentAnalysisResult { Intent = Intent.Unknown, Confidence = 0.0 }
+                   };
+        }
+
+        // Keyword pre-gate: if no persona keyword appears in the input, skip all three
+        // analyzers — including the LLM — and return Unknown immediately. This avoids
+        // a full LLM round-trip on every non-FastPath turn when persona mode is inactive.
+        if (!HasAnyPersonaKeyword(userMessage))
         {
             return new PersonaContextResult
                    {
@@ -138,5 +159,16 @@ public class HybridPersonaEngine : IPersonaEngine
                  , ["LlmIntent"]     = llmResult.Intent.ToString()
                  , ["LlmConf"]       = llmResult.Confidence.ToString("F2")
                };
+    }
+
+    private static bool HasAnyPersonaKeyword(string userMessage)
+    {
+        foreach (var keyword in PersonaKeywords)
+        {
+            if (userMessage.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }

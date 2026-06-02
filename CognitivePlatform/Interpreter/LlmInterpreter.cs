@@ -24,6 +24,12 @@ public class LlmInterpreter : IInterpreter
     private readonly LlmClientSettings _settings;
     private readonly IPromptLogger     _promptLogger;
 
+    // Per-domain prompt summary cache. Domains are registered once at startup and never
+    // change at runtime, so this cache never needs invalidation. Instance-level so
+    // that test calls to the static BuildDomainAwareActionsSummary don't pollute it.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?>
+        _domainSummaryCache = new(StringComparer.OrdinalIgnoreCase);
+
     public LlmInterpreter( ICapabilityRegistry registry
                          , ITelemetrySink    telemetry
                          , ILlmRouter        llmRouter
@@ -353,7 +359,8 @@ public class LlmInterpreter : IInterpreter
         var actionsSummary = BuildDomainAwareActionsSummary(
             _registry.GetAll()
           , userInput
-          , domainName => _registry.GetDomainPromptSummary(domainName));
+          , domainName => _domainSummaryCache.GetOrAdd(domainName
+                                                     , name => _registry.GetDomainPromptSummary(name)));
         var sessionState   = BuildSessionStateBlock(context);
 
         systemPrompt = systemPrompt.Replace("{{ACTIONS}}",       actionsSummary)
