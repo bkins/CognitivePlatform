@@ -53,6 +53,7 @@ public sealed class SqliteVectorStore : IVectorStore
     {
         var entries = await LoadEntriesAsync(domain, ct);
 
+        // PERF: brute-force O(n) scan — consider sqlite-vec when corpus > 10k chunks
         return entries
                .Select(entry => new VectorSearchResult(entry, CosineSimilarity(query, entry.Embedding)))
                .OrderByDescending(result => result.Score)
