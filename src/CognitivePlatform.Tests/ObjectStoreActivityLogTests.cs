@@ -137,11 +137,27 @@ public class ObjectStoreActivityLogTests
 
         public T? GetDeleted<T>(string id, string? partitionKey = null) => default;
 
+        public Task<T?> GetAsync<T>( string            id
+                                   , string?           partitionKey      = null
+                                   , CancellationToken cancellationToken = default )
+            => Task.FromResult(Get<T>(id, partitionKey));
+
         public IReadOnlyList<T> List<T>(string?         partitionKey = null
                                       , DateTimeOffset? fromUtc      = null
                                       , DateTimeOffset? toUtc        = null)
             => _objects.Values.OfType<T>().ToList();
 
+        public Task<IReadOnlyList<T>> ListAsync<T>( string?           partitionKey      = null
+                                                  , DateTimeOffset?   fromUtc           = null
+                                                  , DateTimeOffset?   toUtc             = null
+                                                  , CancellationToken cancellationToken = default )
+            => Task.FromResult(List<T>(partitionKey, fromUtc, toUtc));
+
         public bool SoftDelete<T>(string id, string? partitionKey = null) => _objects.Remove(id);
+
+        public Task<bool> SoftDeleteAsync<T>( string            id
+                                            , string?           partitionKey      = null
+                                            , CancellationToken cancellationToken = default )
+            => Task.FromResult(SoftDelete<T>(id, partitionKey));
     }
 }

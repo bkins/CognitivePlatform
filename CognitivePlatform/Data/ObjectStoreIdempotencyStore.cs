@@ -12,17 +12,15 @@ public class ObjectStoreIdempotencyStore : IIdempotencyStore
         _store = store;
     }
 
-    public Task<ConverseResponse?> TryGetAsync(Guid clientRequestId, CancellationToken ct)
+    public async Task<ConverseResponse?> TryGetAsync(Guid clientRequestId, CancellationToken ct)
     {
         var id     = clientRequestId.ToString("N");
-        var record = _store.Get<ProcessedRequest>(id);
+        var record = await _store.GetAsync<ProcessedRequest>(id, cancellationToken: ct);
 
         if (record is null)
-            return Task.FromResult<ConverseResponse?>(null);
+            return null;
 
-        var response = JsonSerializer.Deserialize<ConverseResponse>(record.ResponseJson);
-
-        return Task.FromResult(response);
+        return JsonSerializer.Deserialize<ConverseResponse>(record.ResponseJson);
     }
 
     public Task StoreAsync(Guid clientRequestId, ConverseResponse response, CancellationToken ct)

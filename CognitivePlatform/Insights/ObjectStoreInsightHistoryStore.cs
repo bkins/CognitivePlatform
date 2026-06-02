@@ -57,28 +57,27 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
         }
     }
 
-    public Task<bool> WasRecentlyEmittedAsync( string            deduplicationKey
-                                             , TimeSpan          window
-                                             , CancellationToken cancellationToken = default )
+    public async Task<bool> WasRecentlyEmittedAsync( string            deduplicationKey
+                                                     , TimeSpan          window
+                                                     , CancellationToken cancellationToken = default )
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (string.IsNullOrWhiteSpace(deduplicationKey))
-            return Task.FromResult(false);
+            return false;
 
         var cutoff  = DateTime.UtcNow - window;
         var fromUtc = new DateTimeOffset(cutoff, TimeSpan.Zero);
 
         // Pre-filter by DB CreatedUtc ≈ EmittedAtUtc; then confirm in memory
         // using the JSON field to handle any sub-millisecond skew between them.
-        var candidates = _store.List<InsightHistoryItem>(partitionKey: PartitionKey
-                                                       , fromUtc:      fromUtc);
+        var candidates = await _store.ListAsync<InsightHistoryItem>( partitionKey:      PartitionKey
+                                                                    , fromUtc:           fromUtc
+                                                                    , cancellationToken: cancellationToken );
 
-        var found = candidates.Any(item =>
+        return candidates.Any(item =>
             string.Equals(item.InsightKey, deduplicationKey, StringComparison.Ordinal)
          && item.EmittedAtUtc >= cutoff);
-
-        return Task.FromResult(found);
     }
 
     public async Task RecordOutcomeAsync( string            deduplicationKey
@@ -90,7 +89,8 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
         if (string.IsNullOrWhiteSpace(deduplicationKey))
             return;
 
-        var all = _store.List<InsightHistoryItem>(partitionKey: PartitionKey);
+        var all = await _store.ListAsync<InsightHistoryItem>( partitionKey:      PartitionKey
+                                                             , cancellationToken: cancellationToken );
 
         var target = all
             .Where(item => string.Equals(item.InsightKey, deduplicationKey, StringComparison.Ordinal)
@@ -107,20 +107,23 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
         await _store.Save(target, partitionKey: PartitionKey, id: target.Id);
     }
 
-    public Task<IReadOnlyList<InsightHistoryItem>> GetRecentAsync( TimeSpan          window
-                                                                 , CancellationToken cancellationToken = default )
+    public async Task<IReadOnlyList<InsightHistoryItem>> GetRecentAsync( TimeSpan          window
+                                                                       , CancellationToken cancellationToken = default )
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var cutoff  = DateTime.UtcNow - window;
         var fromUtc = new DateTimeOffset(cutoff, TimeSpan.Zero);
 
-        IReadOnlyList<InsightHistoryItem> recent = _store
-            .List<InsightHistoryItem>(partitionKey: PartitionKey, fromUtc: fromUtc)
+        var raw = await _store.ListAsync<InsightHistoryItem>( partitionKey:      PartitionKey
+                                                             , fromUtc:           fromUtc
+                                                             , cancellationToken: cancellationToken );
+
+        IReadOnlyList<InsightHistoryItem> recent = raw
             .Where(item => item.EmittedAtUtc >= cutoff)
             .OrderByDescending(item => item.EmittedAtUtc)
             .ToList();
 
-        return Task.FromResult(recent);
+        return recent;
     }
 }

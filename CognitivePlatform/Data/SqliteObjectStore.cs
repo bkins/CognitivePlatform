@@ -276,7 +276,124 @@ public class SqliteObjectStore : IObjectStore
         command.Parameters.AddWithValue("$deletedUtc",   now);
 
         command.ExecuteNonQuery();
-        
+
+        return true;
+    }
+
+    // ---------------------------------------------------------------------
+    // Async variants — promoted from sync on hot paths (IObjectStore)
+    // ---------------------------------------------------------------------
+
+    public async Task<T?> GetAsync<T>( string            id
+                                     , string?           partitionKey      = null
+                                     , CancellationToken cancellationToken = default )
+    {
+        if (id.HasNoValue())
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Json
+            FROM Objects
+            WHERE Id = $id
+              AND Type = $type
+              AND DeletedUtc IS NULL
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+            """;
+
+        command.Parameters.AddWithValue("$id",           id);
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+            return default;
+
+        var json = reader.GetString(0);
+        return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+    }
+
+    public async Task<IReadOnlyList<T>> ListAsync<T>( string?           partitionKey      = null
+                                                     , DateTimeOffset?   fromUtc           = null
+                                                     , DateTimeOffset?   toUtc             = null
+                                                     , CancellationToken cancellationToken = default )
+    {
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Json
+            FROM Objects
+            WHERE Type = $type
+              AND DeletedUtc IS NULL
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey)
+              AND ($fromUtc IS NULL OR CreatedUtc >= $fromUtc)
+              AND ($toUtc   IS NULL OR CreatedUtc <= $toUtc)
+            ORDER BY CreatedUtc;
+            """;
+
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+        command.Parameters.AddWithValue("$fromUtc",      fromUtc?.ToString("O") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$toUtc",        toUtc?.ToString("O")   ?? (object)DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var list = new List<T>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var json  = reader.GetString(0);
+            var value = JsonSerializer.Deserialize<T>(json, _jsonOptions);
+            if (value is not null)
+                list.Add(value);
+        }
+
+        return list;
+    }
+
+    public async Task<bool> SoftDeleteAsync<T>( string            id
+                                               , string?           partitionKey      = null
+                                               , CancellationToken cancellationToken = default )
+    {
+        if (id.HasNoValue())
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+
+        var type     = typeof(T);
+        var typeName = type.FullName ?? type.Name;
+        var now      = DateTimeOffset.UtcNow.ToString("O");
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Objects
+            SET DeletedUtc = $deletedUtc
+            WHERE Id = $id
+              AND Type = $type
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+            """;
+
+        command.Parameters.AddWithValue("$id",           id);
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+        command.Parameters.AddWithValue("$deletedUtc",   now);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
         return true;
     }
 
@@ -363,6 +480,37 @@ public class SqliteObjectStore : IObjectStore
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// Hard-deletes all rows of type <typeparamref name="T"/> whose
+    /// <c>CreatedUtc</c> is older than <paramref name="olderThan"/> from now.
+    /// Intended for maintenance-only eviction of ephemeral records (e.g. idempotency cache).
+    /// Returns the number of rows deleted.
+    /// </summary>
+    public int DeleteOlderThan<T>(TimeSpan olderThan, string? partitionKey = null)
+    {
+        var type      = typeof(T);
+        var typeName  = type.FullName ?? type.Name;
+        var cutoffUtc = (DateTimeOffset.UtcNow - olderThan).ToString("O");
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DELETE FROM Objects
+            WHERE Type = $type
+              AND CreatedUtc < $cutoff
+              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+            """;
+
+        command.Parameters.AddWithValue("$type",         typeName);
+        command.Parameters.AddWithValue("$cutoff",       cutoffUtc);
+        command.Parameters.AddWithValue("$partitionKey", (object?)partitionKey ?? DBNull.Value);
+
+        return command.ExecuteNonQuery();
     }
 
     /// <summary>
