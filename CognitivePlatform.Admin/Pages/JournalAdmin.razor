@@ -3,6 +3,8 @@
 @inject IAdminJournalClient JournalClient
 @inject EnvironmentService  EnvService
 @using Markdig
+@using System.Text.Json
+@using System.Xml.Linq
 
 <PageTitle>Journal Admin — CP Admin</PageTitle>
 
@@ -176,9 +178,9 @@ else if (_entriesError is not null)
                                                Size="Size.Small"
                                                Color="Color.Primary"
                                                Title="View full text"
-                                               OnClick="@(() => _selectedRevision =
+                                               OnClick="@(() => SelectRevision(
                                                               context.Item == _selectedRevision
-                                                              ? null : context.Item)" />
+                                                              ? null : context.Item))" />
                             </CellTemplate>
                         </TemplateColumn>
                     </Columns>
@@ -189,19 +191,29 @@ else if (_entriesError is not null)
                 {
                     <MudCard Elevation="1" Class="mb-4">
                         <MudCardContent>
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Wrap="Wrap.Wrap">
                                 <MudText Typo="Typo.subtitle2">Revision @_selectedRevision.RevisionId[..8]…</MudText>
                                 <MudSpacer />
-                                <MudTooltip Text="@(_renderMarkdown ? "Showing rendered Markdown" : "Showing raw text — toggle to render Markdown")">
-                                    <MudSwitch @bind-Value="_renderMarkdown"
-                                               Label="Markdown"
-                                               Color="Color.Primary"
-                                               Size="Size.Small" />
-                                </MudTooltip>
+
+                                @* ── Format selector ── *@
+                                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                    @foreach (TextFormat fmt in Enum.GetValues(typeof(TextFormat)))
+                                    {
+                                        <MudButton Size="Size.Small"
+                                                   Style="min-width:0;padding:2px 8px"
+                                                   Variant="@(_format == fmt ? Variant.Filled : Variant.Outlined)"
+                                                   Color="@(_format == fmt ? Color.Primary : Color.Default)"
+                                                   OnClick="@(() => _format = fmt)">
+                                            @FormatLabel(fmt)
+                                        </MudButton>
+                                    }
+                                </MudStack>
+
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     @AdminDateFormat.Long(_selectedRevision.CreatedUtc)
                                 </MudText>
                             </MudStack>
+
                             @if (_selectedRevision.Tags is { Length: > 0 })
                             {
                                 <MudStack Row="true" Spacing="1" Class="mb-2">
@@ -211,11 +223,27 @@ else if (_entriesError is not null)
                                     }
                                 </MudStack>
                             }
-                            @if (_renderMarkdown)
+
+                            @* ── Rendered content ── *@
+                            @if (ActiveFormat == TextFormat.Markdown)
                             {
-                                <MudPaper Elevation="0" Class="pa-3 markdown-body"
+                                <MudPaper Elevation="0" Class="pa-3"
                                           Style="background:var(--mud-palette-background-grey);font-size:0.9rem;">
                                     @((MarkupString)Markdown.ToHtml(_selectedRevision.Text, _markdownPipeline))
+                                </MudPaper>
+                            }
+                            else if (ActiveFormat == TextFormat.Json)
+                            {
+                                <MudPaper Elevation="0" Class="pa-2"
+                                          Style="background:var(--mud-palette-background-grey);overflow-x:auto;">
+                                    <pre style="margin:0;font-size:0.82rem;font-family:'Cascadia Code','Consolas',monospace;white-space:pre-wrap">@PrettyJson(_selectedRevision.Text)</pre>
+                                </MudPaper>
+                            }
+                            else if (ActiveFormat == TextFormat.Xml)
+                            {
+                                <MudPaper Elevation="0" Class="pa-2"
+                                          Style="background:var(--mud-palette-background-grey);overflow-x:auto;">
+                                    <pre style="margin:0;font-size:0.82rem;font-family:'Cascadia Code','Consolas',monospace;white-space:pre-wrap">@PrettyXml(_selectedRevision.Text)</pre>
                                 </MudPaper>
                             }
                             else
@@ -288,8 +316,13 @@ else if (_entriesError is not null)
 </MudGrid>
 
 @code {
+    private enum TextFormat { Auto, Plain, Markdown, Json, Xml }
+
     private static readonly MarkdownPipeline _markdownPipeline =
         new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+    private static readonly JsonSerializerOptions PrettyJsonOpts =
+        new() { WriteIndented = true };
 
     private List<JournalEntryAdminDto>    _entries           = [];
     private List<JournalRevisionAdminDto> _revisions         = [];
@@ -297,10 +330,14 @@ else if (_entriesError is not null)
     private JournalRevisionAdminDto?      _selectedRevision;
     private bool                          _loadingEntries;
     private bool                          _loadingRevisions;
-    private bool                          _renderMarkdown;
+    private TextFormat                    _format            = TextFormat.Auto;
+    private TextFormat                    _detectedFormat    = TextFormat.Plain;
     private string?                       _entriesError;
     private string?                       _revisionsError;
     private string                        _entrySearch       = string.Empty;
+
+    private TextFormat ActiveFormat
+        => _format == TextFormat.Auto ? _detectedFormat : _format;
 
     private string  _correctionText      = string.Empty;
     private string  _correctionTags      = string.Empty;
@@ -329,12 +366,92 @@ else if (_entriesError is not null)
         {
             _selectedEntry     = null;
             _selectedRevision  = null;
-            _renderMarkdown    = false;
+            _format            = TextFormat.Auto;
+            _detectedFormat    = TextFormat.Plain;
             _revisions         = [];
             _correctionMessage = null;
             await LoadEntriesAsync();
             StateHasChanged();
         });
+
+    // ── Format detection & rendering ──────────────────────────────────────────
+
+    private string FormatLabel(TextFormat fmt) => fmt switch
+    {
+        TextFormat.Auto     => $"Auto ({FormatShortName(_detectedFormat)})"
+      , TextFormat.Plain    => "Raw"
+      , TextFormat.Markdown => "MD"
+      , TextFormat.Json     => "JSON"
+      , TextFormat.Xml      => "XML"
+      , _                   => fmt.ToString()
+    };
+
+    private static string FormatShortName(TextFormat fmt) => fmt switch
+    {
+        TextFormat.Plain    => "Raw"
+      , TextFormat.Markdown => "MD"
+      , TextFormat.Json     => "JSON"
+      , TextFormat.Xml      => "XML"
+      , _                   => "?"
+    };
+
+    private static TextFormat DetectFormat(string text)
+    {
+        var trimmed = text.AsSpan().TrimStart();
+        if (trimmed.IsEmpty) return TextFormat.Plain;
+
+        // JSON — starts with { or [
+        if (trimmed[0] is '{' or '[')
+        {
+            try
+            {
+                JsonSerializer.Deserialize<JsonElement>(text);
+                return TextFormat.Json;
+            }
+            catch { /* not valid JSON */ }
+        }
+
+        // XML / XAML — starts with < (but not markdown emphasis like <word>)
+        if (trimmed[0] == '<' && trimmed.Length > 1 && trimmed[1] != ' ')
+        {
+            try
+            {
+                XDocument.Parse(text);
+                return TextFormat.Xml;
+            }
+            catch { /* not valid XML */ }
+        }
+
+        // Markdown heuristics — look for common syntax patterns
+        if (text.Contains("**")
+         || text.Contains("##")
+         || text.StartsWith("# ")
+         || text.Contains("```")
+         || text.Contains("- [ ]")
+         || (text.Contains('[') && text.Contains("](")))
+            return TextFormat.Markdown;
+
+        return TextFormat.Plain;
+    }
+
+    private static string PrettyJson(string text)
+    {
+        try
+        {
+            var element = JsonSerializer.Deserialize<JsonElement>(text);
+            return JsonSerializer.Serialize(element, PrettyJsonOpts);
+        }
+        catch
+        {
+            return text;
+        }
+    }
+
+    private static string PrettyXml(string text)
+    {
+        try   { return XDocument.Parse(text).ToString(); }
+        catch { return text; }
+    }
 
     public void Dispose()
     {
@@ -361,11 +478,22 @@ else if (_entriesError is not null)
         }
     }
 
+    private void SelectRevision(JournalRevisionAdminDto? revision)
+    {
+        _selectedRevision = revision;
+        if (revision is not null)
+        {
+            _format         = TextFormat.Auto;
+            _detectedFormat = DetectFormat(revision.Text);
+        }
+    }
+
     private async Task OnEntrySelected(JournalEntryAdminDto? entry)
     {
         _selectedEntry     = entry;
         _selectedRevision  = null;
-        _renderMarkdown    = false;
+        _format            = TextFormat.Auto;
+        _detectedFormat    = TextFormat.Plain;
         _revisions         = [];
         _correctionMessage = null;
 
