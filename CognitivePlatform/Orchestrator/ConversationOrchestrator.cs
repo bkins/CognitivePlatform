@@ -287,11 +287,29 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                                 , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
+                    await CheckForInsightFollowThroughAsync(confirmedAction.Name, context, ct);
                     var result     = await _execution.ExecuteAsync(confirmedAction, execParams, context.SessionId, ct);
+
+                    context.LastUserMessage = request.Input;
+                    var confirmInitialTurn = new ConversationTurn(
+                        UserMessage:      request.Input ?? string.Empty
+                      , AssistantMessage: result
+                      , OccurredAt:       DateTimeOffset.UtcNow
+                      , Path:             TurnPath.Confirmation
+                      , ActionName:       confirmedAction.Name
+                      , Succeeded:        true);
+                    context.RecordTurn(confirmInitialTurn);
+
+                    var confirmInsights = await SafeGenerateInsightsAsync(context, ct);
+                    var confirmMessage  = await ApplyInsightsToResponseAsync(result, confirmInsights, context, ct);
+
+                    if (confirmInsights.Count > 0 && confirmMessage != result)
+                        context.ReplaceLatestTurn(confirmInitialTurn with { AssistantMessage = confirmMessage });
 
                     var confirmationResponse = new ConverseResponse
                                                {
-                                                       Message = result
+                                                       Message = confirmMessage
+                                                     , Insights = confirmInsights
                                                      , Debug   = "Delete confirmed and executed."
                                                      , ExecutionResult = $"Executed confirmed action '{confirmedAction.Name}' "
                                                                        + $"with parameters: {string.Join(", ", execParams.Select(pair => $"{pair.Key}={pair.Value}"))}"
@@ -303,6 +321,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                              , TurnPath.Confirmation
                                              , actionName: confirmedAction.Name
                                              , succeeded:  true
+                                             , recordTurn: false
                                              , ct:         ct);
                 }
 
@@ -385,6 +404,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 context.PendingAction = null;
 
                 var finalParameters = ApplyDefaultValues(action, pending.CollectedParameters);
+                await CheckForInsightFollowThroughAsync(action.Name, context, ct);
                 var execOutput      = await _execution.ExecuteAsync(action, finalParameters, context.SessionId, ct);
 
                 _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -392,9 +412,26 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                Details = $"Clarification.Completed; Action={pending.ActionName}, Collected={pending.CollectedParameters.Count}"
                                                        }));
 
+                context.LastUserMessage = request.Input;
+                var clarifInitialTurn = new ConversationTurn(
+                    UserMessage:      request.Input ?? string.Empty
+                  , AssistantMessage: execOutput
+                  , OccurredAt:       DateTimeOffset.UtcNow
+                  , Path:             TurnPath.Clarification
+                  , ActionName:       action.Name
+                  , Succeeded:        true);
+                context.RecordTurn(clarifInitialTurn);
+
+                var clarifInsights = await SafeGenerateInsightsAsync(context, ct);
+                var clarifMessage  = await ApplyInsightsToResponseAsync(execOutput, clarifInsights, context, ct);
+
+                if (clarifInsights.Count > 0 && clarifMessage != execOutput)
+                    context.ReplaceLatestTurn(clarifInitialTurn with { AssistantMessage = clarifMessage });
+
                 var response = new ConverseResponse
                                {
-                                       Message = execOutput
+                                       Message = clarifMessage
+                                     , Insights = clarifInsights
                                      , Debug   = $"Executed pending action '{pending.ActionName}' with previously collected parameters."
                                      , ExecutionResult = $"Executed action '{action.Name}' "
                                                        + $"with parameters: {string.Join(", ", finalParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
@@ -406,6 +443,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                          , TurnPath.Clarification
                                          , actionName: action.Name
                                          , succeeded:  true
+                                         , recordTurn: false
                                          , ct:         ct);
             }
 
@@ -463,6 +501,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.PendingAction = null;
 
             var parameters  = ApplyDefaultValues(action, pending.CollectedParameters);
+            await CheckForInsightFollowThroughAsync(action.Name, context, ct);
             var finalOutput = await _execution.ExecuteAsync(action, parameters, context.SessionId, ct);
 
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
@@ -470,9 +509,26 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                            Details = $"Clarification.Completed; Action={pending.ActionName}, Collected={pending.CollectedParameters.Count}"
                                                    }));
 
+            context.LastUserMessage = request.Input;
+            var clarifFinalTurn = new ConversationTurn(
+                UserMessage:      request.Input ?? string.Empty
+              , AssistantMessage: finalOutput
+              , OccurredAt:       DateTimeOffset.UtcNow
+              , Path:             TurnPath.Clarification
+              , ActionName:       action.Name
+              , Succeeded:        true);
+            context.RecordTurn(clarifFinalTurn);
+
+            var clarifFinalInsights = await SafeGenerateInsightsAsync(context, ct);
+            var clarifFinalMessage  = await ApplyInsightsToResponseAsync(finalOutput, clarifFinalInsights, context, ct);
+
+            if (clarifFinalInsights.Count > 0 && clarifFinalMessage != finalOutput)
+                context.ReplaceLatestTurn(clarifFinalTurn with { AssistantMessage = clarifFinalMessage });
+
             var finalClarificationResponse = new ConverseResponse
                                              {
-                                                     Message = finalOutput
+                                                     Message = clarifFinalMessage
+                                                   , Insights = clarifFinalInsights
                                                    , Debug = $"Executed pending action '{pending.ActionName}' "
                                                            + $"after collecting all required parameters."
                                                    , ExecutionResult = $"Executed action '{action.Name}' with parameters: {string.Join(", ", parameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
@@ -484,6 +540,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , TurnPath.Clarification
                                      , actionName: action.Name
                                      , succeeded:  true
+                                     , recordTurn: false
                                      , ct:         ct);
         }
 

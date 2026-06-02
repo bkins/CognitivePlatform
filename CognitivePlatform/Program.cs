@@ -54,6 +54,7 @@ using CognitivePlatform.Api.Domains.Cognition;
 using CognitivePlatform.Api.Domains.Search;
 using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Domains.Document;
+using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
@@ -121,9 +122,10 @@ public partial class Program
         builder.Services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
         builder.Services.AddScoped<IExecutionEngine, ExecutionEngine>();
         
-        builder.Services.AddScoped<ITelemetrySink, ConsoleTelemetrySink>();
+        builder.Services.AddScoped<ConsoleTelemetrySink>();
+        builder.Services.AddScoped<ITelemetrySink, PersistentConversationTelemetrySink>();
         builder.Services.AddScoped<TelemetryContext>();
-        builder.Services.AddScoped<ITelemetryAggregatorService, TelemetryAggregatorService>();
+        builder.Services.AddSingleton<ITelemetryAggregatorService, ObjectStoreTelemetryAggregatorService>();
         
         builder.Services.AddSingleton<ConversationContextStore>();
         builder.Services.AddSingleton<IConversationTurnStore, ConversationTurnStore>();
@@ -219,6 +221,16 @@ public partial class Program
 
     // Brain Dump
         builder.Services.AddSingleton<IBrainDumpService, BrainDumpService>();
+
+    // Media Attachments
+        builder.Services.Configure<MediaAttachmentSettings>(options =>
+        {
+            options.MediaRootPath = Path.Combine(@"C:\CP\Data"
+                                               , builder.Environment.EnvironmentName
+                                               , "Media");
+        });
+        builder.Services.AddSingleton<IMediaFileStorage, LocalMediaFileStorage>();
+        builder.Services.AddSingleton<IMediaAttachmentService, MediaAttachmentService>();
 
     //Activity
         builder.Services.AddSingleton<IActivityLog, ObjectStoreActivityLog>();
@@ -411,6 +423,7 @@ public partial class Program
         builder.Services.AddTransient<FeedbackActions>();
         builder.Services.AddTransient<SystemActions>();
         builder.Services.AddTransient<IdentityActions>();
+        builder.Services.AddTransient<MediaActions>();
 
 // Scalar setup
         builder.Services.AddEndpointsApiExplorer();
@@ -538,8 +551,6 @@ public partial class Program
                            , settings
                            , diagnosticsLogger);
 
-            //StoreDefaultModel(settings, catalog);
-
             sysInfo = scope.ServiceProvider.GetRequiredService<SystemService>();
             envInfo = sysInfo.GetEnvironment();
             verInfo = sysInfo.GetVersion();
@@ -586,6 +597,7 @@ public partial class Program
             dataBuilder.Services.AddSingleton<StartupInvariantGuard>();
 
             dataBuilder.Services.AddSingleton<IIdempotencyStore, ObjectStoreIdempotencyStore>();
+            dataBuilder.Services.AddHostedService<IdempotencyEvictionService>();
 
             dataBuilder.Services.AddSingleton<IVectorStore>(_ => new SqliteVectorStore(connectionString));
         }
