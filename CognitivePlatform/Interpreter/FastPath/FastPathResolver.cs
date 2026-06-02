@@ -174,6 +174,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.92: BRAIN DUMP FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveBrainDump(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3.0: SEMANTIC SEARCH FAST PATHS
         // ------------------------------------------------------------
         if (TryResolveSemanticSearch(input, out action, out parameters))
@@ -2016,6 +2022,9 @@ public sealed class FastPathResolver : IFastPathResolver
               , { "tone",         "Personality"   }
               , { "personas",     "Personas"      }
               , { "persona",      "Personas"      }
+              , { "brain dump",  "BrainDump"     }
+              , { "braindump",   "BrainDump"     }
+              , { "brain dumps", "BrainDump"     }
         };
 
     private static string? ResolveDomainAliasForFastPath(string normalized)
@@ -2031,6 +2040,61 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return null;
+    }
+
+    // ================================================================
+    // MODE 2.92: BRAIN DUMP FAST PATHS
+    // ================================================================
+
+    private static readonly string[] BrainDumpStartSignals =
+    {
+            "brain dump"
+          , "braindump"
+          , "guided brain dump"
+          , "guided journal"
+          , "guided journaling"
+          , "mental dump"
+          , "help me unload"
+          , "unload my thoughts"
+          , "start a brain dump"
+          , "let's do a brain dump"
+          , "do a brain dump"
+    };
+
+    private static readonly string[] BrainDumpListSignals =
+    {
+            "list brain dumps"
+          , "show my brain dumps"
+          , "brain dump history"
+          , "show recent brain dumps"
+          , "show brain dumps"
+          , "my brain dumps"
+    };
+
+    private bool TryResolveBrainDump( string                           input
+                                    , out ActionMetadata?             action
+                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (BrainDumpListSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListBrainDumps");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        if (BrainDumpStartSignals.Any(signal => normalized.Contains(signal)))
+        {
+            action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "StartBrainDump");
+            parameters = new Dictionary<string, string>();
+            return action != null;
+        }
+
+        return false;
     }
 
     // ================================================================

@@ -52,6 +52,7 @@ using CognitivePlatform.Api.Wellbeing;
 using CognitivePlatform.Api.Domains.Wellbeing;
 using CognitivePlatform.Api.Domains.Cognition;
 using CognitivePlatform.Api.Domains.Search;
+using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Domains.Document;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
 using Microsoft.Extensions.Logging.Console;
@@ -215,6 +216,9 @@ public partial class Program
 
     //Tasks
         builder.Services.AddSingleton<ITaskService, TaskService>();
+
+    // Brain Dump
+        builder.Services.AddSingleton<IBrainDumpService, BrainDumpService>();
 
     //Activity
         builder.Services.AddSingleton<IActivityLog, ObjectStoreActivityLog>();
