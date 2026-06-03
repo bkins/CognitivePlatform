@@ -20,6 +20,7 @@ using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.Personas;
+using CognitivePlatform.Api.Training;
 using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Orchestrator;
@@ -54,6 +55,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IConversationTurnStore         _turnStore;
     private readonly IConversationMetadataStore     _metadataStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
+    private readonly IInterpreterTrainingStore?     _trainingStore;
 
     private readonly bool _isDebug  = false;
 
@@ -88,7 +90,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IPersonaService?                                               personaServiceForReconstruction = null
                                    , IPersonaStore?                                                 personaStoreForReconstruction   = null
                                    , IPersonaStabilityTracker?                                      stabilityTracker               = null
-                                   , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null )
+                                   , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
+                                   , IInterpreterTrainingStore?                                     trainingStore                  = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -109,6 +112,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
         _metadataStore         = metadataStore        ?? throw new ArgumentNullException(nameof(metadataStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
+        _trainingStore                   = trainingStore;
         _personaEngine                   = personaEngine;
         _personaRuntime                  = personaRuntime;
         _personaSessionManager           = personaSessionManager;
@@ -570,6 +574,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // pays the router-tier signal.
         var complexity     = _complexityClassifier.Classify(request.Input);
         var interpretation = await _interpreter.InterpretWithContext(request.Input, context, complexity);
+
+        // ENH-23 Phase 3: build a partial training record now so we can fire it on
+        // every interpreter-path return below without repeating the field setup.
+        context.Metadata.TryGetValue("model", out var trainingModelVersion);
+        var trainingRecord = BuildTrainingRecord(request.Input ?? string.Empty
+                                               , interpretation
+                                               , trainingModelVersion ?? string.Empty);
        
         
         // 5. Log interpreter outcome and details into telemetry and context for
@@ -602,6 +613,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                              , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
                                              , Success         = false
                                        };
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , llmExceptionResponse
                                      , stopwatch
@@ -662,6 +674,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                              , Debug   = msg
                              , ExecutionResult = $"Could not find action '{interpretation.ActionName}' in registry during missing parameters handling."
                        };
+                FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
                 return await  FinalizeAsync(request
                                           , response
                                           , stopwatch
@@ -735,6 +748,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , Debug   = interpretation.DebugInfo
                                      , ExecutionResult = $"Interpreter selected action '{action.Name}' but is missing required parameters: {string.Join(", ", missingNames)}. Prompting user for '{friendlyName}'."
                                };
+                FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
                 return await  FinalizeAsync(request
                                           , response
                                           , stopwatch
@@ -761,6 +775,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                   , Debug           = $"Missing required parameters for action '{interpretation.ActionName}': {missingJoined}"
                                                   , ExecutionResult = $"Interpreter reason: {interpretation.Reason}"
                                             };
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , missingParametersResponse
                                      , stopwatch
@@ -807,6 +822,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                               Message = llmResponse.Content
                                             , Debug   = interpretation.DebugInfo
                                       };
+                FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
                 return await FinalizeAsync(request
                                          , personaResponse
                                          , stopwatch
@@ -822,6 +838,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                 Message = message
                                               , Debug   = interpretation.DebugInfo
                                         };
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , missingActionResponse
                                      , stopwatch
@@ -855,6 +872,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                 Message = "That action is not registered in this system."
                                               , Debug   = msg
                                         };
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , unknownActionResponse
                                      , stopwatch
@@ -889,6 +907,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                  , Debug           = $"Destructive action '{selectedAction.Name}' requires confirmation."
                                  , ExecutionResult = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
                            };
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , response
                                      , stopwatch
@@ -952,6 +971,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                   , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
                             };
 
+        FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
         return await FinalizeAsync(request
                                  , finalResponse
                                  , stopwatch
@@ -1683,6 +1703,61 @@ public class ConversationOrchestrator : IConversationOrchestrator
         return content.Contains("I'm an AI",  StringComparison.OrdinalIgnoreCase)
             || content.Contains("as an AI",   StringComparison.OrdinalIgnoreCase)
             || content.Contains("I can't",    StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---------------------------------------------------------------------
+    // Training telemetry — ENH-23 Phase 3
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Builds a partial training record from the interpreter result. Callers
+    /// must set <see cref="InterpreterTrainingRecord.ExecutionSucceeded"/> and
+    /// <see cref="InterpreterTrainingRecord.LatencyMs"/> before firing.
+    /// </summary>
+    private InterpreterTrainingRecord? BuildTrainingRecord( string            userInput
+                                                           , InterpreterResult interpretation
+                                                           , string            modelVersion )
+    {
+        if (_trainingStore is null) return null;
+
+        return new InterpreterTrainingRecord
+               {
+                       UserInput             = userInput
+                     , NormalizedInput       = userInput.Trim()
+                     , ModelOutput           = interpretation.ModelOutput
+                     , FinalResolvedAction   = interpretation.ActionName ?? string.Empty
+                     , Parameters            = new Dictionary<string, string>(interpretation.ExtractedParameters)
+                     , RequiredClarification = interpretation.FailureType == InterpreterFailureType.MissingParameters
+                     , ClarificationCount    = 0
+                     , FailureType           = interpretation.FailureType.ToString()
+                     , TimestampUtc          = DateTime.UtcNow
+                     , ModelVersion          = modelVersion
+                     , PromptVersion         = "system.txt"
+               };
+    }
+
+    /// <summary>
+    /// Fire-and-forget persist of a training record. Failures are logged and swallowed
+    /// so a store error never breaks the turn.
+    /// </summary>
+    private void FireTrainingRecord( InterpreterTrainingRecord? record
+                                   , bool                       executionSucceeded
+                                   , double                     latencyMs )
+    {
+        if (record is null || _trainingStore is null) return;
+
+        record.ExecutionSucceeded = executionSucceeded;
+        record.LatencyMs          = latencyMs;
+
+        _ = _trainingStore.SaveAsync(record, CancellationToken.None)
+                          .ContinueWith(task =>
+                          {
+                              if (task.IsFaulted)
+                                  _telemetry.Track(new LlmInterpreterErrorEvent
+                                                   {
+                                                           Details = $"Training record save failed: {task.Exception?.GetBaseException().Message}"
+                                                   });
+                          }, TaskScheduler.Default);
     }
 
     private static IDictionary<string, string> ApplyDefaultValues(ActionMetadata               action

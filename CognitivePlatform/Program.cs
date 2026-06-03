@@ -56,6 +56,7 @@ using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Domains.Document;
 using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.SystemPromptLogging.Models;
+using CognitivePlatform.Api.Training;
 using Microsoft.Extensions.Logging.Console;
 using Scalar.AspNetCore;
 
@@ -600,6 +601,10 @@ public partial class Program
             dataBuilder.Services.AddHostedService<IdempotencyEvictionService>();
 
             dataBuilder.Services.AddSingleton<IVectorStore>(_ => new SqliteVectorStore(connectionString));
+
+            // ENH-23 Phase 3: training telemetry side-channel — separate table, same DB
+            dataBuilder.Services.AddSingleton<IInterpreterTrainingStore>(
+                _ => new SqliteInterpreterTrainingStore(connectionString));
         }
     }
 

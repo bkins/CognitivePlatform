@@ -61,6 +61,12 @@ public class InterpreterResult
     /// </summary>
     public IReadOnlyList<string>?     MissingParameters   { get; init; }
 
+    /// <summary>
+    /// The raw JSON string returned by the LLM before parsing.
+    /// Captured for training corpus use (ENH-23 Phase 3).
+    /// </summary>
+    public string ModelOutput { get; init; } = string.Empty;
+
     public LlmInterpreterCompletedEvent ToEvent()
     {
         return new LlmInterpreterCompletedEvent

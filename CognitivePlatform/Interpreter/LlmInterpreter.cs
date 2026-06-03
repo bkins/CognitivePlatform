@@ -210,6 +210,7 @@ public class LlmInterpreter : IInterpreter
                      , FailureType         = parsed.FailureType
                      , CandidateActions    = parsed.CandidateActions
                      , MissingParameters   = parsed.MissingParameters
+                     , ModelOutput         = rawResponse
                };
         
         _telemetry.Track(results.ToEvent());
