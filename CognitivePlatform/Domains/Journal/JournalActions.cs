@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry.Domains;
@@ -14,20 +15,23 @@ namespace CognitivePlatform.Api.Domains.Journal;
 [Domain(typeof(JournalDomain))]
 public sealed class JournalActions
 {
-    private readonly IJournalService       _journal;
-    private readonly IJournalCommandParser _parser;
-    private readonly ILlmClient            _llmClient;
-    private readonly IPromptLogger         _promptLogger;
+    private readonly IJournalService         _journal;
+    private readonly IJournalCommandParser   _parser;
+    private readonly ILlmClient              _llmClient;
+    private readonly IPromptLogger           _promptLogger;
+    private readonly IMediaAttachmentService _mediaService;
 
-    public JournalActions( IJournalService       journal
-                         , IJournalCommandParser parser
-                         , ILlmClient            llmClient
-                         , IPromptLogger         promptLogger )
+    public JournalActions( IJournalService         journal
+                         , IJournalCommandParser   parser
+                         , ILlmClient              llmClient
+                         , IPromptLogger           promptLogger
+                         , IMediaAttachmentService mediaService )
     {
         _journal      = journal      ?? throw new ArgumentNullException(nameof(journal));
         _parser       = parser       ?? throw new ArgumentNullException(nameof(parser));
         _llmClient    = llmClient    ?? throw new ArgumentNullException(nameof(llmClient));
         _promptLogger = promptLogger ?? throw new ArgumentNullException(nameof(promptLogger));
+        _mediaService = mediaService ?? throw new ArgumentNullException(nameof(mediaService));
     }
 
     // ----------------------------------------------------------------------
@@ -427,6 +431,45 @@ public sealed class JournalActions
                         , _llmClient.GetType().Name);
         
         return (await _llmClient.SendAsync(prompt)).Content;
+    }
+
+    // ----------------------------------------------------------------------
+    // 8. GetJournalAttachments
+    // ----------------------------------------------------------------------
+    [NaturalLanguageAction(
+        Description = "Lists all media attachments for a journal entry."
+      , Examples    = new[]
+                      {
+                          "show attachments for journal entry 1"
+                        , "what files are attached to journal entry abc123"
+                        , "list media for entry 5"
+                      }
+      , Category    = "journal")]
+    public async Task<string> GetJournalAttachments(
+        [NaturalLanguageParam(Description = "The journal entry reference — a 1-based position number or entry ID.", AllowEmpty = false)]
+        string entryReference)
+    {
+        var entryWithRevision = TryResolveJournalReference(entryReference, out var errorMessage);
+        if (entryWithRevision is null)
+            return errorMessage!;
+
+        var attachments = await _mediaService.GetAttachmentsAsync("JournalEntry"
+                                                                , entryWithRevision.Entry.Id);
+
+        if (attachments.Count == 0)
+            return $"No media attachments for journal entry {entryReference}.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Media attachments for entry {entryReference} ({attachments.Count}):");
+        sb.AppendLine();
+
+        foreach (var attachment in attachments)
+        {
+            var sizeKb = attachment.FileSizeBytes / 1024.0;
+            sb.AppendLine($"• {attachment.FileName} ({attachment.ContentType}, {sizeKb:F1} KB)");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     // ----------------------------------------------------------------------

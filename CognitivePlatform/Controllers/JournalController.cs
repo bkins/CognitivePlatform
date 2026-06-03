@@ -1,5 +1,6 @@
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Models.TestingTemp;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -15,35 +16,41 @@ public sealed class JournalController : ControllerBase
 {
     private readonly IJournalService            _journalService;
     private readonly IJournalRevisionRepository _journalRevisionRepository;
+    private readonly IMediaAttachmentService    _mediaService;
 
     public JournalController (IJournalService            journalService
-                            , IJournalRevisionRepository journalRevisionRepository)
+                            , IJournalRevisionRepository journalRevisionRepository
+                            , IMediaAttachmentService    mediaService)
     {
         _journalService            = journalService;
         _journalRevisionRepository = journalRevisionRepository;
+        _mediaService              = mediaService;
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<JournalEntryDto> GetById(Guid id, CancellationToken ct)
+    public async Task<ActionResult<JournalEntryDto>> GetById(Guid id, CancellationToken ct)
     {
         var entryRevision = _journalService.GetById(id.ToString("N"));
-        var tags = entryRevision.LatestRevision.Tags is { Count: > 0 }
-                           ? entryRevision.LatestRevision.Tags
-                           : Array.Empty<string>();
+        var tags          = entryRevision.LatestRevision.Tags is { Count: > 0 }
+                                    ? entryRevision.LatestRevision.Tags
+                                    : Array.Empty<string>();
 
-            var journalEntry = new JournalEntryDto
-                               {
-                                       Id        = entryRevision.Entry.Id.ToGuid()
-                                     , Text      = entryRevision.LatestRevision.Text
-                                     , CreatedAt = entryRevision.Entry.CreatedUtc
-                                     , Tags      = tags
-                                     , Mood      = entryRevision.LatestRevision.Mood
-                                     , MoodScore = entryRevision.LatestRevision.MoodScore
-                                     , State     = entryRevision.LatestRevision.State
-                                     , IsEdited  = entryRevision.IsEdited
-                               };
+        var attachmentCount = await _mediaService.GetAttachmentCountAsync("JournalEntry"
+                                                                         , id.ToString("N"));
+
+        var journalEntry = new JournalEntryDto
+                           {
+                               Id              = entryRevision.Entry.Id.ToGuid()
+                             , Text            = entryRevision.LatestRevision.Text
+                             , CreatedAt       = entryRevision.Entry.CreatedUtc
+                             , Tags            = tags
+                             , Mood            = entryRevision.LatestRevision.Mood
+                             , MoodScore       = entryRevision.LatestRevision.MoodScore
+                             , State           = entryRevision.LatestRevision.State
+                             , IsEdited        = entryRevision.IsEdited
+                             , AttachmentCount = attachmentCount
+                           };
         return Ok(journalEntry);
-
     }
     
     [HttpGet]
@@ -119,5 +126,48 @@ public sealed class JournalController : ControllerBase
         }
     }
 
+    // POST /api/journals/{journalId}/media
+    [HttpPost("{journalId:guid}/media")]
+    public async Task<ActionResult<MediaAttachmentDto>> UploadMedia(Guid journalId, IFormFile file)
+    {
+        if (_journalService.Exists(journalId).Not())
+            return NotFound();
 
+        if (file is null || file.Length == 0)
+            return BadRequest("No file provided.");
+
+        await using var stream = file.OpenReadStream();
+
+        var attachment = await _mediaService.AddAttachmentAsync("JournalEntry"
+                                                              , journalId.ToString("N")
+                                                              , file.FileName
+                                                              , file.ContentType ?? "application/octet-stream"
+                                                              , stream
+                                                              , file.Length);
+        return Created($"/api/media/{attachment.Id}", ToMediaDto(attachment));
+    }
+
+    // GET /api/journals/{journalId}/media
+    [HttpGet("{journalId:guid}/media")]
+    public async Task<ActionResult<IReadOnlyList<MediaAttachmentDto>>> ListMedia(Guid journalId)
+    {
+        if (_journalService.Exists(journalId).Not())
+            return NotFound();
+
+        var attachments = await _mediaService.GetAttachmentsAsync("JournalEntry"
+                                                                 , journalId.ToString("N"));
+        return Ok(attachments.Select(ToMediaDto).ToList());
+    }
+
+    private static MediaAttachmentDto ToMediaDto(MediaAttachment attachment)
+        => new()
+           {
+               Id            = attachment.Id.ToGuid()
+             , OwnerType     = attachment.OwnerType
+             , OwnerId       = attachment.OwnerId.ToGuid()
+             , FileName      = attachment.FileName
+             , ContentType   = attachment.ContentType
+             , FileSizeBytes = attachment.FileSizeBytes
+             , CreatedAt     = attachment.CreatedAt
+           };
 }

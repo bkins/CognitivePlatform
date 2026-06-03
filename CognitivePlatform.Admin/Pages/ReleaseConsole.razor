@@ -124,7 +124,7 @@
     </MudButton>
 </MudStack>
 
-@* ── LAA ── *@
+@* ── LAA Android ── *@
 <MudText Typo="Typo.subtitle2" Class="mb-2">Local AI Assistant (Android)</MudText>
 <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
     <MudButton Variant="Variant.Outlined"
@@ -147,6 +147,32 @@
                Disabled="@_running"
                OnClick="@BuildAndDeployLaaAsync">
         Build + Deploy LAA → @_selectedEnvironment
+    </MudButton>
+</MudStack>
+
+@* ── LAA Windows ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Local AI Assistant (Windows)</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Build"
+               Disabled="@_running"
+               OnClick="@BuildLaaWindowsAsync">
+        Build LAA Windows
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Secondary"
+               StartIcon="@Icons.Material.Filled.Computer"
+               Disabled="@_running"
+               OnClick="@DeployLaaWindowsAsync">
+        Deploy LAA Windows → @_selectedEnvironment
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PlayArrow"
+               Disabled="@_running"
+               OnClick="@BuildAndDeployLaaWindowsAsync">
+        Build + Deploy LAA Windows → @_selectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -584,10 +610,11 @@
 
     // ── Static paths ───────────────────────────────────────────────────────────
 
-    private static readonly string ScriptsDir    = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
-    private static readonly string StagingApiDir = @"C:\CP\Deploy\Api";
-    private static readonly string StagingLaaDir = @"C:\CP\Deploy\Laa";
-    private static readonly string ArtifactsRoot = @"C:\CP\Artifacts";
+    private static readonly string ScriptsDir           = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
+    private static readonly string StagingApiDir        = @"C:\CP\Deploy\Api";
+    private static readonly string StagingLaaDir        = @"C:\CP\Deploy\Laa";
+    private static readonly string StagingLaaWindowsDir = @"C:\CP\Deploy\LaaWindows";
+    private static readonly string ArtifactsRoot        = @"C:\CP\Artifacts";
 
     private static readonly string DeploymentStatePath =
         Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
@@ -822,6 +849,19 @@
         => RunCoreAsync(_workingDirectory
                       , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
                       , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+
+    private Task BuildLaaWindowsAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""");
+
+    private Task DeployLaaWindowsAsync()
+        => RunAsync("pwsh"
+                  , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""");
+
+    private Task BuildAndDeployLaaWindowsAsync()
+        => RunCoreAsync(_workingDirectory
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
+                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
 
     private Task PublishNuGetsAsync()
         => RunAsync("pwsh"

@@ -1,0 +1,939 @@
+{
+  "timestamp": "2026-06-02T17:58:05.507660",
+  "latency": [
+    {
+      "model": "phi3:mini",
+      "prompt_type": "simple",
+      "utterance": "hello",
+      "ttft_ms": 40677,
+      "total_ms": 44349,
+      "tokens_per_s": 14.5,
+      "eval_tokens": 53,
+      "prompt_tokens": 1156,
+      "error": null
+    },
+    {
+      "model": "phi3:mini",
+      "prompt_type": "medium",
+      "utterance": "add task buy milk",
+      "ttft_ms": 966,
+      "total_ms": 4650,
+      "tokens_per_s": 14.5,
+      "eval_tokens": 53,
+      "prompt_tokens": 1159,
+      "error": null
+    },
+    {
+      "model": "phi3:mini",
+      "prompt_type": "complex",
+      "utterance": "I need to do several things: review code, fix the login bug, write release notes",
+      "ttft_ms": 1768,
+      "total_ms": 7988,
+      "tokens_per_s": 14.1,
+      "eval_tokens": 87,
+      "prompt_tokens": 1173,
+      "error": null
+    },
+    {
+      "model": "mistral:latest",
+      "prompt_type": "simple",
+      "utterance": "hello",
+      "ttft_ms": 52917,
+      "total_ms": 58206,
+      "tokens_per_s": 9.3,
+      "eval_tokens": 49,
+      "prompt_tokens": 1103,
+      "error": null
+    },
+    {
+      "model": "mistral:latest",
+      "prompt_type": "medium",
+      "utterance": "add task buy milk",
+      "ttft_ms": 1028,
+      "total_ms": 6602,
+      "tokens_per_s": 9.4,
+      "eval_tokens": 52,
+      "prompt_tokens": 1106,
+      "error": null
+    },
+    {
+      "model": "mistral:latest",
+      "prompt_type": "complex",
+      "utterance": "I need to do several things: review code, fix the login bug, write release notes",
+      "ttft_ms": 1708,
+      "total_ms": 8564,
+      "tokens_per_s": 9.2,
+      "eval_tokens": 63,
+      "prompt_tokens": 1120,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:7b",
+      "prompt_type": "simple",
+      "utterance": "hello",
+      "ttft_ms": 44283,
+      "total_ms": 47070,
+      "tokens_per_s": 10.1,
+      "eval_tokens": 28,
+      "prompt_tokens": 963,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:7b",
+      "prompt_type": "medium",
+      "utterance": "add task buy milk",
+      "ttft_ms": 1070,
+      "total_ms": 4033,
+      "tokens_per_s": 10.3,
+      "eval_tokens": 30,
+      "prompt_tokens": 966,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:7b",
+      "prompt_type": "complex",
+      "utterance": "I need to do several things: review code, fix the login bug, write release notes",
+      "ttft_ms": 1696,
+      "total_ms": 5888,
+      "tokens_per_s": 9.7,
+      "eval_tokens": 40,
+      "prompt_tokens": 980,
+      "error": null
+    },
+    {
+      "model": "llama3.1:8b",
+      "prompt_type": "simple",
+      "utterance": "hello",
+      "ttft_ms": 46175,
+      "total_ms": 50891,
+      "tokens_per_s": 9.2,
+      "eval_tokens": 43,
+      "prompt_tokens": 928,
+      "error": null
+    },
+    {
+      "model": "llama3.1:8b",
+      "prompt_type": "medium",
+      "utterance": "add task buy milk",
+      "ttft_ms": 1139,
+      "total_ms": 6368,
+      "tokens_per_s": 9.2,
+      "eval_tokens": 48,
+      "prompt_tokens": 931,
+      "error": null
+    },
+    {
+      "model": "llama3.1:8b",
+      "prompt_type": "complex",
+      "utterance": "I need to do several things: review code, fix the login bug, write release notes",
+      "ttft_ms": 1889,
+      "total_ms": 8258,
+      "tokens_per_s": 9.2,
+      "eval_tokens": 58,
+      "prompt_tokens": 945,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:14b",
+      "prompt_type": "simple",
+      "utterance": "hello",
+      "ttft_ms": 91342,
+      "total_ms": 99833,
+      "tokens_per_s": 4.9,
+      "eval_tokens": 41,
+      "prompt_tokens": 963,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:14b",
+      "prompt_type": "medium",
+      "utterance": "add task buy milk",
+      "ttft_ms": 2129,
+      "total_ms": 11864,
+      "tokens_per_s": 5.0,
+      "eval_tokens": 48,
+      "prompt_tokens": 966,
+      "error": null
+    },
+    {
+      "model": "qwen2.5:14b",
+      "prompt_type": "complex",
+      "utterance": "I need to do several things: review code, fix the login bug, write release notes",
+      "ttft_ms": 3547,
+      "total_ms": 15655,
+      "tokens_per_s": 4.9,
+      "eval_tokens": 59,
+      "prompt_tokens": 980,
+      "error": null
+    }
+  ],
+  "schema": [
+    {
+      "model": "phi3:mini",
+      "test_id": 1,
+      "utterance": "add task buy milk",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddTask\",\n  \"parameters\": {\"shortDescription\": \"Buy milk\"},\n  \"reason\": \"User wants to add a new task.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "None",
+        "params": {
+          "shortDescription": "Buy milk"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4878
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 2,
+      "utterance": "task 2 is done",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"CompleteTask\",\n  \"parameters\": {\"taskReference\": \"2\"},\n  \"reason\": \"User marked task 2 complete.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "CompleteTask",
+        "failureType": "None",
+        "params": {
+          "taskReference": "2"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4634
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 3,
+      "utterance": "add tasks: buy milk, call dentist, finish report",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"BatchAddTasks\",\n  \"parameters\": {\n    \"descriptions\": \"buy milk|call dentist|finish report\"\n  },\n  \"reason\": \"User wants to add multiple tasks at once.\",\n  \"failureType\": \"None\",\n  \"candidateActions\": [\"AddTask\"],\n  \"missingParameters\": []\n}",
+        "valid_json": true,
+        "actionName": "BatchAddTasks",
+        "failureType": "None",
+        "params": {
+          "descriptions": "buy milk|call dentist|finish report"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 7794
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 4,
+      "utterance": "add a task",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"none\",\n  \"parameters\": {},\n  \"reason\": \"Missing required parameter.\",\n  \"failureType\": \"MissingParameters\",\n  \"candidateActions\": [\"AddTask\"],\n  \"missingParameters\": [\"shortDescription\"]\n}",
+        "valid_json": true,
+        "actionName": "none",
+        "failureType": "MissingParameters",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5613
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 5,
+      "utterance": "journal: had a productive day at work",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddJournalEntry\",\n  \"parameters\": {\"text\": \"had a productive day at work\"},\n  \"reason\": \"User wants to add a journal entry.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddJournalEntry",
+        "failureType": "None",
+        "params": {
+          "text": "had a productive day at work"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5257
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 6,
+      "utterance": "what can you do?",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ListActions\",\n  \"parameters\": {},\n  \"reason\": \"User inquires about available actions.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ListActions",
+        "failureType": "None",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4134
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 7,
+      "utterance": "hello there",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ChitChat\",\n  \"parameters\": {\"text\": \"Hello there\"},\n  \"reason\": \"User initiated a casual greeting.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ChitChat",
+        "failureType": "None",
+        "params": {
+          "text": "Hello there"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4667
+    },
+    {
+      "model": "phi3:mini",
+      "test_id": 8,
+      "utterance": "describe the AddTask action",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"DescribeAction\",\n  \"parameters\": {\n    \"actionName\": \"AddTask\"\n  },\n  \"reason\": \"User wants to understand how to add a task.\",\n  \"failureType\": \"None\",\n  \"candidateActions\": [\"AddTask\"],\n  \"missingParameters\": []\n}",
+        "valid_json": true,
+        "actionName": "DescribeAction",
+        "failureType": "None",
+        "params": {
+          "actionName": "AddTask"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6796
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 1,
+      "utterance": "add task buy milk",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddTask\",\n  \"parameters\": { \"shortDescription\": \"Buy milk\" },\n  \"reason\": \"User wants to add a task.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "None",
+        "params": {
+          "shortDescription": "Buy milk"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6578
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 2,
+      "utterance": "task 2 is done",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"CompleteTask\",\n  \"parameters\": { \"taskReference\": \"2\" },\n  \"reason\": \"User marked task 2 complete.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "CompleteTask",
+        "failureType": "None",
+        "params": {
+          "taskReference": "2"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6336
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 3,
+      "utterance": "add tasks: buy milk, call dentist, finish report",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"BatchAddTasks\",\n  \"parameters\": { \"descriptions\": \"buy milk|call dentist|finish report\" },\n  \"reason\": \"User wants to add multiple tasks at once.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "BatchAddTasks",
+        "failureType": "None",
+        "params": {
+          "descriptions": "buy milk|call dentist|finish report"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 7934
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 4,
+      "utterance": "add a task",
+      "score": 7,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddTask\",\n  \"parameters\": { \"shortDescription\": \"A new task\" },\n  \"reason\": \"User wants to add a task but did not specify it.\",\n  \"failureType\": \"MissingParameters\",\n  \"candidateActions\": [\"AddTask\"],\n  \"missingParameters\": [\"shortDescription\"]\n}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "MissingParameters",
+        "params": {
+          "shortDescription": "A new task"
+        },
+        "action_correct": false,
+        "action_expected": "none",
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 9444
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 5,
+      "utterance": "journal: had a productive day at work",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddJournalEntry\",\n  \"parameters\": { \"text\": \"had a productive day at work\" },\n  \"reason\": \"User wants to add a journal entry.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddJournalEntry",
+        "failureType": "None",
+        "params": {
+          "text": "had a productive day at work"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 7124
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 6,
+      "utterance": "what can you do?",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ListActions\",\n  \"parameters\": {},\n  \"reason\": \"User asked for a list of available actions.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ListActions",
+        "failureType": "None",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5683
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 7,
+      "utterance": "hello there",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ChitChat\",\n  \"parameters\": { \"text\": \"hello there\" },\n  \"reason\": \"User initiated a casual conversation.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ChitChat",
+        "failureType": "None",
+        "params": {
+          "text": "hello there"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6223
+    },
+    {
+      "model": "mistral:latest",
+      "test_id": 8,
+      "utterance": "describe the AddTask action",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"DescribeAction\",\n  \"parameters\": { \"actionName\": \"AddTask\" },\n  \"reason\": \"User asked for a description of an action.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "DescribeAction",
+        "failureType": "None",
+        "params": {
+          "actionName": "AddTask"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6746
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 1,
+      "utterance": "add task buy milk",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"AddTask\",\"parameters\":{\"shortDescription\":\"Buy milk\"},\"reason\":\"User wants to add a task.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "None",
+        "params": {
+          "shortDescription": "Buy milk"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4118
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 2,
+      "utterance": "task 2 is done",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"CompleteTask\",\"parameters\":{\"taskReference\":\"2\"},\"reason\":\"User marked task 2 complete.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "CompleteTask",
+        "failureType": "None",
+        "params": {
+          "taskReference": "2"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4103
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 3,
+      "utterance": "add tasks: buy milk, call dentist, finish report",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"BatchAddTasks\",\"parameters\":{\"descriptions\":\"buy milk|call dentist|finish report\"},\"reason\":\"User wants to add multiple tasks.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "BatchAddTasks",
+        "failureType": "None",
+        "params": {
+          "descriptions": "buy milk|call dentist|finish report"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5045
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 4,
+      "utterance": "add a task",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"none\",\"parameters\":{},\"reason\":\"Missing required parameter.\",\"failureType\":\"MissingParameters\",\"candidateActions\":[\"AddTask\"],\"missingParameters\":[\"shortDescription\"]}",
+        "valid_json": true,
+        "actionName": "none",
+        "failureType": "MissingParameters",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4464
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 5,
+      "utterance": "journal: had a productive day at work",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"AddJournalEntry\",\"parameters\":{\"text\":\"had a productive day at work\"},\"reason\":\"User added a journal entry about their day.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "AddJournalEntry",
+        "failureType": "None",
+        "params": {
+          "text": "had a productive day at work"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4818
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 6,
+      "utterance": "what can you do?",
+      "score": 8,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"ListActions\",\"parameters\":{},\"reason\":\"Respond to user's request for available actions.\"}",
+        "valid_json": true,
+        "actionName": "ListActions",
+        "failureType": "",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": false,
+        "ft_expected": "None",
+        "param_score": 3
+      },
+      "total_ms": 3425
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 7,
+      "utterance": "hello there",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"ChitChat\",\"parameters\":{\"text\":\"hello there\"},\"reason\":\"Responding to a greeting.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "ChitChat",
+        "failureType": "None",
+        "params": {
+          "text": "hello there"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 3876
+    },
+    {
+      "model": "qwen2.5:7b",
+      "test_id": 8,
+      "utterance": "describe the AddTask action",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"DescribeAction\",\"parameters\":{\"actionName\":\"AddTask\"},\"reason\":\"User requested description of AddTask action.\",\"failureType\":\"None\"}",
+        "valid_json": true,
+        "actionName": "DescribeAction",
+        "failureType": "None",
+        "params": {
+          "actionName": "AddTask"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 4371
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 1,
+      "utterance": "add task buy milk",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddTask\",\n  \"parameters\": {\n    \"shortDescription\": \"Buy milk\"\n  },\n  \"reason\": \"User wants to add a task.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "None",
+        "params": {
+          "shortDescription": "Buy milk"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6526
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 2,
+      "utterance": "task 2 is done",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"CompleteTask\",\n  \"parameters\": {\"taskReference\": \"2\"},\n  \"reason\": \"User marked task 2 complete.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "CompleteTask",
+        "failureType": "None",
+        "params": {
+          "taskReference": "2"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5990
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 3,
+      "utterance": "add tasks: buy milk, call dentist, finish report",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"BatchAddTasks\",\n  \"parameters\": {\n    \"descriptions\": \"buy milk|call dentist|finish report\"\n  },\n  \"reason\": \"User wants to add multiple tasks.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "BatchAddTasks",
+        "failureType": "None",
+        "params": {
+          "descriptions": "buy milk|call dentist|finish report"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 7589
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 4,
+      "utterance": "add a task",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"none\",\n  \"parameters\": {},\n  \"reason\": \"Missing required parameter.\",\n  \"failureType\": \"MissingParameters\",\n  \"candidateActions\": [\"AddTask\"],\n  \"missingParameters\": [\"shortDescription\"]\n}",
+        "valid_json": true,
+        "actionName": "none",
+        "failureType": "MissingParameters",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6800
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 5,
+      "utterance": "journal: had a productive day at work",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddJournalEntry\",\n  \"parameters\": {\n    \"text\": \"had a productive day at work\"\n  },\n  \"reason\": \"User wants to add a journal entry.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddJournalEntry",
+        "failureType": "None",
+        "params": {
+          "text": "had a productive day at work"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 7291
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 6,
+      "utterance": "what can you do?",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ListActions\",\n  \"parameters\": {},\n  \"reason\": \"User wants to know available actions.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ListActions",
+        "failureType": "None",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 5210
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 7,
+      "utterance": "hello there",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ChitChat\",\n  \"parameters\": {\n    \"text\": \"hello there\"\n  },\n  \"reason\": \"Conversational input.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ChitChat",
+        "failureType": "None",
+        "params": {
+          "text": "hello there"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6056
+    },
+    {
+      "model": "llama3.1:8b",
+      "test_id": 8,
+      "utterance": "describe the AddTask action",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"DescribeAction\",\n  \"parameters\": {\n    \"actionName\": \"AddTask\"\n  },\n  \"reason\": \"User wants to know what the AddTask action does.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "DescribeAction",
+        "failureType": "None",
+        "params": {
+          "actionName": "AddTask"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 6878
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 1,
+      "utterance": "add task buy milk",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddTask\",\n  \"parameters\": {\n    \"shortDescription\": \"Buy milk\"\n  },\n  \"reason\": \"User wants to add a task.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddTask",
+        "failureType": "None",
+        "params": {
+          "shortDescription": "Buy milk"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 11800
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 2,
+      "utterance": "task 2 is done",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"CompleteTask\",\n  \"parameters\": {\n    \"taskReference\": \"2\"\n  },\n  \"reason\": \"User marked task 2 complete.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "CompleteTask",
+        "failureType": "None",
+        "params": {
+          "taskReference": "2"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 11837
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 3,
+      "utterance": "add tasks: buy milk, call dentist, finish report",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"BatchAddTasks\",\n  \"parameters\": {\n    \"descriptions\": \"buy milk|call dentist|finish report\"\n  },\n  \"reason\": \"User provided multiple tasks in one message.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "BatchAddTasks",
+        "failureType": "None",
+        "params": {
+          "descriptions": "buy milk|call dentist|finish report"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 14269
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 4,
+      "utterance": "add a task",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\"actionName\":\"none\",\"parameters\":{},\"reason\":\"Missing required parameter.\",\"failureType\":\"MissingParameters\",\"candidateActions\":[\"AddTask\"],\"missingParameters\":[\"shortDescription\"]}",
+        "valid_json": true,
+        "actionName": "none",
+        "failureType": "MissingParameters",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 8944
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 5,
+      "utterance": "journal: had a productive day at work",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"AddJournalEntry\",\n  \"parameters\": {\n    \"text\": \"had a productive day at work\"\n  },\n  \"reason\": \"User wants to add a journal entry.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "AddJournalEntry",
+        "failureType": "None",
+        "params": {
+          "text": "had a productive day at work"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 13313
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 6,
+      "utterance": "what can you do?",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ListActions\",\n  \"parameters\": {},\n  \"reason\": \"User requested to see available actions.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ListActions",
+        "failureType": "None",
+        "params": {},
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 9655
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 7,
+      "utterance": "hello there",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"ChitChat\",\n  \"parameters\": { \"text\": \"hello there\" },\n  \"reason\": \"User greeted.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "ChitChat",
+        "failureType": "None",
+        "params": {
+          "text": "hello there"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 10483
+    },
+    {
+      "model": "qwen2.5:14b",
+      "test_id": 8,
+      "utterance": "describe the AddTask action",
+      "score": 10,
+      "details": {
+        "raw_excerpt": "{\n  \"actionName\": \"DescribeAction\",\n  \"parameters\": {\n    \"actionName\": \"AddTask\"\n  },\n  \"reason\": \"User requested description of AddTask.\",\n  \"failureType\": \"None\"\n}",
+        "valid_json": true,
+        "actionName": "DescribeAction",
+        "failureType": "None",
+        "params": {
+          "actionName": "AddTask"
+        },
+        "action_correct": true,
+        "ft_correct": true,
+        "param_score": 3
+      },
+      "total_ms": 12052
+    }
+  ],
+  "context": [],
+  "model_totals": {
+    "phi3:mini": {
+      "score": 80,
+      "count": 8
+    },
+    "mistral:latest": {
+      "score": 77,
+      "count": 8
+    },
+    "qwen2.5:7b": {
+      "score": 78,
+      "count": 8
+    },
+    "llama3.1:8b": {
+      "score": 80,
+      "count": 8
+    },
+    "qwen2.5:14b": {
+      "score": 80,
+      "count": 8
+    }
+  }
+}
