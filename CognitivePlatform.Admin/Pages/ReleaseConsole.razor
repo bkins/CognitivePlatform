@@ -1022,36 +1022,59 @@
             return;
         }
 
-        var running = Process.GetProcessesByName(processName);
-        if (running.Length > 0)
+        var already = Process.GetProcessesByName(processName);
+        if (already.Length > 0)
         {
-            _output.Add(new($"[{processName} is already running — PID {running[0].Id}]", IsError: false));
+            _output.Add(new($"[{processName} is already running — PID {already[0].Id}]", IsError: false));
             _exitCode = 0;
             await InvokeAsync(StateHasChanged);
             return;
         }
 
         _output.Add(new($"$ {exePath}", false));
+        _output.Add(new("Starting…", false));
+        await InvokeAsync(StateHasChanged);
 
+        Process? proc = null;
         try
         {
+            // UseShellExecute = true opens the process in its own console window so you
+            // can see startup output and errors directly. Output cannot be redirected in
+            // this mode, so we rely on a short liveness-check instead.
             var startInfo = new ProcessStartInfo
             {
                 FileName         = exePath
               , WorkingDirectory  = workDir
-              , UseShellExecute   = false
-              , CreateNoWindow    = true
+              , UseShellExecute   = true
             };
-            var proc = Process.Start(startInfo);
+
+            proc = Process.Start(startInfo);
+
             if (proc is null)
             {
                 _output.Add(new("[Error: Process.Start returned null]", IsError: true));
                 _exitCode = 1;
+                return;
+            }
+
+            var pid = proc.Id;
+            _output.Add(new($"[Launched PID {pid} — waiting 2 s to confirm it stays alive…]", false));
+            await InvokeAsync(StateHasChanged);
+
+            // Give the process time to load config, bind ports, etc.
+            await Task.Delay(2000);
+
+            if (proc.HasExited)
+            {
+                _output.Add(new($"[Process exited after {proc.ExitCode} — it crashed on startup. Check the console window or the deploy directory for error details.]"
+                              , IsError: true));
+                _exitCode = proc.ExitCode == 0 ? 1 : proc.ExitCode;
             }
             else
             {
-                _output.Add(new($"[Started — PID {proc.Id}]", IsError: false));
+                _output.Add(new($"[Running — PID {pid}. Console window is open for live output.]", false));
                 _exitCode = 0;
+                proc = null; // detach — let it keep running
             }
         }
         catch (Exception ex)
@@ -1059,6 +1082,10 @@
             _runError = ex.Message;
             _output.Add(new($"[Error: {ex.Message}]", IsError: true));
             _exitCode = 1;
+        }
+        finally
+        {
+            proc?.Dispose();
         }
 
         await InvokeAsync(StateHasChanged);
