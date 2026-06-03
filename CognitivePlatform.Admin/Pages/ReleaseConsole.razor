@@ -1306,10 +1306,12 @@
               , Arguments       = $@"-p ""{profile}"""
               , UseShellExecute = true
             });
-
-            _output.Add(new("Waiting 2 s for API to initialise…", false));
+            
+            const int secondsToWait = 5;
+            _output.Add(new($"Waiting {secondsToWait} s for API to initialise…", false));
+            
             await InvokeAsync(StateHasChanged);
-            await Task.Delay(2000);
+            await Task.Delay(secondsToWait * 1000);
 
             var running = Process.GetProcessesByName(processName);
             if (running.Length > 0)
@@ -1400,16 +1402,22 @@
             proc.OutputDataReceived += async (_, e) =>
             {
                 if (e.Data is null) return;
-                _output.Add(new(e.Data, false));
-                try { await InvokeAsync(StateHasChanged); await ScrollToBottomAsync(); }
+                try
+                {
+                    await InvokeAsync(() => { _output.Add(new(e.Data, false)); StateHasChanged(); });
+                    await ScrollToBottomAsync();
+                }
                 catch { /* component may have been disposed */ }
             };
 
             proc.ErrorDataReceived += async (_, e) =>
             {
                 if (e.Data is null) return;
-                _output.Add(new(e.Data, true));
-                try { await InvokeAsync(StateHasChanged); await ScrollToBottomAsync(); }
+                try
+                {
+                    await InvokeAsync(() => { _output.Add(new(e.Data, true)); StateHasChanged(); });
+                    await ScrollToBottomAsync();
+                }
                 catch { /* component may have been disposed */ }
             };
 
@@ -1524,16 +1532,14 @@
                 _process.OutputDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
-                    _output.Add(new(eventArgs.Data, false));
-                    await InvokeAsync(StateHasChanged);
+                    await InvokeAsync(() => { _output.Add(new(eventArgs.Data, false)); StateHasChanged(); });
                     await ScrollToBottomAsync();
                 };
 
                 _process.ErrorDataReceived += async (_, eventArgs) =>
                 {
                     if (eventArgs.Data is null) return;
-                    _output.Add(new(eventArgs.Data, true));
-                    await InvokeAsync(StateHasChanged);
+                    await InvokeAsync(() => { _output.Add(new(eventArgs.Data, true)); StateHasChanged(); });
                     await ScrollToBottomAsync();
                 };
 

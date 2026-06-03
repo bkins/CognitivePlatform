@@ -335,17 +335,19 @@
             _androidProcess.OutputDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                deviceLines.Add(eventArgs.Data);
-                _androidOutput.Add(new(eventArgs.Data, LineKind.Normal));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() =>
+                {
+                    deviceLines.Add(eventArgs.Data);
+                    _androidOutput.Add(new(eventArgs.Data, LineKind.Normal));
+                    StateHasChanged();
+                });
                 await ScrollToBottomAsync("android-terminal-end");
             };
 
             _androidProcess.ErrorDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                _androidOutput.Add(new(eventArgs.Data, LineKind.Error));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() => { _androidOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
                 await ScrollToBottomAsync("android-terminal-end");
             };
 
@@ -416,19 +418,21 @@
             _androidProcess.OutputDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                var kind = ClassifyLine(eventArgs.Data);
-                if (kind == LineKind.Pass) _androidPassed++;
-                else if (kind == LineKind.Fail) _androidFailed++;
-                _androidOutput.Add(new(eventArgs.Data, kind));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() =>
+                {
+                    var kind = ClassifyLine(eventArgs.Data);
+                    if (kind == LineKind.Pass) _androidPassed++;
+                    else if (kind == LineKind.Fail) _androidFailed++;
+                    _androidOutput.Add(new(eventArgs.Data, kind));
+                    StateHasChanged();
+                });
                 await ScrollToBottomAsync("android-terminal-end");
             };
 
             _androidProcess.ErrorDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                _androidOutput.Add(new(eventArgs.Data, LineKind.Error));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() => { _androidOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
                 await ScrollToBottomAsync("android-terminal-end");
             };
 
@@ -521,19 +525,21 @@
             _windowsProcess.OutputDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                var kind = ClassifyLine(eventArgs.Data);
-                if (kind == LineKind.Pass) _windowsPassed++;
-                else if (kind == LineKind.Fail) _windowsFailed++;
-                _windowsOutput.Add(new(eventArgs.Data, kind));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() =>
+                {
+                    var kind = ClassifyLine(eventArgs.Data);
+                    if (kind == LineKind.Pass) _windowsPassed++;
+                    else if (kind == LineKind.Fail) _windowsFailed++;
+                    _windowsOutput.Add(new(eventArgs.Data, kind));
+                    StateHasChanged();
+                });
                 await ScrollToBottomAsync("windows-terminal-end");
             };
 
             _windowsProcess.ErrorDataReceived += async (_, eventArgs) =>
             {
                 if (eventArgs.Data is null) return;
-                _windowsOutput.Add(new(eventArgs.Data, LineKind.Error));
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(() => { _windowsOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
                 await ScrollToBottomAsync("windows-terminal-end");
             };
 
