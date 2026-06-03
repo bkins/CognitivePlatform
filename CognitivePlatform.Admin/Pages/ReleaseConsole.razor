@@ -916,46 +916,135 @@
         catch { /* ignore file errors */ }
     }
 
+    // ── Artifact directory helpers ─────────────────────────────────────────────
+    // Build outputs go here; deploy scripts source from here.
+
+    private string ApiArtifactDir    => Path.Combine(ArtifactsRoot, "API",        _version);
+    private string LaaArtifactDir    => Path.Combine(ArtifactsRoot, "Laa",        _version);
+    private string LaaWinArtifactDir => Path.Combine(ArtifactsRoot, "LaaWindows", _version);
+
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
-    private Task BuildApiAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""");
+    private async Task BuildApiAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""");
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+    }
 
     private Task DeployApiAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}");
 
-    private Task BuildAndDeployApiAsync()
-        => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
+    private async Task BuildAndDeployApiAsync()
+    {
+        await RunCoreAsync(_workingDirectory
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" ));
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+    }
 
-    private Task BuildLaaAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""");
+    private async Task BuildLaaAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""");
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+    }
 
     private Task DeployLaaAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}");
 
-    private Task BuildAndDeployLaaAsync()
-        => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+    private async Task BuildAndDeployLaaAsync()
+    {
+        await RunCoreAsync(_workingDirectory
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" ));
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+    }
 
-    private Task BuildLaaWindowsAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""");
+    private async Task BuildLaaWindowsAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""");
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+    }
 
     private Task DeployLaaWindowsAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""");
 
-    private Task BuildAndDeployLaaWindowsAsync()
-        => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
+    private async Task BuildAndDeployLaaWindowsAsync()
+    {
+        await RunCoreAsync(_workingDirectory
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""" ));
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+    }
+
+    // ── Artifact metadata ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes metadata.json into the versioned artifact directory and updates
+    /// the top-level metadata.json (latest-build pointer) for the component.
+    /// </summary>
+    private async Task WriteArtifactMetadataAsync(string componentName, string artifactDir)
+    {
+        if (!Directory.Exists(artifactDir)) return;
+
+        var gitHash = await GetGitHashAsync();
+
+        var meta = new
+        {
+            ComponentName  = componentName
+          , Version        = _version
+          , BuiltFor       = _selectedEnvironment
+          , GitCommitHash  = gitHash ?? string.Empty
+          , BuildTimestamp = DateTime.UtcNow
+          , BuildMachine   = System.Environment.MachineName
+          , ConsoleVersion = "2.0.0"
+        };
+
+        var opts     = new JsonSerializerOptions { WriteIndented = true };
+        var metaJson = JsonSerializer.Serialize(meta, opts);
+
+        // Per-version metadata — read by LoadArtifacts() to populate the Artifact Store panel
+        await File.WriteAllTextAsync(Path.Combine(artifactDir, "metadata.json"), metaJson);
+
+        // Top-level metadata — latest-build pointer, one level up from version dir
+        var componentDir = Directory.GetParent(artifactDir)?.FullName;
+        if (componentDir is not null)
+            await File.WriteAllTextAsync(Path.Combine(componentDir, "metadata.json"), metaJson);
+
+        LoadArtifacts();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Returns the current HEAD commit hash from _gitDirectory, or null if unavailable.</summary>
+    private async Task<string?> GetGitHashAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_gitDirectory) || !Directory.Exists(_gitDirectory))
+            return null;
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName               = "git"
+              , Arguments              = "rev-parse HEAD"
+              , WorkingDirectory       = _gitDirectory
+              , RedirectStandardOutput = true
+              , UseShellExecute        = false
+              , CreateNoWindow         = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return null;
+            var output = await proc.StandardOutput.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            return proc.ExitCode == 0 ? output.Trim() : null;
+        }
+        catch { return null; }
+    }
 
     private Task PublishNuGetsAsync()
         => RunAsync(PwshExe
