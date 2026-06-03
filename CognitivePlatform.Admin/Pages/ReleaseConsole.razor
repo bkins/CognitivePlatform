@@ -338,8 +338,8 @@
                            OnClick="@LoadDeploymentState" />
         </MudStack>
         <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-            This state is written by the ReleaseConsole PowerShell deploy scripts and reflects
-            the last recorded deployment. It may be stale if deployments were made outside this console.
+            Updated automatically after each Deploy action in this console.
+            Entries from previous deployments made via the old standalone ReleaseConsole app are preserved.
         </MudAlert>
 
         @if (!File.Exists(DeploymentStatePath))
@@ -932,16 +932,28 @@
         if (_exitCode == 0) await WriteArtifactMetadataAsync("API", ApiArtifactDir);
     }
 
-    private Task DeployApiAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}");
+    private async Task DeployApiAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}");
+        if (_exitCode == 0)
+            await WriteDeploymentStateAsync("API", _selectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+    }
 
     private async Task BuildAndDeployApiAsync()
     {
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" ));
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+        if (_exitCode == 0)
+        {
+            await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+            await WriteDeploymentStateAsync("API", _selectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+        }
     }
 
     private async Task BuildLaaAsync()
@@ -951,16 +963,24 @@
         if (_exitCode == 0) await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
     }
 
-    private Task DeployLaaAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}");
+    private async Task DeployLaaAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}");
+        if (_exitCode == 0)
+            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+    }
 
     private async Task BuildAndDeployLaaAsync()
     {
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" ));
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+        if (_exitCode == 0)
+        {
+            await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+        }
     }
 
     private async Task BuildLaaWindowsAsync()
@@ -970,16 +990,28 @@
         if (_exitCode == 0) await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
     }
 
-    private Task DeployLaaWindowsAsync()
-        => RunAsync(PwshExe
-                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""");
+    private async Task DeployLaaWindowsAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""");
+        if (_exitCode == 0)
+            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+                                          , apkName: "LocalAIAssistant.Ui.Maui.exe"
+                                          , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+    }
 
     private async Task BuildAndDeployLaaWindowsAsync()
     {
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""" ));
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+        if (_exitCode == 0)
+        {
+            await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+                                          , apkName: "LocalAIAssistant.Ui.Maui.exe"
+                                          , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+        }
     }
 
     // ── Artifact metadata ──────────────────────────────────────────────────────
@@ -1019,6 +1051,71 @@
         LoadArtifacts();
         await InvokeAsync(StateHasChanged);
     }
+
+    // ── Deployment state ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes (or overwrites) the entry for this component+environment in
+    /// deployment-state.json and refreshes the Deployment State panel.
+    /// </summary>
+    private async Task WriteDeploymentStateAsync( string  componentName
+                                                 , string  environment
+                                                 , string? apkName = null
+                                                 , string? appId   = null )
+    {
+        var envName = DeployStateEnvName(environment);
+        var key     = $"{componentName}_{envName}";
+
+        // Load existing state (create directory if needed)
+        Dictionary<string, DeployStateEntry> state;
+        if (File.Exists(DeploymentStatePath))
+        {
+            try
+            {
+                state = JsonSerializer.Deserialize<Dictionary<string, DeployStateEntry>>(
+                            await File.ReadAllTextAsync(DeploymentStatePath), JsonOpts)
+                        ?? new Dictionary<string, DeployStateEntry>(StringComparer.Ordinal);
+            }
+            catch { state = new Dictionary<string, DeployStateEntry>(StringComparer.Ordinal); }
+        }
+        else
+        {
+            var stateDir = Path.GetDirectoryName(DeploymentStatePath);
+            if (stateDir is not null) Directory.CreateDirectory(stateDir);
+            state = new Dictionary<string, DeployStateEntry>(StringComparer.Ordinal);
+        }
+
+        state[key] = new DeployStateEntry
+        {
+            ComponentName = componentName
+          , Environment   = envName
+          , Version       = _version
+          , ApkName       = apkName
+          , AppId         = appId
+          , DeployedAt    = DateTime.UtcNow
+          , DeployedBy    = System.Environment.UserName
+        };
+
+        // Write with camelCase to match the existing file format
+        var writeOpts = new JsonSerializerOptions
+        {
+            WriteIndented        = true
+          , PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+        await File.WriteAllTextAsync(DeploymentStatePath
+                                   , JsonSerializer.Serialize(state, writeOpts));
+
+        LoadDeploymentState();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string DeployStateEnvName(string env) => env switch
+    {
+        "DEV"  => "Dev"
+      , "QA"   => "Qa"
+      , "PROD" => "Prod"
+      , _      => env
+    };
 
     /// <summary>Returns the current HEAD commit hash from _gitDirectory, or null if unavailable.</summary>
     private async Task<string?> GetGitHashAsync()
@@ -1091,6 +1188,10 @@
             catch { /* ignore cleanup failure */ }
 
             // Refresh deployment state so the table reflects the new deploy
+            if (_exitCode == 0)
+                await WriteDeploymentStateAsync(artifact.Component, environment
+                                               , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(environment)}.exe"
+                                               , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(environment)));
             LoadDeploymentState();
             LoadAuditLog();
             StateHasChanged();
