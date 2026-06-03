@@ -126,6 +126,64 @@ else if (_error is not null)
         </MudAlert>
     }
 
+    @if (_stats.LanIntegrations is { Count: > 0 })
+    {
+        <MudText Typo="Typo.h6" Class="mt-6 mb-2">LAN Integrations</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+            These services connect to your Android phone over the local network.
+            Configure the phone IP in <code>appsettings.{Environment}.json</code> (gitignored).
+            Leave empty to use the disconnected provider — no connection attempts, no log errors.
+        </MudText>
+        <MudGrid>
+            @foreach (var integration in _stats.LanIntegrations)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                                <MudText Typo="Typo.subtitle2">@integration.Name</MudText>
+                                @if (integration.IsConfigured)
+                                {
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Color="Color.Success"
+                                             Icon="@Icons.Material.Filled.Wifi">
+                                        Configured
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Color="Color.Default"
+                                             Icon="@Icons.Material.Filled.WifiOff">
+                                        Disconnected
+                                    </MudChip>
+                                }
+                            </MudStack>
+                            @if (integration.IsConfigured)
+                            {
+                                <MudText Typo="Typo.body2" Style="font-family:monospace;word-break:break-all">
+                                    @integration.ConfiguredUrl
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Not configured — using disconnected provider.
+                                    Set <code>@integration.ConfigKey</code> to enable.
+                                </MudText>
+                            }
+                            <MudText Typo="Typo.caption" Color="Color.Tertiary" Class="mt-1">
+                                @integration.Note
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
     <MudText Typo="Typo.h6" Class="mt-6 mb-2">Object Store</MudText>
     <MudDataGrid Items="@_stats.ObjectCounts"
                  Dense="true"

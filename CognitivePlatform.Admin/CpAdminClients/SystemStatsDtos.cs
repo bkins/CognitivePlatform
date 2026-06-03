@@ -3,12 +3,22 @@ namespace CognitivePlatform.Admin.CpAdminClients;
 /// <summary>Response from GET /api/admin/system/stats.</summary>
 public sealed record SystemStatsResponse
 {
-    public string                        EnvironmentName { get; init; } = string.Empty;
-    public string                        DatabasePath    { get; init; } = string.Empty;
-    public string                        LlmProvider     { get; init; } = string.Empty;
-    public string                        LlmModel        { get; init; } = string.Empty;
-    public GroqUsageDto?                 GroqUsage       { get; init; }
-    public IReadOnlyList<ObjectCountDto> ObjectCounts    { get; init; } = [];
+    public string                             EnvironmentName  { get; init; } = string.Empty;
+    public string                             DatabasePath     { get; init; } = string.Empty;
+    public string                             LlmProvider      { get; init; } = string.Empty;
+    public string                             LlmModel         { get; init; } = string.Empty;
+    public GroqUsageDto?                      GroqUsage        { get; init; }
+    public IReadOnlyList<ObjectCountDto>      ObjectCounts     { get; init; } = [];
+    public IReadOnlyList<LanIntegrationDto>   LanIntegrations  { get; init; } = [];
+}
+
+public sealed record LanIntegrationDto
+{
+    public string Name          { get; init; } = string.Empty;
+    public string ConfigKey     { get; init; } = string.Empty;
+    public string ConfiguredUrl { get; init; } = string.Empty;
+    public bool   IsConfigured  { get; init; }
+    public string Note          { get; init; } = string.Empty;
 }
 
 public sealed record GroqUsageDto

@@ -40,6 +40,9 @@ public sealed class AdminSystemController : AdminControllerBase
                                  , envName
                                  , "platform.db");
 
+        var healthUrl  = _configuration["HealthConnect:PhoneBaseUrl"] ?? string.Empty;
+        var fileSyncUrl = _configuration["FileSync:GatewayBaseUrl"]   ?? string.Empty;
+
         return Ok(new
                   {
                           EnvironmentName = envName
@@ -65,7 +68,26 @@ public sealed class AdminSystemController : AdminControllerBase
                                                                     , UsagePercent = usage.TokenUsagePercent
                                                               }
                                            }
-                        , ObjectCounts    = counts
+                        , ObjectCounts       = counts
+                        , LanIntegrations    = new[]
+                                              {
+                                                      new
+                                                      {
+                                                              Name        = "HealthConnect (phone health gateway)"
+                                                            , ConfigKey   = "HealthConnect:PhoneBaseUrl"
+                                                            , ConfiguredUrl = healthUrl
+                                                            , IsConfigured  = !string.IsNullOrWhiteSpace(healthUrl)
+                                                            , Note          = "LAA Android app — port 5050. Configure in appsettings.{Environment}.json."
+                                                      }
+                                                    , new
+                                                      {
+                                                              Name        = "FileSync (phone file gateway)"
+                                                            , ConfigKey   = "FileSync:GatewayBaseUrl"
+                                                            , ConfiguredUrl = fileSyncUrl
+                                                            , IsConfigured  = !string.IsNullOrWhiteSpace(fileSyncUrl)
+                                                            , Note          = "LAA Android app — port 5051. Configure in appsettings.{Environment}.json."
+                                                      }
+                                              }
                   });
     }
 }
