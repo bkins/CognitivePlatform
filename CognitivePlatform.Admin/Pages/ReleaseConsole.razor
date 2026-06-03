@@ -665,18 +665,38 @@
 
     private static string ResolvePwsh()
     {
-        string[] candidates =
+        // 1. Well-known PowerShell 7 install paths (MSI / system-wide)
+        string[] hardcoded =
         [
             @"C:\Program Files\PowerShell\7\pwsh.exe"
           , @"C:\Program Files\PowerShell\pwsh.exe"
           , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
                        , @"Microsoft\WindowsApps\pwsh.exe")
         ];
-        foreach (var path in candidates)
+        foreach (var path in hardcoded)
         {
             if (File.Exists(path)) return path;
         }
-        return "pwsh";
+
+        // 2. Walk every directory in the current process PATH.
+        //    Handles Store installs, winget installs, and non-standard locations.
+        var pathVar = System.Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var dir in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch { /* skip inaccessible or malformed entries */ }
+        }
+
+        // 3. PowerShell 7 not found — fall back to Windows PowerShell 5.1 which is
+        //    always present on Windows and handles the same -NonInteractive -File syntax.
+        const string ps51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+        if (File.Exists(ps51)) return ps51;
+
+        return "powershell"; // guaranteed to exist on any Windows machine
     }
 
     private static readonly string DeploymentStatePath =
