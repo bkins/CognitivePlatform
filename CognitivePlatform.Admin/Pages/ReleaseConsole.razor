@@ -749,9 +749,18 @@
     private static string GenerateVersion()
     {
         var now = DateTime.Now;
-        // Revision uses HHmm (max 2359) not HHmmss (max 235959) because .NET assembly
-        // version components must fit in a UInt16 (0–65535). CS7034 hard-errors otherwise.
-        return $"1.0.{now:yyyyMMdd}.{now:HHmm}";
+
+        // All four AssemblyVersion components must fit in a UInt16 (0–65535).
+        // yyyyMMdd (up to 20991231) and HHmmss (up to 235959) both exceed that limit.
+        //
+        // Encoding:
+        //   build    = (year % 100) * 1000 + dayOfYear   → e.g. 26154 for 2026-Jun-03
+        //   revision = hour * 100 + minute               → e.g. 1334  for 13:34
+        //
+        // Both stay ≤ 65535 and the result is still roughly human-readable.
+        var build    = (now.Year % 100) * 1000 + now.DayOfYear;
+        var revision = now.Hour * 100 + now.Minute;
+        return $"1.0.{build}.{revision}";
     }
 
     private void RegenerateVersion() => _version = GenerateVersion();
