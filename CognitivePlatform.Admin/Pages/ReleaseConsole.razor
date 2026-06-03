@@ -223,7 +223,7 @@
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Science"
                Disabled="@_running"
-               OnClick="@(() => RunAsync("dotnet", "test src/CognitivePlatform.Tests/CognitivePlatform.Tests.csproj"))">
+               OnClick="@(() => RunCoreAsync(CpRepoRoot, ("dotnet", $@"test ""{CpRepoRoot}\src\CognitivePlatform.Tests\CognitivePlatform.Tests.csproj""")))">
         Run Tests
     </MudButton>
 </MudStack>
@@ -337,6 +337,10 @@
                            Size="Size.Small"
                            OnClick="@LoadDeploymentState" />
         </MudStack>
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+            This state is written by the ReleaseConsole PowerShell deploy scripts and reflects
+            the last recorded deployment. It may be stale if deployments were made outside this console.
+        </MudAlert>
 
         @if (!File.Exists(DeploymentStatePath))
         {
@@ -456,6 +460,46 @@
                 </Columns>
             </MudDataGrid>
         }
+    </MudExpansionPanel>
+
+    @* ── Start Deployed Apps ── *@
+    <MudExpansionPanel Text="Start Deployed Apps"
+                       Icon="@Icons.Material.Filled.PlayCircle">
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Launches the deployed executable for the selected environment.
+            Checks whether the process is already running before starting.
+            Output is not captured — the process runs in the background.
+        </MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
+            <MudText Typo="Typo.body2" Style="min-width:80px">API:</MudText>
+            @foreach (var env in new[] { "DEV", "QA", "PROD" })
+            {
+                var capturedEnv = env;
+                <MudButton Variant="Variant.Outlined"
+                           Color="@EnvButtonColor(capturedEnv)"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@_running"
+                           OnClick="@(() => StartApiAsync(capturedEnv))">
+                    @capturedEnv
+                </MudButton>
+            }
+        </MudStack>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+            <MudText Typo="Typo.body2" Style="min-width:80px">LAA Windows:</MudText>
+            @foreach (var env in new[] { "DEV", "QA", "PROD" })
+            {
+                var capturedEnv = env;
+                <MudButton Variant="Variant.Outlined"
+                           Color="@EnvButtonColor(capturedEnv)"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Computer"
+                           Disabled="@_running"
+                           OnClick="@(() => StartLaaWindowsAsync(capturedEnv))">
+                    @capturedEnv
+                </MudButton>
+            }
+        </MudStack>
     </MudExpansionPanel>
 
     @* ── Database Actions ── *@
@@ -611,10 +655,29 @@
     // ── Static paths ───────────────────────────────────────────────────────────
 
     private static readonly string ScriptsDir           = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
+    private static readonly string CpRepoRoot           = @"C:\Users\benho\source\repos\CognitivePlatform";
     private static readonly string StagingApiDir        = @"C:\CP\Deploy\Api";
     private static readonly string StagingLaaDir        = @"C:\CP\Deploy\Laa";
     private static readonly string StagingLaaWindowsDir = @"C:\CP\Deploy\LaaWindows";
     private static readonly string ArtifactsRoot        = @"C:\CP\Artifacts";
+
+    private static readonly string PwshExe = ResolvePwsh();
+
+    private static string ResolvePwsh()
+    {
+        string[] candidates =
+        [
+            @"C:\Program Files\PowerShell\7\pwsh.exe"
+          , @"C:\Program Files\PowerShell\pwsh.exe"
+          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
+                       , @"Microsoft\WindowsApps\pwsh.exe")
+        ];
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path)) return path;
+        }
+        return "pwsh";
+    }
 
     private static readonly string DeploymentStatePath =
         Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
@@ -825,54 +888,54 @@
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
     private Task BuildApiAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""");
 
     private Task DeployApiAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
 
     private Task BuildAndDeployApiAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
 
     private Task BuildLaaAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""");
 
     private Task DeployLaaAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
 
     private Task BuildAndDeployLaaAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
 
     private Task BuildLaaWindowsAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""");
 
     private Task DeployLaaWindowsAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""");
 
     private Task BuildAndDeployLaaWindowsAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
 
     private Task PublishNuGetsAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target All");
 
     private Task PublishNuGetPrimitivesAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Primitives");
 
     private Task PublishNuGetCoreAsync()
-        => RunAsync("pwsh"
+        => RunAsync(PwshExe
                   , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Core");
 
     private Task RunCustomAsync()
@@ -900,7 +963,7 @@
             ZipFile.ExtractToDirectory(artifact.ZipPath, tempDir);
 
             await RunCoreAsync(tempDir
-                             , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
+                             , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
         }
         finally
         {
@@ -914,15 +977,103 @@
         }
     }
 
+    // ── Start deployed apps ────────────────────────────────────────────────────
+
+    private string ApiEnvDir(string env) => env switch
+    {
+        "PROD" => Path.Combine(StagingApiDir, "Prod")
+      , "QA"   => Path.Combine(StagingApiDir, "QA")
+      , _      => Path.Combine(StagingApiDir, "DEV")
+    };
+
+    private string LaaWindowsEnvDir(string env) => env switch
+    {
+        "PROD" => Path.Combine(StagingLaaWindowsDir, "Prod")
+      , "QA"   => Path.Combine(StagingLaaWindowsDir, "QA")
+      , _      => Path.Combine(StagingLaaWindowsDir, "Dev")
+    };
+
+    private async Task StartApiAsync(string env)
+    {
+        var dir     = ApiEnvDir(env);
+        var exePath = Path.Combine(dir, "CognitivePlatform.Api.exe");
+        await StartBackgroundProcessAsync(exePath, "CognitivePlatform.Api", dir);
+    }
+
+    private async Task StartLaaWindowsAsync(string env)
+    {
+        var dir     = LaaWindowsEnvDir(env);
+        var exePath = Path.Combine(dir, "LocalAIAssistant.Ui.Maui.exe");
+        await StartBackgroundProcessAsync(exePath, "LocalAIAssistant.Ui.Maui", dir);
+    }
+
+    private async Task StartBackgroundProcessAsync(string exePath, string processName, string workDir)
+    {
+        _output.Clear();
+        _exitCode = null;
+        _runError = null;
+        await InvokeAsync(StateHasChanged);
+
+        if (!File.Exists(exePath))
+        {
+            _output.Add(new($"[Error: executable not found — {exePath}]", IsError: true));
+            _exitCode = 1;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var running = Process.GetProcessesByName(processName);
+        if (running.Length > 0)
+        {
+            _output.Add(new($"[{processName} is already running — PID {running[0].Id}]", IsError: false));
+            _exitCode = 0;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _output.Add(new($"$ {exePath}", false));
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName         = exePath
+              , WorkingDirectory  = workDir
+              , UseShellExecute   = false
+              , CreateNoWindow    = true
+            };
+            var proc = Process.Start(startInfo);
+            if (proc is null)
+            {
+                _output.Add(new("[Error: Process.Start returned null]", IsError: true));
+                _exitCode = 1;
+            }
+            else
+            {
+                _output.Add(new($"[Started — PID {proc.Id}]", IsError: false));
+                _exitCode = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _runError = ex.Message;
+            _output.Add(new($"[Error: {ex.Message}]", IsError: true));
+            _exitCode = 1;
+        }
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
+    }
+
     // ── Database actions ───────────────────────────────────────────────────────
 
     private Task SwapDbAsync()
         => RunCoreAsync(string.Empty
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Swap-ProdDbToDev.ps1""" ));
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Swap-ProdDbToDev.ps1""" ));
 
     private Task RestoreDbAsync()
         => RunCoreAsync(string.Empty
-                      , ( "pwsh", $@"-NonInteractive -File ""{ScriptsDir}\Restore-DevDb.ps1""" ));
+                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Restore-DevDb.ps1""" ));
 
     // ── Execution helpers ──────────────────────────────────────────────────────
 

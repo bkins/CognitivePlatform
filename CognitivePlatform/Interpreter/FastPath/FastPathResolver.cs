@@ -180,6 +180,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.93: ACTIVITY FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveListActivities(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3.0: SEMANTIC SEARCH FAST PATHS
         // ------------------------------------------------------------
         if (TryResolveSemanticSearch(input, out action, out parameters))
@@ -1459,6 +1465,49 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return false;
+    }
+
+    // ================================================================
+    // MODE 2.93: ACTIVITY FAST PATHS — ListActivities
+    // TryResolveGenericFastPath skips actions with 0 required params;
+    // ListActivities has only optional params so we handle it explicitly.
+    // ================================================================
+
+    private static readonly string[] ListActivitySignals =
+    {
+            "show my activities"
+          , "list my activities"
+          , "show activities"
+          , "list activities"
+          , "what activities"
+          , "list what i've done"
+          , "list what i've been"
+          , "what have i done"
+          , "what have i logged"
+          , "activities this week"
+          , "activities this month"
+          , "activities today"
+          , "activities recently"
+          , "my activities"
+    };
+
+    private bool TryResolveListActivities( string                           input
+                                         , out ActionMetadata?             action
+                                         , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (ListActivitySignals.Any(normalized.Contains).Not())
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListActivities");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return true;
     }
 
     // ================================================================

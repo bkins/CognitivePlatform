@@ -234,6 +234,24 @@
 
     private const string LaaRepoDir = @"C:\Users\benho\source\repos\LocalAIAssistant";
 
+    private static readonly string PwshExe = ResolvePwsh();
+
+    private static string ResolvePwsh()
+    {
+        string[] candidates =
+        [
+            @"C:\Program Files\PowerShell\7\pwsh.exe"
+          , @"C:\Program Files\PowerShell\pwsh.exe"
+          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
+                       , @"Microsoft\WindowsApps\pwsh.exe")
+        ];
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path)) return path;
+        }
+        return "pwsh";
+    }
+
     // ── Android state ─────────────────────────────────────────────────────────────
 
     private readonly List<OutputLine>    _androidOutput   = [];
@@ -364,7 +382,7 @@
 
             var testStart = new ProcessStartInfo
             {
-                FileName               = "pwsh"
+                FileName               = PwshExe
               , Arguments              = psArgs
               , WorkingDirectory       = LaaRepoDir
               , RedirectStandardOutput = true
@@ -457,7 +475,7 @@
 
         StateHasChanged();
 
-        var testProject = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\");
+        var testProject = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\LAA.SmokeTests.Windows.csproj");
         var args        = $@"test ""{testProject}""";
 
         _windowsOutput.Add(new($"$ dotnet {args}", LineKind.Normal));
