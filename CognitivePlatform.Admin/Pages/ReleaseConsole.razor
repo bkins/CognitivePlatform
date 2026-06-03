@@ -979,6 +979,8 @@
 
     // ── Start deployed apps ────────────────────────────────────────────────────
 
+    // ── Deployed-app path helpers ──────────────────────────────────────────────
+
     private string ApiEnvDir(string env) => env switch
     {
         "PROD" => Path.Combine(StagingApiDir, "Prod")
@@ -993,21 +995,57 @@
       , _      => Path.Combine(StagingLaaWindowsDir, "Dev")
     };
 
+    // HTTP ports must match what the Admin app connects to (appsettings.json Environments section).
+    // HTTPS ports are set explicitly so they don't collide with the Admin app on 7290/7291/7292.
+    private static int ApiHttpPort(string env) => env switch
+    {
+        "PROD" => 5275
+      , "QA"   => 5274
+      , _      => 5273
+    };
+
+    private static int ApiHttpsPort(string env) => env switch
+    {
+        "PROD" => 7085
+      , "QA"   => 7084
+      , _      => 7083
+    };
+
+    private static string ApiAspNetEnv(string env) => env switch
+    {
+        "PROD" => "Production"
+      , "QA"   => "QA"
+      , _      => "Development"
+    };
+
     private async Task StartApiAsync(string env)
     {
         var dir     = ApiEnvDir(env);
         var exePath = Path.Combine(dir, "CognitivePlatform.Api.exe");
-        await StartBackgroundProcessAsync(exePath, "CognitivePlatform.Api", dir);
+
+        // Kestrel endpoints set via env vars override user secrets, preventing port
+        // collisions with the Admin app (which holds 7290/7291/7292 in debug mode).
+        var envVars = new Dictionary<string, string>
+        {
+            ["ASPNETCORE_ENVIRONMENT"]                      = ApiAspNetEnv(env)
+          , ["ASPNETCORE_Kestrel__Endpoints__Http__Url"]   = $"http://localhost:{ApiHttpPort(env)}"
+          , ["ASPNETCORE_Kestrel__Endpoints__Https__Url"]  = $"https://localhost:{ApiHttpsPort(env)}"
+        };
+
+        await StartBackgroundProcessAsync(exePath, "CognitivePlatform.Api", dir, envVars);
     }
 
     private async Task StartLaaWindowsAsync(string env)
     {
         var dir     = LaaWindowsEnvDir(env);
         var exePath = Path.Combine(dir, "LocalAIAssistant.Ui.Maui.exe");
-        await StartBackgroundProcessAsync(exePath, "LocalAIAssistant.Ui.Maui", dir);
+        await StartBackgroundProcessAsync(exePath, "LocalAIAssistant.Ui.Maui", dir, null);
     }
 
-    private async Task StartBackgroundProcessAsync(string exePath, string processName, string workDir)
+    private async Task StartBackgroundProcessAsync( string                       exePath
+                                                   , string                       processName
+                                                   , string                       workDir
+                                                   , Dictionary<string, string>?  envVars = null)
     {
         _output.Clear();
         _exitCode = null;
@@ -1049,6 +1087,12 @@
               , RedirectStandardOutput = true
               , RedirectStandardError  = true
             };
+
+            if (envVars is not null)
+            {
+                foreach (var (key, value) in envVars)
+                    startInfo.EnvironmentVariables[key] = value;
+            }
 
             proc = new Process { StartInfo = startInfo };
 
