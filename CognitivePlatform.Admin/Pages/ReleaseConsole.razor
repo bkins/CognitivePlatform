@@ -1032,49 +1032,70 @@
         }
 
         _output.Add(new($"$ {exePath}", false));
-        _output.Add(new("Starting…", false));
+        _output.Add(new(string.Empty, false));
         await InvokeAsync(StateHasChanged);
 
         Process? proc = null;
         try
         {
-            // UseShellExecute = true opens the process in its own console window so you
-            // can see startup output and errors directly. Output cannot be redirected in
-            // this mode, so we rely on a short liveness-check instead.
+            // Redirect output so startup logs (and crash traces) are captured in the
+            // terminal here rather than disappearing in a closing console window.
             var startInfo = new ProcessStartInfo
             {
-                FileName         = exePath
-              , WorkingDirectory  = workDir
-              , UseShellExecute   = true
+                FileName               = exePath
+              , WorkingDirectory       = workDir
+              , UseShellExecute        = false
+              , CreateNoWindow         = true
+              , RedirectStandardOutput = true
+              , RedirectStandardError  = true
             };
 
-            proc = Process.Start(startInfo);
+            proc = new Process { StartInfo = startInfo };
 
-            if (proc is null)
+            proc.OutputDataReceived += async (_, e) =>
             {
-                _output.Add(new("[Error: Process.Start returned null]", IsError: true));
-                _exitCode = 1;
-                return;
-            }
+                if (e.Data is null) return;
+                _output.Add(new(e.Data, false));
+                try { await InvokeAsync(StateHasChanged); await ScrollToBottomAsync(); }
+                catch { /* component may have been disposed */ }
+            };
+
+            proc.ErrorDataReceived += async (_, e) =>
+            {
+                if (e.Data is null) return;
+                _output.Add(new(e.Data, true));
+                try { await InvokeAsync(StateHasChanged); await ScrollToBottomAsync(); }
+                catch { /* component may have been disposed */ }
+            };
+
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
 
             var pid = proc.Id;
-            _output.Add(new($"[Launched PID {pid} — waiting 2 s to confirm it stays alive…]", false));
+            _output.Add(new($"[PID {pid} — waiting 2 s for startup…]", false));
             await InvokeAsync(StateHasChanged);
 
-            // Give the process time to load config, bind ports, etc.
+            // Wait long enough for the process to bind ports or crash
             await Task.Delay(2000);
 
             if (proc.HasExited)
             {
-                _output.Add(new($"[Process exited after {proc.ExitCode} — it crashed on startup. Check the console window or the deploy directory for error details.]"
+                _output.Add(new($"[Process exited with code {proc.ExitCode} — see output above for the crash details.]"
                               , IsError: true));
                 _exitCode = proc.ExitCode == 0 ? 1 : proc.ExitCode;
+                proc.Dispose();
+                proc = null;
             }
             else
             {
-                _output.Add(new($"[Running — PID {pid}. Console window is open for live output.]", false));
+                // Stop capturing — we only needed startup output; the process runs on
+                try { proc.CancelOutputRead(); } catch { /* ignore */ }
+                try { proc.CancelErrorRead();  } catch { /* ignore */ }
+                _output.Add(new(string.Empty, false));
+                _output.Add(new($"[Running — PID {pid}. Output above is from the startup window only.]", false));
                 _exitCode = 0;
-                proc = null; // detach — let it keep running
+                proc = null; // detach — keep running
             }
         }
         catch (Exception ex)
@@ -1082,10 +1103,8 @@
             _runError = ex.Message;
             _output.Add(new($"[Error: {ex.Message}]", IsError: true));
             _exitCode = 1;
-        }
-        finally
-        {
             proc?.Dispose();
+            proc = null;
         }
 
         await InvokeAsync(StateHasChanged);
