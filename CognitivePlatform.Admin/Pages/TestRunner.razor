@@ -265,7 +265,7 @@
         }
 
         // 3. PowerShell 7 not found — fall back to Windows PowerShell 5.1 which is
-        //    always present on Windows and handles the same -NonInteractive -File syntax.
+        //    always present on Windows and handles the same -NonInteractive -ExecutionPolicy Bypass -File syntax.
         const string ps51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
         if (File.Exists(ps51)) return ps51;
 
@@ -393,7 +393,7 @@
 
             // ── Step 2: run the smoke test script ─────────────────────────────────
             var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Android\SmokeTest-Android.ps1");
-            var psArgs     = $@"-NonInteractive -File ""{scriptPath}""";
+            var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
             _androidOutput.Add(new($"$ pwsh {psArgs}", LineKind.Normal));
             _androidOutput.Add(new(string.Empty, LineKind.Normal));

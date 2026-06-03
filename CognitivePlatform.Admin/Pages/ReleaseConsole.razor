@@ -692,7 +692,7 @@
         }
 
         // 3. PowerShell 7 not found — fall back to Windows PowerShell 5.1 which is
-        //    always present on Windows and handles the same -NonInteractive -File syntax.
+        //    always present on Windows and handles the same -NonInteractive -ExecutionPolicy Bypass -File syntax.
         const string ps51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
         if (File.Exists(ps51)) return ps51;
 
@@ -909,54 +909,54 @@
 
     private Task BuildApiAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""");
 
     private Task DeployApiAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}");
 
     private Task BuildAndDeployApiAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{StagingApiDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{StagingApiDir}"" -Version {_version}" ));
 
     private Task BuildLaaAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""");
 
     private Task DeployLaaAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}");
 
     private Task BuildAndDeployLaaAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{StagingLaaDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{StagingLaaDir}"" -Version {_version}" ));
 
     private Task BuildLaaWindowsAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""");
 
     private Task DeployLaaWindowsAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""");
 
     private Task BuildAndDeployLaaWindowsAsync()
         => RunCoreAsync(_workingDirectory
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{StagingLaaWindowsDir}""" )
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{StagingLaaWindowsDir}""" ));
 
     private Task PublishNuGetsAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target All");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target All");
 
     private Task PublishNuGetPrimitivesAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Primitives");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Primitives");
 
     private Task PublishNuGetCoreAsync()
         => RunAsync(PwshExe
-                  , $@"-NonInteractive -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Core");
+                  , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\publish-local-nuget.ps1"" -Target Core");
 
     private Task RunCustomAsync()
     {
@@ -983,7 +983,7 @@
             ZipFile.ExtractToDirectory(artifact.ZipPath, tempDir);
 
             await RunCoreAsync(tempDir
-                             , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
+                             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
         }
         finally
         {
@@ -1179,11 +1179,11 @@
 
     private Task SwapDbAsync()
         => RunCoreAsync(string.Empty
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Swap-ProdDbToDev.ps1""" ));
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Swap-ProdDbToDev.ps1""" ));
 
     private Task RestoreDbAsync()
         => RunCoreAsync(string.Empty
-                      , ( PwshExe, $@"-NonInteractive -File ""{ScriptsDir}\Restore-DevDb.ps1""" ));
+                      , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Restore-DevDb.ps1""" ));
 
     // ── Execution helpers ──────────────────────────────────────────────────────
 
