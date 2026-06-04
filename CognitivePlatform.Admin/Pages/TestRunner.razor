@@ -272,6 +272,36 @@
         return "powershell"; // guaranteed to exist on any Windows machine
     }
 
+    /// <summary>
+    /// Returns the path to pwsh.exe (PowerShell 7) specifically, or null if not installed.
+    /// Unlike ResolvePwsh(), this never falls back to powershell.exe — callers that
+    /// require PS7 syntax must fail gracefully when this returns null.
+    /// </summary>
+    private static string? FindPwsh7()
+    {
+        string[] candidates =
+        [
+            @"C:\Program Files\PowerShell\7\pwsh.exe"
+          , @"C:\Program Files\PowerShell\pwsh.exe"
+          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
+                       , @"Microsoft\WindowsApps\pwsh.exe")
+        ];
+        foreach (var path in candidates)
+            if (File.Exists(path)) return path;
+
+        var pathVar = System.Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var dir in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
+                if (File.Exists(candidate)) return candidate;
+            }
+            catch { /* skip */ }
+        }
+        return null;
+    }
+
     // ── Android state ─────────────────────────────────────────────────────────────
 
     private readonly List<OutputLine>    _androidOutput   = [];
@@ -499,11 +529,25 @@
 
         StateHasChanged();
 
+        // SmokeTest-Windows.ps1 uses PS7 syntax ($var::StaticMember) that Windows
+        // PowerShell 5.1 cannot parse. Fail early with a clear message if PS7 is absent.
+        var pwsh7 = FindPwsh7();
+        if (pwsh7 is null)
+        {
+            _windowsOutput.Add(new("[Error: Windows smoke tests require PowerShell 7 (pwsh.exe).]", LineKind.Error));
+            _windowsOutput.Add(new("[The script uses PS7-only syntax ($var::StaticMember) that Windows PowerShell 5.1 cannot parse.]", LineKind.Error));
+            _windowsOutput.Add(new("[Install PowerShell 7 from: https://aka.ms/install-powershell]", LineKind.Error));
+            _windowsExitCode = 1;
+            _windowsRunning  = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\SmokeTest-Windows.ps1");
         var scriptDir  = Path.GetDirectoryName(scriptPath)!;
         var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
-        _windowsOutput.Add(new($"$ {PwshExe} {psArgs}", LineKind.Normal));
+        _windowsOutput.Add(new($"$ {pwsh7} {psArgs}", LineKind.Normal));
         _windowsOutput.Add(new(string.Empty, LineKind.Normal));
         await InvokeAsync(StateHasChanged);
         await ScrollToBottomAsync("windows-terminal-end");
@@ -512,7 +556,7 @@
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName               = PwshExe
+                FileName               = pwsh7
               , Arguments              = psArgs
               , WorkingDirectory       = scriptDir
               , RedirectStandardOutput = true
