@@ -38,7 +38,15 @@ Project : $ProjectPath
 
 $header | Out-File -FilePath $outputFile -Encoding utf8
 
-dotnet run --project "$ProjectPath" 2>&1 | Tee-Object -FilePath $outputFile -Append
+# dotnet run inherits the current working directory, so change to the project
+# folder before running so the app can locate its relative Data\benchmark path.
+Push-Location $ProjectPath
+try {
+    dotnet run --project "$ProjectPath" 2>&1 | Tee-Object -FilePath $outputFile -Append
+}
+finally {
+    Pop-Location
+}
 
 $exitCode = $LASTEXITCODE
 
