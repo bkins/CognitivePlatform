@@ -68,13 +68,12 @@
             {
                 <MudExpansionPanels Class="mt-3" Elevation="0">
                     <MudExpansionPanel Text="Evaluator Output" IsExpanded="@_evalRunning">
-                        <MudPaper Elevation="4"
+                        <MudPaper id="eval-terminal" Elevation="4"
                                   Style="background:#1e1e1e;padding:16px;max-height:350px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.82rem;">
                             @foreach (var line in _evalOutput)
                             {
                                 <div style="color:@EvalLineColor(line.Kind);white-space:pre-wrap;line-height:1.5">@line.Text</div>
                             }
-                            <div id="eval-end"></div>
                         </MudPaper>
                     </MudExpansionPanel>
                 </MudExpansionPanels>
@@ -428,13 +427,15 @@
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName               = psExe
-              , Arguments              = psArgs
-              , WorkingDirectory       = CpRepoDir
-              , RedirectStandardOutput = true
-              , RedirectStandardError  = true
-              , UseShellExecute        = false
-              , CreateNoWindow         = true
+                FileName                = psExe
+              , Arguments               = psArgs
+              , WorkingDirectory        = CpRepoDir
+              , RedirectStandardOutput  = true
+              , RedirectStandardError   = true
+              , UseShellExecute         = false
+              , CreateNoWindow          = true
+              , StandardOutputEncoding  = System.Text.Encoding.UTF8
+              , StandardErrorEncoding   = System.Text.Encoding.UTF8
             };
 
             _evalProcess = new Process { StartInfo = startInfo };
@@ -541,7 +542,7 @@
         try
         {
             await Js.InvokeVoidAsync("eval"
-                                   , "var el=document.getElementById('eval-end');if(el)el.scrollIntoView({behavior:'instant'});");
+                                   , "var c=document.getElementById('eval-terminal');if(c)c.scrollTop=c.scrollHeight;");
         }
         catch { /* ignore during disposal */ }
     }

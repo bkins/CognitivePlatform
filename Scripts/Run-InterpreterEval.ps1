@@ -12,6 +12,10 @@ param(
   , [string]$ProjectPath = "C:\Users\benho\source\repos\InterpreterEvaluationRunner"
 )
 
+# Set UTF-8 throughout so Unicode box-drawing characters survive the pipeline.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding            = [System.Text.Encoding]::UTF8
+
 $date       = (Get-Date -Format "yyyy-MM-dd")
 $outputFile = Join-Path $OutputDir "eval-$date.txt"
 

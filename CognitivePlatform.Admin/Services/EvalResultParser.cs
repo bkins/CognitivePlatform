@@ -144,9 +144,15 @@ public static class EvalResultParser
             if (colonIndex < 0)
                 continue;
 
-            var dateStr = line[(colonIndex + 1)..].Trim();
-            if (DateTime.TryParse(dateStr, System.Globalization.CultureInfo.InvariantCulture
-                                , System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed))
+            // Strip the literal " UTC" suffix produced by the eval runner before parsing.
+            var dateStr = line[(colonIndex + 1)..].Trim()
+                              .Replace(" UTC", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+            if (DateTime.TryParseExact(dateStr
+                                     , "yyyy-MM-dd HH:mm:ss"
+                                     , System.Globalization.CultureInfo.InvariantCulture
+                                     , System.Globalization.DateTimeStyles.AssumeUniversal
+                                     , out var parsed))
                 return parsed.ToLocalTime();
         }
 
