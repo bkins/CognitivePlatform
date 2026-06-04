@@ -1,8 +1,8 @@
 @page "/tests"
 @using System.Diagnostics
-@using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
-@inject IJSRuntime Js
+@inject IJSRuntime          Js
+@inject NavigationManager   Nav
 
 <PageTitle>Test Runner — CP Admin</PageTitle>
 
@@ -214,146 +214,26 @@
         </MudPaper>
     </MudItem>
 
-    @* ── Evaluator ────────────────────────────────────────────────────────────── *@
+    @* ── Evaluation dashboard link ───────────────────────────────────────────── *@
     <MudItem xs="12">
         <MudPaper Elevation="2" Class="pa-3">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Science" />
-                <MudText Typo="Typo.h6">Evaluator</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Speed" />
+                <MudText Typo="Typo.h6">Model Evaluation</MudText>
                 <MudSpacer />
-                @if (_evalRunning)
-                {
-                    <MudChip T="string"
-                             Color="Color.Warning"
-                             Icon="@Icons.Material.Filled.RunCircle"
-                             Size="Size.Small">
-                        Running…
-                    </MudChip>
-                    <MudButton Variant="Variant.Outlined"
-                               Color="Color.Error"
-                               Size="Size.Small"
-                               StartIcon="@Icons.Material.Filled.Stop"
-                               OnClick="@AbortEval">
-                        Abort
-                    </MudButton>
-                }
-                else if (_evalExitCode.HasValue)
-                {
-                    @if (_evalExitCode == 0)
-                    {
-                        <MudChip T="string"
-                                 Color="Color.Success"
-                                 Icon="@Icons.Material.Filled.CheckCircle"
-                                 Size="Size.Small">
-                            Exit 0 — OK
-                        </MudChip>
-                    }
-                    else
-                    {
-                        <MudChip T="string"
-                                 Color="Color.Error"
-                                 Icon="@Icons.Material.Filled.Error"
-                                 Size="Size.Small">
-                            Exit @_evalExitCode — Failed
-                        </MudChip>
-                    }
-                }
-            </MudStack>
-
-            <MudStack Row="true" Spacing="2" Class="mb-3">
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Secondary"
-                           StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_evalRunning"
-                           OnClick="@RunEvalAsync">
-                    Run Evaluator
-                </MudButton>
-                <MudButton Variant="Variant.Outlined"
-                           Color="Color.Default"
-                           StartIcon="@Icons.Material.Filled.ClearAll"
-                           Disabled="@_evalRunning"
-                           OnClick="@ClearEval">
-                    Clear
+                           StartIcon="@Icons.Material.Filled.OpenInNew"
+                           OnClick="@(() => Nav.NavigateTo("/evaluation"))">
+                    Open Evaluation Dashboard
                 </MudButton>
             </MudStack>
-
-            @if (_evalRunError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2">
-                    Failed to start process: @_evalRunError
-                </MudAlert>
-            }
-
-            <MudPaper Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (_evalOutput.Count == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Run the evaluator to see output here…</span>
-                }
-                else
-                {
-                    @foreach (var line in _evalOutput)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">@line.Text</div>
-                    }
-                }
-                <div id="eval-terminal-end"></div>
-            </MudPaper>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                Run the interpreter evaluator, view score history, and track training corpus progress on the Evaluation page.
+            </MudText>
         </MudPaper>
     </MudItem>
 
-    @* ── Score History ─────────────────────────────────────────────────────────── *@
-    <MudItem xs="12">
-        <MudPaper Elevation="2" Class="pa-3">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Timeline" />
-                <MudText Typo="Typo.h6">Evaluator Score History</MudText>
-                <MudSpacer />
-                <MudButton Variant="Variant.Outlined"
-                           Color="Color.Default"
-                           Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.Refresh"
-                           OnClick="@LoadScoreHistory">
-                    Refresh
-                </MudButton>
-            </MudStack>
-
-            @if (_scoreHistoryError is not null)
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-2">@_scoreHistoryError</MudAlert>
-            }
-            else if (_scoreHistoryRows.Count == 0)
-            {
-                <MudText Color="Color.Secondary" Typo="Typo.body2"
-                         Style="font-style:italic">
-                    No eval result files found in C:\CP\Data\EvalResults\
-                </MudText>
-            }
-            else
-            {
-                <MudTable T="ScoreRow" Items="@_scoreHistoryRows" Dense="true" Hover="true" Striped="true">
-                    <HeaderContent>
-                        <MudTh>Date</MudTh>
-                        <MudTh>Model</MudTh>
-                        <MudTh Style="text-align:right">Avg Score</MudTh>
-                        <MudTh Style="text-align:right">JSON Fails</MudTh>
-                        <MudTh Style="text-align:right">Param Fails</MudTh>
-                        <MudTh Style="text-align:right">Tok/s</MudTh>
-                        <MudTh Style="text-align:center">Trend</MudTh>
-                    </HeaderContent>
-                    <RowTemplate Context="row">
-                        <MudTd>@row.RunDate.ToString("yyyy-MM-dd")</MudTd>
-                        <MudTd>@row.Model</MudTd>
-                        <MudTd Style="@ScoreCellStyle(row)" class="text-right">@row.AvgScore.ToString("F1")</MudTd>
-                        <MudTd Style="text-align:right">@row.JsonFails</MudTd>
-                        <MudTd Style="text-align:right">@row.ParamFails</MudTd>
-                        <MudTd Style="text-align:right">@row.TokPerSecond.ToString("F1")</MudTd>
-                        <MudTd Style="text-align:center;font-size:1.1rem">@TrendArrow(row)</MudTd>
-                    </RowTemplate>
-                </MudTable>
-            }
-        </MudPaper>
-    </MudItem>
 
 </MudGrid>
 
@@ -466,15 +346,6 @@
     private int                          _windowsFailed;
     private Process?                     _windowsProcess;
     private CancellationTokenSource?     _windowsCts;
-
-    // ── Evaluator state ───────────────────────────────────────────────────────────
-
-    private readonly List<OutputLine>    _evalOutput   = [];
-    private bool                         _evalRunning;
-    private int?                         _evalExitCode;
-    private string?                      _evalRunError;
-    private Process?                     _evalProcess;
-    private CancellationTokenSource?     _evalCts;
 
     // ── Android execution ─────────────────────────────────────────────────────────
 
@@ -787,106 +658,6 @@
         _windowsFailed   = 0;
     }
 
-    // ── Evaluator execution ───────────────────────────────────────────────────────
-
-    private async Task RunEvalAsync()
-    {
-        if (_evalRunning) return;
-
-        _evalRunning  = true;
-        _evalExitCode = null;
-        _evalRunError = null;
-        _evalOutput.Clear();
-        _evalCts = new CancellationTokenSource();
-
-        StateHasChanged();
-
-        var scriptPath = Path.Combine(CpRepoDir, @"Scripts\Run-InterpreterEval.ps1");
-        var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
-
-        _evalOutput.Add(new($"$ {PwshExe} {psArgs}", LineKind.Normal));
-        _evalOutput.Add(new(string.Empty, LineKind.Normal));
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync("eval-terminal-end");
-
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName               = PwshExe
-              , Arguments              = psArgs
-              , WorkingDirectory       = CpRepoDir
-              , RedirectStandardOutput = true
-              , RedirectStandardError  = true
-              , UseShellExecute        = false
-              , CreateNoWindow         = true
-            };
-
-            _evalProcess = new Process { StartInfo = startInfo };
-
-            _evalProcess.OutputDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() =>
-                {
-                    _evalOutput.Add(new(eventArgs.Data, ClassifyLine(eventArgs.Data)));
-                    StateHasChanged();
-                });
-                await ScrollToBottomAsync("eval-terminal-end");
-            };
-
-            _evalProcess.ErrorDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() => { _evalOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
-                await ScrollToBottomAsync("eval-terminal-end");
-            };
-
-            try
-            {
-                _evalProcess.Start();
-                _evalProcess.BeginOutputReadLine();
-                _evalProcess.BeginErrorReadLine();
-                await _evalProcess.WaitForExitAsync(_evalCts.Token);
-                _evalExitCode = _evalProcess.ExitCode;
-            }
-            catch (OperationCanceledException)
-            {
-                _evalOutput.Add(new("[Aborted by user]", LineKind.Error));
-            }
-            catch (Exception ex)
-            {
-                _evalRunError = ex.Message;
-                _evalOutput.Add(new($"[Error: {ex.Message}]", LineKind.Error));
-            }
-            finally
-            {
-                _evalProcess?.Dispose();
-                _evalProcess = null;
-            }
-        }
-        finally
-        {
-            _evalRunning = false;
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync("eval-terminal-end");
-        }
-    }
-
-    private void AbortEval()
-    {
-        _evalCts?.Cancel();
-        try { _evalProcess?.Kill(entireProcessTree: true); }
-        catch { /* process may have already exited */ }
-    }
-
-    private void ClearEval()
-    {
-        _evalOutput.Clear();
-        _evalExitCode = null;
-        _evalRunError = null;
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private static LineKind ClassifyLine(string text)
@@ -936,75 +707,6 @@
         catch { /* ignore during disposal or when DOM is not ready */ }
     }
 
-    // ── Score History ─────────────────────────────────────────────────────────────
-
-    private sealed record ScoreRow(
-        DateTime RunDate
-      , string   Model
-      , double   AvgScore
-      , int      JsonFails
-      , int      ParamFails
-      , double   TokPerSecond
-      , bool     IsBestForModel);
-
-    private List<ScoreRow> _scoreHistoryRows = [];
-    private string?        _scoreHistoryError;
-
-    protected override void OnInitialized() => LoadScoreHistory();
-
-    private void LoadScoreHistory()
-    {
-        _scoreHistoryError = null;
-
-        try
-        {
-            var rawRows = EvalResultParser.LoadAll();
-
-            // Best avg score per model (for highlight)
-            var bestScore = rawRows
-                .GroupBy(row => row.Model)
-                .ToDictionary(group => group.Key, group => group.Max(row => row.AvgScore));
-
-            _scoreHistoryRows = rawRows
-                .Select(row => new ScoreRow(
-                    row.RunDate
-                  , row.Model
-                  , row.AvgScore
-                  , row.JsonFails
-                  , row.ParamFails
-                  , row.TokPerSecond
-                  , row.AvgScore == bestScore[row.Model]))
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            _scoreHistoryError = ex.Message;
-        }
-    }
-
-    private string ScoreCellStyle(ScoreRow row)
-    {
-        var color = row.IsBestForModel ? "color:#f0c040;font-weight:600" : string.Empty;
-        return $"text-align:right;{color}";
-    }
-
-    private string TrendArrow(ScoreRow current)
-    {
-        // Find the immediately previous run for the same model
-        var previous = _scoreHistoryRows
-            .Where(row => row.Model == current.Model && row.RunDate < current.RunDate)
-            .OrderByDescending(row => row.RunDate)
-            .FirstOrDefault();
-
-        if (previous is null) return string.Empty;
-
-        var delta = current.AvgScore - previous.AvgScore;
-
-        if (delta > 0.5)  return "↑";
-        if (delta < -0.5) return "↓";
-        return "=";
-    }
-
     // ── Disposal ──────────────────────────────────────────────────────────────────
 
     public async ValueTask DisposeAsync()
@@ -1021,10 +723,5 @@
         catch { /* ignore */ }
         _windowsProcess?.Dispose();
 
-        _evalCts?.Cancel();
-        _evalCts?.Dispose();
-        try { _evalProcess?.Kill(entireProcessTree: true); }
-        catch { /* ignore */ }
-        _evalProcess?.Dispose();
     }
 }

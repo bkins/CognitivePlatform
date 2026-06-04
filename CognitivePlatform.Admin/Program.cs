@@ -60,6 +60,12 @@ builder.Services
        .AddHttpMessageHandler<AdminSecretHandler>()
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
+builder.Services
+       .AddHttpClient<IAdminTrainingClient, AdminTrainingClient>(client =>
+           client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment().Not())
