@@ -18,6 +18,13 @@ builder.Services.AddTransient<AdminSecretHandler>();
 builder.Services.AddSingleton<EnvironmentService>();
 builder.Services.AddTransient<EnvironmentRoutingHandler>();
 
+// Admin-app error log — singleton ring buffer, visible in the Log Viewer.
+// Must be created before the logging provider so both share the same instance.
+var adminErrorLog = new AdminErrorLog();
+builder.Services.AddSingleton(adminErrorLog);
+// Forward every Error/Critical ILogger entry from the Admin app to the ring buffer.
+builder.Logging.AddProvider(new AdminErrorLogProvider(adminErrorLog));
+
 // All typed clients use this placeholder base address.
 // EnvironmentRoutingHandler rewrites it to the currently selected environment URL
 // (DEV / QA / PROD) before each request leaves the process.

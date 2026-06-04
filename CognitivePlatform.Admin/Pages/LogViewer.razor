@@ -2,6 +2,8 @@
 @implements IDisposable
 @inject IAdminLogsClient LogsClient
 @inject EnvironmentService EnvService
+@inject AdminErrorLog      AdminErrors
+@using CognitivePlatform.Admin.Services
 
 <PageTitle>Log Viewer — CP Admin</PageTitle>
 
@@ -19,6 +21,74 @@
                    OnClick="@RefreshAsync"
                    Disabled="@_loading" />
 </MudStack>
+
+@* ── Admin App Errors ── *@
+@if (_adminErrors.Count > 0)
+{
+    <MudExpansionPanels Class="mb-4" MultiExpansion="false">
+        <MudExpansionPanel IsExpanded="true"
+                           Icon="@Icons.Material.Filled.BugReport">
+            <TitleContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText Typo="Typo.subtitle2">Admin App Errors</MudText>
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small">@_adminErrors.Count</MudChip>
+                </MudStack>
+            </TitleContent>
+            <ChildContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Errors thrown inside the Admin app itself (render failures, circuit exceptions).
+                        These are not CP API log entries.
+                    </MudText>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.DeleteSweep"
+                               OnClick="@ClearAdminErrors">
+                        Clear
+                    </MudButton>
+                </MudStack>
+                <MudDataGrid Items="@_adminErrors"
+                             Dense="true"
+                             Hover="true"
+                             SortMode="SortMode.None"
+                             Elevation="0">
+                    <Columns>
+                        <TemplateColumn Title="Time">
+                            <CellTemplate>
+                                <MudText Typo="Typo.caption" Style="white-space:nowrap">
+                                    @context.Item.TimestampUtc.ToLocalTime().ToString("HH:mm:ss.ff")
+                                </MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Category">
+                            <CellTemplate>
+                                <MudText Typo="Typo.caption">@context.Item.Category</MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Message">
+                            <CellTemplate>
+                                <MudText Typo="Typo.body2"
+                                         Style="word-break:break-word"
+                                         Color="Color.Error">
+                                    @context.Item.Message
+                                </MudText>
+                                @if (context.Item.Details is not null)
+                                {
+                                    <MudText Typo="Typo.caption"
+                                             Style="font-family:monospace;white-space:pre-wrap;font-size:0.7rem;color:#aaa;max-height:120px;overflow-y:auto;display:block">
+                                        @context.Item.Details
+                                    </MudText>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            </ChildContent>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
 
 @* ── Toolbar ── *@
 <MudPaper Elevation="1" Class="pa-3 mb-4">
@@ -135,6 +205,7 @@ else
 
 @code {
     private List<LogEntryDto>        _entries       = [];
+    private List<AdminErrorEntry>    _adminErrors   = [];
     private bool                     _loading;
     private string?                  _error;
     private DateTime?                _lastRefreshed;
@@ -149,7 +220,9 @@ else
 
     protected override void OnInitialized()
     {
-        EnvService.EnvironmentChanged += OnEnvironmentChanged;
+        EnvService.EnvironmentChanged  += OnEnvironmentChanged;
+        AdminErrors.Changed            += OnAdminErrorsChanged;
+        _adminErrors = [..AdminErrors.GetAll()];
     }
 
     protected override async Task OnInitializedAsync()
@@ -227,6 +300,19 @@ else
       , _     => Color.Default
     };
 
+    private void ClearAdminErrors()
+    {
+        AdminErrors.Clear();
+        _adminErrors = [];
+    }
+
+    private void OnAdminErrorsChanged()
+        => InvokeAsync(() =>
+        {
+            _adminErrors = [..AdminErrors.GetAll()];
+            StateHasChanged();
+        });
+
     private void OnEnvironmentChanged()
         => InvokeAsync(async () =>
         {
@@ -237,6 +323,7 @@ else
     public void Dispose()
     {
         EnvService.EnvironmentChanged -= OnEnvironmentChanged;
+        AdminErrors.Changed           -= OnAdminErrorsChanged;
         _timer?.Dispose();
     }
 }

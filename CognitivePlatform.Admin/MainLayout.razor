@@ -2,6 +2,7 @@
 @inject AdminSessionService SessionService
 @inject NavigationManager   NavManager
 @inject EnvironmentService  EnvService
+@inject AdminErrorLog       ErrorLog
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -47,14 +48,49 @@
 
         <MudMainContent>
             <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-6">
-                @Body
+                <ErrorBoundary @ref="_errorBoundary" OnErrorAsync="@OnErrorAsync">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent Context="ex">
+                        <MudAlert Severity="Severity.Error" Class="mb-4">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle2">
+                                    An error occurred on this page — details saved to the Log Viewer.
+                                </MudText>
+                                <MudText Typo="Typo.body2" Style="font-family:monospace">
+                                    @ex.GetType().Name: @ex.Message
+                                </MudText>
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           Class="mt-2 align-self-start"
+                                           OnClick="@RecoverPage">
+                                    Dismiss &amp; retry
+                                </MudButton>
+                            </MudStack>
+                        </MudAlert>
+                    </ErrorContent>
+                </ErrorBoundary>
             </MudContainer>
         </MudMainContent>
     </MudLayout>
 }
 
 @code {
-    private bool _drawerOpen = true;
+    private bool           _drawerOpen    = true;
+    private ErrorBoundary? _errorBoundary;
+
+    private Task OnErrorAsync(Exception ex)
+    {
+        ErrorLog.Add( level    : "ERR"
+                    , category : $"Admin.Component.{ex.GetType().Name}"
+                    , message  : ex.Message
+                    , exception: ex );
+        return Task.CompletedTask;
+    }
+
+    private void RecoverPage() => _errorBoundary?.Recover();
 
     private string AppBarStyle => EnvService.Current switch
     {
