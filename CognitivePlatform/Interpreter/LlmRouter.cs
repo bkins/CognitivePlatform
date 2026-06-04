@@ -28,13 +28,15 @@ public class LlmRouter : ILlmRouter
     private readonly ILlmUsageAggregator _usageAggregator;
     private readonly ILlmRateLimiter     _rateLimiter;
     private readonly ILlmCapacityRouter  _capacityRouter;
+    private readonly ILlmFallbackChain   _fallbackChain;
 
     public LlmRouter( ILlmClientFactory              factory
                     , IOptions<LlmProviderDefaults>  defaults
                     , IPromptLogger                  promptLogger
                     , ILlmUsageAggregator             usageAggregator
                     , ILlmRateLimiter                 rateLimiter
-                    , ILlmCapacityRouter              capacityRouter )
+                    , ILlmCapacityRouter              capacityRouter
+                    , ILlmFallbackChain               fallbackChain )
     {
         _factory          = factory;
         _defaults         = defaults.Value;
@@ -42,6 +44,7 @@ public class LlmRouter : ILlmRouter
         _usageAggregator  = usageAggregator;
         _rateLimiter      = rateLimiter;
         _capacityRouter   = capacityRouter;
+        _fallbackChain    = fallbackChain;
     }
 
     public async Task<LlmResponse> SendAsync( string              prompt
@@ -85,25 +88,70 @@ public class LlmRouter : ILlmRouter
     }
     catch (HttpRequestException ex) when (ex.Message.Contains("429", StringComparison.Ordinal))
     {
-        // Provider returned 429 — the LLM client already updated _rateLimiter before
-        // throwing. Immediately select the next non-exhausted provider rather than
-        // surfacing the rate-limit error to the user.
-        var fallback         = _capacityRouter.SelectModel(complexity);
-        var fallbackProvider = Enum.TryParse<LlmProvider>(fallback.ModelId.Provider, ignoreCase: true, out var fp)
-                                       ? fp
-                                       : _factory.DefaultProvider;
+        // Provider returned 429. Walk the explicit fallback chain (if enabled) in
+        // order, skipping entries that also 429. Fall back to the capacity router
+        // when the chain is disabled or not configured.
+        if (_fallbackChain.Enabled)
+        {
+            LlmResponse? fallbackResponse = null;
+            var          fallbacks        = await _fallbackChain.GetViableFallbacksAsync(ct);
 
-        client            = _factory.Create(fallbackProvider);
-        resolvedModel     = fallback.ModelId.Model;
-        resolvedProvider  = fallback.ModelId.Provider;
-        switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} rate-limited";
-        tierDowngradeNote = fallback.TierDowngradeNote;
+            foreach (var (fbProvider, fbModel) in fallbacks)
+            {
+                var fbClient = _factory.Create(fbProvider);
+                try
+                {
+                    fallbackResponse  = await fbClient.SendAsync(prompt, fbModel, ct);
+                    resolvedModel     = fbModel;
+                    resolvedProvider  = fbProvider.ToString();
+                    switchNote        = $"Switched to {fbProvider} ({fbModel}) — {sessionProvider} rate-limited";
+                    tierDowngradeNote = _fallbackChain.FallbackNote;
+                    context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+                    break;
+                }
+                catch (HttpRequestException fbEx) when (fbEx.Message.Contains("429", StringComparison.Ordinal))
+                {
+                    // This fallback is also rate-limited; try the next one
+                }
+            }
 
-        if (tierDowngradeNote is not null)
-            context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+            if (fallbackResponse is null)
+            {
+                return new LlmResponse
+                       {
+                               Content    = "All LLM providers are currently unavailable (rate-limit reached). Please try again later."
+                             , Usage      = LlmUsageInfo.Empty
+                             , RateLimits = LlmRateLimitSnapshot.Empty
+                       };
+            }
 
-        response = await client.SendAsync(prompt, resolvedModel, ct);
+            response = fallbackResponse;
+        }
+        else
+        {
+            // No explicit fallback chain — delegate to the capacity router.
+            var fallback         = _capacityRouter.SelectModel(complexity);
+            var fallbackProvider = Enum.TryParse<LlmProvider>(fallback.ModelId.Provider, ignoreCase: true, out var fp)
+                                           ? fp
+                                           : _factory.DefaultProvider;
+
+            client            = _factory.Create(fallbackProvider);
+            resolvedModel     = fallback.ModelId.Model;
+            resolvedProvider  = fallback.ModelId.Provider;
+            switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} rate-limited";
+            tierDowngradeNote = fallback.TierDowngradeNote;
+
+            if (tierDowngradeNote is not null)
+                context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+
+            response = await client.SendAsync(prompt, resolvedModel, ct);
+        }
     }
+
+    // Propagate the actual model used so training telemetry captures the real
+    // model, not the session default, when a fallback was performed.
+    if (switchNote is not null && resolvedModel is not null)
+        context.Metadata["model"] = resolvedModel;
 
         var metadata = new LlmResponseMetadata
                        {

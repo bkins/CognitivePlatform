@@ -17,6 +17,7 @@ public class LlmRouterTests
     private readonly Mock<ILlmUsageAggregator> _aggregatorMock     = new();
     private readonly Mock<ILlmRateLimiter>     _rateLimiterMock    = new();
     private readonly Mock<ILlmCapacityRouter>  _capacityRouterMock = new();
+    private readonly Mock<ILlmFallbackChain>   _fallbackChainMock  = new();
 
     private readonly LlmProviderDefaults _defaults;
     private readonly LlmRouter           _router;
@@ -41,12 +42,16 @@ public class LlmRouterTests
         // Default: no provider is exhausted — session routing proceeds normally.
         _rateLimiterMock.Setup(limiter => limiter.IsExhausted(It.IsAny<string>())).Returns(false);
 
+        // Fallback chain disabled by default so existing tests are unaffected.
+        _fallbackChainMock.Setup(chain => chain.Enabled).Returns(false);
+
         _router = new LlmRouter(_factoryMock.Object
                               , Options.Create(_defaults)
                               , _loggerMock.Object
                               , _aggregatorMock.Object
                               , _rateLimiterMock.Object
-                              , _capacityRouterMock.Object);
+                              , _capacityRouterMock.Object
+                              , _fallbackChainMock.Object);
     }
 
     [Fact]

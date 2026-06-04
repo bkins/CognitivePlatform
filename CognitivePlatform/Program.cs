@@ -187,6 +187,10 @@ public partial class Program
         // ILlmClient — resolved via factory so swapping providers is a config change
         builder.Services.AddSingleton<ILlmClient>(sp => sp.GetRequiredService<LlmClientFactory>().Create());
 
+        // LlmFallbackChain — explicit fallback sequence consulted on 429
+        builder.Services.Configure<LlmFallbackSettings>(builder.Configuration.GetSection("LlmFallback"));
+        builder.Services.AddSingleton<ILlmFallbackChain, LlmFallbackChain>();
+
         // ILlmRouter — session-aware dispatcher in front of the factory.
         // Every call re-reads context.Metadata so SetProvider takes effect next turn.
         builder.Services.AddSingleton<ILlmRouter, LlmRouter>();
