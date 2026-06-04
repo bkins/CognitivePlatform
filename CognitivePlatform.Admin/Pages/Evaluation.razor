@@ -264,9 +264,10 @@
     private Process?                     _evalProcess;
     private CancellationTokenSource?     _evalCts;
 
-    private static readonly string PwshExe = ResolvePwsh();
+    // Resolved once at startup; null means PS7 is not installed.
+    private static readonly string? Pwsh7Exe = FindPwsh7();
 
-    private static string ResolvePwsh()
+    private static string? FindPwsh7()
     {
         string[] candidates =
         [
@@ -289,7 +290,7 @@
             catch { /* skip */ }
         }
 
-        return @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+        return null;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -410,10 +411,15 @@
 
         StateHasChanged();
 
+        // Prefer PS7; fall back to PS5.1 with a notice (script is PS5.1-safe).
+        var psExe      = Pwsh7Exe ?? @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
         var scriptPath = Path.Combine(CpRepoDir, @"Scripts\Run-InterpreterEval.ps1");
         var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
-        _evalOutput.Add(new($"$ {PwshExe} {psArgs}"));
+        if (Pwsh7Exe is null)
+            _evalOutput.Add(new("[Note: PowerShell 7 not found — using Windows PowerShell 5.1. Install PS7 from https://aka.ms/install-powershell for best results.]", EvalLineKind.Normal));
+
+        _evalOutput.Add(new($"$ {psExe} {psArgs}"));
         _evalOutput.Add(new(string.Empty));
         await InvokeAsync(StateHasChanged);
         await ScrollAsync();
@@ -422,7 +428,7 @@
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName               = PwshExe
+                FileName               = psExe
               , Arguments              = psArgs
               , WorkingDirectory       = CpRepoDir
               , RedirectStandardOutput = true
