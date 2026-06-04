@@ -499,10 +499,11 @@
 
         StateHasChanged();
 
-        var testProject = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\LAA.SmokeTests.Windows.csproj");
-        var args        = $@"test ""{testProject}""";
+        var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\SmokeTest-Windows.ps1");
+        var scriptDir  = Path.GetDirectoryName(scriptPath)!;
+        var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
-        _windowsOutput.Add(new($"$ dotnet {args}", LineKind.Normal));
+        _windowsOutput.Add(new($"$ {PwshExe} {psArgs}", LineKind.Normal));
         _windowsOutput.Add(new(string.Empty, LineKind.Normal));
         await InvokeAsync(StateHasChanged);
         await ScrollToBottomAsync("windows-terminal-end");
@@ -511,9 +512,9 @@
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName               = "dotnet"
-              , Arguments              = args
-              , WorkingDirectory       = LaaRepoDir
+                FileName               = PwshExe
+              , Arguments              = psArgs
+              , WorkingDirectory       = scriptDir
               , RedirectStandardOutput = true
               , RedirectStandardError  = true
               , UseShellExecute        = false
