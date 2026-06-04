@@ -203,10 +203,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         // EPIC-10-D: Strip workspace prefix and switch workspace before fast-path resolution.
         var resolveInput = request.Input;
-        if (_fastPath.TryResolve(request.Input, out var workspaceName, out var workspaceRemainder))
+        if (_fastPath.TryExtractWorkspacePrefix(request.Input, out var workspaceName, out var workspaceRemainder))
         {
-            await _workspaceContext.SetActiveWorkspaceAsync(workspaceName.Name!);
-            //resolveInput = workspaceRemainder!;
+            await _workspaceContext.SetActiveWorkspaceAsync(workspaceName!);
+            resolveInput = workspaceRemainder!;
         }
 
         if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams)

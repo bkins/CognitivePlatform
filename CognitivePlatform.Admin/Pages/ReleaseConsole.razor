@@ -124,6 +124,32 @@
     </MudButton>
 </MudStack>
 
+@* ── Coco API ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Coco API</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Build"
+               Disabled="@_running"
+               OnClick="@BuildCocoApiAsync">
+        Build Coco API
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Secondary"
+               StartIcon="@Icons.Material.Filled.Upload"
+               Disabled="@_running"
+               OnClick="@DeployCocoApiAsync">
+        Deploy Coco API → @_selectedEnvironment
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PlayArrow"
+               Disabled="@_running"
+               OnClick="@BuildAndDeployCocoApiAsync">
+        Build + Deploy Coco API → @_selectedEnvironment
+    </MudButton>
+</MudStack>
+
 @* ── LAA Android ── *@
 <MudText Typo="Typo.subtitle2" Class="mb-2">Local AI Assistant (Android)</MudText>
 <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
@@ -485,7 +511,7 @@
                 </MudButton>
             }
         </MudStack>
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
             <MudText Typo="Typo.body2" Style="min-width:80px">LAA Windows:</MudText>
             @foreach (var env in new[] { "DEV", "QA", "PROD" })
             {
@@ -496,6 +522,21 @@
                            StartIcon="@Icons.Material.Filled.Computer"
                            Disabled="@_running"
                            OnClick="@(() => StartLaaWindowsAsync(capturedEnv))">
+                    @capturedEnv
+                </MudButton>
+            }
+        </MudStack>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+            <MudText Typo="Typo.body2" Style="min-width:80px">Coco API:</MudText>
+            @foreach (var env in new[] { "DEV", "QA", "PROD" })
+            {
+                var capturedEnv = env;
+                <MudButton Variant="Variant.Outlined"
+                           Color="@EnvButtonColor(capturedEnv)"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@_running"
+                           OnClick="@(() => StartCocoApiAsync(capturedEnv))">
                     @capturedEnv
                 </MudButton>
             }
@@ -659,6 +700,7 @@
     private static readonly string StagingApiDir        = @"C:\CP\Deploy\Api";
     private static readonly string StagingLaaDir        = @"C:\CP\Deploy\Laa";
     private static readonly string StagingLaaWindowsDir = @"C:\CP\Deploy\LaaWindows";
+    private static readonly string StagingCocoDir        = @"C:\CP\Deploy\Coco";
     private static readonly string ArtifactsRoot        = @"C:\CP\Artifacts";
 
     private static readonly string PwshExe = ResolvePwsh();
@@ -922,6 +964,7 @@
     private string ApiArtifactDir    => Path.Combine(ArtifactsRoot, "API",        _version);
     private string LaaArtifactDir    => Path.Combine(ArtifactsRoot, "Laa",        _version);
     private string LaaWinArtifactDir => Path.Combine(ArtifactsRoot, "LaaWindows", _version);
+    private string CocoArtifactDir   => Path.Combine(ArtifactsRoot, "CocoAPI",    _version);
 
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
@@ -1011,6 +1054,37 @@
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+        }
+    }
+
+    private async Task BuildCocoApiAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""");
+        if (_exitCode == 0) await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
+    }
+
+    private async Task DeployCocoApiAsync()
+    {
+        await RunAsync(PwshExe
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}");
+        if (_exitCode == 0)
+            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+    }
+
+    private async Task BuildAndDeployCocoApiAsync()
+    {
+        await RunCoreAsync(_workingDirectory
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}" ));
+        if (_exitCode == 0)
+        {
+            await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
+            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
         }
     }
 
@@ -1216,6 +1290,13 @@
       , _      => Path.Combine(StagingLaaWindowsDir, "Dev")
     };
 
+    private string CocoEnvDir(string env) => env switch
+    {
+        "PROD" => Path.Combine(StagingCocoDir, "Prod")
+      , "QA"   => Path.Combine(StagingCocoDir, "QA")
+      , _      => Path.Combine(StagingCocoDir, "Dev")
+    };
+
     // HTTP ports must match what the Admin app connects to (appsettings.json Environments section).
     // HTTPS ports are set explicitly so they don't collide with the Admin app on 7290/7291/7292.
     private static int ApiHttpPort(string env) => env switch
@@ -1244,6 +1325,13 @@
         "PROD" => "PROD: CP API"
       , "QA"   => "QA: CP API"
       , _      => "DEV: CP API"
+    };
+
+    private static string CocoTerminalProfile(string env) => env switch
+    {
+        "PROD" => "PROD: Coco API"
+      , "QA"   => "QA: Coco API"
+      , _      => "DEV: Coco API"
     };
 
     /// <summary>Finds wt.exe (Windows Terminal) — typically in WindowsApps on a Store install.</summary>
@@ -1323,6 +1411,70 @@
             else
             {
                 _output.Add(new($"[API process not found after 2 s — check the Terminal window for startup errors.]"
+                              , IsError: true));
+                _exitCode = 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            _runError = ex.Message;
+            _output.Add(new($"[Error: {ex.Message}]", IsError: true));
+            _exitCode = 1;
+        }
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
+    }
+
+    private async Task StartCocoApiAsync(string env)
+    {
+        var profile = CocoTerminalProfile(env);
+        var wt      = ResolveWt();
+        const string processName = "Coco.API";
+
+        _output.Clear();
+        _exitCode = null;
+        _runError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var already = Process.GetProcessesByName(processName);
+        if (already.Length > 0)
+        {
+            _output.Add(new($"[{processName} is already running — PID {already[0].Id}]", false));
+            _exitCode = 0;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _output.Add(new($"$ wt -p \"{profile}\"", false));
+        _output.Add(new($"Opening Windows Terminal profile \"{profile}\"…", false));
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName        = wt
+              , Arguments       = $@"-p ""{profile}"""
+              , UseShellExecute = true
+            });
+
+            const int secondsToWait = 5;
+            _output.Add(new($"Waiting {secondsToWait} s for API to initialise…", false));
+
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(secondsToWait * 1000);
+
+            var running = Process.GetProcessesByName(processName);
+            if (running.Length > 0)
+            {
+                _output.Add(new($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"
+                              , IsError: false));
+                _exitCode = 0;
+            }
+            else
+            {
+                _output.Add(new($"[API process not found after {secondsToWait} s — check the Terminal window for startup errors.]"
                               , IsError: true));
                 _exitCode = 1;
             }

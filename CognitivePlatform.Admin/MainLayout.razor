@@ -2,7 +2,6 @@
 @inject AdminSessionService SessionService
 @inject NavigationManager   NavManager
 @inject EnvironmentService  EnvService
-@inject AdminErrorLog       ErrorLog
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -48,7 +47,7 @@
 
         <MudMainContent>
             <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-6">
-                <ErrorBoundary @ref="_errorBoundary" OnErrorAsync="@OnErrorAsync">
+                <LoggingErrorBoundary @ref="_errorBoundary">
                     <ChildContent>
                         @Body
                     </ChildContent>
@@ -71,24 +70,15 @@
                             </MudStack>
                         </MudAlert>
                     </ErrorContent>
-                </ErrorBoundary>
+                </LoggingErrorBoundary>
             </MudContainer>
         </MudMainContent>
     </MudLayout>
 }
 
 @code {
-    private bool           _drawerOpen    = true;
-    private ErrorBoundary? _errorBoundary;
-
-    private Task OnErrorAsync(Exception ex)
-    {
-        ErrorLog.Add( level    : "ERR"
-                    , category : $"Admin.Component.{ex.GetType().Name}"
-                    , message  : ex.Message
-                    , exception: ex );
-        return Task.CompletedTask;
-    }
+    private bool                  _drawerOpen    = true;
+    private LoggingErrorBoundary? _errorBoundary;
 
     private void RecoverPage() => _errorBoundary?.Recover();
 

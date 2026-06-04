@@ -211,6 +211,13 @@ public class ExecutionEngine : IExecutionEngine
          || targetType == typeof(bool?))
             return bool.TryParse(value, out var b) ? b : default(bool?);
 
+        if (targetType == typeof(DateTime)
+         || targetType == typeof(DateTime?))
+        {
+            if (string.IsNullOrWhiteSpace(value)) return targetType == typeof(DateTime?) ? (object?)(DateTime?)null : default(DateTime);
+            return DateTime.TryParse(value, out var dt) ? (object?)dt : (targetType == typeof(DateTime?) ? (DateTime?)null : default(DateTime));
+        }
+
         // Handle Nullable<TEnum> — e.g. TaskPriority?
         var underlyingType = Nullable.GetUnderlyingType(targetType);
         if (underlyingType is not null && underlyingType.IsEnum)
