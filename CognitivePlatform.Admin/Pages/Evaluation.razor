@@ -3,7 +3,8 @@
 @using CognitivePlatform.Admin.CpAdminClients
 @using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
-@inject IAdminTrainingClient Training
+@inject IAdminTrainingClient  Training
+@inject ITerminalStateService TerminalService
 @inject IJSRuntime            Js
 
 <PageTitle>Evaluation — CP Admin</PageTitle>
@@ -13,25 +14,28 @@
 <MudGrid Spacing="4">
 
     @* ── Run + status row ──────────────────────────────────────────────────────── *@
+    @{
+        var evalState = TerminalService.Get("eval");
+    }
     <MudItem xs="12">
         <MudPaper Elevation="2" Class="pa-3">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
                 <MudIcon Icon="@Icons.Material.Filled.Speed" />
                 <MudText Typo="Typo.h6">Interpreter Evaluator</MudText>
 
-                @if (_evalRunning)
+                @if (evalState.IsRunning)
                 {
                     <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle" Size="Size.Small">
-                        Running…
+                        @(evalState.ElapsedDisplay.Length > 0 ? evalState.ElapsedDisplay : "Running…")
                     </MudChip>
                     <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
                                StartIcon="@Icons.Material.Filled.Stop" OnClick="@AbortEval">
                         Abort
                     </MudButton>
                 }
-                else if (_evalExitCode.HasValue)
+                else if (evalState.ExitCode.HasValue)
                 {
-                    @if (_evalExitCode == 0)
+                    @if (evalState.ExitCode == 0)
                     {
                         <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small">
                             Last run OK
@@ -40,7 +44,7 @@
                     else
                     {
                         <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error" Size="Size.Small">
-                            Exit @_evalExitCode
+                            Exit @evalState.ExitCode
                         </MudChip>
                     }
                 }
@@ -49,28 +53,31 @@
 
                 <MudButton Variant="Variant.Filled" Color="Color.Secondary"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_evalRunning" OnClick="@RunEvalAsync">
+                           Disabled="@evalState.IsRunning" OnClick="@RunEvalAsync">
                     Run Now
                 </MudButton>
                 <MudButton Variant="Variant.Outlined" Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.Refresh"
-                           Disabled="@_evalRunning" OnClick="@RefreshAll">
+                           Disabled="@evalState.IsRunning" OnClick="@RefreshAll">
                     Refresh
                 </MudButton>
             </MudStack>
 
-            @if (_evalRunError is not null)
+            @if (evalState.Error is not null)
             {
-                <MudAlert Severity="Severity.Error" Class="mt-2">@_evalRunError</MudAlert>
+                <MudAlert Severity="Severity.Error" Class="mt-2">@evalState.Error</MudAlert>
             }
 
-            @if (_evalOutput.Count > 0 || _evalRunning)
+            @{
+                var evalLines = evalState.Snapshot();
+            }
+            @if (evalLines.Length > 0 || evalState.IsRunning)
             {
                 <MudExpansionPanels Class="mt-3" Elevation="0">
-                    <MudExpansionPanel Text="Evaluator Output" IsExpanded="@_evalRunning">
+                    <MudExpansionPanel Text="Evaluator Output" IsExpanded="@evalState.IsRunning">
                         <MudPaper id="eval-terminal" Elevation="4"
                                   Style="background:#1e1e1e;padding:16px;max-height:350px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.82rem;">
-                            @foreach (var line in _evalOutput)
+                            @foreach (var line in evalLines)
                             {
                                 <div style="color:@EvalLineColor(line.Kind);white-space:pre-wrap;line-height:1.5">@line.Text</div>
                             }
@@ -239,10 +246,6 @@
 
     private enum ScoreQuality { Normal, Best, Worst }
 
-    private sealed record EvalLine(string Text, EvalLineKind Kind = EvalLineKind.Normal);
-
-    private enum EvalLineKind { Normal, Pass, Fail, Error }
-
     private const string CpRepoDir = @"C:\Users\benho\source\repos\CognitivePlatform";
 
     // ── State ─────────────────────────────────────────────────────────────────────
@@ -255,13 +258,6 @@
     private double                       _recentRatePerDay;
     private string                       _daysSinceFirst = "—";
     private string                       _daysTo10K      = "—";
-
-    private readonly List<EvalLine>      _evalOutput     = [];
-    private bool                         _evalRunning;
-    private int?                         _evalExitCode;
-    private string?                      _evalRunError;
-    private Process?                     _evalProcess;
-    private CancellationTokenSource?     _evalCts;
 
     // Resolved once at startup; null means PS7 is not installed.
     private static readonly string? Pwsh7Exe = FindPwsh7();
@@ -296,8 +292,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        TerminalService.StateChanged += OnTerminalChanged;
         LoadEvalHistory();
         await LoadCorpusStatsAsync();
+    }
+
+    private void OnTerminalChanged(string id)
+    {
+        if (id != "eval") return;
+        try { _ = InvokeAsync(async () => { StateHasChanged(); await ScrollAsync(); }); }
+        catch { /* component disposed */ }
     }
 
     private async Task RefreshAll()
@@ -400,117 +404,72 @@
 
     private async Task RunEvalAsync()
     {
-        if (_evalRunning) return;
+        var evalState = TerminalService.Get("eval");
+        if (evalState.IsRunning) return;
 
-        _evalRunning  = true;
-        _evalExitCode = null;
-        _evalRunError = null;
-        _evalOutput.Clear();
-        _evalCts = new CancellationTokenSource();
+        TerminalService.Clear("eval");
+        TerminalService.MarkRunning("eval", true);
 
-        StateHasChanged();
-
-        // Prefer PS7; fall back to PS5.1 with a notice (script is PS5.1-safe).
         var psExe      = Pwsh7Exe ?? @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
         var scriptPath = Path.Combine(CpRepoDir, @"Scripts\Run-InterpreterEval.ps1");
         var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
         if (Pwsh7Exe is null)
-            _evalOutput.Add(new("[Note: PowerShell 7 not found — using Windows PowerShell 5.1. Install PS7 from https://aka.ms/install-powershell for best results.]", EvalLineKind.Normal));
+            TerminalService.AppendLine("eval", new TerminalLine(
+                "[Note: PowerShell 7 not found — using Windows PowerShell 5.1. Install PS7 for best results.]"
+              , TerminalLineKind.Normal));
 
-        _evalOutput.Add(new($"$ {psExe} {psArgs}"));
-        _evalOutput.Add(new(string.Empty));
-        await InvokeAsync(StateHasChanged);
-        await ScrollAsync();
+        TerminalService.AppendLine("eval", new TerminalLine($"$ {psExe} {psArgs}"));
+        TerminalService.AppendLine("eval", new TerminalLine(string.Empty));
 
+        var startInfo = new ProcessStartInfo
+        {
+            FileName               = psExe
+          , Arguments              = psArgs
+          , WorkingDirectory       = CpRepoDir
+          , RedirectStandardOutput = true
+          , RedirectStandardError  = true
+          , UseShellExecute        = false
+          , CreateNoWindow         = true
+          , StandardOutputEncoding = System.Text.Encoding.UTF8
+          , StandardErrorEncoding  = System.Text.Encoding.UTF8
+        };
+
+        static TerminalLine Classify(string text, bool isError)
+        {
+            if (isError) return new TerminalLine(text, TerminalLineKind.Error);
+            var t = text.TrimStart();
+            if (t.Contains("[PASS]", StringComparison.OrdinalIgnoreCase) || t.Contains("✓") || t.Contains("✔"))
+                return new TerminalLine(text, TerminalLineKind.Pass);
+            if (t.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase) || t.Contains("✗") || t.Contains("✘"))
+                return new TerminalLine(text, TerminalLineKind.Fail);
+            return new TerminalLine(text, TerminalLineKind.Normal);
+        }
+
+        int? exitCode;
         try
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName                = psExe
-              , Arguments               = psArgs
-              , WorkingDirectory        = CpRepoDir
-              , RedirectStandardOutput  = true
-              , RedirectStandardError   = true
-              , UseShellExecute         = false
-              , CreateNoWindow          = true
-              , StandardOutputEncoding  = System.Text.Encoding.UTF8
-              , StandardErrorEncoding   = System.Text.Encoding.UTF8
-            };
-
-            _evalProcess = new Process { StartInfo = startInfo };
-
-            _evalProcess.OutputDataReceived += async (_, e) =>
-            {
-                if (e.Data is null) return;
-                await InvokeAsync(() => { _evalOutput.Add(new(e.Data, ClassifyEvalLine(e.Data))); StateHasChanged(); });
-                await ScrollAsync();
-            };
-
-            _evalProcess.ErrorDataReceived += async (_, e) =>
-            {
-                if (e.Data is null) return;
-                await InvokeAsync(() => { _evalOutput.Add(new(e.Data, EvalLineKind.Error)); StateHasChanged(); });
-                await ScrollAsync();
-            };
-
-            try
-            {
-                _evalProcess.Start();
-                _evalProcess.BeginOutputReadLine();
-                _evalProcess.BeginErrorReadLine();
-                await _evalProcess.WaitForExitAsync(_evalCts.Token);
-                _evalExitCode = _evalProcess.ExitCode;
-            }
-            catch (OperationCanceledException) { _evalOutput.Add(new("[Aborted by user]", EvalLineKind.Error)); }
-            catch (Exception ex)
-            {
-                _evalRunError = ex.Message;
-                _evalOutput.Add(new($"[Error: {ex.Message}]", EvalLineKind.Error));
-            }
-            finally
-            {
-                _evalProcess?.Dispose();
-                _evalProcess = null;
-            }
+            exitCode = await TerminalService.RunProcessAsync("eval", startInfo, Classify);
         }
         finally
         {
-            _evalRunning = false;
-            await InvokeAsync(StateHasChanged);
-            await ScrollAsync();
-
-            // Auto-refresh results when the run completes successfully
-            if (_evalExitCode == 0)
-                await RefreshAll();
+            TerminalService.MarkRunning("eval", false);
         }
+
+        if (exitCode == 0)
+            await RefreshAll();
     }
 
-    private void AbortEval()
-    {
-        _evalCts?.Cancel();
-        try { _evalProcess?.Kill(entireProcessTree: true); }
-        catch { /* already exited */ }
-    }
+    private void AbortEval() => TerminalService.Abort("eval");
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
-    private static EvalLineKind ClassifyEvalLine(string text)
+    private static string EvalLineColor(TerminalLineKind kind) => kind switch
     {
-        var t = text.TrimStart();
-        if (t.Contains("[PASS]", StringComparison.OrdinalIgnoreCase) || t.Contains("✓") || t.Contains("✔"))
-            return EvalLineKind.Pass;
-        if (t.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase) || t.Contains("✗") || t.Contains("✘"))
-            return EvalLineKind.Fail;
-        return EvalLineKind.Normal;
-    }
-
-    private static string EvalLineColor(EvalLineKind kind) => kind switch
-    {
-        EvalLineKind.Pass  => "#4ec9b0"
-      , EvalLineKind.Fail  => "#ff6b6b"
-      , EvalLineKind.Error => "#ff6b6b"
-      , _                  => "#d4d4d4"
+        TerminalLineKind.Pass  => "#4ec9b0"
+      , TerminalLineKind.Fail  => "#ff6b6b"
+      , TerminalLineKind.Error => "#ff6b6b"
+      , _                      => "#d4d4d4"
     };
 
     private static string ScoreToColor(double score)
@@ -549,13 +508,9 @@
 
     // ── Disposal ──────────────────────────────────────────────────────────────────
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        _evalCts?.Cancel();
-        _evalCts?.Dispose();
-        try { _evalProcess?.Kill(entireProcessTree: true); }
-        catch { /* already exited */ }
-        _evalProcess?.Dispose();
-        await ValueTask.CompletedTask;
+        TerminalService.StateChanged -= OnTerminalChanged;
+        return ValueTask.CompletedTask;
     }
 }

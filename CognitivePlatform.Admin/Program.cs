@@ -18,6 +18,9 @@ builder.Services.AddTransient<AdminSecretHandler>();
 builder.Services.AddSingleton<EnvironmentService>();
 builder.Services.AddTransient<EnvironmentRoutingHandler>();
 
+// Terminal state — singleton, survives page navigation so output persists when user navigates away.
+builder.Services.AddSingleton<ITerminalStateService, TerminalStateService>();
+
 // Admin-app error log — singleton ring buffer, visible in the Log Viewer.
 // Must be created before the logging provider so both share the same instance.
 var adminErrorLog = new AdminErrorLog();

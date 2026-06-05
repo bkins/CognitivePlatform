@@ -36,11 +36,23 @@ public sealed record AddCorrectionRevisionRequest
     public int?     MoodLevel { get; init; }
 }
 
+/// <summary>Per-record change captured during a repair operation.</summary>
+public sealed record RepairDetailDto
+{
+    public string         RecordType { get; init; } = string.Empty;
+    public string         RecordId   { get; init; } = string.Empty;
+    public string         Field      { get; init; } = string.Empty;
+    public string?        Before     { get; init; }
+    public string?        After      { get; init; }
+    public DateTimeOffset RepairedAt { get; init; }
+}
+
 /// <summary>Response from POST /api/admin/journal/repair-partition-keys.</summary>
 public sealed record RepairPartitionKeysResultDto
 {
-    public int      EntriesRepaired     { get; init; }
-    public int      RevisionsRepaired   { get; init; }
-    public string[] RepairedEntryIds    { get; init; } = [];
-    public string[] RepairedRevisionIds { get; init; } = [];
+    public int              EntriesRepaired     { get; init; }
+    public int              RevisionsRepaired   { get; init; }
+    public string[]         RepairedEntryIds    { get; init; } = [];
+    public string[]         RepairedRevisionIds { get; init; } = [];
+    public RepairDetailDto[] RepairDetails       { get; init; } = [];
 }

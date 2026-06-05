@@ -205,4 +205,148 @@ public class InterpreterTrainingStoreTests : IDisposable
         Assert.Equal(312.5,       loaded.LatencyMs);
         Assert.Equal(timestamp,   loaded.TimestampUtc);
     }
+
+    // -----------------------------------------------------------------------
+    // GetForExportAsync
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetForExportAsync_ReturnsAllRecords_WhenSucceededOnlyIsFalse()
+    {
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "succeeded", ExecutionSucceeded = true,  TimestampUtc = DateTime.UtcNow });
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "failed",    ExecutionSucceeded = false, TimestampUtc = DateTime.UtcNow.AddSeconds(1) });
+
+        var result = await _store.GetForExportAsync(100, succeededOnly: false);
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetForExportAsync_ReturnsOnlySucceeded_WhenSucceededOnlyIsTrue()
+    {
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "succeeded", ExecutionSucceeded = true,  TimestampUtc = DateTime.UtcNow });
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "failed",    ExecutionSucceeded = false, TimestampUtc = DateTime.UtcNow.AddSeconds(1) });
+
+        var result = await _store.GetForExportAsync(100, succeededOnly: true);
+
+        Assert.Single(result);
+        Assert.True(result[0].ExecutionSucceeded);
+    }
+
+    [Fact]
+    public async Task GetForExportAsync_RespectsLimitParameter()
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            await _store.SaveAsync(new InterpreterTrainingRecord
+                                   {
+                                           UserInput    = $"input {i}"
+                                         , TimestampUtc = DateTime.UtcNow.AddSeconds(i)
+                                   });
+        }
+
+        var result = await _store.GetForExportAsync(3, succeededOnly: false);
+
+        Assert.Equal(3, result.Count);
+    }
+
+    // -----------------------------------------------------------------------
+    // GetStatsAsync
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetStatsAsync_ReturnsZeroMetrics_WhenEmpty()
+    {
+        var stats = await _store.GetStatsAsync();
+
+        Assert.Equal(0,   stats.TotalRecords);
+        Assert.Equal(0,   stats.SucceededCount);
+        Assert.Equal(0.0, stats.SuccessRate);
+        Assert.Equal(0.0, stats.AvgLatencyMs);
+        Assert.Empty(stats.DailyCounts);
+        Assert.Empty(stats.ActionCounts);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_ComputesSuccessRate_FromSucceededAndTotal()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            await _store.SaveAsync(new InterpreterTrainingRecord
+                                   {
+                                           UserInput          = $"pass {i}"
+                                         , ExecutionSucceeded = true
+                                         , TimestampUtc       = DateTime.UtcNow.AddSeconds(i)
+                                   });
+        }
+        await _store.SaveAsync(new InterpreterTrainingRecord
+                               {
+                                       UserInput          = "fail"
+                                     , ExecutionSucceeded = false
+                                     , TimestampUtc       = DateTime.UtcNow.AddSeconds(10)
+                               });
+
+        var stats = await _store.GetStatsAsync();
+
+        Assert.Equal(4,    stats.TotalRecords);
+        Assert.Equal(3,    stats.SucceededCount);
+        Assert.Equal(0.75, stats.SuccessRate);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_ReturnsActionDistribution_SortedByDescendingCount()
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            await _store.SaveAsync(new InterpreterTrainingRecord
+                                   {
+                                           UserInput           = $"add {i}"
+                                         , FinalResolvedAction = "AddTask"
+                                         , TimestampUtc        = DateTime.UtcNow.AddSeconds(i)
+                                   });
+        }
+        await _store.SaveAsync(new InterpreterTrainingRecord
+                               {
+                                       UserInput           = "journal"
+                                     , FinalResolvedAction = "CreateJournalEntry"
+                                     , TimestampUtc        = DateTime.UtcNow.AddSeconds(10)
+                               });
+
+        var stats = await _store.GetStatsAsync();
+
+        Assert.Equal(2,                    stats.ActionCounts.Count);
+        Assert.Equal("AddTask",            stats.ActionCounts[0].Action);
+        Assert.Equal(5,                    stats.ActionCounts[0].RecordCount);
+        Assert.Equal("CreateJournalEntry", stats.ActionCounts[1].Action);
+        Assert.Equal(1,                    stats.ActionCounts[1].RecordCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_ComputesAverageLatency()
+    {
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "fast", LatencyMs = 100.0, TimestampUtc = DateTime.UtcNow             });
+        await _store.SaveAsync(new InterpreterTrainingRecord { UserInput = "slow", LatencyMs = 300.0, TimestampUtc = DateTime.UtcNow.AddSeconds(1) });
+
+        var stats = await _store.GetStatsAsync();
+
+        Assert.Equal(200.0, stats.AvgLatencyMs);
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_ReturnsDailyCounts_GroupedByDay()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            await _store.SaveAsync(new InterpreterTrainingRecord
+                                   {
+                                           UserInput    = $"record {i}"
+                                         , TimestampUtc = DateTime.UtcNow.AddSeconds(i)
+                                   });
+        }
+
+        var stats = await _store.GetStatsAsync();
+
+        Assert.Single(stats.DailyCounts);
+        Assert.Equal(3, stats.DailyCounts[0].RecordCount);
+    }
 }

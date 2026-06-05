@@ -142,8 +142,32 @@ public sealed class AdminJournalController : AdminControllerBase
         var entryTypeName    = typeof(JournalEntry).FullName    ?? nameof(JournalEntry);
         var revisionTypeName = typeof(JournalRevision).FullName ?? nameof(JournalRevision);
 
+        var repairedAt = DateTimeOffset.UtcNow;
+
         var repairedEntryIds    = _store.NullifyOrphanedPartitionKeys(entryTypeName);
         var repairedRevisionIds = _store.NullifyOrphanedPartitionKeys(revisionTypeName, jsonIdField: "revisionId");
+
+        var entryDetails = repairedEntryIds.Select(id => new RepairDetail
+                                                         {
+                                                             RecordType = "Entry"
+                                                           , RecordId   = id
+                                                           , Field      = "PartitionKey"
+                                                           , Before     = id
+                                                           , After      = null
+                                                           , RepairedAt = repairedAt
+                                                         });
+
+        var revisionDetails = repairedRevisionIds.Select(id => new RepairDetail
+                                                               {
+                                                                   RecordType = "Revision"
+                                                                 , RecordId   = id
+                                                                 , Field      = "PartitionKey"
+                                                                 , Before     = id
+                                                                 , After      = null
+                                                                 , RepairedAt = repairedAt
+                                                               });
+
+        var allDetails = entryDetails.Concat(revisionDetails).ToArray();
 
         return Ok(new
                   {
@@ -151,6 +175,7 @@ public sealed class AdminJournalController : AdminControllerBase
                     , RevisionsRepaired   = repairedRevisionIds.Count
                     , RepairedEntryIds    = repairedEntryIds.ToArray()
                     , RepairedRevisionIds = repairedRevisionIds.ToArray()
+                    , RepairDetails       = allDetails
                   });
     }
 }
@@ -162,4 +187,14 @@ public sealed record AddCorrectionRequest
     public string?   Mood      { get; init; }
     public int?      MoodScore { get; init; }
     public int?      MoodLevel { get; init; }
+}
+
+public sealed record RepairDetail
+{
+    public string         RecordType { get; init; } = string.Empty;
+    public string         RecordId   { get; init; } = string.Empty;
+    public string         Field      { get; init; } = string.Empty;
+    public string?        Before     { get; init; }
+    public string?        After      { get; init; }
+    public DateTimeOffset RepairedAt { get; init; }
 }

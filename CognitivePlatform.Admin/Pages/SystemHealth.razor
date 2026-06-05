@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject IAdminSystemClient  SystemClient
 @inject EnvironmentService  EnvService
-@inject IJSRuntime          Js
 
 <PageTitle>System Health — CP Admin</PageTitle>
 
@@ -51,31 +50,12 @@ else if (_error is not null)
                 </MudCardContent>
             </MudCard>
         </MudItem>
-        <MudItem xs="12" sm="3">
+        <MudItem xs="12" sm="4">
             <MudCard Elevation="2">
                 <MudCardContent>
                     <MudText Typo="Typo.overline" Color="Color.Secondary">Database</MudText>
                     <MudText Typo="Typo.body2" Style="word-break: break-all;">@_stats.DatabasePath</MudText>
                 </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="1">
-            <MudCard Elevation="2" Style="height:100%">
-                <MudCardContent>
-                    <MudText Typo="Typo.overline" Color="Color.Secondary">API Docs</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="word-break:break-all">
-                        @ScalarUrl
-                    </MudText>
-                </MudCardContent>
-                <MudCardActions>
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Primary"
-                               Size="Size.Small"
-                               StartIcon="@Icons.Material.Filled.OpenInNew"
-                               OnClick="@OpenScalarAsync">
-                        Open
-                    </MudButton>
-                </MudCardActions>
             </MudCard>
         </MudItem>
     </MudGrid>
@@ -208,11 +188,6 @@ else if (_error is not null)
     private string?              _error;
     private DateTime?            _lastRefreshed;
     private Timer?               _refreshTimer;
-
-    private string ScalarUrl => $"{EnvService.BaseUrl}/scalar";
-
-    private async Task OpenScalarAsync()
-        => await Js.InvokeVoidAsync("open", ScalarUrl, "_blank");
 
     protected override void OnInitialized()
     {

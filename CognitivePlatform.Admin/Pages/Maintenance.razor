@@ -37,38 +37,35 @@
                         Revisions repaired: <strong>@_repairResult.RevisionsRepaired</strong>
                     </MudAlert>
 
-                    @if (_repairResult.RepairedEntryIds.Length > 0)
+                    @if (_repairResult.RepairDetails.Length > 0)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-1">
-                            Repaired Entry IDs (@_repairResult.RepairedEntryIds.Length):
+                            Changed records (@_repairResult.RepairDetails.Length):
                         </MudText>
-                        <MudPaper Elevation="0"
-                                  Class="pa-2"
-                                  Style="background:var(--mud-palette-background-grey);font-family:monospace;font-size:0.78rem;max-height:130px;overflow-y:auto;">
-                            @foreach (var id in _repairResult.RepairedEntryIds)
-                            {
-                                <div>@id</div>
-                            }
-                        </MudPaper>
+                        <MudTable Items="@_repairResult.RepairDetails"
+                                  Dense="true"
+                                  Striped="true"
+                                  Elevation="0"
+                                  Style="font-size:0.78rem;">
+                            <HeaderContent>
+                                <MudTh>Type</MudTh>
+                                <MudTh>Record ID</MudTh>
+                                <MudTh>Field</MudTh>
+                                <MudTh>Before</MudTh>
+                                <MudTh>After</MudTh>
+                                <MudTh>Repaired At (UTC)</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.RecordType</MudTd>
+                                <MudTd Style="font-family:monospace">@context.RecordId</MudTd>
+                                <MudTd>@context.Field</MudTd>
+                                <MudTd Style="font-family:monospace;color:var(--mud-palette-error)">@(context.Before ?? "(null)")</MudTd>
+                                <MudTd Style="font-family:monospace;color:var(--mud-palette-success)">@(context.After ?? "(null)")</MudTd>
+                                <MudTd>@context.RepairedAt.ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
                     }
-
-                    @if (_repairResult.RepairedRevisionIds.Length > 0)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-1">
-                            Repaired Revision IDs (@_repairResult.RepairedRevisionIds.Length):
-                        </MudText>
-                        <MudPaper Elevation="0"
-                                  Class="pa-2"
-                                  Style="background:var(--mud-palette-background-grey);font-family:monospace;font-size:0.78rem;max-height:130px;overflow-y:auto;">
-                            @foreach (var id in _repairResult.RepairedRevisionIds)
-                            {
-                                <div>@id</div>
-                            }
-                        </MudPaper>
-                    }
-
-                    @if (_repairResult.RepairedEntryIds.Length == 0
-                      && _repairResult.RepairedRevisionIds.Length == 0)
+                    else
                     {
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
                             No records required repair — all partition keys were already correct.

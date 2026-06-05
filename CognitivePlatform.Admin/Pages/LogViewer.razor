@@ -109,6 +109,32 @@
             }
         </MudStack>
 
+        @* Category filter *@
+        @if (_availableCategories.Count > 0)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Category:</MudText>
+                <MudChip T="string"
+                         Color="@(_categoryFilter is null ? Color.Primary : Color.Default)"
+                         Variant="@(_categoryFilter is null ? Variant.Filled : Variant.Outlined)"
+                         Size="Size.Small"
+                         OnClick="@(() => SetCategory(null))">
+                    All
+                </MudChip>
+                @foreach (var cat in _availableCategories)
+                {
+                    var capturedCat = cat;
+                    <MudChip T="string"
+                             Color="@(cat == _categoryFilter ? Color.Primary : Color.Default)"
+                             Variant="@(cat == _categoryFilter ? Variant.Filled : Variant.Outlined)"
+                             Size="Size.Small"
+                             OnClick="@(() => SetCategory(capturedCat))">
+                        @cat
+                    </MudChip>
+                }
+            </MudStack>
+        }
+
         @* Search *@
         <MudTextField @bind-Value="_search"
                       Label="Search"
@@ -164,7 +190,7 @@ else if (_error is not null)
 }
 else
 {
-    <MudDataGrid Items="@_entries"
+    <MudDataGrid Items="@FilteredEntries"
                  Dense="true"
                  Hover="true"
                  SortMode="SortMode.None"
@@ -204,17 +230,24 @@ else
 }
 
 @code {
-    private List<LogEntryDto>        _entries       = [];
-    private List<AdminErrorEntry>    _adminErrors   = [];
+    private List<LogEntryDto>        _entries             = [];
+    private List<AdminErrorEntry>    _adminErrors         = [];
+    private List<string>             _availableCategories = [];
     private bool                     _loading;
     private string?                  _error;
     private DateTime?                _lastRefreshed;
     private System.Threading.Timer?  _timer;
 
     private string? _levelFilter;
+    private string? _categoryFilter;
     private string  _search      = string.Empty;
     private int     _take        = 200;
     private bool    _autoRefresh = true;
+
+    private IEnumerable<LogEntryDto> FilteredEntries
+        => _categoryFilter is null
+               ? _entries
+               : _entries.Where(entry => ShortCategory(entry.Category) == _categoryFilter);
 
     private static readonly string?[] _levelFilters = [null, "INF", "WRN", "ERR", "CRT", "DBG", "TRC"];
 
@@ -248,9 +281,14 @@ else
 
         try
         {
-            var result     = await LogsClient.GetLogsAsync(_take, _levelFilter, _search);
-            _entries       = [..result];
-            _lastRefreshed = DateTime.Now;
+            var result             = await LogsClient.GetLogsAsync(_take, _levelFilter, _search);
+            _entries               = [..result];
+            _lastRefreshed         = DateTime.Now;
+            _availableCategories   = [.._entries.Select(entry => ShortCategory(entry.Category))
+                                                 .Distinct()
+                                                 .OrderBy(cat => cat)];
+            if (_categoryFilter is not null && !_availableCategories.Contains(_categoryFilter))
+                _categoryFilter = null;
         }
         catch (Exception ex)
         {
@@ -278,8 +316,13 @@ else
     private async Task SetLevel(string? level)
     {
         _levelFilter = level;
-        
+
         await RefreshAsync();
+    }
+
+    private void SetCategory(string? category)
+    {
+        _categoryFilter = category;
     }
 
     private static string ShortCategory(string category)

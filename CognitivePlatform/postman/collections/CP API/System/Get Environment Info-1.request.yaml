@@ -1,5 +1,5 @@
 $kind: http-request
 name: Get Environment Info
-url: "{{baseUrl}}/api/system/environment"
+url: "{{baseUrl}}/api/admin/training/corpus/export"
 method: GET
 order: 1902

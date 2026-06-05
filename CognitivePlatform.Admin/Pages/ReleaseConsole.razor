@@ -2,18 +2,25 @@
 @using System.Diagnostics
 @using System.IO.Compression
 @using System.Text.Json
+@using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
-@inject IConfiguration Configuration
-@inject IJSRuntime Js
+@inject IConfiguration        Configuration
+@inject ITerminalStateService TerminalService
+@inject IJSRuntime            Js
 
 <PageTitle>Release Console — CP Admin</PageTitle>
 
+@{
+    var _rs = TerminalService.Get("release");
+}
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
     <MudText Typo="Typo.h4">Release Console</MudText>
     <MudSpacer />
-    @if (_running)
+    @if (_rs.IsRunning)
     {
-        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle">Running…</MudChip>
+        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle">
+            @(_rs.ElapsedDisplay.Length > 0 ? _rs.ElapsedDisplay : "Running…")
+        </MudChip>
         <MudButton Variant="Variant.Outlined"
                    Color="Color.Error"
                    Size="Size.Small"
@@ -22,21 +29,21 @@
             Abort
         </MudButton>
     }
-    else if (_exitCode.HasValue)
+    else if (_rs.ExitCode.HasValue)
     {
-        @if (_exitCode == 0)
+        @if (_rs.ExitCode == 0)
         {
             <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">Exit 0 — OK</MudChip>
         }
         else
         {
-            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_exitCode — Failed</MudChip>
+            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_rs.ExitCode — Failed</MudChip>
         }
     }
     <MudTooltip Text="Reload artifact store, deployment state, and audit log">
         <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                        OnClick="@ReloadPanelsAsync"
-                       Disabled="@_running" />
+                       Disabled="@_rs.IsRunning" />
     </MudTooltip>
 </MudStack>
 
@@ -80,7 +87,7 @@
         <MudButton Variant="Variant.Outlined"
                    Color="Color.Default"
                    StartIcon="@Icons.Material.Filled.Refresh"
-                   Disabled="@_running"
+                   Disabled="@_rs.IsRunning"
                    OnClick="@RegenerateVersion">
             Regenerate
         </MudButton>
@@ -90,7 +97,7 @@
         {
             <MudButton Variant="@(_selectedEnvironment == env ? Variant.Filled : Variant.Outlined)"
                        Color="Color.Primary"
-                       Disabled="@_running"
+                       Disabled="@_rs.IsRunning"
                        OnClick="@(() => _selectedEnvironment = env)">
                 @env
             </MudButton>
@@ -104,21 +111,21 @@
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Build"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildApiAsync">
         Build API
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Secondary"
                StartIcon="@Icons.Material.Filled.Upload"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@DeployApiAsync">
         Deploy API → @_selectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployApiAsync">
         Build + Deploy API → @_selectedEnvironment
     </MudButton>
@@ -130,21 +137,21 @@
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Build"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildCocoApiAsync">
         Build Coco API
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Secondary"
                StartIcon="@Icons.Material.Filled.Upload"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@DeployCocoApiAsync">
         Deploy Coco API → @_selectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployCocoApiAsync">
         Build + Deploy Coco API → @_selectedEnvironment
     </MudButton>
@@ -156,21 +163,21 @@
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Build"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildLaaAsync">
         Build LAA
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Secondary"
                StartIcon="@Icons.Material.Filled.PhoneAndroid"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@DeployLaaAsync">
         Deploy LAA → @_selectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployLaaAsync">
         Build + Deploy LAA → @_selectedEnvironment
     </MudButton>
@@ -182,21 +189,21 @@
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Build"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildLaaWindowsAsync">
         Build LAA Windows
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Secondary"
                StartIcon="@Icons.Material.Filled.Computer"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@DeployLaaWindowsAsync">
         Deploy LAA Windows → @_selectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployLaaWindowsAsync">
         Build + Deploy LAA Windows → @_selectedEnvironment
     </MudButton>
@@ -208,21 +215,21 @@
     <MudButton Variant="Variant.Filled"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Inventory"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@PublishNuGetsAsync">
         Publish All NuGets
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Inventory"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@PublishNuGetPrimitivesAsync">
         Publish Primitives
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Inventory"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@PublishNuGetCoreAsync">
         Publish Core
     </MudButton>
@@ -234,21 +241,21 @@
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Info"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@(() => RunInGitRepoAsync("git", "status"))">
         Git Status
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Download"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@(() => RunInGitRepoAsync("git", "pull"))">
         Git Pull
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Default"
                StartIcon="@Icons.Material.Filled.Science"
-               Disabled="@_running"
+               Disabled="@_rs.IsRunning"
                OnClick="@(() => RunCoreAsync(CpRepoRoot, ("dotnet", $@"test ""{CpRepoRoot}\src\CognitivePlatform.Tests\CognitivePlatform.Tests.csproj""")))">
         Run Tests
     </MudButton>
@@ -329,7 +336,7 @@
                                             <MudButton Size="Size.Small"
                                                        Variant="Variant.Outlined"
                                                        Color="@EnvButtonColor(capturedEnv)"
-                                                       Disabled="@_running"
+                                                       Disabled="@_rs.IsRunning"
                                                        OnClick="@(() => DeployArtifactAsync(capturedArtifact, capturedEnv))">
                                                 @capturedEnv
                                             </MudButton>
@@ -505,7 +512,7 @@
                            Color="@EnvButtonColor(capturedEnv)"
                            Size="Size.Small"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_running"
+                           Disabled="@_rs.IsRunning"
                            OnClick="@(() => StartApiAsync(capturedEnv))">
                     @capturedEnv
                 </MudButton>
@@ -520,7 +527,7 @@
                            Color="@EnvButtonColor(capturedEnv)"
                            Size="Size.Small"
                            StartIcon="@Icons.Material.Filled.Computer"
-                           Disabled="@_running"
+                           Disabled="@_rs.IsRunning"
                            OnClick="@(() => StartLaaWindowsAsync(capturedEnv))">
                     @capturedEnv
                 </MudButton>
@@ -535,7 +542,7 @@
                            Color="@EnvButtonColor(capturedEnv)"
                            Size="Size.Small"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_running"
+                           Disabled="@_rs.IsRunning"
                            OnClick="@(() => StartCocoApiAsync(capturedEnv))">
                     @capturedEnv
                 </MudButton>
@@ -561,7 +568,7 @@
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Warning"
                                StartIcon="@Icons.Material.Filled.SwapHoriz"
-                               Disabled="@_running"
+                               Disabled="@_rs.IsRunning"
                                OnClick="@SwapDbAsync">
                         Swap DB
                     </MudButton>
@@ -581,7 +588,7 @@
                     <MudButton Variant="Variant.Outlined"
                                Color="Color.Default"
                                StartIcon="@Icons.Material.Filled.Restore"
-                               Disabled="@_running"
+                               Disabled="@_rs.IsRunning"
                                OnClick="@RestoreDbAsync">
                         Restore Dev DB
                     </MudButton>
@@ -607,14 +614,14 @@
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.PlayArrow"
-                   Disabled="@(string.IsNullOrWhiteSpace(_customExe) || _running)"
+                   Disabled="@(string.IsNullOrWhiteSpace(_customExe) || _rs.IsRunning)"
                    OnClick="@RunCustomAsync">
             Run
         </MudButton>
         <MudButton Variant="Variant.Outlined"
                    Color="Color.Default"
                    StartIcon="@Icons.Material.Filled.Clear"
-                   Disabled="@_running"
+                   Disabled="@_rs.IsRunning"
                    OnClick="@ClearOutput">
             Clear
         </MudButton>
@@ -622,22 +629,25 @@
 </MudPaper>
 
 @* ── Terminal output ── *@
-@if (_runError is not null)
+@if (_rs.Error is not null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_runError</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_rs.Error</MudAlert>
 }
 
+@{
+    var _releaseLines = _rs.Snapshot();
+}
 <MudPaper Elevation="4"
           Style="background:#1e1e1e;padding:16px;height:500px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-    @if (_output.Count == 0)
+    @if (_releaseLines.Length == 0)
     {
         <span style="color:#6b7280;font-style:italic">Run a command to see output here…</span>
     }
     else
     {
-        @foreach (var line in _output)
+        @foreach (var line in _releaseLines)
         {
-            <div style="color:@(line.IsError ? "#ff6b6b" : "#d4d4d4");white-space:pre-wrap;line-height:1.55">@line.Text</div>
+            <div style="color:@(line.Kind == TerminalLineKind.Error ? "#ff6b6b" : "#d4d4d4");white-space:pre-wrap;line-height:1.55">@line.Text</div>
         }
     }
     <div id="terminal-end"></div>
@@ -645,8 +655,6 @@
 
 @code {
     // ── Record types ───────────────────────────────────────────────────────────
-
-    private sealed record OutputLine(string Text, bool IsError);
 
     private sealed record ArtifactEntry(
         string        Component
@@ -754,20 +762,14 @@
 
     // ── Terminal state ─────────────────────────────────────────────────────────
 
-    private string             _workingDirectory = string.Empty;
-    private string             _gitDirectory     = string.Empty;
-    private string?            _workDirWarning;
-    private string?            _gitDirWarning;
-    private string             _version             = GenerateVersion();
-    private string             _selectedEnvironment = "DEV";
-    private string             _customExe           = string.Empty;
-    private string             _customArgs          = string.Empty;
-    private bool               _running;
-    private int?               _exitCode;
-    private string?            _runError;
-    private readonly List<OutputLine> _output = [];
-    private CancellationTokenSource?  _cts;
-    private Process?                  _process;
+    private string  _workingDirectory    = string.Empty;
+    private string  _gitDirectory        = string.Empty;
+    private string? _workDirWarning;
+    private string? _gitDirWarning;
+    private string  _version             = GenerateVersion();
+    private string  _selectedEnvironment = "DEV";
+    private string  _customExe           = string.Empty;
+    private string  _customArgs          = string.Empty;
 
     // ── Panel state ────────────────────────────────────────────────────────────
 
@@ -825,10 +827,18 @@
 
     protected override void OnInitialized()
     {
+        TerminalService.StateChanged += OnTerminalChanged;
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
         LoadArtifacts();
         LoadDeploymentState();
         LoadAuditLog();
+    }
+
+    private void OnTerminalChanged(string id)
+    {
+        if (id != "release") return;
+        try { _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(); }); }
+        catch { /* component disposed */ }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -972,14 +982,14 @@
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""");
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+        if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("API", ApiArtifactDir);
     }
 
     private async Task DeployApiAsync()
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}");
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("API", _selectedEnvironment
                                           , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
@@ -990,7 +1000,7 @@
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" ));
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("API", ApiArtifactDir);
             await WriteDeploymentStateAsync("API", _selectedEnvironment
@@ -1003,14 +1013,14 @@
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""");
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+        if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
     }
 
     private async Task DeployLaaAsync()
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}");
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
     }
 
@@ -1019,7 +1029,7 @@
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" ));
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
@@ -1030,14 +1040,14 @@
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""");
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+        if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
     }
 
     private async Task DeployLaaWindowsAsync()
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""");
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
@@ -1048,7 +1058,7 @@
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""" ));
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
@@ -1061,14 +1071,14 @@
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""");
-        if (_exitCode == 0) await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
+        if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
     }
 
     private async Task DeployCocoApiAsync()
     {
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}");
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
@@ -1079,7 +1089,7 @@
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}" ));
-        if (_exitCode == 0)
+        if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
@@ -1241,9 +1251,8 @@
     {
         if (artifact.ZipPath is null || !File.Exists(artifact.ZipPath))
         {
-            _output.Clear();
-            _output.Add(new($"[Error: zip not found — {artifact.ZipPath}]", IsError: true));
-            StateHasChanged();
+            TerminalService.Clear("release");
+            TerminalService.AppendLine("release", new TerminalLine($"[Error: zip not found — {artifact.ZipPath}]", TerminalLineKind.Error));
             return;
         }
 
@@ -1262,7 +1271,7 @@
             catch { /* ignore cleanup failure */ }
 
             // Refresh deployment state so the table reflects the new deploy
-            if (_exitCode == 0)
+            if (TerminalService.Get("release").ExitCode == 0)
                 await WriteDeploymentStateAsync(artifact.Component, environment
                                                , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(environment)}.exe"
                                                , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(environment)));
@@ -1365,90 +1374,71 @@
         var wt          = ResolveWt();
         const string processName = "CognitivePlatform.Api";
 
-        _output.Clear();
-        _exitCode = null;
-        _runError = null;
-        await InvokeAsync(StateHasChanged);
+        TerminalService.Clear("release");
 
         var already = Process.GetProcessesByName(processName);
         if (already.Length > 0)
         {
-            _output.Add(new($"[{processName} is already running — PID {already[0].Id}]", false));
-            _exitCode = 0;
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
+            TerminalService.SetExitCode("release", 0);
             return;
         }
 
-        _output.Add(new($"$ wt -p \"{profile}\"", false));
-        _output.Add(new($"Opening Windows Terminal profile \"{profile}\"…", false));
-        await InvokeAsync(StateHasChanged);
+        TerminalService.AppendLine("release", new TerminalLine($"$ wt -p \"{profile}\""));
+        TerminalService.AppendLine("release", new TerminalLine($"Opening Windows Terminal profile \"{profile}\"…"));
 
         try
         {
-            // Launch the pre-configured Windows Terminal profile.
-            // The profile already has the correct commandline, working directory,
-            // colours, icon, tab title, and elevate=true — no extra configuration needed.
             Process.Start(new ProcessStartInfo
             {
                 FileName        = wt
               , Arguments       = $@"-p ""{profile}"""
               , UseShellExecute = true
             });
-            
+
             const int secondsToWait = 5;
-            _output.Add(new($"Waiting {secondsToWait} s for API to initialise…", false));
-            
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"Waiting {secondsToWait} s for API to initialise…"));
+
             await Task.Delay(secondsToWait * 1000);
 
             var running = Process.GetProcessesByName(processName);
             if (running.Length > 0)
             {
-                _output.Add(new($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"
-                              , IsError: false));
-                _exitCode = 0;
+                TerminalService.AppendLine("release", new TerminalLine($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"));
+                TerminalService.SetExitCode("release", 0);
             }
             else
             {
-                _output.Add(new($"[API process not found after 2 s — check the Terminal window for startup errors.]"
-                              , IsError: true));
-                _exitCode = 1;
+                TerminalService.AppendLine("release", new TerminalLine($"[API process not found after {secondsToWait} s — check the Terminal window for startup errors.]", TerminalLineKind.Error));
+                TerminalService.SetExitCode("release", 1);
             }
         }
         catch (Exception ex)
         {
-            _runError = ex.Message;
-            _output.Add(new($"[Error: {ex.Message}]", IsError: true));
-            _exitCode = 1;
+            TerminalService.SetError("release", ex.Message);
+            TerminalService.AppendLine("release", new TerminalLine($"[Error: {ex.Message}]", TerminalLineKind.Error));
+            TerminalService.SetExitCode("release", 1);
         }
-
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync();
     }
 
     private async Task StartCocoApiAsync(string env)
     {
-        var profile = CocoTerminalProfile(env);
-        var wt      = ResolveWt();
+        var profile     = CocoTerminalProfile(env);
+        var wt          = ResolveWt();
         const string processName = "Coco.API";
 
-        _output.Clear();
-        _exitCode = null;
-        _runError = null;
-        await InvokeAsync(StateHasChanged);
+        TerminalService.Clear("release");
 
         var already = Process.GetProcessesByName(processName);
         if (already.Length > 0)
         {
-            _output.Add(new($"[{processName} is already running — PID {already[0].Id}]", false));
-            _exitCode = 0;
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
+            TerminalService.SetExitCode("release", 0);
             return;
         }
 
-        _output.Add(new($"$ wt -p \"{profile}\"", false));
-        _output.Add(new($"Opening Windows Terminal profile \"{profile}\"…", false));
-        await InvokeAsync(StateHasChanged);
+        TerminalService.AppendLine("release", new TerminalLine($"$ wt -p \"{profile}\""));
+        TerminalService.AppendLine("release", new TerminalLine($"Opening Windows Terminal profile \"{profile}\"…"));
 
         try
         {
@@ -1460,34 +1450,28 @@
             });
 
             const int secondsToWait = 5;
-            _output.Add(new($"Waiting {secondsToWait} s for API to initialise…", false));
+            TerminalService.AppendLine("release", new TerminalLine($"Waiting {secondsToWait} s for API to initialise…"));
 
-            await InvokeAsync(StateHasChanged);
             await Task.Delay(secondsToWait * 1000);
 
             var running = Process.GetProcessesByName(processName);
             if (running.Length > 0)
             {
-                _output.Add(new($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"
-                              , IsError: false));
-                _exitCode = 0;
+                TerminalService.AppendLine("release", new TerminalLine($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"));
+                TerminalService.SetExitCode("release", 0);
             }
             else
             {
-                _output.Add(new($"[API process not found after {secondsToWait} s — check the Terminal window for startup errors.]"
-                              , IsError: true));
-                _exitCode = 1;
+                TerminalService.AppendLine("release", new TerminalLine($"[API process not found after {secondsToWait} s — check the Terminal window for startup errors.]", TerminalLineKind.Error));
+                TerminalService.SetExitCode("release", 1);
             }
         }
         catch (Exception ex)
         {
-            _runError = ex.Message;
-            _output.Add(new($"[Error: {ex.Message}]", IsError: true));
-            _exitCode = 1;
+            TerminalService.SetError("release", ex.Message);
+            TerminalService.AppendLine("release", new TerminalLine($"[Error: {ex.Message}]", TerminalLineKind.Error));
+            TerminalService.SetExitCode("release", 1);
         }
-
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync();
     }
 
     private async Task StartLaaWindowsAsync(string env)
@@ -1502,37 +1486,29 @@
                                                    , string                       workDir
                                                    , Dictionary<string, string>?  envVars = null)
     {
-        _output.Clear();
-        _exitCode = null;
-        _runError = null;
-        await InvokeAsync(StateHasChanged);
+        TerminalService.Clear("release");
 
         if (!File.Exists(exePath))
         {
-            _output.Add(new($"[Error: executable not found — {exePath}]", IsError: true));
-            _exitCode = 1;
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"[Error: executable not found — {exePath}]", TerminalLineKind.Error));
+            TerminalService.SetExitCode("release", 1);
             return;
         }
 
         var already = Process.GetProcessesByName(processName);
         if (already.Length > 0)
         {
-            _output.Add(new($"[{processName} is already running — PID {already[0].Id}]", IsError: false));
-            _exitCode = 0;
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
+            TerminalService.SetExitCode("release", 0);
             return;
         }
 
-        _output.Add(new($"$ {exePath}", false));
-        _output.Add(new(string.Empty, false));
-        await InvokeAsync(StateHasChanged);
+        TerminalService.AppendLine("release", new TerminalLine($"$ {exePath}"));
+        TerminalService.AppendLine("release", new TerminalLine(string.Empty));
 
         Process? proc = null;
         try
         {
-            // Redirect output so startup logs (and crash traces) are captured in the
-            // terminal here rather than disappearing in a closing console window.
             var startInfo = new ProcessStartInfo
             {
                 FileName               = exePath
@@ -1551,26 +1527,16 @@
 
             proc = new Process { StartInfo = startInfo };
 
-            proc.OutputDataReceived += async (_, e) =>
+            proc.OutputDataReceived += (_, e) =>
             {
                 if (e.Data is null) return;
-                try
-                {
-                    await InvokeAsync(() => { _output.Add(new(e.Data, false)); StateHasChanged(); });
-                    await ScrollToBottomAsync();
-                }
-                catch { /* component may have been disposed */ }
+                TerminalService.AppendLine("release", new TerminalLine(e.Data));
             };
 
-            proc.ErrorDataReceived += async (_, e) =>
+            proc.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data is null) return;
-                try
-                {
-                    await InvokeAsync(() => { _output.Add(new(e.Data, true)); StateHasChanged(); });
-                    await ScrollToBottomAsync();
-                }
-                catch { /* component may have been disposed */ }
+                TerminalService.AppendLine("release", new TerminalLine(e.Data, TerminalLineKind.Error));
             };
 
             proc.Start();
@@ -1578,42 +1544,37 @@
             proc.BeginErrorReadLine();
 
             var pid = proc.Id;
-            _output.Add(new($"[PID {pid} — waiting 2 s for startup…]", false));
-            await InvokeAsync(StateHasChanged);
+            TerminalService.AppendLine("release", new TerminalLine($"[PID {pid} — waiting 2 s for startup…]"));
 
-            // Wait long enough for the process to bind ports or crash
             await Task.Delay(2000);
 
             if (proc.HasExited)
             {
-                _output.Add(new($"[Process exited with code {proc.ExitCode} — see output above for the crash details.]"
-                              , IsError: true));
-                _exitCode = proc.ExitCode == 0 ? 1 : proc.ExitCode;
+                TerminalService.AppendLine("release", new TerminalLine(
+                    $"[Process exited with code {proc.ExitCode} — see output above for the crash details.]"
+                  , TerminalLineKind.Error));
+                TerminalService.SetExitCode("release", proc.ExitCode == 0 ? 1 : proc.ExitCode);
                 proc.Dispose();
                 proc = null;
             }
             else
             {
-                // Stop capturing — we only needed startup output; the process runs on
                 try { proc.CancelOutputRead(); } catch { /* ignore */ }
                 try { proc.CancelErrorRead();  } catch { /* ignore */ }
-                _output.Add(new(string.Empty, false));
-                _output.Add(new($"[Running — PID {pid}. Output above is from the startup window only.]", false));
-                _exitCode = 0;
+                TerminalService.AppendLine("release", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("release", new TerminalLine($"[Running — PID {pid}. Output above is from the startup window only.]"));
+                TerminalService.SetExitCode("release", 0);
                 proc = null; // detach — keep running
             }
         }
         catch (Exception ex)
         {
-            _runError = ex.Message;
-            _output.Add(new($"[Error: {ex.Message}]", IsError: true));
-            _exitCode = 1;
+            TerminalService.SetError("release", ex.Message);
+            TerminalService.AppendLine("release", new TerminalLine($"[Error: {ex.Message}]", TerminalLineKind.Error));
+            TerminalService.SetExitCode("release", 1);
             proc?.Dispose();
             proc = null;
         }
-
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync();
     }
 
     // ── Database actions ───────────────────────────────────────────────────────
@@ -1638,35 +1599,28 @@
 
     private async Task RunCoreAsync(string workDir, params (string Exe, string Args)[] steps)
     {
-        if (_running) return;
+        var state = TerminalService.Get("release");
+        if (state.IsRunning) return;
 
-        _running  = true;
-        _exitCode = null;
-        _runError = null;
-
-        _output.Clear();
-
-        _cts = new CancellationTokenSource();
-
-        StateHasChanged();
+        TerminalService.Clear("release");
+        TerminalService.MarkRunning("release", true);
 
         var effectiveWorkDir = workDir;
         if (!string.IsNullOrWhiteSpace(effectiveWorkDir) && !Directory.Exists(effectiveWorkDir))
         {
-            _output.Add(new($"[Warning: directory '{effectiveWorkDir}' does not exist — running without a set CWD]"
-                          , IsError: true));
+            TerminalService.AppendLine("release", new TerminalLine(
+                $"[Warning: directory '{effectiveWorkDir}' does not exist — running without a set CWD]"
+              , TerminalLineKind.Error));
             effectiveWorkDir = string.Empty;
         }
 
+        int? lastExitCode = null;
         try
         {
             foreach (var (exe, args) in steps)
             {
-                _output.Add(new($"$ {exe} {args}", false));
-                _output.Add(new(string.Empty, false));
-
-                await InvokeAsync(StateHasChanged);
-                await ScrollToBottomAsync();
+                TerminalService.AppendLine("release", new TerminalLine($"$ {exe} {args}"));
+                TerminalService.AppendLine("release", new TerminalLine(string.Empty));
 
                 var startInfo = new ProcessStartInfo
                 {
@@ -1679,77 +1633,25 @@
                   , CreateNoWindow         = true
                 };
 
-                _process = new Process { StartInfo = startInfo };
+                lastExitCode = await TerminalService.RunProcessAsync(
+                    "release"
+                  , startInfo
+                  , (text, isError) => new TerminalLine(text, isError ? TerminalLineKind.Error : TerminalLineKind.Normal));
 
-                _process.OutputDataReceived += async (_, eventArgs) =>
-                {
-                    if (eventArgs.Data is null) return;
-                    await InvokeAsync(() => { _output.Add(new(eventArgs.Data, false)); StateHasChanged(); });
-                    await ScrollToBottomAsync();
-                };
+                if (lastExitCode is null || lastExitCode != 0) break;
 
-                _process.ErrorDataReceived += async (_, eventArgs) =>
-                {
-                    if (eventArgs.Data is null) return;
-                    await InvokeAsync(() => { _output.Add(new(eventArgs.Data, true)); StateHasChanged(); });
-                    await ScrollToBottomAsync();
-                };
-
-                var stepAborted = false;
-                try
-                {
-                    _process.Start();
-                    _process.BeginOutputReadLine();
-                    _process.BeginErrorReadLine();
-
-                    await _process.WaitForExitAsync(_cts.Token);
-
-                    _exitCode = _process.ExitCode;
-                }
-                catch (OperationCanceledException)
-                {
-                    _output.Add(new("[Aborted by user]", true));
-                    stepAborted = true;
-                }
-                catch (Exception ex)
-                {
-                    _runError = ex.Message;
-                    _output.Add(new($"[Error: {ex.Message}]", true));
-                    stepAborted = true;
-                }
-                finally
-                {
-                    _process?.Dispose();
-                    _process = null;
-                }
-
-                if (stepAborted
-                 || _exitCode != 0) break;
-
-                _output.Add(new(string.Empty, false));
+                TerminalService.AppendLine("release", new TerminalLine(string.Empty));
             }
         }
         finally
         {
-            _running = false;
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync();
+            TerminalService.SetExitCode("release", lastExitCode);
+            TerminalService.MarkRunning("release", false);
         }
     }
 
-    private void Abort()
-    {
-        _cts?.Cancel();
-        try { _process?.Kill(entireProcessTree: true); }
-        catch { /* process may have already exited */ }
-    }
-
-    private void ClearOutput()
-    {
-        _output.Clear();
-        _exitCode = null;
-        _runError = null;
-    }
+    private void Abort()      => TerminalService.Abort("release");
+    private void ClearOutput() => TerminalService.Clear("release");
 
     private async Task ScrollToBottomAsync()
     {
@@ -1761,12 +1663,9 @@
         catch { /* Ignore during disposal or when DOM is not ready */ }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        try { _process?.Kill(entireProcessTree: true); }
-        catch { /* ignore */ }
-        _process?.Dispose();
+        TerminalService.StateChanged -= OnTerminalChanged;
+        return ValueTask.CompletedTask;
     }
 }

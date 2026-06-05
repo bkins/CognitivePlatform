@@ -1,8 +1,10 @@
 @page "/tests"
 @using System.Diagnostics
+@using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
-@inject IJSRuntime          Js
-@inject NavigationManager   Nav
+@inject IJSRuntime            Js
+@inject NavigationManager     Nav
+@inject ITerminalStateService TerminalService
 
 <PageTitle>Test Runner — CP Admin</PageTitle>
 
@@ -11,19 +13,25 @@
 <MudGrid Spacing="4">
 
     @* ── Android ──────────────────────────────────────────────────────────── *@
+    @{
+        var androidState = TerminalService.Get("test-android");
+        var androidLines = androidState.Snapshot();
+        int androidPassed = androidLines.Count(l => l.Kind == TerminalLineKind.Pass);
+        int androidFailed = androidLines.Count(l => l.Kind == TerminalLineKind.Fail);
+    }
     <MudItem xs="12" md="6">
         <MudPaper Elevation="2" Class="pa-3">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                 <MudIcon Icon="@Icons.Material.Filled.PhoneAndroid" />
                 <MudText Typo="Typo.h6">Android</MudText>
                 <MudSpacer />
-                @if (_androidRunning)
+                @if (androidState.IsRunning)
                 {
                     <MudChip T="string"
                              Color="Color.Warning"
                              Icon="@Icons.Material.Filled.RunCircle"
                              Size="Size.Small">
-                        Running…
+                        @(androidState.ElapsedDisplay.Length > 0 ? androidState.ElapsedDisplay : "Running…")
                     </MudChip>
                     <MudButton Variant="Variant.Outlined"
                                Color="Color.Error"
@@ -33,9 +41,9 @@
                         Abort
                     </MudButton>
                 }
-                else if (_androidExitCode.HasValue)
+                else if (androidState.ExitCode.HasValue)
                 {
-                    @if (_androidExitCode == 0)
+                    @if (androidState.ExitCode == 0)
                     {
                         <MudChip T="string"
                                  Color="Color.Success"
@@ -50,7 +58,7 @@
                                  Color="Color.Error"
                                  Icon="@Icons.Material.Filled.Error"
                                  Size="Size.Small">
-                            Exit @_androidExitCode — Failed
+                            Exit @androidState.ExitCode — Failed
                         </MudChip>
                     }
                 }
@@ -60,35 +68,35 @@
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_androidRunning"
+                           Disabled="@androidState.IsRunning"
                            OnClick="@RunAndroidAsync">
                     Run
                 </MudButton>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ClearAll"
-                           Disabled="@_androidRunning"
+                           Disabled="@androidState.IsRunning"
                            OnClick="@ClearAndroid">
                     Clear
                 </MudButton>
             </MudStack>
 
-            @if (_androidRunError is not null)
+            @if (androidState.Error is not null)
             {
                 <MudAlert Severity="Severity.Error" Class="mb-2">
-                    Failed to start process: @_androidRunError
+                    Failed to start process: @androidState.Error
                 </MudAlert>
             }
 
             <MudPaper Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (_androidOutput.Count == 0)
+                @if (androidLines.Length == 0)
                 {
                     <span style="color:#6b7280;font-style:italic">Run Android tests to see output here…</span>
                 }
                 else
                 {
-                    @foreach (var line in _androidOutput)
+                    @foreach (var line in androidLines)
                     {
                         <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">@line.Text</div>
                     }
@@ -96,16 +104,16 @@
                 <div id="android-terminal-end"></div>
             </MudPaper>
 
-            @if (!_androidRunning && _androidExitCode.HasValue && (_androidPassed + _androidFailed) > 0)
+            @if (!androidState.IsRunning && androidState.ExitCode.HasValue && (androidPassed + androidFailed) > 0)
             {
                 <MudPaper Elevation="0"
                           Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
-                    <span style="color:@(_androidFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
-                        @_androidPassed / @(_androidPassed + _androidFailed) passed
+                    <span style="color:@(androidFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
+                        @androidPassed / @(androidPassed + androidFailed) passed
                     </span>
-                    @if (_androidFailed > 0)
+                    @if (androidFailed > 0)
                     {
-                        <span style="color:#ff6b6b;margin-left:12px">@_androidFailed failed</span>
+                        <span style="color:#ff6b6b;margin-left:12px">@androidFailed failed</span>
                     }
                 </MudPaper>
             }
@@ -113,19 +121,25 @@
     </MudItem>
 
     @* ── Windows ──────────────────────────────────────────────────────────── *@
+    @{
+        var windowsState = TerminalService.Get("test-windows");
+        var windowsLines = windowsState.Snapshot();
+        int windowsPassed = windowsLines.Count(l => l.Kind == TerminalLineKind.Pass);
+        int windowsFailed = windowsLines.Count(l => l.Kind == TerminalLineKind.Fail);
+    }
     <MudItem xs="12" md="6">
         <MudPaper Elevation="2" Class="pa-3">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                 <MudIcon Icon="@Icons.Material.Filled.Computer" />
                 <MudText Typo="Typo.h6">Windows</MudText>
                 <MudSpacer />
-                @if (_windowsRunning)
+                @if (windowsState.IsRunning)
                 {
                     <MudChip T="string"
                              Color="Color.Warning"
                              Icon="@Icons.Material.Filled.RunCircle"
                              Size="Size.Small">
-                        Running…
+                        @(windowsState.ElapsedDisplay.Length > 0 ? windowsState.ElapsedDisplay : "Running…")
                     </MudChip>
                     <MudButton Variant="Variant.Outlined"
                                Color="Color.Error"
@@ -135,9 +149,9 @@
                         Abort
                     </MudButton>
                 }
-                else if (_windowsExitCode.HasValue)
+                else if (windowsState.ExitCode.HasValue)
                 {
-                    @if (_windowsExitCode == 0)
+                    @if (windowsState.ExitCode == 0)
                     {
                         <MudChip T="string"
                                  Color="Color.Success"
@@ -152,7 +166,7 @@
                                  Color="Color.Error"
                                  Icon="@Icons.Material.Filled.Error"
                                  Size="Size.Small">
-                            Exit @_windowsExitCode — Failed
+                            Exit @windowsState.ExitCode — Failed
                         </MudChip>
                     }
                 }
@@ -162,35 +176,35 @@
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_windowsRunning"
+                           Disabled="@windowsState.IsRunning"
                            OnClick="@RunWindowsAsync">
                     Run
                 </MudButton>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Default"
                            StartIcon="@Icons.Material.Filled.ClearAll"
-                           Disabled="@_windowsRunning"
+                           Disabled="@windowsState.IsRunning"
                            OnClick="@ClearWindows">
                     Clear
                 </MudButton>
             </MudStack>
 
-            @if (_windowsRunError is not null)
+            @if (windowsState.Error is not null)
             {
                 <MudAlert Severity="Severity.Error" Class="mb-2">
-                    Failed to start process: @_windowsRunError
+                    Failed to start process: @windowsState.Error
                 </MudAlert>
             }
 
             <MudPaper Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (_windowsOutput.Count == 0)
+                @if (windowsLines.Length == 0)
                 {
                     <span style="color:#6b7280;font-style:italic">Run Windows tests to see output here…</span>
                 }
                 else
                 {
-                    @foreach (var line in _windowsOutput)
+                    @foreach (var line in windowsLines)
                     {
                         <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">@line.Text</div>
                     }
@@ -198,16 +212,16 @@
                 <div id="windows-terminal-end"></div>
             </MudPaper>
 
-            @if (!_windowsRunning && _windowsExitCode.HasValue && (_windowsPassed + _windowsFailed) > 0)
+            @if (!windowsState.IsRunning && windowsState.ExitCode.HasValue && (windowsPassed + windowsFailed) > 0)
             {
                 <MudPaper Elevation="0"
                           Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
-                    <span style="color:@(_windowsFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
-                        @_windowsPassed / @(_windowsPassed + _windowsFailed) passed
+                    <span style="color:@(windowsFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
+                        @windowsPassed / @(windowsPassed + windowsFailed) passed
                     </span>
-                    @if (_windowsFailed > 0)
+                    @if (windowsFailed > 0)
                     {
-                        <span style="color:#ff6b6b;margin-left:12px">@_windowsFailed failed</span>
+                        <span style="color:#ff6b6b;margin-left:12px">@windowsFailed failed</span>
                     }
                 </MudPaper>
             }
@@ -238,24 +252,9 @@
 </MudGrid>
 
 @code {
-    // ── Types ─────────────────────────────────────────────────────────────────────
-
-    private sealed record OutputLine(string Text, LineKind Kind = LineKind.Normal);
-
-    private enum LineKind
-    {
-        Normal
-      , Error
-      , Pass
-      , Fail
-      , PassSummary
-      , FailSummary
-    }
-
     // ── Constants ─────────────────────────────────────────────────────────────────
 
     private const string LaaRepoDir = @"C:\Users\benho\source\repos\LocalAIAssistant";
-    private const string CpRepoDir   = @"C:\Users\benho\source\repos\CognitivePlatform";
 
     private static readonly string PwshExe = ResolvePwsh();
 
@@ -320,58 +319,51 @@
                 var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
                 if (File.Exists(candidate)) return candidate;
             }
-            catch { /* skip */ }
+            catch { /* skip inaccessible or malformed entries */ }
         }
-        return null;
+
+        // PS7 not found via hardcoded paths or PATH directory scan.
+        // Return the bare command name and let the OS resolve it via PATH —
+        // handles non-standard install locations, winget installs, and Store
+        // installs that add only a shell alias rather than a full .exe path.
+        return "pwsh";
     }
 
-    // ── Android state ─────────────────────────────────────────────────────────────
+    // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-    private readonly List<OutputLine>    _androidOutput   = [];
-    private bool                         _androidRunning;
-    private int?                         _androidExitCode;
-    private string?                      _androidRunError;
-    private int                          _androidPassed;
-    private int                          _androidFailed;
-    private Process?                     _androidProcess;
-    private CancellationTokenSource?     _androidCts;
+    protected override void OnInitialized()
+    {
+        TerminalService.StateChanged += OnTerminalChanged;
+    }
 
-    // ── Windows state ─────────────────────────────────────────────────────────────
-
-    private readonly List<OutputLine>    _windowsOutput   = [];
-    private bool                         _windowsRunning;
-    private int?                         _windowsExitCode;
-    private string?                      _windowsRunError;
-    private int                          _windowsPassed;
-    private int                          _windowsFailed;
-    private Process?                     _windowsProcess;
-    private CancellationTokenSource?     _windowsCts;
+    private void OnTerminalChanged(string id)
+    {
+        if (id is not ("test-android" or "test-windows")) return;
+        try
+        {
+            var endId = id == "test-android" ? "android-terminal-end" : "windows-terminal-end";
+            _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(endId); });
+        }
+        catch { /* component disposed */ }
+    }
 
     // ── Android execution ─────────────────────────────────────────────────────────
 
     private async Task RunAndroidAsync()
     {
-        if (_androidRunning) return;
+        var androidState = TerminalService.Get("test-android");
+        if (androidState.IsRunning) return;
 
-        _androidRunning  = true;
-        _androidExitCode = null;
-        _androidRunError = null;
-        _androidPassed   = 0;
-        _androidFailed   = 0;
-        _androidOutput.Clear();
-        _androidCts = new CancellationTokenSource();
-
-        StateHasChanged();
+        TerminalService.Clear("test-android");
+        TerminalService.MarkRunning("test-android", true);
 
         try
         {
             // ── Step 1: check for a connected device ──────────────────────────────
             var deviceLines = new List<string>();
 
-            _androidOutput.Add(new("$ adb devices", LineKind.Normal));
-            _androidOutput.Add(new(string.Empty, LineKind.Normal));
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync("android-terminal-end");
+            TerminalService.AppendLine("test-android", new TerminalLine("$ adb devices"));
+            TerminalService.AppendLine("test-android", new TerminalLine(string.Empty));
 
             var adbStart = new ProcessStartInfo
             {
@@ -383,66 +375,24 @@
               , CreateNoWindow         = true
             };
 
-            _androidProcess = new Process { StartInfo = adbStart };
-
-            _androidProcess.OutputDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() =>
+            var adbExitCode = await TerminalService.RunProcessAsync(
+                "test-android"
+              , adbStart
+              , (text, isError) =>
                 {
-                    deviceLines.Add(eventArgs.Data);
-                    _androidOutput.Add(new(eventArgs.Data, LineKind.Normal));
-                    StateHasChanged();
+                    if (!isError) deviceLines.Add(text);
+                    return new TerminalLine(text, isError ? TerminalLineKind.Error : TerminalLineKind.Normal);
                 });
-                await ScrollToBottomAsync("android-terminal-end");
-            };
 
-            _androidProcess.ErrorDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() => { _androidOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
-                await ScrollToBottomAsync("android-terminal-end");
-            };
+            if (adbExitCode is null) return; // aborted
 
-            var adbAborted = false;
-            try
-            {
-                _androidProcess.Start();
-                _androidProcess.BeginOutputReadLine();
-                _androidProcess.BeginErrorReadLine();
-                await _androidProcess.WaitForExitAsync(_androidCts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                _androidOutput.Add(new("[Aborted by user]", LineKind.Error));
-                adbAborted = true;
-            }
-            catch (Exception ex)
-            {
-                _androidRunError = ex.Message;
-                _androidOutput.Add(new($"[Error: {ex.Message}]", LineKind.Error));
-                adbAborted = true;
-            }
-            finally
-            {
-                _androidProcess?.Dispose();
-                _androidProcess = null;
-            }
+            TerminalService.AppendLine("test-android", new TerminalLine(string.Empty));
 
-            if (adbAborted) return;
-
-            _androidOutput.Add(new(string.Empty, LineKind.Normal));
-
-            // Lines after the "List of devices attached" header that are non-empty indicate attached devices
-            var hasDevice = deviceLines
-                .Skip(1)
-                .Any(line => !string.IsNullOrWhiteSpace(line));
-
+            var hasDevice = deviceLines.Skip(1).Any(line => !string.IsNullOrWhiteSpace(line));
             if (!hasDevice)
             {
-                _androidOutput.Add(new("No Android device connected.", LineKind.Error));
-                await InvokeAsync(StateHasChanged);
-                await ScrollToBottomAsync("android-terminal-end");
+                TerminalService.AppendLine("test-android", new TerminalLine("No Android device connected.", TerminalLineKind.Error));
+                TerminalService.SetExitCode("test-android", 1);
                 return;
             }
 
@@ -450,10 +400,8 @@
             var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Android\SmokeTest-Android.ps1");
             var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
 
-            _androidOutput.Add(new($"$ pwsh {psArgs}", LineKind.Normal));
-            _androidOutput.Add(new(string.Empty, LineKind.Normal));
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync("android-terminal-end");
+            TerminalService.AppendLine("test-android", new TerminalLine($"$ pwsh {psArgs}"));
+            TerminalService.AppendLine("test-android", new TerminalLine(string.Empty));
 
             var testStart = new ProcessStartInfo
             {
@@ -466,117 +414,38 @@
               , CreateNoWindow         = true
             };
 
-            _androidProcess = new Process { StartInfo = testStart };
-
-            _androidProcess.OutputDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() =>
-                {
-                    var kind = ClassifyLine(eventArgs.Data);
-                    if (kind == LineKind.Pass) _androidPassed++;
-                    else if (kind == LineKind.Fail) _androidFailed++;
-                    _androidOutput.Add(new(eventArgs.Data, kind));
-                    StateHasChanged();
-                });
-                await ScrollToBottomAsync("android-terminal-end");
-            };
-
-            _androidProcess.ErrorDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() => { _androidOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
-                await ScrollToBottomAsync("android-terminal-end");
-            };
-
-            try
-            {
-                _androidProcess.Start();
-                _androidProcess.BeginOutputReadLine();
-                _androidProcess.BeginErrorReadLine();
-                await _androidProcess.WaitForExitAsync(_androidCts.Token);
-                _androidExitCode = _androidProcess.ExitCode;
-            }
-            catch (OperationCanceledException)
-            {
-                _androidOutput.Add(new("[Aborted by user]", LineKind.Error));
-            }
-            catch (Exception ex)
-            {
-                _androidRunError = ex.Message;
-                _androidOutput.Add(new($"[Error: {ex.Message}]", LineKind.Error));
-            }
-            finally
-            {
-                _androidProcess?.Dispose();
-                _androidProcess = null;
-            }
+            var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine);
+            TerminalService.SetExitCode("test-android", testExitCode);
         }
         finally
         {
-            _androidRunning = false;
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync("android-terminal-end");
+            TerminalService.MarkRunning("test-android", false);
         }
     }
 
-    private void AbortAndroid()
-    {
-        _androidCts?.Cancel();
-        try { _androidProcess?.Kill(entireProcessTree: true); }
-        catch { /* process may have already exited */ }
-    }
-
-    private void ClearAndroid()
-    {
-        _androidOutput.Clear();
-        _androidExitCode = null;
-        _androidRunError = null;
-        _androidPassed   = 0;
-        _androidFailed   = 0;
-    }
+    private void AbortAndroid()  => TerminalService.Abort("test-android");
+    private void ClearAndroid()  => TerminalService.Clear("test-android");
 
     // ── Windows execution ─────────────────────────────────────────────────────────
 
     private async Task RunWindowsAsync()
     {
-        if (_windowsRunning) return;
+        var windowsState = TerminalService.Get("test-windows");
+        if (windowsState.IsRunning) return;
 
-        _windowsRunning  = true;
-        _windowsExitCode = null;
-        _windowsRunError = null;
-        _windowsPassed   = 0;
-        _windowsFailed   = 0;
-        _windowsOutput.Clear();
-        _windowsCts = new CancellationTokenSource();
-
-        StateHasChanged();
-
-        // SmokeTest-Windows.ps1 uses PS7 syntax ($var::StaticMember) that Windows
-        // PowerShell 5.1 cannot parse. Fail early with a clear message if PS7 is absent.
-        var pwsh7 = FindPwsh7();
-        if (pwsh7 is null)
-        {
-            _windowsOutput.Add(new("[Error: Windows smoke tests require PowerShell 7 (pwsh.exe).]", LineKind.Error));
-            _windowsOutput.Add(new("[The script uses PS7-only syntax ($var::StaticMember) that Windows PowerShell 5.1 cannot parse.]", LineKind.Error));
-            _windowsOutput.Add(new("[Install PowerShell 7 from: https://aka.ms/install-powershell]", LineKind.Error));
-            _windowsExitCode = 1;
-            _windowsRunning  = false;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
-        var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\SmokeTest-Windows.ps1");
-        var scriptDir  = Path.GetDirectoryName(scriptPath)!;
-        var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
-
-        _windowsOutput.Add(new($"$ {pwsh7} {psArgs}", LineKind.Normal));
-        _windowsOutput.Add(new(string.Empty, LineKind.Normal));
-        await InvokeAsync(StateHasChanged);
-        await ScrollToBottomAsync("windows-terminal-end");
+        TerminalService.Clear("test-windows");
+        TerminalService.MarkRunning("test-windows", true);
 
         try
         {
+            var pwsh7      = FindPwsh7();
+            var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\SmokeTest-Windows.ps1");
+            var scriptDir  = Path.GetDirectoryName(scriptPath)!;
+            var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
+
+            TerminalService.AppendLine("test-windows", new TerminalLine($"$ {pwsh7} {psArgs}"));
+            TerminalService.AppendLine("test-windows", new TerminalLine(string.Empty));
+
             var startInfo = new ProcessStartInfo
             {
                 FileName               = pwsh7
@@ -588,113 +457,55 @@
               , CreateNoWindow         = true
             };
 
-            _windowsProcess = new Process { StartInfo = startInfo };
-
-            _windowsProcess.OutputDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() =>
-                {
-                    var kind = ClassifyLine(eventArgs.Data);
-                    if (kind == LineKind.Pass) _windowsPassed++;
-                    else if (kind == LineKind.Fail) _windowsFailed++;
-                    _windowsOutput.Add(new(eventArgs.Data, kind));
-                    StateHasChanged();
-                });
-                await ScrollToBottomAsync("windows-terminal-end");
-            };
-
-            _windowsProcess.ErrorDataReceived += async (_, eventArgs) =>
-            {
-                if (eventArgs.Data is null) return;
-                await InvokeAsync(() => { _windowsOutput.Add(new(eventArgs.Data, LineKind.Error)); StateHasChanged(); });
-                await ScrollToBottomAsync("windows-terminal-end");
-            };
-
-            try
-            {
-                _windowsProcess.Start();
-                _windowsProcess.BeginOutputReadLine();
-                _windowsProcess.BeginErrorReadLine();
-                await _windowsProcess.WaitForExitAsync(_windowsCts.Token);
-                _windowsExitCode = _windowsProcess.ExitCode;
-            }
-            catch (OperationCanceledException)
-            {
-                _windowsOutput.Add(new("[Aborted by user]", LineKind.Error));
-            }
-            catch (Exception ex)
-            {
-                _windowsRunError = ex.Message;
-                _windowsOutput.Add(new($"[Error: {ex.Message}]", LineKind.Error));
-            }
-            finally
-            {
-                _windowsProcess?.Dispose();
-                _windowsProcess = null;
-            }
+            var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine);
+            TerminalService.SetExitCode("test-windows", exitCode);
         }
         finally
         {
-            _windowsRunning = false;
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottomAsync("windows-terminal-end");
+            TerminalService.MarkRunning("test-windows", false);
         }
     }
 
-    private void AbortWindows()
-    {
-        _windowsCts?.Cancel();
-        try { _windowsProcess?.Kill(entireProcessTree: true); }
-        catch { /* process may have already exited */ }
-    }
-
-    private void ClearWindows()
-    {
-        _windowsOutput.Clear();
-        _windowsExitCode = null;
-        _windowsRunError = null;
-        _windowsPassed   = 0;
-        _windowsFailed   = 0;
-    }
+    private void AbortWindows()  => TerminalService.Abort("test-windows");
+    private void ClearWindows()  => TerminalService.Clear("test-windows");
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
-    private static LineKind ClassifyLine(string text)
+    private static TerminalLine ClassifyLine(string text, bool isError)
     {
+        if (isError) return new TerminalLine(text, TerminalLineKind.Error);
+
         var trimmed = text.TrimStart();
 
-        // Individual test result lines: "  Passed TestName [50 ms]" / "  Failed TestName [12 ms]"
         if (trimmed.StartsWith("Passed ", StringComparison.OrdinalIgnoreCase)
          || trimmed.Contains("[PASS]",    StringComparison.OrdinalIgnoreCase)
          || trimmed.Contains("✓")
          || trimmed.Contains("✔"))
-            return LineKind.Pass;
+            return new TerminalLine(text, TerminalLineKind.Pass);
 
         if (trimmed.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase)
          || trimmed.Contains("[FAIL]",    StringComparison.OrdinalIgnoreCase)
          || trimmed.Contains("✗")
          || trimmed.Contains("✘"))
-            return LineKind.Fail;
+            return new TerminalLine(text, TerminalLineKind.Fail);
 
-        // dotnet test overall summary lines: "Passed! - Failed: 0, Passed: 12, ..."
         if (trimmed.StartsWith("Passed!", StringComparison.OrdinalIgnoreCase))
-            return LineKind.PassSummary;
+            return new TerminalLine(text, TerminalLineKind.PassSummary);
 
         if (trimmed.StartsWith("Failed!", StringComparison.OrdinalIgnoreCase))
-            return LineKind.FailSummary;
+            return new TerminalLine(text, TerminalLineKind.FailSummary);
 
-        return LineKind.Normal;
+        return new TerminalLine(text, TerminalLineKind.Normal);
     }
 
-    private static string LineColor(LineKind kind) => kind switch
+    private static string LineColor(TerminalLineKind kind) => kind switch
     {
-        LineKind.Pass        => "#4ec9b0"
-      , LineKind.Fail        => "#ff6b6b"
-      , LineKind.Error       => "#ff6b6b"
-      , LineKind.PassSummary => "#4ec9b0"
-      , LineKind.FailSummary => "#ff6b6b"
-      , _                    => "#d4d4d4"
+        TerminalLineKind.Pass        => "#4ec9b0"
+      , TerminalLineKind.Fail        => "#ff6b6b"
+      , TerminalLineKind.Error       => "#ff6b6b"
+      , TerminalLineKind.PassSummary => "#4ec9b0"
+      , TerminalLineKind.FailSummary => "#ff6b6b"
+      , _                            => "#d4d4d4"
     };
 
     private async Task ScrollToBottomAsync(string terminalEndId)
@@ -709,19 +520,9 @@
 
     // ── Disposal ──────────────────────────────────────────────────────────────────
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        _androidCts?.Cancel();
-        _androidCts?.Dispose();
-        try { _androidProcess?.Kill(entireProcessTree: true); }
-        catch { /* ignore */ }
-        _androidProcess?.Dispose();
-
-        _windowsCts?.Cancel();
-        _windowsCts?.Dispose();
-        try { _windowsProcess?.Kill(entireProcessTree: true); }
-        catch { /* ignore */ }
-        _windowsProcess?.Dispose();
-
+        TerminalService.StateChanged -= OnTerminalChanged;
+        return ValueTask.CompletedTask;
     }
 }
