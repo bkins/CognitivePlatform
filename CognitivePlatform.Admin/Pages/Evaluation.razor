@@ -93,7 +93,7 @@
     {
         <MudItem xs="12">
             <MudText Typo="Typo.h6" Class="mb-2">
-                Latest Run — @_latestRunRows[0].RunDate.ToString("yyyy-MM-dd HH:mm")
+                Latest Run — @_latestRunRows[0].RunDate.ToString("MM/dd/yyyy hh:mm:ss tt zz")
             </MudText>
             <MudGrid Spacing="3">
                 @foreach (var row in _latestRunRows)
@@ -184,38 +184,42 @@
                 <MudGrid Spacing="3">
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
-                            <MudText Typo="Typo.h5" Style="color:#c0caf5;font-weight:700">@_stats.TotalRecords.ToString("N0")</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Total Records</MudText>
+                            <MudText Typo="Typo.h5" Style="color:#d6fad4;font-weight:700">
+                                @_stats.TotalRecords.ToString("N0")
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color:#d6fad4;opacity:0.65">
+                                Total Records
+                            </MudText>
                         </MudPaper>
                     </MudItem>
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
                             <MudText Typo="Typo.h5" Style="color:#9ece6a;font-weight:700">@((_stats.SuccessRate * 100).ToString("F1"))%</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Success Rate</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#9ece6a;opacity:0.65">Success Rate</MudText>
                         </MudPaper>
                     </MudItem>
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
                             <MudText Typo="Typo.h5" Style="color:#7aa2f7;font-weight:700">@_stats.AvgLatencyMs.ToString("N0") ms</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Avg Latency</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#7aa2f7;opacity:0.65">Avg Latency</MudText>
                         </MudPaper>
                     </MudItem>
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
                             <MudText Typo="Typo.h5" Style="color:#e0af68;font-weight:700">@_recentRatePerDay.ToString("F1")</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Records / Day (7d)</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#e0af68;opacity:0.65">Records / Day (7d)</MudText>
                         </MudPaper>
                     </MudItem>
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
                             <MudText Typo="Typo.h5" Style="color:#bb9af7;font-weight:700">@_daysSinceFirst</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Days Active</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#bb9af7;opacity:0.65">Days Active</MudText>
                         </MudPaper>
                     </MudItem>
                     <MudItem xs="6" sm="4" md="2">
                         <MudPaper Elevation="0" Class="pa-2" Style="background:#1e1e2e;border-radius:8px;text-align:center">
                             <MudText Typo="Typo.h5" Style="color:#f7768e;font-weight:700">@_daysTo10K</MudText>
-                            <MudText Typo="Typo.caption" Style="opacity:0.65">Est. Days to 10K</MudText>
+                            <MudText Typo="Typo.caption" Style="color:#f7768e;opacity:0.65">Est. Days to 10K</MudText>
                         </MudPaper>
                     </MudItem>
                 </MudGrid>
@@ -300,7 +304,15 @@
     private void OnTerminalChanged(string id)
     {
         if (id != "eval") return;
-        try { _ = InvokeAsync(async () => { StateHasChanged(); await ScrollAsync(); }); }
+
+        try
+        {
+            _ = InvokeAsync(async () =>
+            {
+                StateHasChanged(); 
+                await ScrollAsync();
+            });
+        }
         catch { /* component disposed */ }
     }
 
@@ -325,6 +337,7 @@
             {
                 _historyRows   = [];
                 _latestRunRows = [];
+                
                 return;
             }
 
@@ -332,31 +345,40 @@
             _latestRunRows  = rawRows.Where(row => row.RunDate.Date == latestDate).ToList();
 
             // Per-model best/worst across all runs
-            var perModel = rawRows.GroupBy(row => row.Model).ToDictionary(
-                group => group.Key
-              , group => (Best: group.Max(row => row.AvgScore), Worst: group.Min(row => row.AvgScore)));
+            var perModel = rawRows.GroupBy(row => row.Model)
+                                  .ToDictionary(group => group.Key
+                                              , group => (
+                                                             Best: group.Max(row => row.AvgScore)
+                                                           , Worst: group.Min(row => row.AvgScore))
+                                                         ); 
 
             // Previous run date per model (for delta)
-            var allSorted = rawRows
-                .OrderByDescending(row => row.RunDate)
-                .ToList();
+            var allSorted = rawRows.OrderByDescending(row => row.RunDate)
+                                   .ToList();
 
             _historyRows = allSorted.Select(raw =>
             {
-                var prior = allSorted
-                    .Where(row => row.Model == raw.Model && row.RunDate < raw.RunDate)
-                    .FirstOrDefault();
+                var prior = allSorted.FirstOrDefault(row => row.Model   == raw.Model 
+                                                         && row.RunDate < raw.RunDate);
 
                 var delta = prior is null ? (double?)null : raw.AvgScore - prior.AvgScore;
 
                 var (best, worst) = perModel[raw.Model];
-                var quality = raw.AvgScore >= best  ? ScoreQuality.Best
-                            : raw.AvgScore <= worst && best != worst ? ScoreQuality.Worst
-                            : ScoreQuality.Normal;
+                var quality = raw.AvgScore >= best  
+                                      ? ScoreQuality.Best
+                                      : raw.AvgScore <= worst 
+                                     && best         != worst 
+                                              ? ScoreQuality.Worst
+                                              : ScoreQuality.Normal;
 
-                return new HistoryRow(raw.RunDate, raw.Model, raw.AvgScore
-                                    , raw.JsonFails, raw.ParamFails, raw.TokPerSecond
-                                    , delta, quality);
+                return new HistoryRow(raw.RunDate
+                                    , raw.Model
+                                    , raw.AvgScore
+                                    , raw.JsonFails
+                                    , raw.ParamFails
+                                    , raw.TokPerSecond
+                                    , delta
+                                    , quality);
             }).ToList();
         }
         catch (Exception ex)
@@ -389,7 +411,8 @@
         _recentRatePerDay = recent7 / 7.0;
 
         // Estimated days to 10K
-        if (_recentRatePerDay > 0 && _stats.TotalRecords < 10_000)
+        if (_recentRatePerDay   > 0 
+         && _stats.TotalRecords < 10_000)
         {
             var daysNeeded = (int)Math.Ceiling((10_000 - _stats.TotalRecords) / _recentRatePerDay);
             _daysTo10K = daysNeeded.ToString("N0");
@@ -411,13 +434,19 @@
         TerminalService.MarkRunning("eval", true);
 
         var psExe      = Pwsh7Exe ?? @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
-        var scriptPath = Path.Combine(CpRepoDir, @"Scripts\Run-InterpreterEval.ps1");
-        var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
+        var scriptPath = Path.Combine(CpRepoDir, @"Scripts\Run-InterpreterEvalv2.ps1");
+        var config     = "Release";
+
+#if DEBUG
+        config = "Debug";
+#endif
+        
+        var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}"" -Configuration {config}";
 
         if (Pwsh7Exe is null)
-            TerminalService.AppendLine("eval", new TerminalLine(
-                "[Note: PowerShell 7 not found — using Windows PowerShell 5.1. Install PS7 for best results.]"
-              , TerminalLineKind.Normal));
+            TerminalService.AppendLine("eval"
+                                     , new TerminalLine("[Note: PowerShell 7 not found — using Windows PowerShell 5.1. Install PS7 for best results.]"
+                                                      , TerminalLineKind.Normal));
 
         TerminalService.AppendLine("eval", new TerminalLine($"$ {psExe} {psArgs}"));
         TerminalService.AppendLine("eval", new TerminalLine(string.Empty));
@@ -438,12 +467,21 @@
         static TerminalLine Classify(string text, bool isError)
         {
             if (isError) return new TerminalLine(text, TerminalLineKind.Error);
-            var t = text.TrimStart();
-            if (t.Contains("[PASS]", StringComparison.OrdinalIgnoreCase) || t.Contains("✓") || t.Contains("✔"))
+            
+            var trimStart = text.TrimStart();
+            
+            if (trimStart.Contains("[PASS]", StringComparison.OrdinalIgnoreCase) 
+             || trimStart.Contains("✓") 
+             || trimStart.Contains("✔"))
+            {
                 return new TerminalLine(text, TerminalLineKind.Pass);
-            if (t.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase) || t.Contains("✗") || t.Contains("✘"))
-                return new TerminalLine(text, TerminalLineKind.Fail);
-            return new TerminalLine(text, TerminalLineKind.Normal);
+            }
+
+            return trimStart.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase)
+                || trimStart.Contains("✗")
+                || trimStart.Contains("✘")
+                           ? new TerminalLine(text, TerminalLineKind.Fail)
+                           : new TerminalLine(text);
         }
 
         int? exitCode;
@@ -456,8 +494,7 @@
             TerminalService.MarkRunning("eval", false);
         }
 
-        if (exitCode == 0)
-            await RefreshAll();
+        if (exitCode == 0) await RefreshAll();
     }
 
     private void AbortEval() => TerminalService.Abort("eval");
@@ -472,10 +509,11 @@
       , _                      => "#d4d4d4"
     };
 
-    private static string ScoreToColor(double score)
-        => score >= 85 ? "#9ece6a"
-         : score >= 70 ? "#e0af68"
-         : "#f7768e";
+    private static string ScoreToColor(double score) => score >= 85 
+                                                            ? "#9ece6a" 
+                                                            : score >= 70 
+                                                                    ? "#e0af68"
+                                                                    : "#f7768e";
 
     private static string ScoreCellStyle(HistoryRow row)
     {
@@ -491,17 +529,19 @@
     private static string DeltaCellStyle(HistoryRow row)
     {
         if (row.Delta is null) return "text-align:right;opacity:0.4";
-        return row.Delta > 0.5  ? "text-align:right;color:#9ece6a"
-             : row.Delta < -0.5 ? "text-align:right;color:#f7768e"
-             : "text-align:right;opacity:0.6";
+        
+        return row.Delta > 0.5  
+                       ? "text-align:right;color:#9ece6a"
+                       : row.Delta < -0.5 
+                               ? "text-align:right;color:#f7768e"
+                               : "text-align:right;opacity:0.6";
     }
 
     private async Task ScrollAsync()
     {
         try
         {
-            await Js.InvokeVoidAsync("eval"
-                                   , "var c=document.getElementById('eval-terminal');if(c)c.scrollTop=c.scrollHeight;");
+            await Js.InvokeVoidAsync("eval", "var c=document.getElementById('eval-terminal');if(c)c.scrollTop=c.scrollHeight;");
         }
         catch { /* ignore during disposal */ }
     }
@@ -511,6 +551,7 @@
     public ValueTask DisposeAsync()
     {
         TerminalService.StateChanged -= OnTerminalChanged;
+        
         return ValueTask.CompletedTask;
     }
 }

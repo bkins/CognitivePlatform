@@ -10,11 +10,12 @@
 
   <ItemGroup>
     <!-- Keep in sync with CognitivePlatform.Api.csproj -->
-    <PackageReference Include="CP.Shared.Primitives" Version="0.1.45" />
+    <PackageReference Include="CP.Client.Core" Version="0.1.59" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
     <!-- Markdown rendering in Journal Admin (revision text view) -->
     <PackageReference Include="Markdig"              Version="0.38.0" />
+    <PackageReference Include="System.Management.Automation" Version="7.6.3" />
   </ItemGroup>
 
 </Project>

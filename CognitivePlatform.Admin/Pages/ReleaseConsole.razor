@@ -1606,11 +1606,12 @@
         TerminalService.MarkRunning("release", true);
 
         var effectiveWorkDir = workDir;
-        if (!string.IsNullOrWhiteSpace(effectiveWorkDir) && !Directory.Exists(effectiveWorkDir))
+        if ( ! string.IsNullOrWhiteSpace(effectiveWorkDir) 
+         &&  ! Directory.Exists(effectiveWorkDir))
         {
-            TerminalService.AppendLine("release", new TerminalLine(
-                $"[Warning: directory '{effectiveWorkDir}' does not exist — running without a set CWD]"
-              , TerminalLineKind.Error));
+            TerminalService.AppendLine("release"
+                                     , new TerminalLine($"[Warning: directory '{effectiveWorkDir}' does not exist — running without a set CWD]"
+                                                      , TerminalLineKind.Error));
             effectiveWorkDir = string.Empty;
         }
 
@@ -1633,12 +1634,14 @@
                   , CreateNoWindow         = true
                 };
 
-                lastExitCode = await TerminalService.RunProcessAsync(
-                    "release"
-                  , startInfo
-                  , (text, isError) => new TerminalLine(text, isError ? TerminalLineKind.Error : TerminalLineKind.Normal));
+                lastExitCode = await TerminalService.RunProcessAsync("release"
+                                                                   , startInfo
+                                                                   , (text, isError) => new TerminalLine(text
+                                                                                                       , isError 
+                                                                                                             ? TerminalLineKind.Error 
+                                                                                                             : TerminalLineKind.Normal));
 
-                if (lastExitCode is null || lastExitCode != 0) break;
+                if (lastExitCode is not 0) break;
 
                 TerminalService.AppendLine("release", new TerminalLine(string.Empty));
             }
@@ -1650,7 +1653,7 @@
         }
     }
 
-    private void Abort()      => TerminalService.Abort("release");
+    private void Abort()       => TerminalService.Abort("release");
     private void ClearOutput() => TerminalService.Clear("release");
 
     private async Task ScrollToBottomAsync()

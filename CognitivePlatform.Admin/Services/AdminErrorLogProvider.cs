@@ -29,7 +29,7 @@ internal sealed class AdminErrorLogger : ILogger
         _errorLog = errorLog;
     }
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
