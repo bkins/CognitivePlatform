@@ -13,9 +13,9 @@ using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Workspace;
+using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Tests;
-
 
 /// <summary>
 /// EPIC-08 B2: Verifies that the orchestrator returns improved user-friendly messages
@@ -42,7 +42,7 @@ public class OrchestratorGracefulFailureTests
     private readonly ConversationContextStore    _contextStore     = new();
     private readonly TelemetryContext            _telemetryContext = new() { SessionId = "test-session" };
     private readonly LlmModelCatalog             _modelCatalog     = new();
-    private readonly LlmProviderDefaults         _providerDefaults = new();
+    private readonly LlmProviderDefaults         _providerDefaults = new LlmProviderDefaults(Options.Create(new LlmClientSettings()));
 
     public OrchestratorGracefulFailureTests()
     {
@@ -107,28 +107,29 @@ public class OrchestratorGracefulFailureTests
         _registryMock.Setup(registry => registry.GetAll())
                      .Returns(Array.Empty<ActionMetadata>());
 
-        _interpreterMock
-            .Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
-                                                                                                                                    , It.IsAny<ConversationContext>()
-                                                                                                                                    , It.IsAny<TaskComplexity>()))
-            .ReturnsAsync(new InterpreterResult
-                          {
-                                  ActionName          = null
-                                , ExtractedParameters = new()
-                                , FailureType         = InterpreterFailureType.NoMatchingAction
-                                , CandidateActions    = new List<string> { "AddTask" }
-                                , Reason              = "Input unclear."
-                          });
+        _interpreterMock.Setup(interpreter => interpreter.InterpretWithContext(It.IsAny<string>()
+                                                                             , It.IsAny<ConversationContext>()
+                                                                             , It.IsAny<TaskComplexity>()))
+                        .ReturnsAsync(new InterpreterResult
+                                      {
+                                              ActionName          = null
+                                            , ExtractedParameters = new()
+                                            , FailureType         = InterpreterFailureType.NoMatchingAction
+                                            , CandidateActions    = new List<string> { "AddTask" }
+                                            , Reason              = "Input unclear."
+                                      });
 
         var orchestrator = BuildOrchestrator();
-        var response     = await orchestrator.ConverseAsync(new ConverseRequest
-                                                            {
-                                                                    SessionId = "test-session"
-                                                                  , Input     = "do something"
-                                                            });
+        var response = await orchestrator.ConverseAsync(new ConverseRequest
+                                                        {
+                                                                SessionId = "test-session"
+                                                              , Input     = "do something"
+                                                        });
 
         Assert.NotNull(response.Message);
-        Assert.Contains("AddTask", response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AddTask"
+                      , response.Message
+                      , StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

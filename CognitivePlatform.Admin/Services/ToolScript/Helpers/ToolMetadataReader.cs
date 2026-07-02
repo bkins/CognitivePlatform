@@ -10,9 +10,8 @@ public sealed class ToolMetadataReader : IToolMetadataReader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scriptPath);
 
-        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        bool insideToolBlock = false;
+        var metadata        = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var insideToolBlock = false;
 
         foreach (var rawLine in File.ReadLines(scriptPath))
         {

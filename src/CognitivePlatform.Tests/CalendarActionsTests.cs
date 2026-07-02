@@ -1,4 +1,4 @@
-﻿using Moq;
+using Moq;
 using CognitivePlatform.Api.Domains.Calendar;
 using CognitivePlatform.Api.Integrations.Calendar;
 using System.Collections.Generic;
@@ -268,6 +268,16 @@ public class CalendarActionsTests
         var result = await _actions.AddCalendarEvent("Sprint Review", "2026-04-15T10:00:00");
 
         Assert.Contains("Failed", result);
+    }
+
+    [Fact]
+    public async Task AddCalendarEvent_ReturnsError_WhenEndTimeBeforeOrEqualStartTime()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+
+        var result = await _actions.AddCalendarEvent("Sprint Review", "2026-04-15T10:00:00", endDateTime: "2026-04-15T09:00:00");
+
+        Assert.Contains("end time must be after the start time", result, StringComparison.OrdinalIgnoreCase);
     }
 
     // ================================================================

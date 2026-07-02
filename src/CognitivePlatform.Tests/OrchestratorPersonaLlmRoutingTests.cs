@@ -15,6 +15,7 @@ using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Workspace;
+using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Tests;
 
@@ -40,7 +41,7 @@ public class OrchestratorPersonaLlmRoutingTests
     private readonly ConversationContextStore    _contextStore     = new();
     private readonly TelemetryContext            _telemetryContext = new() { SessionId = "persona-routing-test" };
     private readonly LlmModelCatalog             _modelCatalog     = new();
-    private readonly LlmProviderDefaults         _providerDefaults = new();
+    private readonly LlmProviderDefaults         _providerDefaults = new LlmProviderDefaults(Options.Create(new LlmClientSettings()));
 
     private const string SessionId         = "persona-routing-test";
     private const string DefaultSystemPrompt = "You are modeling Sarah, a warm and thoughtful person.";

@@ -16,6 +16,9 @@ using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
+//TODO: If you are reading this, please fix this test. Either by mocking
+// the settings or creating and passing in the settings, or some other option
+
 /// <summary>
 /// ENH-19: verifies that ConversationOrchestrator surfaces a user-facing note
 /// when a Heavy LLM request was served by a lower-tier model.
@@ -40,7 +43,7 @@ public class OrchestratorTierDowngradeTests
     private readonly ConversationContextStore    _contextStore     = new();
     private readonly TelemetryContext            _telemetryContext = new() { SessionId = "tier-test-session" };
     private readonly LlmModelCatalog             _modelCatalog     = new();
-    private readonly LlmProviderDefaults         _providerDefaults = new();
+    private readonly LlmProviderDefaults         _providerDefaults = new(Microsoft.Extensions.Options.Options.Create(new LlmClientSettings()));
 
     private const string SessionId = "tier-test-session";
 
@@ -132,7 +135,7 @@ public class OrchestratorTierDowngradeTests
     // ----------------------------------------------------------------
 
     [Fact]
-    public async Task ConverseAsync_AppendsTierDowngradeNote_WhenContextCarriesDowngradeNote()
+    public async Task ConverseAsync_SetsModelNotice_WhenContextCarriesDowngradeNote()
     {
         // Simulate what the LlmRouter does when a Heavy call is downgraded:
         // it stores the note in context.Metadata before the orchestrator checks.
@@ -151,12 +154,13 @@ public class OrchestratorTierDowngradeTests
                                                                   , Input     = "generate insights"
                                                             });
 
-        Assert.NotNull(response.Message);
-        Assert.Contains("model best suited", response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(response.ModelNotice);
+        Assert.Contains("model best suited", response.ModelNotice, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("model best suited", response.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ConverseAsync_NoDowngradeNote_WhenContextHasNoNote()
+    public async Task ConverseAsync_NoModelNotice_WhenContextHasNoNote()
     {
         // No tier_downgrade_note in context — normal execution path.
         StubInterpreterReturnsAction("GenerateInsights");
@@ -170,6 +174,7 @@ public class OrchestratorTierDowngradeTests
                                                                   , Input     = "generate insights"
                                                             });
 
+        Assert.Null(response.ModelNotice);
         Assert.NotNull(response.Message);
         Assert.DoesNotContain("model best suited", response.Message, StringComparison.OrdinalIgnoreCase);
     }

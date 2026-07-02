@@ -22,6 +22,9 @@ public interface IMemoryConfirmationQueue
     /// </summary>
     IReadOnlyList<PersonaMemory> Peek(string conversationId, int count = 3);
 
+    /// <summary>Returns the number of pending memories for this session.</summary>
+    int Count(string conversationId);
+
     /// <summary>Returns <c>true</c> when at least one memory is pending for this session.</summary>
     bool HasPending(string conversationId);
 }

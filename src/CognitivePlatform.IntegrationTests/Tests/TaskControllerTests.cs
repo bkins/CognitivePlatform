@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.IntegrationTests.Infrastructure;
 using Xunit.Abstractions;
@@ -168,11 +169,68 @@ public sealed class TaskControllerTests : IDisposable
 
         _fixture.LogAssertion("undelete returns 200 OK");
         undeleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
+ 
         _fixture.Log("Assert — task visible again after undelete");
         var afterUndeleteResponse = await _fixture.Client.GetAsync($"/api/tasks/{taskId}");
-
+ 
         _fixture.LogAssertion("GET by ID returns 200 OK after undelete");
         afterUndeleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // ----------------------------------------------------------------
+    // POST /api/tasks/{id}/edit
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task Edit_Returns200_WithUpdatedTask_WhenActiveTasks_Exist()
+    {
+        _fixture.Log("Arrange — fetch active task list");
+        var listResponse = await _fixture.Client.GetAsync("/api/tasks");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var tasks = await _fixture.ReadJsonAsync<JsonElement>(listResponse);
+
+        if (tasks.GetArrayLength() == 0)
+        {
+            _fixture.Log("Skip — no active tasks in live DB");
+            return;
+        }
+
+        var firstTask = tasks.EnumerateArray().First();
+        var taskId    = firstTask.GetProperty("id").GetString()!;
+
+        // Let's generate a unique description so we can verify it
+        var testGuid = Guid.NewGuid().ToString("N");
+        var newDesc  = $"Updated Task Description {testGuid}";
+        var newDetails = $"Some details {testGuid}";
+        var newTags = new[] { "tag1", "tag2" };
+        var newDueDate = DateTimeOffset.UtcNow.AddDays(3);
+        var newCompletedAt = DateTimeOffset.UtcNow.AddDays(1);
+
+        var payload = new
+        {
+            ShortDescription = newDesc,
+            Details = newDetails,
+            Tags = newTags,
+            DueDate = newDueDate,
+            CompletedAt = newCompletedAt
+        };
+
+        _fixture.Log($"Act — POST /api/tasks/{taskId}/edit");
+        var editResponse = await _fixture.Client.PostAsJsonAsync($"/api/tasks/{taskId}/edit", payload);
+
+        _fixture.LogAssertion("edit returns 200 OK");
+        editResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var updatedTask = await _fixture.ReadJsonAsync<JsonElement>(editResponse);
+        updatedTask.GetProperty("shortDescription").GetString().Should().Be(newDesc);
+        updatedTask.GetProperty("details").GetString().Should().Be(newDetails);
+        
+        var tagsElement = updatedTask.GetProperty("tags");
+        tagsElement.ValueKind.Should().Be(JsonValueKind.Array);
+        tagsElement.GetArrayLength().Should().Be(2);
+
+        updatedTask.GetProperty("dueDate").GetDateTimeOffset().Date.Should().Be(newDueDate.Date);
+        updatedTask.GetProperty("completedAt").GetDateTimeOffset().Date.Should().Be(newCompletedAt.Date);
     }
 }

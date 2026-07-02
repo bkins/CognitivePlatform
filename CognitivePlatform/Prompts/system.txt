@@ -425,6 +425,8 @@ Examples — adding events (CRITICAL — always AddCalendarEvent, never AddTask)
   "Create a calendar event: team standup at 8:30am"    → AddCalendarEvent
 
 ---------------------------------------------------------------------
+{{GROUNDING_CONTEXT}}
+---------------------------------------------------------------------
 AVAILABLE ACTIONS:
 ---------------------------------------------------------------------
 {{ACTIONS}}

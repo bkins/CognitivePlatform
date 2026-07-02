@@ -47,7 +47,8 @@ public sealed class JournalActions
                                                     , "Write a journal entry tagged work saying I finished the project."
                                                     , "Add a journal entry with mood score 2 saying I felt pretty low."
                                             }
-                               , Category = "journal", IsReplayable = true)]
+                               , Category = "journal"
+                             , IsReplayable = true)]
     public string AddJournalEntry ([NaturalLanguageParam(    Description = "The text of the journal entry."
                                                              , AllowEmpty = false)]
                                    string text

@@ -1,6 +1,7 @@
 using Moq;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Interpreter.FastPath;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 

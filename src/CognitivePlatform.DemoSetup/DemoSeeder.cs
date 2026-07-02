@@ -22,13 +22,13 @@ public sealed class DemoSeeder
 
     public async Task<int> RunAsync()
     {
-        Console.WriteLine("[DEMO] Starting demo data seed...");
         Console.WriteLine();
+        Console.WriteLine("[DEMO] Starting demo data seed...");
 
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         // -- Phase 1: Tasks --------------------------------------------------
-        Console.WriteLine("[DEMO] Creating tasks...");
+        Console.WriteLine("  [DEMO] Creating tasks...");
 
         var taskDefs  = BuildTaskDefinitions(today);
         var tasksFailed = 0;
@@ -38,10 +38,10 @@ public sealed class DemoSeeder
             var resp = await ConverseAsync(_seedSession, def.Command);
 
             if (resp?.Success == true)
-                Console.WriteLine($"  ✓ Created: {def.Display} ({def.Hint})");
+                Console.WriteLine($"    ✓ Created: {def.Display} ({def.Hint})");
             else
             {
-                Console.WriteLine($"  ✗ Failed:  {def.Display}");
+                Console.WriteLine($"    ✗ Failed:  {def.Display}");
                 tasksFailed++;
             }
         }
@@ -68,7 +68,7 @@ public sealed class DemoSeeder
 
         // -- Phase 2: Journal entries ----------------------------------------
         Console.WriteLine();
-        Console.WriteLine("[DEMO] Creating journal entries...");
+        Console.WriteLine("  [DEMO] Creating journal entries...");
 
         var journalDefs = BuildJournalDefinitions(today);
 
@@ -77,9 +77,9 @@ public sealed class DemoSeeder
             var resp = await ConverseAsync(_seedSession, def.Command);
 
             if (resp?.Success == true)
-                Console.WriteLine($"  ✓ Created: {def.Label}");
+                Console.WriteLine($"    ✓ Created: {def.Label}");
             else
-                Console.WriteLine($"  ✗ Failed:  {def.Label}");
+                Console.WriteLine($"    ✗ Failed:  {def.Label}");
         }
 
         await Task.Delay(300);
@@ -88,13 +88,13 @@ public sealed class DemoSeeder
 
         // -- Phase 3: Daily record -------------------------------------------
         Console.WriteLine();
-        Console.WriteLine("[DEMO] Creating daily record...");
+        Console.WriteLine("  [DEMO] Creating daily record...");
 
         var createdRecord = await SeedDailyRecordAsync(today);
 
         // -- Phase 4: Conversations ------------------------------------------
         Console.WriteLine();
-        Console.WriteLine("[DEMO] Creating conversations...");
+        Console.WriteLine("  [DEMO] Creating conversations...");
 
         var conversationIds = await SeedConversationsAsync();
 

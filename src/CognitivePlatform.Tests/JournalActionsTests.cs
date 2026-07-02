@@ -5,6 +5,7 @@ using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.SystemPromptLogging;
+using CP.Shared.Primitives.Avails;
 
 namespace CognitivePlatform.Tests;
 
@@ -212,7 +213,7 @@ public class JournalActionsTests
         Assert.Contains("## 1.", result);
         Assert.Contains("Meeting with the team.", result);
         Assert.DoesNotContain("ID:", result);
-        Assert.DoesNotMatch(@"[0-9a-f]{32}", result);
+        Assert.DoesNotMatch(RegexMatchingPatterns.Hex32HashPattern, result);
     }
 
     // G3 regression: SearchJournalEntries must show the global position number beside each hit.

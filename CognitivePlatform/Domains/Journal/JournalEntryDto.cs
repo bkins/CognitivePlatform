@@ -13,6 +13,8 @@ public sealed class JournalEntryDto
     public int?              MoodScore       { get; set; }
     public bool              IsEdited        { get; init; }
     public int               AttachmentCount { get; init; }
+    public string            ValenceEmoji    { get; init; } = "❓";
+    public string            AffectEmoji     { get; init; } = "❓";
 }
 
 public enum JournalEntryState

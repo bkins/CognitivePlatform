@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-
+using CognitivePlatform.Api.Audit;
 using CP.Shared.Primitives.Avails.Extensions;
 
 using CognitivePlatform.Api.Avails;
@@ -22,6 +22,8 @@ using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.Personas;
 using CognitivePlatform.Api.Training;
 using CognitivePlatform.Api.Workspace;
+using CognitivePlatform.Api.Domains.Knowledge;
+using CognitivePlatform.Api.Domains.Knowledge.Models;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -56,6 +58,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly IConversationMetadataStore     _metadataStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
     private readonly IInterpreterTrainingStore?     _trainingStore;
+    private readonly IKnowledgeIngestionService?    _knowledgeIngestionService;
 
     private readonly bool _isDebug  = false;
 
@@ -89,9 +92,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
                                    , IPersonaService?                                               personaServiceForReconstruction = null
                                    , IPersonaStore?                                                 personaStoreForReconstruction   = null
-                                   , IPersonaStabilityTracker?                                      stabilityTracker               = null
-                                   , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
-                                   , IInterpreterTrainingStore?                                     trainingStore                  = null )
+                                    , IPersonaStabilityTracker?                                      stabilityTracker               = null
+                                    , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
+                                    , IInterpreterTrainingStore?                                     trainingStore                  = null
+                                    , IKnowledgeIngestionService?                                    knowledgeIngestionService      = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -122,6 +126,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _personaStoreForReconstruction   = personaStoreForReconstruction;
         _stabilityTracker                = stabilityTracker;
         _emotionalTopologyTracker        = emotionalTopologyTracker;
+        _knowledgeIngestionService       = knowledgeIngestionService;
 
 #if DEBUG
         _isDebug = true;
@@ -209,8 +214,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
             resolveInput = workspaceRemainder!;
         }
 
-        if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams)
-            && actionMeta!.IsDestructive.Not())
+        // BUG-A2: All resolved FastPath actions (destructive and non-destructive) must short-circuit
+        // here. TakeTheFastPath handles the destructive confirmation prompt internally.
+        // Previously destructive FastPath actions fell through to the LLM interpreter, which
+        // produced a ghost "Model not usable" error when the configured model was unavailable.
+        if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams))
         {
             await CheckForInsightFollowThroughAsync(actionMeta!.Name, context, ct);
             var fastResponse = await TakeTheFastPath(actionMeta, fastParams, context, ct);
@@ -231,20 +239,27 @@ public class ConversationOrchestrator : IConversationOrchestrator
               , Succeeded:        true);
             context.RecordTurn(initialFastTurn);
 
-            var fastInsights = await SafeGenerateInsightsAsync(context, ct);
-            var fastFinalMessage = await ApplyInsightsToResponseAsync(fastResponse.Message ?? string.Empty
-                                                                    , fastInsights
-                                                                    , context
-                                                                    , ct);
-
-            if (fastInsights.Count > 0 && fastFinalMessage != fastResponse.Message)
+            try
             {
-                context.ReplaceLatestTurn(initialFastTurn with { AssistantMessage = fastFinalMessage });
-                fastResponse.Message = fastFinalMessage;
+                var fastInsights = await SafeGenerateInsightsAsync(context, ct);
+                var fastFinalMessage = await ApplyInsightsToResponseAsync(fastResponse.Message ?? string.Empty
+                                                                        , fastInsights
+                                                                        , context
+                                                                        , ct);
+                if (fastInsights.Count > 0 
+                 && fastFinalMessage != fastResponse.Message)
+                {
+                    context.ReplaceLatestTurn(initialFastTurn with { AssistantMessage = fastFinalMessage });
+                    fastResponse.Message = fastFinalMessage;
+                }
+                
+                fastResponse.Insights = fastInsights;
             }
-
-            fastResponse.Insights = fastInsights;
-
+            catch (Exception e)
+            {
+                fastResponse.Debug = e.Message;
+            }
+            
             return await FinalizeAsync(request
                                      , fastResponse
                                      , stopwatch
@@ -575,6 +590,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var complexity     = _complexityClassifier.Classify(request.Input);
         var interpretation = await _interpreter.InterpretWithContext(request.Input, context, complexity);
 
+        var actionName = interpretation.ActionName;
+        if (context.Metadata.ContainsKey("active_knowledge_domain")
+            && !string.IsNullOrWhiteSpace(actionName)
+            && string.Equals(actionName, "ChitChat", StringComparison.OrdinalIgnoreCase))
+        {
+            actionName = null;
+        }
+
         // ENH-23 Phase 3: build a partial training record now so we can fire it on
         // every interpreter-path return below without repeating the field setup.
         context.Metadata.TryGetValue("model", out var trainingModelVersion);
@@ -592,7 +615,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 5b. Persist interpreter decision (success or failure) into context
         context.LastUserMessage          = request.Input;
         context.LastInterpreterName      = _interpreter.GetType().Name;
-        context.LastActionName           = interpretation.ActionName;
+        context.LastActionName           = actionName;
         context.LastInterpreterReason    = interpretation.Reason;
         context.LastInterpreterDebug     = interpretation.DebugInfo;
         context.LastFailureType          = interpretation.FailureType;
@@ -787,8 +810,59 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         // 7. No action chosen at all (e.g. nonsense input or other failure)
 
-        if (interpretation.ActionName?.HasNoValue() ?? true)
+        if (actionName?.HasNoValue() ?? true)
         {
+            if (context.Metadata.TryGetValue("active_knowledge_domain", out var domainName)
+                && !string.IsNullOrWhiteSpace(domainName)
+                && _knowledgeIngestionService is not null)
+            {
+                var domain = await _knowledgeIngestionService.GetDomainAsync(domainName);
+                if (domain is not null)
+                {
+                    var chunks = await _knowledgeIngestionService.RetrieveContextAsync(domain.Name, request.Input, ct: ct);
+                    
+                    if (chunks.Count == 0 && domain.Mode == KnowledgeDomainMode.Strict)
+                    {
+                        var strictResponse = new ConverseResponse
+                        {
+                            Message = "UNKNOWN",
+                            Debug = interpretation.DebugInfo
+                        };
+                        FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
+                        return await FinalizeAsync(request
+                                                 , strictResponse
+                                                 , stopwatch
+                                                 , TurnPath.Interpreter
+                                                 , actionName: null
+                                                 , succeeded:  true
+                                                 , ct:         ct);
+                    }
+
+                    var groundedPrompt = await KnowledgeActions.BuildGroundedPromptAsync(
+                        request.Input,
+                        domain,
+                        chunks,
+                        context,
+                        _knowledgeIngestionService);
+
+                    var llmResponse = await _llmRouter.SendAsync(groundedPrompt, context, complexity, ct).ConfigureAwait(false);
+
+                    var activeDomainResponse = new ConverseResponse
+                    {
+                        Message = llmResponse.Content,
+                        Debug = interpretation.DebugInfo
+                    };
+                    FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
+                    return await FinalizeAsync(request
+                                             , activeDomainResponse
+                                             , stopwatch
+                                             , TurnPath.Interpreter
+                                             , actionName: null
+                                             , succeeded:  true
+                                             , ct:         ct);
+                }
+            }
+
             //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
             // or should it be a valid action choice that just happens to be conversational?
 
@@ -856,12 +930,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // 8. Look up the action reflectively
         var selectedAction = _registry.GetAll()
                                       .FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                              , interpretation.ActionName
+                                                                              , actionName
                                                                               , StringComparison.OrdinalIgnoreCase));
 
         if (selectedAction is null)
         {
-            var msg = $"Interpreter selected unknown action '{interpretation.ActionName}'.";
+            var msg = $"Interpreter selected unknown action '{actionName}'.";
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
                                                            Details = $"ActionLookup.Failed; {msg}"
@@ -877,7 +951,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , unknownActionResponse
                                      , stopwatch
                                      , TurnPath.Interpreter
-                                     , actionName: interpretation.ActionName
+                                     , actionName: actionName
                                      , succeeded:  false
                                      , ct:         ct);
 
@@ -902,11 +976,13 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                     };
 
             var response = new ConverseResponse
-                           {
-                                   Message         = confirmationMessage
-                                 , Debug           = $"Destructive action '{selectedAction.Name}' requires confirmation."
-                                 , ExecutionResult = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
-                           };
+                            {
+                                    Message                = confirmationMessage
+                                  , Debug                  = $"Destructive action '{selectedAction.Name}' requires confirmation."
+                                  , ExecutionResult        = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
+                                  , IsConfirmationRequired = true
+                                  , ConfirmationPrompt     = confirmationMessage
+                            };
             FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
                                      , response
@@ -956,10 +1032,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         // ENH-19: if a Heavy LLM call was downgraded during execution (e.g., IdentityAnalysisService),
         // the capacity router stores a note in context.Metadata.  Surface it to the user once.
+        string? modelNotice = null;
         if (context.Metadata.TryGetValue("tier_downgrade_note", out var downgradeNote)
          && !string.IsNullOrEmpty(downgradeNote))
         {
-            finalMessage += $"\n\n_{downgradeNote}_";
+            modelNotice = downgradeNote;
             context.Metadata.TryRemove("tier_downgrade_note", out _);
         }
 
@@ -969,6 +1046,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                   , Insights        = insights
                                   , Debug           = interpretation.DebugInfo
                                   , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
+                                  , ModelNotice     = modelNotice
                             };
 
         FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
@@ -992,6 +1070,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                       , bool              recordTurn = true
                                                       , CancellationToken ct         = default )
     {
+        if (_memoryConfirmationQueue is not null)
+        {
+            response.PendingMemoryCount = _memoryConfirmationQueue.Count(request.SessionId);
+        }
+
         // ENH-08: append the turn to the session's bounded history.
         // The Interpreter+execute path records inline (around the engine call) so it can
         // capture the un-woven message before the engine fires; it passes recordTurn:false
@@ -999,13 +1082,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (recordTurn)
         {
             var context = _contextStore.GetOrCreate(request.SessionId);
-            context.RecordTurn(new ConversationTurn(
-                                       UserMessage:      request.Input ?? string.Empty
-                                     , AssistantMessage: response.Message ?? string.Empty
-                                     , OccurredAt:       DateTimeOffset.UtcNow
-                                     , Path:             path
-                                     , ActionName:       actionName
-                                     , Succeeded:        succeeded));
+            context.RecordTurn(new ConversationTurn(UserMessage:      request.Input ?? string.Empty
+                                                  , AssistantMessage: response.Message ?? string.Empty
+                                                  , OccurredAt:       DateTimeOffset.UtcNow
+                                                  , Path:             path
+                                                  , ActionName:       actionName
+                                                  , Succeeded:        succeeded));
         }
 
         // ENH-20: persist the finalised turn so history survives server restarts.
@@ -1163,10 +1245,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             return new ConverseResponse
                    {
-                           Message         = confirmationMessage
-                         , Debug           = $"FastPath destructive action '{actionMeta.Name}' requires confirmation."
-                         , ExecutionResult = $"Awaiting user confirmation before executing '{actionMeta.Name}'."
-                         , WasFastPath     = true
+                           Message                = confirmationMessage
+                         , Debug                  = $"FastPath destructive action '{actionMeta.Name}' requires confirmation."
+                         , ExecutionResult        = $"Awaiting user confirmation before executing '{actionMeta.Name}'."
+                         , WasFastPath            = true
+                         , IsConfirmationRequired = true
+                         , ConfirmationPrompt     = confirmationMessage
                    };
         }
 
@@ -1251,9 +1335,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
         Actions.LlmActions.SetProviderDefaults(_providerDefaults);
         Domains.Personas.PersonaActions.SetSessionId(context.SessionId);
 
-        // ✅ J-01.1: FastPath always wins (for non-destructive actions).
+        // ✅ J-01.1: FastPath always wins.
         // In streaming mode: if FastPath resolves a non-destructive action, execute
-        // and emit a single chunk. Destructive actions fall through to the interpreter.
+        // and emit a single chunk. Destructive actions emit a confirmation prompt
+        // and break — they must NOT fall through to the LLM interpreter.
         // EPIC-10-D: Strip workspace prefix and switch workspace before fast-path resolution.
         var streamResolveInput = request.Input;
         if (_fastPath.TryExtractWorkspacePrefix(request.Input, out var streamWorkspaceName, out var streamWorkspaceRemainder))
@@ -1262,13 +1347,31 @@ public class ConversationOrchestrator : IConversationOrchestrator
             streamResolveInput = streamWorkspaceRemainder!;
         }
 
-        if (_fastPath.TryResolve(streamResolveInput, out var actionMeta, out var fastParams)
-            && actionMeta!.IsDestructive == false)
+        if (_fastPath.TryResolve(streamResolveInput, out var actionMeta, out var fastParams))
         {
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent
                                                    {
                                                            Details = $"FastPath.Resolved.Stream; Action={actionMeta!.Name}"
                                                    }));
+
+            // BUG-A2: Destructive actions must not fall through to the LLM interpreter.
+            // Yield the confirmation prompt and set pending state exactly as ConverseAsync does.
+            if (actionMeta!.IsDestructive)
+            {
+                var confirmationPrompt = BuildDestructiveConfirmationPrompt(actionMeta, fastParams!);
+                context.PendingAction = new PendingAction
+                                        {
+                                                ActionName           = actionMeta.Name
+                                              , CollectedParameters  = new Dictionary<string, string>(fastParams!
+                                                                                                    , StringComparer.OrdinalIgnoreCase)
+                                              , RemainingParameters  = new List<string>()
+                                              , ConfirmationRequired = true
+                                              , ConfirmationPrompt   = confirmationPrompt
+                                        };
+
+                yield return confirmationPrompt;
+                yield break;
+            }
 
             var result = await _execution.ExecuteAsync(actionMeta!, fastParams!, context.SessionId, ct);
             _telemetry.Track(_telemetryContext.CreateEvent(new OrchestratorProgressEvent

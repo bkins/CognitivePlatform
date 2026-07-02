@@ -17,19 +17,23 @@ public sealed class PersistentConversationTelemetrySink : ITelemetrySink
 {
     private readonly ConsoleTelemetrySink _console;
     private readonly IObjectStore         _store;
+    private readonly ITelemetryStreamService _streamService;
 
     private const string PartitionKey = "telemetry";
 
     public PersistentConversationTelemetrySink( ConsoleTelemetrySink console
-                                              , IObjectStore         store )
+                                              , IObjectStore         store
+                                              , ITelemetryStreamService streamService )
     {
-        _console = console ?? throw new ArgumentNullException(nameof(console));
-        _store   = store   ?? throw new ArgumentNullException(nameof(store));
+        _console       = console ?? throw new ArgumentNullException(nameof(console));
+        _store         = store   ?? throw new ArgumentNullException(nameof(store));
+        _streamService = streamService ?? throw new ArgumentNullException(nameof(streamService));
     }
 
     public void Track(TelemetryEvent telemetryEvent)
     {
         _console.Track(telemetryEvent);
+        _streamService.Publish(telemetryEvent);
 
         if (telemetryEvent is ConversationCompletedEvent completed)
             _ = PersistAsync(completed);

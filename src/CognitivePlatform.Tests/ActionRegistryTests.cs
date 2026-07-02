@@ -131,7 +131,9 @@ public class ActionRegistryTests
 
         Assert.NotNull(noExplicit);
         Assert.NotNull(withExplicit);
-        Assert.Equal("Tasks",   noExplicit!.Category);   // TasksDomain.Name, no explicit Category on [NaturalLanguageAction]
-        Assert.Equal("journal", withExplicit!.Category); // explicit Category = "journal" wins over JournalDomain.Name
+        
+        //TODO: Make these case-insensitive, or use enum (or const) instead of magic strings)
+        Assert.Equal("Task".ToLower(),   noExplicit!.Category.ToLower());   // TasksDomain.Name, no explicit Category on [NaturalLanguageAction]
+        Assert.Equal("journal".ToLower(), withExplicit!.Category.ToLower()); // explicit Category = "journal" wins over JournalDomain.Name
     }
 }

@@ -46,8 +46,10 @@ public class ActionRegistry : IActionRegistry
         foreach (var type in assembly.GetTypes())
         {
             // Only consider classes with methods containing [NaturalLanguageAction]
-            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
-                              .Where(m => m.GetCustomAttribute<NaturalLanguageActionAttribute>() != null)
+            var methods = type.GetMethods(BindingFlags.Public 
+                                        | BindingFlags.Instance 
+                                        | BindingFlags.Static)
+                              .Where(method => method.GetCustomAttribute<NaturalLanguageActionAttribute>() != null)
                               .ToList();
 
             if (methods.Any().Not()) continue;

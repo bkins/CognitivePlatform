@@ -74,4 +74,32 @@ public sealed class TaskController : ControllerBase
         
         return Ok($"Task '{task.ShortDescription}' Undeleted ({task.Id}).");
     }
+
+    [HttpPost("{id:guid}/edit")]
+    public ActionResult<TaskDto> Edit( [FromRoute] Guid id, [FromBody] EditTaskRequest request )
+    {
+        var task = _service.Get(id);
+        if (task is null || task.IsDeleted)
+            return NotFound();
+
+        task.ShortDescription = request.ShortDescription;
+        task.Details          = request.Details;
+        task.Tags             = request.Tags is not null
+                                    ? new HashSet<string>(request.Tags, StringComparer.OrdinalIgnoreCase)
+                                    : [];
+        task.DueDate          = request.DueDate;
+        task.CompletedAt      = request.CompletedAt;
+
+        var updated = _service.Update(task);
+
+        return Ok(TaskDto.From(updated));
+    }
 }
+
+public sealed record EditTaskRequest(
+    string ShortDescription,
+    string? Details,
+    IReadOnlyList<string>? Tags,
+    DateTimeOffset? DueDate,
+    DateTimeOffset? CompletedAt
+);

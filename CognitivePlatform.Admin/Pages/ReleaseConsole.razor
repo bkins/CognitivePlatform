@@ -183,6 +183,18 @@
     </MudButton>
 </MudStack>
 
+@* ── Full Pipeline ── *@
+<MudText Typo="Typo.subtitle2" Class="mb-2">Full Pipeline Runner</MudText>
+<MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Error"
+               StartIcon="@Icons.Material.Filled.FastForward"
+               Disabled="@_rs.IsRunning"
+               OnClick="@RunPipelineAsync">
+        Build + Deploy All → @_selectedEnvironment
+    </MudButton>
+</MudStack>
+
 @* ── LAA Windows ── *@
 <MudText Typo="Typo.subtitle2" Class="mb-2">Local AI Assistant (Windows)</MudText>
 <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" Class="mb-4">
@@ -656,12 +668,11 @@
 @code {
     // ── Record types ───────────────────────────────────────────────────────────
 
-    private sealed record ArtifactEntry(
-        string        Component
-      , string        Version
-      , string        Directory
-      , string?       ZipPath
-      , ArtifactMeta? Meta)
+    private sealed record ArtifactEntry( string        Component
+                                       , string        Version
+                                       , string        Directory
+                                       , string?       ZipPath
+                                       , ArtifactMeta? Meta)
     {
         // API artifacts have a single zip; LAA artifacts are env-specific APK subdirs
         public bool CanDeployFromArtifact => ZipPath is not null && File.Exists(ZipPath);
@@ -1095,6 +1106,45 @@
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+        }
+    }
+
+    private async Task RunPipelineAsync()
+    {
+        await RunCoreAsync(_workingDirectory
+            // API
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" )
+            // Coco API
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}" )
+            // LAA Android
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" )
+            // LAA Windows
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""" )
+        );
+
+        if (TerminalService.Get("release").ExitCode == 0)
+        {
+            await WriteArtifactMetadataAsync("API", ApiArtifactDir);
+            await WriteDeploymentStateAsync("API", _selectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            
+            await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
+            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            
+            await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
+            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+
+            await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
+            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+                                          , apkName: "LocalAIAssistant.Ui.Maui.exe"
+                                          , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
         }
     }
 
@@ -1644,6 +1694,54 @@
                 if (lastExitCode is not 0) break;
 
                 TerminalService.AppendLine("release", new TerminalLine(string.Empty));
+            }
+
+            if (lastExitCode is 0)
+            {
+                var deployedComponents = new List<(string ComponentName, string Location)>();
+                foreach (var step in steps)
+                {
+                    var args = step.Args;
+                    if (args.Contains("API-Deploy.ps1"))
+                    {
+                        var env = _selectedEnvironment;
+                        var envDir = DeployStateEnvName(env);
+                        deployedComponents.Add(("CognitivePlatform API", $"C:\\CP\\Deploy\\API\\{envDir}"));
+                    }
+                    else if (args.Contains("Coco-Deploy.ps1"))
+                    {
+                        var env = _selectedEnvironment;
+                        var envDir = DeployStateEnvName(env);
+                        deployedComponents.Add(("Coco.API", $"C:\\CP\\Deploy\\Coco\\{envDir}"));
+                    }
+                    else if (args.Contains("Laa-Deploy.ps1"))
+                    {
+                        deployedComponents.Add(("Local AI Assistant (Android)", "Target physical Android device via ADB"));
+                    }
+                    else if (args.Contains("LAA-Windows-Deploy.ps1"))
+                    {
+                        var env = _selectedEnvironment;
+                        var envDir = DeployStateEnvName(env);
+                        deployedComponents.Add(("Local AI Assistant (Windows)", $"C:\\CP\\Deploy\\LaaWindows\\{envDir}"));
+                    }
+                }
+
+                if (deployedComponents.Count > 0)
+                {
+                    TerminalService.AppendLine("release", new TerminalLine(string.Empty));
+                    TerminalService.AppendLine("release", new TerminalLine("==========================================================================", TerminalLineKind.PassSummary));
+                    TerminalService.AppendLine("release", new TerminalLine("                      DEPLOYMENT PIPELINE SUMMARY                         ", TerminalLineKind.PassSummary));
+                    TerminalService.AppendLine("release", new TerminalLine("==========================================================================", TerminalLineKind.PassSummary));
+                    foreach (var (comp, loc) in deployedComponents)
+                    {
+                        TerminalService.AppendLine("release", new TerminalLine($"   • Deployed: {comp}", TerminalLineKind.PassSummary));
+                        TerminalService.AppendLine("release", new TerminalLine($"     Version:  {_version}", TerminalLineKind.PassSummary));
+                        TerminalService.AppendLine("release", new TerminalLine($"     Target:   {loc}", TerminalLineKind.PassSummary));
+                        TerminalService.AppendLine("release", new TerminalLine(string.Empty));
+                    }
+                    TerminalService.AppendLine("release", new TerminalLine("==========================================================================", TerminalLineKind.PassSummary));
+                    await ScrollToBottomAsync();
+                }
             }
         }
         finally

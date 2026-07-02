@@ -1,4 +1,7 @@
 using CognitivePlatform.Api.Domains.Media;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Tasks;
 using Moq;
 
 namespace CognitivePlatform.Tests;
@@ -144,5 +147,43 @@ public class MediaActionsTests
         await _actions.GetAttachmentCount("JournalEntry", "e1");
 
         _serviceMock.Verify(service => service.GetAttachmentCountAsync("JournalEntry", "e1"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ListAttachments_UsesPositionNumber_WhenOwnerIsResolved()
+    {
+        var journalMock = new Mock<IJournalService>();
+        var taskMock    = new Mock<ITaskService>();
+
+        var entryId = "e1-guid";
+        var entry = new JournalEntry { Id = entryId };
+        var revision = new JournalRevision();
+        var entryWithRevision = new CognitivePlatform.Api.Models.JournalEntryWithRevision(entry, revision, false);
+        var entries = new List<(int Position, CognitivePlatform.Api.Models.JournalEntryWithRevision EntryWithRevision)>
+                      {
+                          (3, entryWithRevision)
+                      };
+        journalMock.Setup(j => j.GetOrderedEntries()).Returns(entries);
+
+        var actionsWithServices = new MediaActions(_serviceMock.Object, journalMock.Object, taskMock.Object);
+
+        var attachments = new List<MediaAttachment>
+                          {
+                              new()
+                              {
+                                  Id          = "a1"
+                                , OwnerType   = "JournalEntry"
+                                , OwnerId     = entryId
+                                , FileName    = "photo.jpg"
+                                , ContentType = "image/jpeg"
+                              }
+                          };
+        _serviceMock.Setup(service => service.GetAttachmentsAsync("JournalEntry", entryId))
+                    .ReturnsAsync(attachments);
+
+        var result = await actionsWithServices.ListAttachments("JournalEntry", entryId);
+
+        Assert.Contains("journal entry #3", result);
+        Assert.DoesNotContain(entryId, result);
     }
 }

@@ -49,6 +49,8 @@ public sealed class JournalController : ControllerBase
                              , State           = entryRevision.LatestRevision.State
                              , IsEdited        = entryRevision.IsEdited
                              , AttachmentCount = attachmentCount
+                             , ValenceEmoji    = EmojiNormalizationService.MapValenceEmoji(entryRevision.LatestRevision.MoodScore)
+                             , AffectEmoji     = EmojiNormalizationService.MapAffectEmoji(entryRevision.LatestRevision.Mood)
                            };
         return Ok(journalEntry);
     }
@@ -87,12 +89,14 @@ public sealed class JournalController : ControllerBase
 
         var dto = revisions.Select(revision => new JournalRevisionDto
                                                {
-                                                       RevisionId = new Guid(revision.RevisionId) 
-                                                     , CreatedAt  = revision.CreatedUtc
-                                                     , Text       = revision.Text
-                                                     , Tags       = revision.Tags
-                                                     , Mood       = revision.Mood
-                                                     , MoodScore  = revision.MoodScore
+                                                       RevisionId   = new Guid(revision.RevisionId) 
+                                                     , CreatedAt    = revision.CreatedUtc
+                                                     , Text         = revision.Text
+                                                     , Tags         = revision.Tags
+                                                     , Mood         = revision.Mood
+                                                     , MoodScore    = revision.MoodScore
+                                                     , ValenceEmoji = EmojiNormalizationService.MapValenceEmoji(revision.MoodScore)
+                                                     , AffectEmoji  = EmojiNormalizationService.MapAffectEmoji(revision.Mood)
                                                });
 
         return Ok(dto);
@@ -159,15 +163,16 @@ public sealed class JournalController : ControllerBase
         return Ok(attachments.Select(ToMediaDto).ToList());
     }
 
-    private static MediaAttachmentDto ToMediaDto(MediaAttachment attachment)
+    private static MediaAttachmentDto ToMediaDto( MediaAttachment attachment )
         => new()
            {
-               Id            = attachment.Id.ToGuid()
-             , OwnerType     = attachment.OwnerType
-             , OwnerId       = attachment.OwnerId.ToGuid()
-             , FileName      = attachment.FileName
-             , ContentType   = attachment.ContentType
-             , FileSizeBytes = attachment.FileSizeBytes
-             , CreatedAt     = attachment.CreatedAt
+                   Id            = attachment.Id.ToGuid()
+                 , OwnerType     = attachment.OwnerType
+                 , OwnerId       = attachment.OwnerId.ToGuid()
+                 , FileName      = attachment.FileName
+                 , ContentType   = attachment.ContentType
+                 , FileSizeBytes = attachment.FileSizeBytes
+                 , CreatedAt     = attachment.CreatedAt
+                 , StoragePath   = attachment.StoragePath
            };
 }

@@ -33,11 +33,10 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
     public TerminalState Get(string terminalId)
         => _contexts.GetOrAdd(terminalId, _ => new Context(new TerminalState(), null, null)).State;
 
-    public async Task<int?> RunProcessAsync(
-        string                            terminalId
-      , ProcessStartInfo                  startInfo
-      , Func<string, bool, TerminalLine>? classify = null
-      , CancellationToken                 ct       = default)
+    public async Task<int?> RunProcessAsync( string                            terminalId
+                                           , ProcessStartInfo                  startInfo
+                                           , Func<string, bool, TerminalLine>? classify = null
+                                           , CancellationToken                 ct       = default)
     {
         KillExisting(terminalId);
 

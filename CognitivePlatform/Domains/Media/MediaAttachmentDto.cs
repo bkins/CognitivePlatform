@@ -9,4 +9,5 @@ public sealed class MediaAttachmentDto
     public string         ContentType   { get; init; } = string.Empty;
     public long           FileSizeBytes { get; init; }
     public DateTimeOffset CreatedAt     { get; init; }
+    public string         StoragePath   { get; set; } = string.Empty;
 }

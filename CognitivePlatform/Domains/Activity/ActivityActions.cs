@@ -2,6 +2,7 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Registry.Domains;
+using CP.Shared.Primitives.Avails;
 
 namespace CognitivePlatform.Api.Domains.Activity;
 
@@ -196,7 +197,7 @@ public sealed class ActivityActions
     {
         return global::System.Text.RegularExpressions.Regex.Replace(
                    notes
-                 , @"[0-9a-f]{32}"
+                 , RegexMatchingPatterns.Hex32HashPattern
                  , string.Empty
                  , global::System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                .TrimEnd('.', '-', ' ');

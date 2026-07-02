@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
@@ -8,6 +9,7 @@ using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
+[Category("task")]
 [Domain(typeof(TasksDomain))]
 public class TaskActions
 {
@@ -31,7 +33,9 @@ public class TaskActions
                                  , "Remind me to call mom tonight"
                                  , "Create a task to finish report by Friday"
                            ]
-                         , AllowsClarification = true, IsReplayable = true)]
+                         , AllowsClarification = true
+                         , IsReplayable = true
+                           , Category = "task")]
     public string AddTask( [NaturalLanguageParam(Description = "Short description of the task."
                                                , Optional    = false
                                                , AllowEmpty  = false)]
@@ -88,7 +92,8 @@ public class TaskActions
                                  , "Let me give you a list of tasks I need to track."
                                  , "I have a few things I need to get done today."
                            ]
-                         , AllowsClarification = false)]
+                         , AllowsClarification = false
+                         , Category = "task")]
     public string BatchAddTasks( [NaturalLanguageParam(Description = "A pipe-separated list of task descriptions extracted from the user's message. "
                                                                    + "Each entry is the short description of one task. "
                                                                    + "Example: 'Review Elena PD|Check CRM servers|Look at bug 161843'"
@@ -143,7 +148,8 @@ public class TaskActions
                                  , "Tasks due last week"
                                  , "What tasks are due next week?"
                            ]
-                         , AllowsClarification = false)]
+                         , AllowsClarification = false
+                         , Category = "task")]
     public string ListTasks( [NaturalLanguageParam(Description  = "Include completed tasks (true/false)."
                                                  , Optional     = true
                                                  , DefaultValue = false)]
@@ -235,7 +241,8 @@ public class TaskActions
                                  , "Show tasks I've completed."
                                  , "What have I accomplished?"
                            ]
-                         , AllowsClarification = false)]
+                         , AllowsClarification = false
+                         , Category = "task")]
     public string ListCompletedTasks()
     {
         var completed = _taskService.GetCompleted();
@@ -277,7 +284,9 @@ public class TaskActions
                                  , "Task 3 is done."
                                  , "Mark task id abc123 as complete."
                            ]
-                         , AllowsClarification = true, IsReplayable = true)]
+                         , AllowsClarification = true
+                         , IsReplayable = true
+                         , Category = "task")]
     public string CompleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                     , Optional    = false
                                                     , AllowEmpty  = false)]
@@ -307,7 +316,8 @@ public class TaskActions
                   , "I finished tasks 2 and 3."
                   , "Complete tasks 1 and 4."
             ]
-          , AllowsClarification = false)]
+          , AllowsClarification = false
+          , Category = "task")]
     public string CompleteBatch( [NaturalLanguageParam(Description = "A pipe-separated list of task position numbers or ids to mark complete. "
                                                                    + "Example: '2|4' or '1|3|5'"
                                                      , Optional    = false
@@ -389,7 +399,8 @@ public class TaskActions
                   , "Set task 4 to critical priority."
                   , "Task 1 is important and urgent."
             ]
-          , AllowsClarification = true)]
+          , AllowsClarification = true
+          , Category = "task")]
     public string UpdateTaskPriority( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                           , Optional    = false
                                                           , AllowEmpty  = false)]
@@ -460,7 +471,9 @@ public class TaskActions
                   , "Clear the due date on task 2."
                   , "Task 3 has no due date."
             ]
-          , AllowsClarification = true, IsReplayable = true)]
+          , AllowsClarification = true
+          , IsReplayable = true
+          , Category = "task")]
     public string UpdateTaskDueDate( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                          , Optional    = false
                                                          , AllowEmpty  = false)]
@@ -516,7 +529,9 @@ public class TaskActions
                                  , "Remove task 4 from my list."
                                  , "Delete the task with id abc123."
                            ]
-                         , AllowsClarification = true, IsReplayable = true)]
+                         , AllowsClarification = true
+                         , IsReplayable = true
+                         , Category = "task")]
     public string DeleteTask( [NaturalLanguageParam(Description = "The position number of the task (e.g. '2') or its full id."
                                                   , Optional    = false
                                                   , AllowEmpty  = false)]
@@ -541,7 +556,8 @@ public class TaskActions
                                  , "Which tasks should I do first?"
                                  , "Show my Eisenhower matrix."
                            ]
-                         , AllowsClarification = false)]
+                         , AllowsClarification = false
+                         , Category = "task")]
     public string AnalyzeTasks()
     {
         var tasks    = _taskService.GetActive();
@@ -562,7 +578,8 @@ public class TaskActions
                                  , "What do I need to do today?"
                                  , "Morning briefing."
                            ]
-                         , AllowsClarification = false)]
+                         , AllowsClarification = false
+                         , Category = "task")]
     public string GetDailyBrief()
     {
         // Pass today's local date to the brief service so the calendar window and

@@ -33,9 +33,11 @@ public class BrainDumpActions
     public string StartBrainDump()
     {
         var session = _service.StartSession();
+        var ordered = _service.GetOrderedSessions();
+        var position = ordered.FirstOrDefault(o => o.Session.Id == session.Id).Position;
 
         var sb = new StringBuilder();
-        sb.AppendLine($"Brain dump session started. Session ID: {session.Id}");
+        sb.AppendLine($"Brain dump session started. Session #{position}");
         sb.AppendLine();
         sb.AppendLine("Let's unload some mental weight. Work through each category at your own pace — you can skip any section.");
         sb.AppendLine();
@@ -85,22 +87,23 @@ public class BrainDumpActions
       , Category = "braindump")]
     public string ListBrainDumps()
     {
-        var sessions = _service.ListSessions(count: 10);
+        var ordered = _service.GetOrderedSessions();
 
-        if (sessions.Count == 0)
+        if (ordered.Count == 0)
             return "No brain dump sessions found. Say \"brain dump\" to start one.";
 
+        var recent = ordered.OrderByDescending(o => o.Session.CreatedAt).Take(10).ToList();
+
         var sb = new StringBuilder();
-        sb.AppendLine($"Brain dumps ({sessions.Count} recent):");
+        sb.AppendLine($"Brain dumps ({recent.Count} recent):");
         sb.AppendLine();
 
-        foreach (var session in sessions)
+        foreach (var item in recent)
         {
-            var date      = session.CreatedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
-            var filled    = CountFilledCategories(session);
-            var processed = session.Processed ? " [extracted]" : string.Empty;
-            var idPreview = session.Id.Length > 8 ? session.Id[..8] + "…" : session.Id;
-            sb.AppendLine($"• {date} — {filled}/7 categories{processed}  ({idPreview})");
+            var date      = item.Session.CreatedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+            var filled    = CountFilledCategories(item.Session);
+            var processed = item.Session.Processed ? " [extracted]" : string.Empty;
+            sb.AppendLine($"• Session #{item.Position} ({date}) — {filled}/7 categories{processed}");
         }
 
         return sb.ToString().TrimEnd();
@@ -110,11 +113,12 @@ public class BrainDumpActions
     // Helpers
     // -----------------------------------------------------------------------
 
-    private static string FormatSessionSummary(BrainDumpSession session)
+    private string FormatSessionSummary(BrainDumpSession session)
     {
+        var ordered = _service.GetOrderedSessions();
+        var position = ordered.FirstOrDefault(o => o.Session.Id == session.Id).Position;
         var sb = new StringBuilder();
-        sb.AppendLine($"Brain dump — {session.CreatedAt.ToLocalTime():MMM d, yyyy h:mm tt}");
-        sb.AppendLine($"Session ID: {session.Id}");
+        sb.AppendLine($"Brain dump — Session #{position} — {session.CreatedAt.ToLocalTime():MMM d, yyyy h:mm tt}");
         sb.AppendLine();
 
         AppendCategory(sb, "1. Things You're Putting Off", session.Avoidance);

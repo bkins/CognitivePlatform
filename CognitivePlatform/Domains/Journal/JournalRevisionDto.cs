@@ -9,4 +9,6 @@ public sealed class JournalRevisionDto
     public IReadOnlyList<string> Tags      { get; init; } = Array.Empty<string>();
     public string?               Mood      { get; init; }
     public int?                  MoodScore { get; init; }
+    public string                ValenceEmoji { get; init; } = "❓";
+    public string                AffectEmoji  { get; init; } = "❓";
 }

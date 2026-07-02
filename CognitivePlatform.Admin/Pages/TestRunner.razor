@@ -1,5 +1,6 @@
 @page "/tests"
 @using System.Diagnostics
+@using System.IO
 @using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
 @inject IJSRuntime            Js
@@ -64,7 +65,7 @@
                 }
             </MudStack>
 
-            <MudStack Row="true" Spacing="2" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
@@ -79,6 +80,15 @@
                            OnClick="@ClearAndroid">
                     Clear
                 </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(androidLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-android"))">
+                    Copy
+                </MudButton>
+                <MudSpacer />
+                <MudCheckBox @bind-Value="@_forceFailureAndroid" Label="Force Failure" Color="Color.Error" Dense="true" Disabled="@androidState.IsRunning" />
             </MudStack>
 
             @if (androidState.Error is not null)
@@ -98,7 +108,17 @@
                 {
                     @foreach (var line in androidLines)
                     {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">@line.Text</div>
+                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
+                            @if (TryExtractPngPath(line.Text, out var path))
+                            {
+                                <span>Captured failure screenshot: </span>
+                                <a href="javascript:void(0)" @onclick="@(() => ShowScreenshot(path))" style="color:#569cd6;text-decoration:underline;cursor:pointer">@System.IO.Path.GetFileName(path)</a>
+                            }
+                            else
+                            {
+                                @line.Text
+                            }
+                        </div>
                     }
                 }
                 <div id="android-terminal-end"></div>
@@ -172,7 +192,7 @@
                 }
             </MudStack>
 
-            <MudStack Row="true" Spacing="2" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.PlayArrow"
@@ -187,6 +207,15 @@
                            OnClick="@ClearWindows">
                     Clear
                 </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(windowsLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-windows"))">
+                    Copy
+                </MudButton>
+                <MudSpacer />
+                <MudCheckBox @bind-Value="@_forceFailureWindows" Label="Force Failure" Color="Color.Error" Dense="true" Disabled="@windowsState.IsRunning" />
             </MudStack>
 
             @if (windowsState.Error is not null)
@@ -206,7 +235,17 @@
                 {
                     @foreach (var line in windowsLines)
                     {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">@line.Text</div>
+                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
+                            @if (TryExtractPngPath(line.Text, out var path))
+                            {
+                                <span>Captured failure screenshot: </span>
+                                <a href="javascript:void(0)" @onclick="@(() => ShowScreenshot(path))" style="color:#569cd6;text-decoration:underline;cursor:pointer">@System.IO.Path.GetFileName(path)</a>
+                            }
+                            else
+                            {
+                                @line.Text
+                            }
+                        </div>
                     }
                 }
                 <div id="windows-terminal-end"></div>
@@ -227,6 +266,265 @@
             }
         </MudPaper>
     </MudItem>
+
+    @* ── Cognitive API ────────────────────────────────────────────────────── *@
+    @{
+        var cognitiveState = TerminalService.Get("test-cognitive-api");
+        var cognitiveLines = cognitiveState.Snapshot();
+        int cognitivePassed = cognitiveLines.Count(l => l.Kind == TerminalLineKind.Pass);
+        int cognitiveFailed = cognitiveLines.Count(l => l.Kind == TerminalLineKind.Fail);
+    }
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="2" Class="pa-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Api" />
+                <MudText Typo="Typo.h6">Cognitive API Validation</MudText>
+                <MudSpacer />
+                @if (cognitiveState.IsRunning)
+                {
+                    <MudChip T="string"
+                             Color="Color.Warning"
+                             Icon="@Icons.Material.Filled.RunCircle"
+                             Size="Size.Small">
+                        @(cognitiveState.ElapsedDisplay.Length > 0 ? cognitiveState.ElapsedDisplay : "Running…")
+                    </MudChip>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Stop"
+                               OnClick="@AbortCognitive">
+                        Abort
+                    </MudButton>
+                }
+                else if (cognitiveState.ExitCode.HasValue)
+                {
+                    @if (cognitiveState.ExitCode == 0)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Small">
+                            Exit 0 — OK
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Icon="@Icons.Material.Filled.Error"
+                                 Size="Size.Small">
+                            Exit @cognitiveState.ExitCode — Failed
+                        </MudChip>
+                    }
+                }
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@cognitiveState.IsRunning"
+                           OnClick="@RunCognitiveAsync">
+                    Run
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ClearAll"
+                           Disabled="@cognitiveState.IsRunning"
+                           OnClick="@ClearCognitive">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(cognitiveLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-cognitive-api"))">
+                    Copy
+                </MudButton>
+            </MudStack>
+
+            @if (cognitiveState.Error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-2">
+                    Failed to start process: @cognitiveState.Error
+                </MudAlert>
+            }
+
+            <MudPaper Elevation="4"
+                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
+                @if (cognitiveLines.Length == 0)
+                {
+                    <span style="color:#6b7280;font-style:italic">Run Cognitive API validation tests to see output here…</span>
+                }
+                else
+                {
+                    @foreach (var line in cognitiveLines)
+                    {
+                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
+                            @line.Text
+                        </div>
+                    }
+                }
+                <div id="cognitive-terminal-end"></div>
+            </MudPaper>
+
+            @if (!cognitiveState.IsRunning && cognitiveState.ExitCode.HasValue && (cognitivePassed + cognitiveFailed) > 0)
+            {
+                <MudPaper Elevation="0"
+                          Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
+                    <span style="color:@(cognitiveFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
+                        @cognitivePassed / @(cognitivePassed + cognitiveFailed) passed
+                    </span>
+                    @if (cognitiveFailed > 0)
+                    {
+                        <span style="color:#ff6b6b;margin-left:12px">@cognitiveFailed failed</span>
+                    }
+                </MudPaper>
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* ── Unit Tests ────────────────────────────────────────────────────────── *@
+    @{
+        var unitTestsState = TerminalService.Get("test-unit-tests");
+        var unitTestsLines = unitTestsState.Snapshot();
+        int unitTestsPassed = unitTestsLines.Count(l => l.Kind == TerminalLineKind.Pass);
+        int unitTestsFailed = unitTestsLines.Count(l => l.Kind == TerminalLineKind.Fail);
+    }
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="2" Class="pa-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.BugReport" />
+                <MudText Typo="Typo.h6">Unit Tests</MudText>
+                <MudSpacer />
+                @if (unitTestsState.IsRunning)
+                {
+                    <MudChip T="string"
+                             Color="Color.Warning"
+                             Icon="@Icons.Material.Filled.RunCircle"
+                             Size="Size.Small">
+                        @(unitTestsState.ElapsedDisplay.Length > 0 ? unitTestsState.ElapsedDisplay : "Running…")
+                    </MudChip>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Stop"
+                               OnClick="@AbortUnitTests">
+                        Abort
+                    </MudButton>
+                }
+                else if (unitTestsState.ExitCode.HasValue)
+                {
+                    @if (unitTestsState.ExitCode == 0)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Small">
+                            Exit 0 — OK
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Icon="@Icons.Material.Filled.Error"
+                                 Size="Size.Small">
+                            Exit @unitTestsState.ExitCode — Failed
+                        </MudChip>
+                    }
+                }
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@unitTestsState.IsRunning"
+                           OnClick="@RunUnitTestsAsync">
+                    Run
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ClearAll"
+                           Disabled="@unitTestsState.IsRunning"
+                           OnClick="@ClearUnitTests">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(unitTestsLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-unit-tests"))">
+                    Copy
+                </MudButton>
+            </MudStack>
+
+            @if (unitTestsState.Error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-2">
+                    Failed to start process: @unitTestsState.Error
+                </MudAlert>
+            }
+
+            <MudPaper Elevation="4"
+                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
+                @if (unitTestsLines.Length == 0)
+                {
+                    <span style="color:#6b7280;font-style:italic">Run Unit tests to see output here…</span>
+                }
+                else
+                {
+                    @foreach (var line in unitTestsLines)
+                    {
+                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
+                            @line.Text
+                        </div>
+                    }
+                }
+                <div id="unit-tests-terminal-end"></div>
+            </MudPaper>
+
+            @if (!unitTestsState.IsRunning && unitTestsState.ExitCode.HasValue && (unitTestsPassed + unitTestsFailed) > 0)
+            {
+                <MudPaper Elevation="0"
+                          Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
+                    <span style="color:@(unitTestsFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
+                        @unitTestsPassed / @(unitTestsPassed + unitTestsFailed) passed
+                    </span>
+                    @if (unitTestsFailed > 0)
+                    {
+                        <span style="color:#ff6b6b;margin-left:12px">@unitTestsFailed failed</span>
+                    }
+                </MudPaper>
+
+                var failedTestsList = ParseFailedTests(unitTestsLines);
+                @if (failedTestsList.Count > 0)
+                {
+                    <MudExpansionPanels Class="mt-3">
+                        <MudExpansionPanel Title="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
+                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
+                                @foreach (var test in failedTestsList)
+                                {
+                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
+                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
+                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
+                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
+                                            @if (test.Output.Count > 5)
+                                            {
+                                                <span>...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+            }
+        </MudPaper>
+    </MudItem>
+
 
     @* ── Evaluation dashboard link ───────────────────────────────────────────── *@
     <MudItem xs="12">
@@ -251,7 +549,29 @@
 
 </MudGrid>
 
+@if (_showScreenshotModal && !string.IsNullOrEmpty(_selectedScreenshotPath))
+{
+    <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+        <div style="background:#252526;padding:20px;border-radius:8px;max-width:90%;max-height:90%;display:flex;flex-direction:column;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #444;">
+            <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:16px;align-items:center;border-bottom:1px solid #3e3e42;padding-bottom:12px;">
+                <MudText Typo="Typo.subtitle1" Style="color:white;font-weight:bold;font-family:'Cascadia Code','Consolas',monospace;">@Path.GetFileName(_selectedScreenshotPath)</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="@CloseScreenshotModal" Size="Size.Small" />
+            </div>
+            <div style="overflow:auto;display:flex;justify-content:center;align-items:center;width:100%;">
+                <img src="@GetScreenshotDataUrl(_selectedScreenshotPath)" style="max-width:100%;max-height:65vh;object-fit:contain;border:1px solid #3e3e42;border-radius:4px;" />
+            </div>
+            <MudText Typo="Typo.caption" Style="color:#858585;margin-top:16px;font-family:'Cascadia Code','Consolas',monospace;word-break:break-all;">@_selectedScreenshotPath</MudText>
+        </div>
+    </div>
+}
+
 @code {
+    private bool _forceFailureAndroid;
+    private bool _forceFailureWindows;
+
+    private bool   _showScreenshotModal;
+    private string _selectedScreenshotPath = "";
+
     // ── Constants ─────────────────────────────────────────────────────────────────
 
     private const string LaaRepoDir = @"C:\Users\benho\source\repos\LocalAIAssistant";
@@ -338,10 +658,17 @@
 
     private void OnTerminalChanged(string id)
     {
-        if (id is not ("test-android" or "test-windows")) return;
+        if (id is not ("test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests")) return;
         try
         {
-            var endId = id == "test-android" ? "android-terminal-end" : "windows-terminal-end";
+            var endId = id switch
+            {
+                "test-android" => "android-terminal-end",
+                "test-windows" => "windows-terminal-end",
+                "test-cognitive-api" => "cognitive-terminal-end",
+                "test-unit-tests" => "unit-tests-terminal-end",
+                _ => ""
+            };
             _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(endId); });
         }
         catch { /* component disposed */ }
@@ -359,6 +686,9 @@
 
         try
         {
+            await using var api = new ApiLifecycle(TerminalService, "test-android");
+            await api.StartIfNeededAsync();
+
             // ── Step 1: check for a connected device ──────────────────────────────
             var deviceLines = new List<string>();
 
@@ -399,6 +729,10 @@
             // ── Step 2: run the smoke test script ─────────────────────────────────
             var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Android\SmokeTest-Android.ps1");
             var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
+            if (_forceFailureAndroid)
+            {
+                psArgs += " -ForceFailure";
+            }
 
             TerminalService.AppendLine("test-android", new TerminalLine($"$ pwsh {psArgs}"));
             TerminalService.AppendLine("test-android", new TerminalLine(string.Empty));
@@ -438,19 +772,24 @@
 
         try
         {
-            var pwsh7      = FindPwsh7();
-            var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Windows\SmokeTest-Windows.ps1");
-            var scriptDir  = Path.GetDirectoryName(scriptPath)!;
-            var psArgs     = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
+            await using var api = new ApiLifecycle(TerminalService, "test-windows");
+            await api.StartIfNeededAsync();
 
-            TerminalService.AppendLine("test-windows", new TerminalLine($"$ {pwsh7} {psArgs}"));
+            var workingDir = @"C:\Users\benho\source\repos\CP\ValidationPlatform";
+            var dotnetArgs = "run --project src/ValidationPlatform.Runner/ValidationPlatform.Runner.csproj -- laasmoke";
+            if (_forceFailureWindows)
+            {
+                dotnetArgs += " forcefailure";
+            }
+
+            TerminalService.AppendLine("test-windows", new TerminalLine($"$ dotnet {dotnetArgs}"));
             TerminalService.AppendLine("test-windows", new TerminalLine(string.Empty));
 
             var startInfo = new ProcessStartInfo
             {
-                FileName               = pwsh7
-              , Arguments              = psArgs
-              , WorkingDirectory       = scriptDir
+                FileName               = "dotnet"
+              , Arguments              = dotnetArgs
+              , WorkingDirectory       = workingDir
               , RedirectStandardOutput = true
               , RedirectStandardError  = true
               , UseShellExecute        = false
@@ -468,6 +807,221 @@
 
     private void AbortWindows()  => TerminalService.Abort("test-windows");
     private void ClearWindows()  => TerminalService.Clear("test-windows");
+
+    // ── Cognitive API execution ──────────────────────────────────────────────────
+
+    private async Task RunCognitiveAsync()
+    {
+        var cognitiveState = TerminalService.Get("test-cognitive-api");
+        if (cognitiveState.IsRunning) return;
+
+        TerminalService.Clear("test-cognitive-api");
+        TerminalService.MarkRunning("test-cognitive-api", true);
+
+        try
+        {
+            await using var api = new ApiLifecycle(TerminalService, "test-cognitive-api");
+            await api.StartIfNeededAsync();
+
+            var workingDir = @"C:\Users\benho\source\repos\CP\ValidationPlatform";
+            var dotnetArgs = "test src/ValidationPlatform.Tests.CognitiveApi/ValidationPlatform.Tests.CognitiveApi.csproj --logger \"console;verbosity=normal\"";
+
+            TerminalService.AppendLine("test-cognitive-api", new TerminalLine($"$ dotnet {dotnetArgs}"));
+            TerminalService.AppendLine("test-cognitive-api", new TerminalLine(string.Empty));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName               = "dotnet"
+              , Arguments              = dotnetArgs
+              , WorkingDirectory       = workingDir
+              , RedirectStandardOutput = true
+              , RedirectStandardError  = true
+              , UseShellExecute        = false
+              , CreateNoWindow         = true
+            };
+
+            var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine);
+            TerminalService.SetExitCode("test-cognitive-api", exitCode);
+        }
+        finally
+        {
+            TerminalService.MarkRunning("test-cognitive-api", false);
+        }
+    }
+
+    private void AbortCognitive()  => TerminalService.Abort("test-cognitive-api");
+    private void ClearCognitive()  => TerminalService.Clear("test-cognitive-api");
+
+    // ── Unit Tests execution ──────────────────────────────────────────────────────
+
+    private async Task RunUnitTestsAsync()
+    {
+        var unitTestsState = TerminalService.Get("test-unit-tests");
+        if (unitTestsState.IsRunning) return;
+
+        TerminalService.Clear("test-unit-tests");
+        TerminalService.MarkRunning("test-unit-tests", true);
+
+        try
+        {
+            var testProjects = DetectTestProjects();
+
+            if (testProjects.Count == 0)
+            {
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine("No test projects detected.", TerminalLineKind.Error));
+                return;
+            }
+
+            int overallExitCode = 0;
+
+            await using var api = new ApiLifecycle(TerminalService, "test-unit-tests");
+            bool apiStarted = false;
+
+            foreach (var project in testProjects)
+            {
+                var projectName = Path.GetFileNameWithoutExtension(project);
+                var workingDir = Path.GetDirectoryName(project) ?? @"C:\Users\benho\source\repos";
+
+                // 1. Build the project
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"=== Building: {projectName} ===", TerminalLineKind.Normal));
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+
+                var buildStartInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet"
+                  , Arguments              = $"build \"{project}\""
+                  , WorkingDirectory       = workingDir
+                  , RedirectStandardOutput = true
+                  , RedirectStandardError  = true
+                  , UseShellExecute        = false
+                  , CreateNoWindow         = true
+                };
+
+                // Run build without custom ClassifyLine to keep MSBuild output separate from test logs
+                var buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", buildStartInfo);
+                if (buildExitCode is null)
+                {
+                    overallExitCode = -1;
+                    break;
+                }
+                if (buildExitCode != 0)
+                {
+                    overallExitCode = buildExitCode.Value;
+                    TerminalService.AppendLine("test-unit-tests", new TerminalLine($"Build failed for {projectName}. Skipping tests.", TerminalLineKind.Error));
+                    continue;
+                }
+
+                // 2. Start API if needed
+                if (projectName.Contains("Integration", StringComparison.OrdinalIgnoreCase) && !apiStarted)
+                {
+                    await api.StartIfNeededAsync();
+                    apiStarted = true;
+                }
+
+                // 3. Run tests with --no-build
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"=== Running tests for: {projectName} ===", TerminalLineKind.Normal));
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+
+                var dotnetArgs = $"test \"{project}\" --no-build --logger \"console;verbosity=normal\"";
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"$ dotnet {dotnetArgs}"));
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet"
+                  , Arguments              = dotnetArgs
+                  , WorkingDirectory       = workingDir
+                  , RedirectStandardOutput = true
+                  , RedirectStandardError  = true
+                  , UseShellExecute        = false
+                  , CreateNoWindow         = true
+                };
+
+                // Wait for this project's run to complete
+                var exitCode = await TerminalService.RunProcessAsync("test-unit-tests", startInfo, ClassifyLine);
+                
+                if (exitCode is null)
+                {
+                    // User aborted
+                    overallExitCode = -1;
+                    break;
+                }
+                
+                if (exitCode != 0)
+                {
+                    overallExitCode = exitCode.Value;
+                }
+            }
+
+            TerminalService.SetExitCode("test-unit-tests", overallExitCode == -1 ? null : overallExitCode);
+
+            // Generate report
+            try
+            {
+                var failedTests = ParseFailedTests(unitTestsState.Snapshot());
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("# Test Failures Report");
+                sb.AppendLine();
+                sb.AppendLine($"**Generated on:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"**Total Failures:** {failedTests.Count}");
+                sb.AppendLine();
+
+                if (failedTests.Count == 0)
+                {
+                    sb.AppendLine("🎉 All tests passed successfully!");
+                }
+                else
+                {
+                    var grouped = failedTests.GroupBy(t => t.Project);
+                    foreach (var group in grouped)
+                    {
+                        sb.AppendLine($"## Project: {group.Key}");
+                        sb.AppendLine();
+
+                        foreach (var test in group)
+                        {
+                            sb.AppendLine($"### ❌ {test.TestName}");
+                            sb.AppendLine("```");
+                            foreach (var line in test.Output)
+                            {
+                                sb.AppendLine(line);
+                            }
+                            sb.AppendLine("```");
+                            sb.AppendLine();
+                        }
+                    }
+                }
+
+                var reportContent = sb.ToString();
+
+                // 1. Write to repo folder
+                var reportPath = @"C:\Users\benho\source\repos\CognitivePlatform\.agents\artifacts\test_failures_report.md";
+                var reportDir = Path.GetDirectoryName(reportPath);
+                if (reportDir != null && !Directory.Exists(reportDir))
+                {
+                    Directory.CreateDirectory(reportDir);
+                }
+                File.WriteAllText(reportPath, reportContent);
+
+                // 2. Write to session artifacts folder
+                var sessionReportPath = @"C:\Users\benho\.gemini\antigravity\brain\dee025af-8abd-4cce-b0e8-0cca881839dc\test_failures_report.md";
+                File.WriteAllText(sessionReportPath, reportContent);
+            }
+            catch (Exception ex)
+            {
+                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"[Failed to write failures report: {ex.Message}]", TerminalLineKind.Error));
+            }
+        }
+        finally
+        {
+            TerminalService.MarkRunning("test-unit-tests", false);
+        }
+    }
+
+    private void AbortUnitTests()  => TerminalService.Abort("test-unit-tests");
+    private void ClearUnitTests()  => TerminalService.Clear("test-unit-tests");
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -516,6 +1070,326 @@
                                    , $"var el=document.getElementById('{terminalEndId}');if(el)el.scrollIntoView({{behavior:'instant'}});");
         }
         catch { /* ignore during disposal or when DOM is not ready */ }
+    }
+
+    private async Task CopyTerminalAsync(string id)
+    {
+        var state = TerminalService.Get(id);
+        var text = string.Join(System.Environment.NewLine, state.Snapshot().Select(l => l.Text));
+        await Js.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
+    private static bool TryExtractPngPath(string text, out string path)
+    {
+        path = string.Empty;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var idx = text.IndexOf(".png", StringComparison.OrdinalIgnoreCase);
+        if (idx == -1) return false;
+
+        var match = System.Text.RegularExpressions.Regex.Match(text, @"[A-Za-z]:\\[^\s]+\.png");
+        if (match.Success)
+        {
+            path = match.Value;
+            return true;
+        }
+        return false;
+    }
+
+    private void ShowScreenshot(string path)
+    {
+        _selectedScreenshotPath = path;
+        _showScreenshotModal    = true;
+    }
+
+    private void CloseScreenshotModal()
+    {
+        _showScreenshotModal    = false;
+        _selectedScreenshotPath = string.Empty;
+    }
+
+    private string GetScreenshotDataUrl(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                var bytes = File.ReadAllBytes(path);
+                return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+            }
+        }
+        catch (Exception ex)
+        {
+            return $"error: {ex.Message}";
+        }
+        return string.Empty;
+    }
+
+    private static IReadOnlyList<string> DetectTestProjects()
+    {
+        var roots = new[]
+        {
+            @"C:\Users\benho\source\repos\CognitivePlatform",
+            @"C:\Users\benho\source\repos\LocalAIAssistant"
+        };
+
+        var projects = new List<string>();
+
+        foreach (var root in roots)
+        {
+            if (!Directory.Exists(root)) continue;
+
+            try
+            {
+                var files = Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    // Skip bin/obj directories
+                    if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
+                        file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+                    {
+                        continue;
+                    }
+
+                    // Check if it's a test project
+                    if (IsTestProject(file))
+                    {
+                        projects.Add(file);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error scanning root {root}: {ex.Message}");
+            }
+        }
+
+        return projects;
+    }
+
+    private static bool IsTestProject(string csprojPath)
+    {
+        var filename = Path.GetFileNameWithoutExtension(csprojPath);
+        
+        // Exclude runner/setup projects if they aren't actual xUnit/NUnit test suites
+        if (filename.Contains("DemoSetup", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (filename.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("Tests", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(csprojPath);
+            if (content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("nunit", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore read errors
+        }
+
+        return false;
+    }
+
+    private sealed class FailedTestDetails
+    {
+        public string Project { get; set; } = "";
+        public string TestName { get; set; } = "";
+        public List<string> Output { get; } = new();
+    }
+
+    private static List<FailedTestDetails> ParseFailedTests(TerminalLine[] lines)
+    {
+        var failedTests = new List<FailedTestDetails>();
+        string currentProject = "Unknown";
+        FailedTestDetails? currentFailedTest = null;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var text = line.Text;
+            var trimmed = text.Trim();
+
+            if (trimmed.StartsWith("=== Running tests for:") && trimmed.EndsWith("==="))
+            {
+                currentProject = trimmed.Substring(22, trimmed.Length - 25).Trim();
+                currentFailedTest = null;
+                continue;
+            }
+
+            if (line.Kind == TerminalLineKind.Fail)
+            {
+                // Skip the word "Failed"
+                string namePart = trimmed.Substring(6).Trim();
+                // Strip trailing "[...]" duration if present
+                int bracketIdx = namePart.LastIndexOf('[');
+                if (bracketIdx != -1)
+                {
+                    namePart = namePart.Substring(0, bracketIdx).Trim();
+                }
+
+                currentFailedTest = new FailedTestDetails
+                {
+                    Project = currentProject,
+                    TestName = namePart
+                };
+                failedTests.Add(currentFailedTest);
+                continue;
+            }
+
+            if (line.Kind == TerminalLineKind.Pass)
+            {
+                currentFailedTest = null;
+                continue;
+            }
+
+            if (currentFailedTest != null)
+            {
+                if (trimmed.StartsWith("Test Run Failed.") ||
+                    trimmed.StartsWith("Total tests:") ||
+                    trimmed.StartsWith("Failed:") ||
+                    trimmed.StartsWith("Passed:") ||
+                    trimmed.StartsWith("Total time:"))
+                {
+                    currentFailedTest = null;
+                    continue;
+                }
+
+                currentFailedTest.Output.Add(text);
+            }
+        }
+
+        return failedTests;
+    }
+
+    private static bool IsApiPortActive()
+    {
+        try
+        {
+            using var tcp = new System.Net.Sockets.TcpClient();
+            var result = tcp.BeginConnect("localhost", 5273, null, null);
+            var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500));
+            if (!success) return false;
+            tcp.EndConnect(result);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private sealed class ApiLifecycle : IAsyncDisposable
+    {
+        private Process? _process;
+        private readonly ITerminalStateService _terminalService;
+        private readonly string _terminalId;
+
+        public ApiLifecycle(ITerminalStateService terminalService, string terminalId)
+        {
+            _terminalService = terminalService;
+            _terminalId = terminalId;
+        }
+
+        private static void KillOrphanedApiProcesses()
+        {
+            try
+            {
+                foreach (var proc in Process.GetProcessesByName("CognitivePlatform.Api"))
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { }
+                }
+            }
+            catch { }
+        }
+
+        public async Task StartIfNeededAsync()
+        {
+            if (IsApiPortActive())
+            {
+                _terminalService.AppendLine(_terminalId, new TerminalLine("[API is already running on port 5273. Using existing instance.]", TerminalLineKind.Normal));
+                return;
+            }
+
+            // Ensure any orphaned/dangling CognitivePlatform.Api processes from prior aborted/failed runs are cleaned up first
+            KillOrphanedApiProcesses();
+
+            _terminalService.AppendLine(_terminalId, new TerminalLine("[Starting local API on port 5273...]", TerminalLineKind.Normal));
+
+            var exePath = @"C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\bin\Debug\net10.0\CognitivePlatform.Api.exe";
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = "--urls \"http://localhost:5273\"",
+                WorkingDirectory = Path.GetDirectoryName(exePath),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false
+            };
+            startInfo.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] = "Development";
+
+            _process = new Process { StartInfo = startInfo };
+            _process.Start();
+
+            // Wait for port 5273 to become active (up to 15 seconds)
+            var limit = DateTime.UtcNow.AddSeconds(15);
+            bool started = false;
+            while (DateTime.UtcNow < limit)
+            {
+                await Task.Delay(500);
+                if (IsApiPortActive())
+                {
+                    started = true;
+                    break;
+                }
+                if (_process.HasExited)
+                {
+                    break;
+                }
+            }
+
+            if (started)
+            {
+                _terminalService.AppendLine(_terminalId, new TerminalLine("[API started successfully on port 5273.]", TerminalLineKind.Normal));
+            }
+            else
+            {
+                _terminalService.AppendLine(_terminalId, new TerminalLine("[Warning: API failed to start or port 5273 did not activate in time.]", TerminalLineKind.Error));
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_process != null && !_process.HasExited)
+            {
+                _terminalService.AppendLine(_terminalId, new TerminalLine("[Stopping local API...]", TerminalLineKind.Normal));
+                try
+                {
+                    _process.Kill(entireProcessTree: true);
+                    await _process.WaitForExitAsync();
+                    _terminalService.AppendLine(_terminalId, new TerminalLine("[API stopped.]", TerminalLineKind.Normal));
+                }
+                catch (Exception ex)
+                {
+                    _terminalService.AppendLine(_terminalId, new TerminalLine($"[Error stopping API: {ex.Message}]", TerminalLineKind.Error));
+                }
+                _process.Dispose();
+            }
+
+            // Always call process cleanup to be absolutely sure no process remains orphaned
+            KillOrphanedApiProcesses();
+        }
     }
 
     // ── Disposal ──────────────────────────────────────────────────────────────────

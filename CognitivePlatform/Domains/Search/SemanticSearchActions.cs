@@ -1,5 +1,8 @@
 using System.Text;
 using CognitivePlatform.Api.Attributes;
+using CognitivePlatform.Api.Domains.BrainDump;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Registry.Domains;
 
@@ -11,13 +14,66 @@ public class SemanticSearchActions
     private const int    SnippetLength = 150;
     private const int    DefaultTopK   = 5;
 
-    private readonly IEmbeddingService _embeddingService;
-    private readonly IVectorStore      _vectorStore;
+    private readonly IEmbeddingService    _embeddingService;
+    private readonly IVectorStore         _vectorStore;
+    private readonly IJournalService?     _journalService;
+    private readonly ITaskService?        _taskService;
+    private readonly IBrainDumpService?   _brainDumpService;
 
-    public SemanticSearchActions(IEmbeddingService embeddingService, IVectorStore vectorStore)
+    public SemanticSearchActions(IEmbeddingService embeddingService
+                               , IVectorStore vectorStore
+                               , IJournalService? journalService = null
+                               , ITaskService? taskService = null
+                               , IBrainDumpService? brainDumpService = null)
     {
-        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
-        _vectorStore      = vectorStore      ?? throw new ArgumentNullException(nameof(vectorStore));
+        _embeddingService  = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
+        _vectorStore       = vectorStore      ?? throw new ArgumentNullException(nameof(vectorStore));
+        _journalService    = journalService;
+        _taskService       = taskService;
+        _brainDumpService  = brainDumpService;
+    }
+
+    private string ResolveReferenceLabel(string domain, string referenceId)
+    {
+        if (string.Equals(domain, "journal", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(domain, "JournalEntry", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_journalService is not null)
+            {
+                var ordered = _journalService.GetOrderedEntries();
+                var match = ordered.FirstOrDefault(e => e.EntryWithRevision.Entry.Id == referenceId);
+                if (match != default)
+                {
+                    return $"entry #{match.Position}";
+                }
+            }
+        }
+        else if (string.Equals(domain, "task", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_taskService is not null)
+            {
+                var ordered = _taskService.GetOrderedActiveTasks();
+                var match = ordered.FirstOrDefault(e => e.Task.Id == referenceId);
+                if (match != default)
+                {
+                    return $"task #{match.Position}";
+                }
+            }
+        }
+        else if (string.Equals(domain, "braindump", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_brainDumpService is not null)
+            {
+                var ordered = _brainDumpService.GetOrderedSessions();
+                var match = ordered.FirstOrDefault(e => e.Session.Id == referenceId);
+                if (match != default)
+                {
+                    return $"session #{match.Position}";
+                }
+            }
+        }
+
+        return referenceId;
     }
 
     // -----------------------------------------------------------------------
@@ -93,7 +149,7 @@ public class SemanticSearchActions
             var source = await _vectorStore.GetByReferenceAsync(domain, referenceId);
 
             if (source is null)
-                return $"No indexed content found for {domain} entry '{referenceId}'. "
+                return $"No indexed content found for {domain} entry '{ResolveReferenceLabel(domain, referenceId)}'. "
                      + "The item may not have been embedded yet — try again in a moment.";
 
             var results = await _vectorStore.SearchAsync(source.Embedding, topK: DefaultTopK + 1, domain: domain);
@@ -104,16 +160,17 @@ public class SemanticSearchActions
                            .ToList();
 
             if (filtered.Count == 0)
-                return $"No similar {domain} entries found for '{referenceId}'.";
+                return $"No similar {domain} entries found for '{ResolveReferenceLabel(domain, referenceId)}'.";
 
             var sb = new StringBuilder();
-            sb.AppendLine($"Items in {domain} similar to '{referenceId}':");
+            sb.AppendLine($"Items in {domain} similar to '{ResolveReferenceLabel(domain, referenceId)}':");
             sb.AppendLine();
 
             foreach (var result in filtered)
             {
                 var snippet = Snippet(result.Entry.Text);
-                sb.AppendLine($"[{result.Entry.Domain}] {result.Entry.ReferenceId} (score: {result.Score:F2})");
+                var label = ResolveReferenceLabel(result.Entry.Domain, result.Entry.ReferenceId);
+                sb.AppendLine($"[{result.Entry.Domain}] {label} (score: {result.Score:F2})");
                 sb.AppendLine($"  {snippet}");
                 sb.AppendLine();
             }
@@ -174,7 +231,7 @@ public class SemanticSearchActions
     // Formatting helpers
     // -----------------------------------------------------------------------
 
-    private static string FormatResults(
+    private string FormatResults(
         IReadOnlyList<VectorSearchResult> results
       , string                           query
       , string?                          domain )
@@ -190,7 +247,8 @@ public class SemanticSearchActions
         foreach (var result in results)
         {
             var snippet = Snippet(result.Entry.Text);
-            sb.AppendLine($"[{result.Entry.Domain}] {result.Entry.ReferenceId} (score: {result.Score:F2})");
+            var label = ResolveReferenceLabel(result.Entry.Domain, result.Entry.ReferenceId);
+            sb.AppendLine($"[{result.Entry.Domain}] {label} (score: {result.Score:F2})");
             sb.AppendLine($"  {snippet}");
             sb.AppendLine();
         }
@@ -200,6 +258,9 @@ public class SemanticSearchActions
 
     private static string Snippet(string text)
         => text.Length <= SnippetLength ? text : text[..SnippetLength] + "…";
+
+    private static string ShortId(string referenceId)
+        => referenceId.Length > 8 ? referenceId[..8] + "…" : referenceId;
 
     private static string UnavailableMessage()
         => "Semantic search isn't available yet — make sure Ollama is running with the nomic-embed-text model.";

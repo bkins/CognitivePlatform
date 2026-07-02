@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.DailyRecord;
@@ -16,7 +17,8 @@ namespace CognitivePlatform.Api.Domains.DailyRecord;
 /// </summary>
 public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 {
-    private static readonly Regex QuotedValueRegex = new(@"""([^""]+)""", RegexOptions.Compiled);
+    private static readonly Regex QuotedValueRegex = new(RegexMatchingPatterns.DoubleQuotedStringPattern
+                                                       , RegexOptions.Compiled);
 
     // Ordered from most-specific to least-specific to avoid prefix collisions.
     private static readonly (string Prefix, DailyCommandType Type)[] PrefixMap =
@@ -188,7 +190,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
     /// </summary>
     public static bool StartsWithKnownPrefix(string input)
     {
-        if (input.HasValue().Not()) return false;
+        if (input.HasNoValue()) return false;
 
         var lower = input.TrimStart().ToLowerInvariant();
 

@@ -49,6 +49,17 @@ public class MemoryConfirmationQueue : IMemoryConfirmationQueue
         }
     }
 
+    public int Count(string conversationId)
+    {
+        if (!_sessions.TryGetValue(conversationId, out var sessionQueue))
+            return 0;
+
+        lock (sessionQueue.SyncRoot)
+        {
+            return sessionQueue.Queue.Count;
+        }
+    }
+
     public bool HasPending(string conversationId)
     {
         if (!_sessions.TryGetValue(conversationId, out var sessionQueue))

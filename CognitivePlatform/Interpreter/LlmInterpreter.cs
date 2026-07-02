@@ -11,7 +11,9 @@ using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
+using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
+using CognitivePlatform.Api.Domains.Knowledge;
 
 namespace CognitivePlatform.Api.Interpreter;
 
@@ -23,6 +25,7 @@ public class LlmInterpreter : IInterpreter
     private readonly LlmModelCatalog   _modelCatalog;
     private readonly LlmClientSettings _settings;
     private readonly IPromptLogger     _promptLogger;
+    private readonly IKnowledgeIngestionService? _ingestionService;
 
     // Per-domain prompt summary cache. Domains are registered once at startup and never
     // change at runtime, so this cache never needs invalidation. Instance-level so
@@ -35,14 +38,16 @@ public class LlmInterpreter : IInterpreter
                          , ILlmRouter        llmRouter
                          , LlmModelCatalog   modelCatalog
                          , LlmClientSettings settings 
-                         , IPromptLogger     promptLogger)
+                         , IPromptLogger     promptLogger
+                         , IKnowledgeIngestionService? ingestionService = null)
     {
-        _registry     = registry;
-        _telemetry    = telemetry;
-        _llmRouter    = llmRouter;
-        _modelCatalog = modelCatalog;
-        _settings     = settings;
-        _promptLogger = promptLogger;
+        _registry         = registry;
+        _telemetry        = telemetry;
+        _llmRouter        = llmRouter;
+        _modelCatalog     = modelCatalog;
+        _settings         = settings;
+        _promptLogger     = promptLogger;
+        _ingestionService = ingestionService;
     }
 
     public async Task<InterpreterResult> InterpretWithContext( string              input
@@ -364,9 +369,54 @@ public class LlmInterpreter : IInterpreter
                                                      , name => _registry.GetDomainPromptSummary(name)));
         var sessionState   = BuildSessionStateBlock(context);
 
-        systemPrompt = systemPrompt.Replace("{{ACTIONS}}",       actionsSummary)
-                                   .Replace("{{SESSION_STATE}}", sessionState)
-                                   .Replace("{{USER_INPUT}}",    userInput);
+        var groundingContext = string.Empty;
+        if (context.Metadata.TryGetValue("active_knowledge_domain", out var domainName)
+            && !string.IsNullOrWhiteSpace(domainName)
+            && _ingestionService is not null)
+        {
+            var domain = await _ingestionService.GetDomainAsync(domainName);
+            if (domain is not null)
+            {
+                var chunks = await _ingestionService.RetrieveContextAsync(domain.Name, userInput);
+                if (chunks.Count > 0)
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"ACTIVE KNOWLEDGE DOMAIN: {domain.Name} ({domain.Mode} mode)");
+                    sb.AppendLine("Use the retrieved domain knowledge below to guide actions or answer questions:");
+                    sb.AppendLine();
+                    for (int i = 0; i < chunks.Count; i++)
+                    {
+                        var chunk = chunks[i];
+                        var docTitle = "Document";
+                        var docSource = "Unknown Source";
+
+                        if (Guid.TryParse(chunk.Entry.ReferenceId, out var objId))
+                        {
+                            var obj = await _ingestionService.GetObjectAsync(domain.Name, objId);
+                            if (obj is not null)
+                            {
+                                docTitle = obj.Title;
+                                docSource = obj.Source;
+                            }
+                        }
+
+                        sb.AppendLine($"[{i + 1}] Source: {docTitle} (Origin: {docSource})");
+                        sb.AppendLine($"Content: {chunk.Entry.Text}");
+                        sb.AppendLine();
+                    }
+                    groundingContext = sb.ToString().TrimEnd();
+                }
+                else
+                {
+                    groundingContext = $"ACTIVE KNOWLEDGE DOMAIN: {domain.Name} ({domain.Mode} mode)\nNo matching knowledge documents found.";
+                }
+            }
+        }
+
+        systemPrompt = systemPrompt.Replace("{{ACTIONS}}",           actionsSummary)
+                                   .Replace("{{GROUNDING_CONTEXT}}", groundingContext)
+                                   .Replace("{{SESSION_STATE}}",     sessionState)
+                                   .Replace("{{USER_INPUT}}",        userInput);
 
         return systemPrompt;
     }
@@ -673,12 +723,14 @@ public class LlmInterpreter : IInterpreter
                    };
         }
         
-        if (TryParse(jsonFromBraces, out var parsed2, actions))
-            return parsed2;
+        if (TryParse(jsonFromBraces, out var parsed2, actions)) return parsed2;
 
-        var regexMatch = Regex.Match(raw, "{.*}", RegexOptions.Singleline);
-        if (regexMatch.Success && TryParse(regexMatch.Value, out var parsed3, actions))
+        var regexMatch = Regex.Match(raw, RegexMatchingPatterns.CurlyBraceContentPattern, RegexOptions.Singleline);
+        if (regexMatch.Success 
+         && TryParse(regexMatch.Value, out var parsed3, actions))
+        {
             return parsed3;
+        }
 
         return new ParsedModelResponse
                {

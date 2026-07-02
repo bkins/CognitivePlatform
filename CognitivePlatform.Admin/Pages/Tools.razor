@@ -1,8 +1,10 @@
 @page "/tools"
+@using CognitivePlatform.Admin.Services
 @using CognitivePlatform.Admin.Services.ToolScript
 @using CognitivePlatform.Admin.Services.ToolScript.Helpers
 @using CognitivePlatform.Admin.Services.ToolScript.Interfaces
 @using CognitivePlatform.Admin.Services.ToolScript.Models
+@implements IDisposable
 
 @inject ToolScriptService     ToolScriptingService
 @inject IToolScriptRunner     ToolScriptRunner
@@ -15,22 +17,24 @@
 <MudStack Row="true"
           AlignItems="AlignItems.Center"
           Class="mb-4">
-    
+
     <MudText Typo="Typo.h4">
         Tools
     </MudText>
-    
+
     <MudSpacer/>
 
     <MudButton Variant="Variant.Outlined"
                StartIcon="@Icons.Material.Filled.ClearAll"
-               OnClick="ClearConsole">
+               OnClick="ClearActiveConsole">
         Clear Output
     </MudButton>
 
     <MudButton Variant="Variant.Outlined"
                Color="Color.Error"
-               StartIcon="@Icons.Material.Filled.Stop">
+               Disabled="@(!IsActiveTerminalRunning)"
+               StartIcon="@Icons.Material.Filled.Stop"
+               OnClick="AbortActiveTool">
         Abort
     </MudButton>
 </MudStack>
@@ -42,105 +46,119 @@
     <MudText Typo="Typo.h5">
         @category.Key
     </MudText>
-    
-    @* <MudText Typo="Typo.h5" Class="mt-4 mb-2"> *@
-    @*     @category.Key *@
-    @* </MudText> *@
 
     @foreach (var request in category)
     {
+        var isExpanded = _expandedScriptPath == request.Tool.ScriptPath;
+
         <MudCard Class="mb-4">
-            
-                <MudCardHeader>
+
+            <MudCardHeader>
+                <CardHeaderContent>
                     <MudText Typo="Typo.h6">
                         @request.Tool.Metadata.Name
                     </MudText>
-                </MudCardHeader>
-                <MudCardContent>
-                    @if (request.Tool.Metadata.Description.HasValue())
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@(isExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                   OnClick="@(() => ToggleExpanded(request))"
+                                   title="@(isExpanded ? "Hide output" : "Show output")"/>
+                </CardHeaderActions>
+            </MudCardHeader>
+
+            <MudCardContent>
+                @if (request.Tool.Metadata.Description.HasValue())
+                {
+                    <MudText Typo="Typo.body2"
+                             Color="Color.Secondary"
+                             Class="mb-4">
+                        @request.Tool.Metadata.Description
+                    </MudText>
+                }
+
+                <MudGrid>
+
+                    @foreach (var parameter in request.Tool.Parameters)
                     {
-                        <MudText Typo="Typo.body2"
-                                 Color="Color.Secondary"
-                                 Class="mb-4">
-                            @request.Tool.Metadata.Description
-                        </MudText>
+                        <MudItem xs="12" md="6">
+
+                            @switch (parameter.ParameterType)
+                            {
+                                case ToolParameterType.Text:
+                                    <MudTextField T="string"
+                                                  Label="@parameter.Label"
+                                                  Value="@(GetString(request
+                                                                   , parameter))"
+                                                  ValueChanged="@(v => SetValue(request
+                                                                              , parameter
+                                                                              , v))"
+                                                  FullWidth="true"/>
+                                    break;
+
+                                case ToolParameterType.Boolean:
+                                    <MudCheckBox T="bool"
+                                                 Label="@parameter.Label"
+                                                 Value="@(GetBool(request
+                                                                , parameter))"
+                                                 ValueChanged="@(v => SetValue(request
+                                                                             , parameter
+                                                                             , v))"/>
+                                    break;
+
+                                case ToolParameterType.Selection:
+                                    <MudSelect T="string"
+                                               Label="@parameter.Label"
+                                               Value="@(GetString(request
+                                                                , parameter))"
+                                               ValueChanged="@(v => SetValue(request
+                                                                           , parameter
+                                                                           , v))"
+                                               FullWidth="true">
+
+                                        @foreach (var option in parameter.AllowedValues)
+                                        {
+                                            <MudSelectItem T="string" Value="@option">
+                                                @option
+                                            </MudSelectItem>
+                                        }
+
+                                    </MudSelect>
+                                    break;
+                            }
+
+                        </MudItem>
                     }
 
-                    <MudGrid>
+                </MudGrid>
 
-                        @foreach (var parameter in request.Tool.Parameters)
-                        {
-                            <MudItem xs="12" md="6">
+            </MudCardContent>
 
-                                @switch (parameter.ParameterType)
-                                {
-                                    case ToolParameterType.Text:
-                                        <MudTextField T="string"
-                                                      Label="@parameter.Label"
-                                                      Value="@(GetString(request
-                                                                       , parameter))"
-                                                      ValueChanged="@(v => SetValue(request
-                                                                                  , parameter
-                                                                                  , v))"
-                                                      FullWidth="true"/>
-                                        break;
+            <MudCardActions>
 
-                                    case ToolParameterType.Boolean:
-                                        <MudCheckBox T="bool"
-                                                     Label="@parameter.Label"
-                                                     Value="@(GetBool(request
-                                                                    , parameter))"
-                                                     ValueChanged="@(v => SetValue(request
-                                                                                 , parameter
-                                                                                 , v))"/>
-                                        break;
+                <MudSpacer/>
 
-                                    case ToolParameterType.Selection:
-                                        <MudSelect T="string"
-                                                   Label="@parameter.Label"
-                                                   Value="@(GetString(request
-                                                                    , parameter))"
-                                                   ValueChanged="@(v => SetValue(request
-                                                                               , parameter
-                                                                               , v))"
-                                                   FullWidth="true">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@GetTerminal(request).IsRunning"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           OnClick="@(() => RunTool(request))">
 
-                                            @foreach (var option in parameter.AllowedValues)
-                                            {
-                                                <MudSelectItem T="string" Value="@option">
-                                                    @option
-                                                </MudSelectItem>
-                                            }
+                    @(GetTerminal(request).IsRunning
+                            ? "Running..."
+                            : "Run")
 
-                                        </MudSelect>
-                                        break;
-                                }
+                </MudButton>
 
-                            </MudItem>
-                        }
+            </MudCardActions>
 
-                    </MudGrid>
-
+            <MudCollapse Expanded="isExpanded">
+                <MudCardContent Class="pt-0">
+                    <TerminalOutput Terminal="@GetTerminal(request)"/>
                 </MudCardContent>
-                <MudCardActions>
+            </MudCollapse>
 
-                    <MudSpacer/>
-
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               Disabled="@Terminal.IsRunning"
-                               StartIcon="@Icons.Material.Filled.PlayArrow"
-                               OnClick="@(() => RunTool(request))">
-
-                        @(Terminal.IsRunning
-                                ? "Running..."
-                                : "Run")
-
-                    </MudButton>
-
-                </MudCardActions>
         </MudCard>
-    }   
+    }
 }
 @if (InvalidTools.Any())
 {
@@ -190,108 +208,20 @@
 
             </MudTable>
 
-
         </MudExpansionPanel>
 
     </MudExpansionPanels>
 }
 
-@if (false && InvalidTools.Any())
-{
-    <MudDivider Class="my-6"/>
-
-    <MudAlert Severity="Severity.Warning"
-              Dense="true"
-              Variant="Variant.Outlined">
-
-        <MudText Typo="Typo.h6">
-            Scripts requiring attention (@InvalidTools.Count()) in @ScriptFolder
-        </MudText>
-
-        <MudText Typo="Typo.body2">
-            These PowerShell scripts were discovered but could not be loaded as runnable tools.
-        </MudText>
-
-    </MudAlert>
-
-    <MudTable Items="InvalidTools"
-              Context="toolRequest"
-              Dense="true">
-
-        <HeaderContent>
-            <MudTh>Status</MudTh>
-            <MudTh>Script</MudTh>
-            <MudTh>Issue</MudTh>
-        </HeaderContent>
-
-        <RowTemplate>
-            <MudTd>
-                <MudIcon Color="Color.Error"
-                         Icon="@Icons.Material.Filled.Error"/>
-                @toolRequest.Tool.Status
-            </MudTd>
-            <MudTd>
-                @Path.GetFileName(toolRequest.Tool.ScriptPath)
-            </MudTd>
-
-            <MudTd>
-                @toolRequest.Tool.StatusMessage
-            </MudTd>
-        </RowTemplate>
-
-    </MudTable>
-
-}
-
-<MudPaper Elevation="4"
-          Class="pa-4 mt-6"
-          Style="background:#1e1e1e;height:500px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;">
-
-    @if (Terminal.Lines.Count == 0)
-    {
-        <div style="color:#888">
-            Run a tool to see output...
-        </div>
-    }
-    else
-    {
-        <div style="background:#1e1e1e;
-                    color:#d4d4d4;
-                    padding:16px;
-                    overflow-y:auto;
-                    height:500px;
-                    font-family:'Cascadia Code','Consolas',monospace;
-                    white-space:pre-wrap;">
-
-            @foreach (var line in Terminal.Lines)
-            {
-                var color = line.Kind switch
-                {
-                        TerminalLineKind.Error   => "#ff6b6b",
-                        TerminalLineKind.Warning => "#ffd166",
-                        _                        => "#d4d4d4"
-                };
-
-                <div style="color:@color">@line.Text</div>
-            }
-
-        </div>
-    }
-    
-
-</MudPaper>
-
 @code
 {
     private List<ToolExecutionRequest> _requests = [];
 
-    private const string        TerminalId = "Tools";
-    private       TerminalState Terminal => TerminalStateService.Get(TerminalId);
-
     private string? ScriptFolder;
-    
+    private string? _expandedScriptPath;
+
     private IEnumerable<IGrouping<string, ToolExecutionRequest>> ValidToolGroups =>
-            _requests.Where(request => request.Tool.Status == ToolLoadStatus.Valid 
+            _requests.Where(request => request.Tool.Status == ToolLoadStatus.Valid
                                      && request.Tool.Metadata.Hidden.Not())
                      .OrderBy(request => request.Tool.Metadata.Order)
                      .GroupBy(request => request.Tool.Metadata.Category);
@@ -299,25 +229,33 @@
     private IEnumerable<ToolExecutionRequest> InvalidTools =>
             _requests.Where(request => request.Tool.Status != ToolLoadStatus.Valid)
                      .OrderBy(request => Path.GetFileName(request.Tool.ScriptPath));
-    
+
+    private bool IsActiveTerminalRunning =>
+            _expandedScriptPath is not null
+         && TerminalStateService.Get(_expandedScriptPath).IsRunning;
+
     protected override void OnInitialized()
     {
+        TerminalStateService.StateChanged += OnTerminalChanged;
+
         _requests = ToolScriptingService.GetTools()
-                                        .Select(tool =>
-                                         {
-                                             var request = new ToolExecutionRequest { Tool = tool };
-                                             //To have default values:
-                                             /*
-                                                foreach (var parameter in tool.Parameters)
-                                                {
-                                                    request.Values[parameter.Name] = parameter.DefaultValue;
-                                                }
-                                              */
-                                             return request;
-                                         })
+                                        .Select(tool => new ToolExecutionRequest { Tool = tool })
                                         .ToList();
+
         ScriptFolder = Path.GetDirectoryName(_requests.FirstOrDefault()?.Tool.ScriptPath);
     }
+
+    private void OnTerminalChanged(string terminalId)
+    {
+        // Only the active terminal's output is visible, so only re-render
+        // when the change belongs to the currently expanded tool.
+        if (terminalId != _expandedScriptPath) return;
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private TerminalState GetTerminal( ToolExecutionRequest request )
+        => TerminalStateService.Get(request.Tool.ScriptPath);
 
     private static string GetString( ToolExecutionRequest request
                                    , ToolParameter        parameter )
@@ -342,16 +280,38 @@
         request.Values[parameter.Name] = value;
     }
 
+    private void ToggleExpanded( ToolExecutionRequest request )
+    {
+        _expandedScriptPath = _expandedScriptPath == request.Tool.ScriptPath
+                ? null
+                : request.Tool.ScriptPath;
+    }
+
     private async Task RunTool( ToolExecutionRequest request )
     {
+        _expandedScriptPath = request.Tool.ScriptPath;
 
-        await ToolScriptRunner.RunAsync(terminalId: TerminalId
+        await ToolScriptRunner.RunAsync(terminalId: request.Tool.ScriptPath
                                       , tool: request.Tool
                                       , values: request.Values);
     }
 
-    private void ClearConsole()
+    private void ClearActiveConsole()
     {
-        Terminal.Lines.Clear();
+        if (_expandedScriptPath is null) return;
+
+        TerminalStateService.Clear(_expandedScriptPath);
+    }
+
+    private void AbortActiveTool()
+    {
+        if (_expandedScriptPath is null) return;
+
+        TerminalStateService.Abort(_expandedScriptPath);
+    }
+
+    public void Dispose()
+    {
+        TerminalStateService.StateChanged -= OnTerminalChanged;
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
@@ -15,9 +16,10 @@ public static class TaskDateParser
 {
     // Matches trailing "by ...", "due ...", "due by ...", "due on ...", "until ..." clauses.
     // RightToLeft so the LAST occurrence wins (e.g. "Move meeting due on May 7 by EOD").
-    private static readonly Regex DueDateSuffixPattern = new(
-        @"\s+(?:due\s+(?:by\s+|on\s+)|due\s+|by\s+|until\s+)([\w\s/,.\-]+?)[\s,;.]*$"
-      , RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.RightToLeft);
+    private static readonly Regex DueDateSuffixPattern = new(RegexMatchingPatterns.DueDateSuffixPattern
+                                                           , RegexOptions.IgnoreCase 
+                                                           | RegexOptions.Compiled 
+                                                           | RegexOptions.RightToLeft);
 
     // -----------------------------------------------------------------------
     // Public API
@@ -116,7 +118,7 @@ public static class TaskDateParser
         }
 
         // ── "in N days / weeks / months" ────────────────────────────────────
-        var inMatch = Regex.Match(normalized, @"^in\s+(\d+)\s+(day|days|week|weeks|month|months)$");
+        var inMatch = Regex.Match(normalized, RegexMatchingPatterns.RelativeTimeframePattern);
 
         if (inMatch.Success)
         {

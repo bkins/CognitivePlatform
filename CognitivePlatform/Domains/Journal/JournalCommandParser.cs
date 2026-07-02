@@ -1,13 +1,15 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Journal;
 
 public sealed class JournalCommandParser : IJournalCommandParser
 {
-    private static readonly Regex QuotedValueRegex = new Regex("\"([^\"]+)\"", RegexOptions.Compiled);
+    private static readonly Regex QuotedValueRegex = new(RegexMatchingPatterns.DoubleQuotedStringPattern
+                                                       , RegexOptions.Compiled);
 
     private static readonly string[] Directives =
     {

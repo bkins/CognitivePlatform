@@ -365,4 +365,40 @@ public class BrainDumpServiceTests
                                             , It.IsAny<string?>())
                         , Times.Never);
     }
+
+    [Fact]
+    public void GetOrderedSessions_ReturnsSessionsInChronologicalOrder_WithPositions()
+    {
+        var older = new BrainDumpSession { Id = "older", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10) };
+        var newer = new BrainDumpSession { Id = "newer", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5) };
+
+        _storeMock.Setup(store => store.List<BrainDumpSession>(null, null, null))
+                  .Returns(new List<BrainDumpSession> { newer, older });
+
+        var results = _service.GetOrderedSessions();
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(1, results[0].Position);
+        Assert.Equal("older", results[0].Session.Id);
+        Assert.Equal(2, results[1].Position);
+        Assert.Equal("newer", results[1].Session.Id);
+    }
+
+    [Fact]
+    public void ResolveByPosition_ReturnsCorrectSession_OrNullIfOutOfRange()
+    {
+        var older = new BrainDumpSession { Id = "older", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10) };
+        var newer = new BrainDumpSession { Id = "newer", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-5) };
+
+        _storeMock.Setup(store => store.List<BrainDumpSession>(null, null, null))
+                  .Returns(new List<BrainDumpSession> { newer, older });
+
+        var resolvedFirst = _service.ResolveByPosition(1);
+        var resolvedSecond = _service.ResolveByPosition(2);
+        var resolvedInvalid = _service.ResolveByPosition(3);
+
+        Assert.Equal("older", resolvedFirst?.Id);
+        Assert.Equal("newer", resolvedSecond?.Id);
+        Assert.Null(resolvedInvalid);
+    }
 }

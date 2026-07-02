@@ -27,12 +27,16 @@ public class LlmRouterTests
 
     public LlmRouterTests()
     {
-        _defaults = new LlmProviderDefaults
-                    {
-                            Groq       = "llama-3.3-70b-versatile"
-                          , OpenRouter = "anthropic/claude-3.5-sonnet"
-                          , Gemini     = "gemini-2.5-flash"
-                    };
+        // LlmProviderDefaults was refactored from a plain POCO to a read-through over LlmClientSettings.
+        // Build it the same way the DI container does.
+        var clientSettings = new LlmClientSettings
+                             {
+                                 Groq       = new GroqSettings       { Model = "llama-3.3-70b-versatile"      }
+                               , OpenRouter = new OpenRouterSettings { Model = "anthropic/claude-3.5-sonnet" }
+                               , Gemini     = new GeminiSettings     { Model = "gemini-2.5-flash"             }
+                             };
+
+        _defaults = new LlmProviderDefaults(Options.Create(clientSettings));
 
         _factoryMock.SetupGet(factory => factory.DefaultProvider).Returns(LlmProvider.Groq);
         _factoryMock.Setup(factory => factory.Create(LlmProvider.Groq))      .Returns(_groqClient.Object);
@@ -46,7 +50,7 @@ public class LlmRouterTests
         _fallbackChainMock.Setup(chain => chain.Enabled).Returns(false);
 
         _router = new LlmRouter(_factoryMock.Object
-                              , Options.Create(_defaults)
+                              , _defaults
                               , _loggerMock.Object
                               , _aggregatorMock.Object
                               , _rateLimiterMock.Object
@@ -351,3 +355,4 @@ public class LlmRouterTests
         }
     }
 }
+

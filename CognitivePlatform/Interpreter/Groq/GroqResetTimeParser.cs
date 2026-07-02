@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Interpreter;
@@ -11,9 +12,9 @@ public static class GroqResetTimeParser
 {
     // Matches optional hours, minutes, seconds — all components are optional
     // but at least one must be present.  e.g. "1h", "30s", "1m30s", "1h30m20s"
-    private static readonly Regex DurationPattern = new(
-        @"(?:(?<hours>\d+)h)?(?:(?<minutes>\d+)m(?!s))?(?:(?<seconds>\d+)s)?"
-      , RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+    private static readonly Regex DurationPattern = new(RegexMatchingPatterns.DurationParserPattern
+                                                      , RegexOptions.Compiled 
+                                                      | RegexOptions.ExplicitCapture);
 
     /// <summary>
     /// Parses a Groq reset string into a <see cref="TimeSpan"/>.

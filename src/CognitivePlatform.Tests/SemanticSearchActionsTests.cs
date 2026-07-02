@@ -1,5 +1,9 @@
 using Moq;
 using CognitivePlatform.Api.Domains.Search;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Integrations.Embeddings;
 
 namespace CognitivePlatform.Tests;
@@ -225,5 +229,51 @@ public class SemanticSearchActionsTests
         var result = await _actions.FindSimilar("journal", "some-id");
 
         Assert.Contains("nomic-embed-text", result);
+    }
+
+    [Fact]
+    public async Task SemanticSearch_ResolvesPositionsInFormatResults()
+    {
+        var journalMock   = new Mock<IJournalService>();
+        var taskMock      = new Mock<ITaskService>();
+        var brainDumpMock = new Mock<IBrainDumpService>();
+
+        var entryId = "journal-entry-guid";
+        var journalEntry = new JournalEntry { Id = entryId };
+        var revision = new JournalRevision();
+        var entryWithRevision = new CognitivePlatform.Api.Models.JournalEntryWithRevision(journalEntry, revision, false);
+        var entries = new List<(int Position, CognitivePlatform.Api.Models.JournalEntryWithRevision EntryWithRevision)>
+                      {
+                          (5, entryWithRevision)
+                      };
+        journalMock.Setup(j => j.GetOrderedEntries()).Returns(entries);
+
+        var actionsWithServices = new SemanticSearchActions(
+            _embeddingMock.Object
+          , _vectorStoreMock.Object
+          , journalMock.Object
+          , taskMock.Object
+          , brainDumpMock.Object);
+
+        var embedding = new float[] { 1f, 0f };
+        var entry     = new VectorEntry
+                        {
+                            Id          = "journal:" + entryId
+                          , Domain      = "journal"
+                          , ReferenceId = entryId
+                          , Text        = "Looking back at the logs."
+                          , Embedding   = embedding
+                        };
+
+        _embeddingMock.SetupGet(service => service.IsAvailable).Returns(true);
+        _embeddingMock.Setup(service => service.EmbedAsync("burnout", default))
+                      .ReturnsAsync(embedding);
+        _vectorStoreMock.Setup(store => store.SearchAsync(embedding, 5, null, default))
+                        .ReturnsAsync(new List<VectorSearchResult> { new(entry, 0.92f) });
+
+        var result = await actionsWithServices.SemanticSearch("burnout");
+
+        Assert.Contains("[journal] entry #5", result);
+        Assert.DoesNotContain(entryId, result);
     }
 }

@@ -144,7 +144,7 @@ public class GroqSettings
     /// Recommended: "llama-3.3-70b-versatile" or "qwen-qwq-32b"
     /// Full list: https://console.groq.com/docs/models
     /// </summary>
-    public string Model { get; set; } = "llama-3.3-70b-versatile";
+    public string? Model { get; set; } = "llama-3.3-70b-versatile";
 
     /// <summary>
     /// Groq API base URL. Unlikely to change but kept configurable.

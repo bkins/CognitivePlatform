@@ -11,6 +11,8 @@ public class ConverseResponse
     public string? Debug                  { get; set; }
     public bool    Success                { get; set; } = true;
     public bool    WasFastPath            { get; set; }
+    public bool    IsConfirmationRequired { get; set; }
+    public string? ConfirmationPrompt     { get; set; }
 
     /// <summary>
     /// Insights emitted by the Insight Engine on this turn. <see cref="Message"/>
@@ -20,4 +22,10 @@ public class ConverseResponse
     /// insights distinctly can read this list directly.
     /// </summary>
     public IReadOnlyList<Insight> Insights { get; set; } = Array.Empty<Insight>();
+
+    /// <summary>Number of persona-memory assertions awaiting user confirmation.</summary>
+    public int PendingMemoryCount { get; set; }
+
+    /// <summary>Populated when the API falls back to a lower model tier.</summary>
+    public string? ModelNotice { get; set; }
 }

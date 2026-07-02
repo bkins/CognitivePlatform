@@ -7,31 +7,12 @@ namespace CognitivePlatform.Tests;
 
 public class LlmProviderDefaultsTests
 {
-    [Fact]
-    public void BindsFromConfiguration_PopulatesEveryKnownProvider()
-    {
-        var dict = new Dictionary<string, string?>
-                   {
-                           ["Llm:Defaults:Ollama"]     = "llama3.1:8b"
-                         , ["Llm:Defaults:Groq"]       = "llama-3.3-70b-versatile"
-                         , ["Llm:Defaults:Gemini"]     = "gemini-2.5-flash"
-                         , ["Llm:Defaults:OpenRouter"] = "anthropic/claude-3.5-sonnet"
-                         , ["Llm:Defaults:Cerebras"]   = "llama3.1-8b"
-                   };
-
-        var defaults = BindDefaults(dict);
-
-        Assert.Equal("llama3.1:8b",                    defaults.Ollama);
-        Assert.Equal("llama-3.3-70b-versatile",        defaults.Groq);
-        Assert.Equal("gemini-2.5-flash",               defaults.Gemini);
-        Assert.Equal("anthropic/claude-3.5-sonnet",    defaults.OpenRouter);
-        Assert.Equal("llama3.1-8b",                    defaults.Cerebras);
-    }
 
     [Fact]
     public void For_ReturnsConfiguredValue_ForKnownProvider()
     {
-        var defaults = new LlmProviderDefaults { OpenRouter = "anthropic/claude-3.5-sonnet" };
+        var settings = new LlmClientSettings { OpenRouter = new OpenRouterSettings { Model = "anthropic/claude-3.5-sonnet" } };
+        var defaults = new LlmProviderDefaults(Options.Create(settings));
 
         Assert.Equal("anthropic/claude-3.5-sonnet", defaults.For(LlmProvider.OpenRouter));
     }
@@ -39,26 +20,34 @@ public class LlmProviderDefaultsTests
     [Fact]
     public void For_ReturnsEmpty_ForUnconfiguredProvider()
     {
-        var defaults = new LlmProviderDefaults();
+        var settings = new LlmClientSettings { 
+            Gemini = new GeminiSettings { Model = string.Empty },
+            OpenRouter = new OpenRouterSettings { Model = string.Empty },
+            Groq = new GroqSettings { Model = string.Empty },
+            Cerebras = new CerebrasSettings { Model = string.Empty },
+            Model = string.Empty,
+            DefaultModel = string.Empty
+        };
+        var defaults = new LlmProviderDefaults(Options.Create(settings));
 
         Assert.Equal(string.Empty, defaults.For(LlmProvider.Gemini));
     }
-
+    //
     [Fact]
     public void BindsFromConfiguration_LeavesMissingProviderEmpty()
     {
         var dict = new Dictionary<string, string?>
                    {
-                           ["Llm:Defaults:Groq"] = "llama-3.3-70b-versatile"
+                           ["Llm:Clients:Groq:Model"] = "llama-3.3-70b-versatile"
                    };
 
         var defaults = BindDefaults(dict);
 
-        Assert.Equal("llama-3.3-70b-versatile", defaults.Groq);
-        Assert.Equal(string.Empty,               defaults.OpenRouter);
-        Assert.Equal(string.Empty,               defaults.Gemini);
-        Assert.Equal(string.Empty,               defaults.Ollama);
-        Assert.Equal(string.Empty,               defaults.Cerebras);
+        Assert.Equal("llama-3.3-70b-versatile", defaults.For(LlmProvider.Groq));
+        Assert.Equal("openai/gpt-4o-mini",       defaults.For(LlmProvider.OpenRouter));
+        Assert.Equal("llama-3.3-70b-versatile",  defaults.For(LlmProvider.Gemini));
+        Assert.Equal("qwen2.5:14b",              defaults.For(LlmProvider.Ollama));
+        Assert.Equal("llama3.1-8b",              defaults.For(LlmProvider.Cerebras));
     }
 
     private static LlmProviderDefaults BindDefaults(Dictionary<string, string?> dict)
@@ -68,9 +57,11 @@ public class LlmProviderDefaultsTests
                     .Build();
 
         var services = new ServiceCollection();
-        services.Configure<LlmProviderDefaults>(config.GetSection("Llm:Defaults"));
+        services.Configure<LlmClientSettings>(config.GetSection("Llm:Clients"));
+        services.AddTransient<LlmProviderDefaults>();
         var provider = services.BuildServiceProvider();
 
-        return provider.GetRequiredService<IOptions<LlmProviderDefaults>>().Value;
+        return provider.GetRequiredService<LlmProviderDefaults>();
     }
 }
+

@@ -44,6 +44,24 @@ public class BrainDumpService : IBrainDumpService
                      .OrderByDescending(session => session.CreatedAt)
                      .Take(count)
                      .ToList();
+     }
+
+    public IReadOnlyList<(int Position, BrainDumpSession Session)> GetOrderedSessions()
+    {
+        return _store.List<BrainDumpSession>(_workspaceContext.ActivePartitionKey)
+                     .Where(session => !session.IsDeleted)
+                     .OrderBy(session => session.CreatedAt)
+                     .Select((session, index) => (index + 1, session))
+                     .ToList();
+    }
+
+    public BrainDumpSession? ResolveByPosition(int position)
+    {
+        var ordered = GetOrderedSessions();
+        if (position < 1 || position > ordered.Count)
+            return null;
+
+        return ordered[position - 1].Session;
     }
 
     public BrainDumpSession? UpdateCategory(string id, BrainDumpCategory category, string text)

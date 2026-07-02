@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Integrations.Embeddings;
+using CP.Shared.Primitives.Avails;
 using Microsoft.Extensions.Logging;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
@@ -162,11 +163,12 @@ public sealed class DocumentIndexingService : IDocumentIndexingService
     private static string StripMarkdown(string markdown)
     {
         // Remove headings, bold, italic, code spans, links, images
-        var text = Regex.Replace(markdown, @"#{1,6}\s",          string.Empty);
-        text     = Regex.Replace(text,     @"\*{1,2}(.+?)\*{1,2}", "$1");
-        text     = Regex.Replace(text,     @"`{1,3}[^`]*`{1,3}", string.Empty);
-        text     = Regex.Replace(text,     @"!\[.*?\]\(.*?\)",   string.Empty);
-        text     = Regex.Replace(text,     @"\[(.+?)\]\(.*?\)",  "$1");
+        var text = Regex.Replace(markdown, RegexMatchingPatterns.MarkdownHeaderPattern,     string.Empty);
+            text = Regex.Replace(text,     RegexMatchingPatterns.MarkdownEmphasisPattern,   "$1");
+            text = Regex.Replace(text,     RegexMatchingPatterns.MarkdownInlineCodePattern, string.Empty);
+            text = Regex.Replace(text,     RegexMatchingPatterns.MarkdownImageLinkPattern,  string.Empty);
+            text = Regex.Replace(text,     RegexMatchingPatterns.MarkdownHyperlinkPattern,  "$1");
+            
         return text.Trim();
     }
 

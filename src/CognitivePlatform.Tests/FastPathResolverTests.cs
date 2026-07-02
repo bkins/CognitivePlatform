@@ -1,6 +1,7 @@
 using Moq;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Interpreter.FastPath;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
 
@@ -49,6 +50,7 @@ public class FastPathResolverTests
             , MakeAction("GetSleepSummary")
             , MakeAction("GetHeartRate")
             , MakeAction("GetDistance")
+            , MakeAction("ReportBug")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -1051,5 +1053,68 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("CloseDay",       action!.Name);
         Assert.Equal("Solid session.", parameters!["closingText"]);
+    }
+
+    // ================================================================
+    // BUG-A1/A2/A3: "Bug:" FastPath routing
+    // "Bug: description" must route to ReportBug without going through
+    // the LLM and without being swallowed by the workspace extractor.
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToReportBug_ForBugColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Bug: The search returns empty results.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportBug",                       action!.Name);
+        Assert.Equal("The search returns empty results.", parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportBug_ForBugReportColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Bug report: Submit button crashes the app.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportBug",                          action!.Name);
+        Assert.Equal("Submit button crashes the app.", parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportBug_ForFoundABugColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Found a bug: Tasks disappear after sync.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportBug",                       action!.Name);
+        Assert.Equal("Tasks disappear after sync.", parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryExtractWorkspacePrefix_ReturnsFalse_ForBugColonInput()
+    {
+        // BUG-A2: "Bug" must never be mistaken for a workspace name.
+        var extracted = _resolver.TryExtractWorkspacePrefix(
+            "Bug: The submit button crashes.",
+            out var workspaceName,
+            out var remainder);
+
+        Assert.False(extracted);
+        Assert.Null(workspaceName);
+        Assert.Null(remainder);
+    }
+
+    [Fact]
+    public void TryExtractWorkspacePrefix_ReturnsFalse_ForBugReportColonInput()
+    {
+        // BUG-A2: "Bug report" must never be mistaken for a workspace name.
+        var extracted = _resolver.TryExtractWorkspacePrefix(
+            "Bug report: Tasks disappear.",
+            out var workspaceName,
+            out _);
+
+        Assert.False(extracted);
+        Assert.Null(workspaceName);
     }
 }

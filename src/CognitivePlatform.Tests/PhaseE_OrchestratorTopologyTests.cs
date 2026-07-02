@@ -15,6 +15,7 @@ using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Workspace;
+using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Tests;
 
@@ -41,7 +42,7 @@ public class PhaseE_OrchestratorTopologyTests
     private readonly ConversationContextStore    _contextStore     = new();
     private readonly TelemetryContext            _telemetryContext = new() { SessionId = "topology-test" };
     private readonly LlmModelCatalog             _modelCatalog     = new();
-    private readonly LlmProviderDefaults         _providerDefaults = new();
+    private readonly LlmProviderDefaults         _providerDefaults = new LlmProviderDefaults(Options.Create(new LlmClientSettings()));
 
     private const string SessionId = "topology-test";
 

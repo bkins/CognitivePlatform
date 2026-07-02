@@ -1,0 +1,45 @@
+@using CognitivePlatform.Admin.Services
+@using CognitivePlatform.Admin.Services.ToolScript.Models
+
+<MudPaper Elevation="4"
+          Class="pa-4"
+          Style="background:#1e1e1e;height:400px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;">
+
+    @if (Terminal.Lines.Count == 0)
+    {
+        <div style="color:#888">
+            Run this tool to see output...
+        </div>
+    }
+    else
+    {
+        <div style="background:#1e1e1e;
+                    color:#d4d4d4;
+                    padding:16px;
+                    overflow-y:auto;
+                    height:400px;
+                    font-family:'Cascadia Code','Consolas',monospace;
+                    white-space:pre-wrap;">
+
+            @foreach (var line in Terminal.Lines)
+            {
+                var color = line.Kind switch
+                {
+                        TerminalLineKind.Error   => "#ff6b6b",
+                        TerminalLineKind.Warning => "#ffd166",
+                        _                        => "#d4d4d4"
+                };
+
+                <div style="color:@color">@line.Text</div>
+            }
+
+        </div>
+    }
+
+</MudPaper>
+
+@code
+{
+    [Parameter, EditorRequired]
+    public TerminalState Terminal { get; set; } = null!;
+}

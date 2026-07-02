@@ -8,6 +8,10 @@ public interface IBrainDumpService
 
     IReadOnlyList<BrainDumpSession> ListSessions(int count = 10);
 
+    IReadOnlyList<(int Position, BrainDumpSession Session)> GetOrderedSessions();
+
+    BrainDumpSession? ResolveByPosition(int position);
+
     BrainDumpSession? UpdateCategory(string id, BrainDumpCategory category, string text);
 
     BrainDumpSession? MarkProcessed( string                  id

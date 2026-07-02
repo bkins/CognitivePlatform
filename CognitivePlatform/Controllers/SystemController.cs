@@ -18,13 +18,15 @@ public class SystemController : ControllerBase
     private readonly SystemService               _systemService;
     private readonly ILlmUsageAggregator         _llmUsageAggregator;
     private readonly ILlmRateLimiter             _llmRateLimiter;
+    private readonly ITelemetryStreamService     _streamService;
 
     public SystemController( ITelemetrySink              telemetrySink
                            , IGroqUsageTracker           usageTracker
                            , ITelemetryAggregatorService telemetryAggregator
                            , SystemService               systemService
                            , ILlmUsageAggregator         llmUsageAggregator
-                           , ILlmRateLimiter             llmRateLimiter )
+                           , ILlmRateLimiter             llmRateLimiter
+                           , ITelemetryStreamService     streamService )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
@@ -32,6 +34,7 @@ public class SystemController : ControllerBase
         _systemService       = systemService;
         _llmUsageAggregator  = llmUsageAggregator;
         _llmRateLimiter      = llmRateLimiter;
+        _streamService       = streamService;
     }
 
 
@@ -151,6 +154,38 @@ public class SystemController : ControllerBase
                          });
 
         return Ok(metrics);
+    }
+
+    /// <summary>
+    /// Streams telemetry events in real-time using Server-Sent Events (SSE).
+    /// </summary>
+    [HttpGet("telemetry/stream")]
+    public async Task GetTelemetryStream(CancellationToken ct)
+    {
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+
+        var serializerOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            WriteIndented = false,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        };
+
+        try
+        {
+            await foreach (var evt in _streamService.SubscribeAsync(ct))
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(evt, evt.GetType(), serializerOptions);
+                await Response.WriteAsync($"data: {json}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected - normal flow
+        }
     }
 
     // ----------------------------------------------------------------

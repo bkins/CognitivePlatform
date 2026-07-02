@@ -25,4 +25,10 @@ public sealed record UserSettings
     /// is called with a name not already in this list.
     /// </summary>
     public IReadOnlyList<string> KnownWorkspaces { get; init; } = [WorkspaceKeys.Personal];
+
+    /// <summary>
+    /// Explicit whitelist of action names allowed for autonomous execution.
+    /// Default is empty for safety.
+    /// </summary>
+    public IReadOnlySet<string> AllowedAutomationActions { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }

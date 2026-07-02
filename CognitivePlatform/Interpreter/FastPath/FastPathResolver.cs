@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
-using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Avails.Extensions;
+using CP.Shared.Primitives.Avails;
+using CP.Shared.Primitives.Avails.Extensions;
 
-namespace CognitivePlatform.Api.Interpreter;
+namespace CognitivePlatform.Api.Interpreter.FastPath;
 
 public sealed class FastPathResolver : IFastPathResolver
 {
@@ -337,7 +334,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant();
 
-        if (ClaimRolledOverSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (ClaimRolledOverSignals.Any(signal => normalized.Contains(signal))
+                                  .Not())
             return false;
 
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ClaimRolledOverTasks");
@@ -395,10 +393,31 @@ public sealed class FastPathResolver : IFastPathResolver
         {
             SetSystemAction(input:  input
                           , action: ref action);
-            
+
             parameters = ParseToDictionary(input);
-            
+
             return action is not null;
+        }
+
+        // BUG-A1: Route "Bug:", "Bug report:", "Found a bug:", "Report a bug:" directly
+        // to ReportBug without going through the LLM.  Previously these fell through to
+        // TryResolveGenericFastPath which was blocked by the IsBatchIntent colon guard,
+        // causing every Bug: input to reach the LLM Interpreter (or workspace extractor).
+        if (prefix.Equals("bug",            StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("bug report",    StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("found a bug",   StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("report a bug",  StringComparison.OrdinalIgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction =>
+                         registryAction.Name == "ReportBug");
+
+            if (action is null) return false;
+
+            var body = input[(colonIndex + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(body)) return false;
+
+            parameters = new Dictionary<string, string> { ["description"] = body };
+            return true;
         }
 
         return false;
@@ -448,9 +467,9 @@ public sealed class FastPathResolver : IFastPathResolver
         var bodyLines = lines.Skip(1).ToList();
 
         // First line that has no colon is the free-text body.
-        var textLine = bodyLines.FirstOrDefault(line => line.Contains(':').Not());
-        if (textLine is not null)
-            parameters["text"] = textLine;
+        var textLine = bodyLines.FirstOrDefault(line => (BooleanExtensions.Not(line.Contains(':'))));
+
+        if (textLine is not null) parameters["text"] = textLine;
 
         foreach (var line in bodyLines.Where(line => line.Contains(':')))
         {
@@ -687,7 +706,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (AnalyzeTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(AnalyzeTaskSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AnalyzeTasks");
@@ -730,7 +749,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (ListTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(ListTaskSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListTasks");
@@ -823,10 +842,10 @@ public sealed class FastPathResolver : IFastPathResolver
         var completionWords        = new[] { "done", "complete", "completed", "finish", "finished" };
         var containsCompletionWord = completionWords.Any(word => normalized.Contains(word));
 
-        if (containsCompletionWord.Not())
+        if (BooleanExtensions.Not(containsCompletionWord))
             return false;
 
-        if (CompleteTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(CompleteTaskSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         var reference = ExtractSingleTaskReference(normalized);
@@ -857,7 +876,8 @@ public sealed class FastPathResolver : IFastPathResolver
         var hasTasksPlural    = normalized.Contains("tasks");
         var hasCompletionWord = completionWords.Any(word => normalized.Contains(word));
 
-        if (hasTasksPlural.Not() || hasCompletionWord.Not())
+        if (BooleanExtensions.Not(hasTasksPlural) 
+         || BooleanExtensions.Not(hasCompletionWord))
             return false;
 
         var refs = ExtractAllTaskReferences(normalized);
@@ -893,7 +913,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant();
 
-        if (DeleteTaskSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(DeleteTaskSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         var reference = ExtractSingleTaskReference(normalized);
@@ -939,7 +959,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant();
 
-        if (UpdatePrioritySignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(UpdatePrioritySignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         var reference = ExtractSingleTaskReference(normalized);
@@ -1022,7 +1042,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant();
 
-        if (UpdateDueDateSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (BooleanExtensions.Not(UpdateDueDateSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         var reference = ExtractSingleTaskReference(normalized);
@@ -1500,7 +1520,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (ListActivitySignals.Any(normalized.Contains).Not())
+        if (BooleanExtensions.Not(ListActivitySignals.Any(normalized.Contains)))
             return false;
 
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListActivities");
@@ -1534,13 +1554,13 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var candidates = _registry.FastPathActions;
 
-        if (candidates.Any().Not())
+        if (BooleanExtensions.Not(candidates.Any()))
             return false;
 
         foreach (var meta in candidates)
         {
             var requiredParams = meta.Parameters
-                                     .Where(parameter => parameter.IsOptional.Not())
+                                     .Where(parameter => BooleanExtensions.Not(parameter.IsOptional))
                                      .ToList();
 
             if (requiredParams.Count != 1)
@@ -1548,7 +1568,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
             var mainParam = requiredParams.Single();
 
-            if (ContainsFastPathSignal(normalized).Not()) continue;
+            if (BooleanExtensions.Not(ContainsFastPathSignal(normalized))) continue;
 
             var extracted = ExtractPrimaryValue(normalized);
             if (string.IsNullOrWhiteSpace(extracted))
@@ -1601,7 +1621,9 @@ public sealed class FastPathResolver : IFastPathResolver
           , "create tasks:"
           , "create tasks :"
           , ", and "
-          , ": "    // colon-separated list pattern (e.g. "need to do: x, y, z")
+          // BUG-A3: ": " was too broad — it blocked any colon-space input (including
+          // "Bug: description") from reaching Mode 3.  The comma-count guard (>= 2)
+          // is sufficient to catch genuine batch lists like "need to do: x, y, z".
     };
 
     private static bool IsBatchIntent(string normalizedInput)
@@ -1906,7 +1928,8 @@ public sealed class FastPathResolver : IFastPathResolver
     {
         foreach (var signal in FastPathSignals)
         {
-            if (input.DoesNotContainOrNull(signal)) continue;
+            if (StringExtensions.DoesNotContainOrNull(input
+                                                    , signal)) continue;
 
             var pos = input.IndexOf(signal, StringComparison.Ordinal);
             if (pos >= 0)
@@ -2209,7 +2232,10 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         // "switch to <X>" or "use <X>" â€" only when X is a known LlmProvider name
-        var bareSwitch = Regex.Match(input, @"^(?:switch\s+to|use)\s+(\w+)$", RegexOptions.IgnoreCase);
+        var bareSwitch = Regex.Match(input
+                                   , RegexMatchingPatterns.CommandSwitchContextPattern
+                                   , RegexOptions.IgnoreCase);
+        
         if (bareSwitch.Success && Enum.TryParse<LlmProvider>(bareSwitch.Groups[1].Value, ignoreCase: true, out _))
         {
             action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetProvider");
@@ -2220,22 +2246,28 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         // ListModels
-        if (Regex.IsMatch(input, @"^(?:list|show|what|available)\s+models\b", RegexOptions.IgnoreCase)
-         || Regex.IsMatch(input, @"^what\s+models\s+are\s+available", RegexOptions.IgnoreCase))
+        // if (Regex.IsMatch(input, RegexMatchingPatterns.CommandListModelsPattern, RegexOptions.IgnoreCase)
+        //  || Regex.IsMatch(input, @"^what\s+models\s+are\s+available",            RegexOptions.IgnoreCase))
+        if (Regex.IsMatch(input, RegexMatchingPatterns.CommandListModelsPattern, RegexOptions.IgnoreCase))
         {
             action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListModels");
+            
             if (action is null) return false;
+            
             parameters = new Dictionary<string, string>();
+            
             return true;
         }
 
         // ListProviders
-        if (Regex.IsMatch(input, @"^(?:list|show|what|available)\s+providers\b", RegexOptions.IgnoreCase)
-         || Regex.IsMatch(input, @"^what\s+providers\s+are\s+available", RegexOptions.IgnoreCase))
+        if (Regex.IsMatch(input, RegexMatchingPatterns.CommandListProvidersPattern, RegexOptions.IgnoreCase))
         {
             action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListProviders");
+            
             if (action is null) return false;
+            
             parameters = new Dictionary<string, string>();
+            
             return true;
         }
 
@@ -2246,9 +2278,27 @@ public sealed class FastPathResolver : IFastPathResolver
     // WORKSPACE PREFIX  ("workspaceName: remainder")
     // ================================================================
 
-    private static readonly Regex WorkspacePrefixPattern =
-        new(@"^([A-Za-z][A-Za-z0-9_-]*):\s+(.+)$"
-          , RegexOptions.Singleline | RegexOptions.Compiled);
+    
+    private static readonly Regex WorkspacePrefixPattern = new(RegexMatchingPatterns.ColonSeparatedKeyValuePattern
+                                                             , RegexOptions.Singleline
+                                                             | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Colon-prefix tokens that are handled by <see cref="TryResolveColonPrefix"/> and must
+    /// never be interpreted as workspace names by <see cref="TryExtractWorkspacePrefix"/>.
+    /// Extend this set whenever a new built-in colon command is added.
+    /// </summary>
+    private static readonly HashSet<string> BuiltInColonPrefixes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "journal"
+          , "task"
+          , "system"
+          , "bug"
+          , "bug report"
+          , "found a bug"
+          , "report a bug"
+        };
 
     // ================================================================
     // IDENTITY FAST PATHS
@@ -2278,7 +2328,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (IdentityGetProfileSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (IdentityGetProfileSignals.Any(normalized.Contains)
+                                     .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetProfile");
@@ -2309,7 +2360,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (IdentityListAssertionsSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (IdentityListAssertionsSignals.Any(normalized.Contains)
+                                         .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListIdentityAssertions");
@@ -2344,7 +2396,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (GenerateInsightsSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (GenerateInsightsSignals.Any(normalized.Contains)
+                                   .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GenerateInsights");
@@ -2377,7 +2430,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (GenerateSnapshotSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (GenerateSnapshotSignals.Any(normalized.Contains)
+                                   .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GenerateSnapshot");
@@ -2410,7 +2464,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (GetLatestSnapshotSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (GetLatestSnapshotSignals.Any(normalized.Contains)
+                                    .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetLatestSnapshot");
@@ -2443,7 +2498,8 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (ListDerivedInsightsSignals.Any(signal => normalized.Contains(signal)).Not())
+        if (ListDerivedInsightsSignals.Any(normalized.Contains)
+                                      .Not())
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListDerivedInsights");
@@ -2504,16 +2560,22 @@ public sealed class FastPathResolver : IFastPathResolver
         workspaceName = null;
         remainder     = null;
 
-        if (input.HasValue().Not()) return false;
+        if (input.HasNoValue()) return false;
 
         var match = WorkspacePrefixPattern.Match(input.Trim());
-        if (!match.Success) return false;
+        if (match.Success.Not()) return false;
 
         var token = match.Groups[1].Value;
 
         // Built-in daily-record prefixes (Plan:, Check:, EOD:, Done:, Evening:, DayDone:)
         // must not be treated as workspace names.
         if (DailyRecordCommandParser.StartsWithKnownPrefix(input)) return false;
+
+        // BUG-A2: Feedback and other built-in colon prefixes handled by TryResolveColonPrefix
+        // must not be captured as workspace names.  Without this guard, "Bug: description"
+        // was parsed as workspaceName="Bug" / remainder="description", silently routing to
+        // a non-existent "Bug" workspace and discarding the user's bug report.
+        if (BuiltInColonPrefixes.Contains(token)) return false;
 
         // Registered action names (Journal:, AddTask:, etc.) are handled by Mode 1.1.
         if (_registry.Actions.Any(registryAction =>

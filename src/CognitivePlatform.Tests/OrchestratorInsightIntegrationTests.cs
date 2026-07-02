@@ -13,6 +13,7 @@ using CognitivePlatform.Api.Orchestrator;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Workspace;
+using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Tests;
 
@@ -51,7 +52,7 @@ public class OrchestratorInsightIntegrationTests
     private readonly ConversationContextStore    _contextStore     = new();
     private readonly TelemetryContext            _telemetryContext = new() { SessionId = "test-session" };
     private readonly LlmModelCatalog             _modelCatalog     = new();
-    private readonly LlmProviderDefaults         _providerDefaults = new();
+    private readonly LlmProviderDefaults         _providerDefaults = new LlmProviderDefaults(Options.Create(new LlmClientSettings()));
 
     public OrchestratorInsightIntegrationTests()
     {

@@ -10,6 +10,8 @@ public class BrainDumpActionsTests
 
     public BrainDumpActionsTests()
     {
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)>());
         _actions = new BrainDumpActions(_serviceMock.Object);
     }
 
@@ -18,14 +20,16 @@ public class BrainDumpActionsTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void StartBrainDump_ReturnsStringContainingSessionId()
+    public void StartBrainDump_ReturnsStringContainingSessionNumber()
     {
         var session = new BrainDumpSession { Id = "abc12345" };
         _serviceMock.Setup(service => service.StartSession()).Returns(session);
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         var result = _actions.StartBrainDump();
 
-        Assert.Contains("abc12345", result);
+        Assert.Contains("Session #1", result);
     }
 
     [Fact]
@@ -33,6 +37,8 @@ public class BrainDumpActionsTests
     {
         var session = new BrainDumpSession { Id = "abc12345" };
         _serviceMock.Setup(service => service.StartSession()).Returns(session);
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         var result = _actions.StartBrainDump();
 
@@ -44,6 +50,8 @@ public class BrainDumpActionsTests
     {
         var session = new BrainDumpSession { Id = "x" };
         _serviceMock.Setup(service => service.StartSession()).Returns(session);
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         var result = _actions.StartBrainDump();
 
@@ -55,6 +63,8 @@ public class BrainDumpActionsTests
     {
         var session = new BrainDumpSession();
         _serviceMock.Setup(service => service.StartSession()).Returns(session);
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         _actions.StartBrainDump();
 
@@ -88,11 +98,14 @@ public class BrainDumpActionsTests
                       };
         _serviceMock.Setup(service => service.ListSessions(1))
                     .Returns(new List<BrainDumpSession> { session });
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         var result = _actions.GetLatestBrainDump();
 
         Assert.Contains("dentist appointment", result);
         Assert.Contains("returning to work",   result);
+        Assert.Contains("Session #1",          result);
     }
 
     [Fact]
@@ -107,6 +120,8 @@ public class BrainDumpActionsTests
                       };
         _serviceMock.Setup(service => service.ListSessions(1))
                     .Returns(new List<BrainDumpSession> { session });
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)> { (1, session) });
 
         var result = _actions.GetLatestBrainDump();
 
@@ -120,8 +135,8 @@ public class BrainDumpActionsTests
     [Fact]
     public void ListBrainDumps_ReturnsNoSessionMessage_WhenNoneExist()
     {
-        _serviceMock.Setup(service => service.ListSessions(10))
-                    .Returns(new List<BrainDumpSession>());
+        _serviceMock.Setup(service => service.GetOrderedSessions())
+                    .Returns(new List<(int Position, BrainDumpSession Session)>());
 
         var result = _actions.ListBrainDumps();
 
@@ -131,29 +146,32 @@ public class BrainDumpActionsTests
     [Fact]
     public void ListBrainDumps_ListsAllReturnedSessions()
     {
-        var sessions = new List<BrainDumpSession>
+        var sessions = new List<(int Position, BrainDumpSession Session)>
                        {
-                           new() { Id = "s1", CreatedAt = DateTimeOffset.UtcNow }
-                         , new() { Id = "s2", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) }
+                           (1, new() { Id = "s1", CreatedAt = DateTimeOffset.UtcNow }),
+                           (2, new() { Id = "s2", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) })
                        };
-        _serviceMock.Setup(service => service.ListSessions(10)).Returns(sessions);
+        _serviceMock.Setup(service => service.GetOrderedSessions()).Returns(sessions);
 
         var result = _actions.ListBrainDumps();
 
         Assert.Contains("2 recent", result);
+        Assert.Contains("Session #1", result);
+        Assert.Contains("Session #2", result);
     }
 
     [Fact]
     public void ListBrainDumps_MarksProcessedSessions()
     {
-        var sessions = new List<BrainDumpSession>
+        var sessions = new List<(int Position, BrainDumpSession Session)>
                        {
-                           new() { Id = "s1", CreatedAt = DateTimeOffset.UtcNow, Processed = true }
+                           (1, new() { Id = "s1", CreatedAt = DateTimeOffset.UtcNow, Processed = true })
                        };
-        _serviceMock.Setup(service => service.ListSessions(10)).Returns(sessions);
+        _serviceMock.Setup(service => service.GetOrderedSessions()).Returns(sessions);
 
         var result = _actions.ListBrainDumps();
 
         Assert.Contains("extracted", result);
+        Assert.Contains("Session #1", result);
     }
 }

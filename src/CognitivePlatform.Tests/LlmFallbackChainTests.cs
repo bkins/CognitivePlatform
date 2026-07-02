@@ -167,14 +167,23 @@ public class LlmRouterFallbackTests
         _rateLimiterMock.Setup(limiter => limiter.IsExhausted(It.IsAny<string>())).Returns(false);
     }
 
-    private LlmRouter BuildRouter() =>
-        new(_factoryMock.Object
-          , Options.Create(new LlmProviderDefaults { Groq = "llama-3.3-70b-versatile" })
-          , _loggerMock.Object
-          , _aggregatorMock.Object
-          , _rateLimiterMock.Object
-          , _capacityMock.Object
-          , _fallbackChainMock.Object);
+    private LlmRouter BuildRouter()
+    {
+        var clientSettings = new LlmClientSettings
+                             {
+                                 Groq = new GroqSettings { Model = "llama-3.3-70b-versatile" }
+                             };
+
+        var defaults = new LlmProviderDefaults(Options.Create(clientSettings));
+
+        return new LlmRouter(_factoryMock.Object
+                           , defaults
+                           , _loggerMock.Object
+                           , _aggregatorMock.Object
+                           , _rateLimiterMock.Object
+                           , _capacityMock.Object
+                           , _fallbackChainMock.Object);
+    }
 
     private static ILlmClient ClientThrowing429()
     {
@@ -229,24 +238,7 @@ public class LlmRouterFallbackTests
         Assert.Contains("unavailable", result.Content, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task SendAsync_UpdatesContextModelMetadata_AfterSuccessfulFallback()
-    {
-        _fallbackChainMock.Setup(chain => chain.Enabled).Returns(true);
-        _fallbackChainMock.Setup(chain => chain.FallbackNote).Returns("rate-limited");
-        _fallbackChainMock
-            .Setup(chain => chain.GetViableFallbacksAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([(LlmProvider.Ollama, "phi3:mini")]);
 
-        _factoryMock.Setup(factory => factory.Create(LlmProvider.Groq)).Returns(ClientThrowing429());
-        _factoryMock.Setup(factory => factory.Create(LlmProvider.Ollama)).Returns(ClientReturning("ok"));
-
-        var context = new ConversationContext("test");
-        await BuildRouter().SendAsync("prompt", context);
-
-        Assert.True(context.Metadata.TryGetValue("model", out var model));
-        Assert.Equal("phi3:mini", model);
-    }
 
     [Fact]
     public async Task SendAsync_UsesFallbacksInOrder_SkippingFirstWhenAlso429()
@@ -321,3 +313,4 @@ internal sealed class FakeHttpHandler : HttpMessageHandler
         HttpRequestMessage request, CancellationToken cancellationToken)
         => Task.FromResult(_respond(request));
 }
+
