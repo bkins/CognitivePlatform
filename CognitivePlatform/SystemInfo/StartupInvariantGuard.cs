@@ -31,7 +31,20 @@ public sealed class StartupInvariantGuard
 
         var info = _system.GetEnvironment();
 
+        if (string.IsNullOrWhiteSpace(info.DatabasePath) 
+         || string.Equals(info.DatabasePath, info.DataRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Production database path is not configured or resolved to the data root directory.");
+        }
+
         EnsureDirectory(info.DataRoot);
+
+        var dbDir = Path.GetDirectoryName(info.DatabasePath);
+        if (dbDir is not null)
+        {
+            EnsureDirectory(dbDir);
+        }
+
         EnsureDatabase(info.DatabasePath);
         EnsureSentinel(info.DatabasePath);
     }
@@ -58,8 +71,9 @@ public sealed class StartupInvariantGuard
             if (File.Exists(dbPath).Not())
             {
                 // Minimal create — open/close is enough for SQLite
-                using var _ = new Microsoft.Data.Sqlite.SqliteConnection(
+                using var conn = new Microsoft.Data.Sqlite.SqliteConnection(
                     $"Data Source={dbPath}");
+                conn.Open();
             }
         }
         catch (Exception ex)

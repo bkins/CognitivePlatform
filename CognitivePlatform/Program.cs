@@ -22,10 +22,12 @@ public partial class Program
                                                    });
 
         var envName = builder.Environment.EnvironmentName;
+        var configEnvName = string.Equals(envName, "PROD", StringComparison.OrdinalIgnoreCase) ? "Production" : envName;
         builder.Configuration
                .AddJsonFile("appsettings.json")
-               .AddJsonFile($"appsettings.{envName}.json", optional: true)
-               .AddUserSecrets<Program>(optional: true);
+               .AddJsonFile($"appsettings.{configEnvName}.json", optional: true)
+               .AddUserSecrets<Program>(optional: true)
+               .AddEnvironmentVariables();
 
         builder.ConfigureAdaptiveLogging();
         builder.ConfigurePromptLogging();
@@ -86,7 +88,7 @@ public partial class Program
 
 // ---------- HTTP PIPELINE (LISTENING STARTS) ----------
 
-        app.MapOpenApi();
+        //app.MapOpenApi();
         app.UseAuthorization();
         app.MapControllers();
 

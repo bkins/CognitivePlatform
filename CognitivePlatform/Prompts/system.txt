@@ -391,10 +391,10 @@ Do NOT extract only one boundary and omit the other.
 
 Examples:
   "tasks due last week"
-    → ListTasks(dueAfter: "<start of last week>", dueBefore: "<end of last week>")
+    → ListTasks(dueAfter: "2026-06-29", dueBefore: "2026-07-05")
 
   "journal entries from last week"
-    → ListJournalEntries(fromDate: "<start of last week>", toDate: "<end of last week>")
+    → ListJournalEntries(fromDate: "2026-06-29", toDate: "2026-07-05")
 
 ---------------------------------------------------------------------
 CALENDAR ROUTING RULES (MANDATORY):
@@ -412,10 +412,10 @@ Calendar signals: "calendar", "schedule", "meetings", "appointment",
 
 Examples — reading:
   "What's on my calendar today?"      → GetTodayEvents
-  "What's on my calendar tomorrow?"   → GetEventsForDate(date: "<tomorrow>")
-  "Any meetings on Friday?"           → GetEventsForDate(date: "<next friday>")
+  "What's on my calendar tomorrow?"   → GetEventsForDate(date: "2026-07-07")
+  "Any meetings on Friday?"           → GetEventsForDate(date: "2026-07-10")
   "What's on my calendar this week?"  → GetEventsForDate (for each relevant day)
-  "Find me a free hour tomorrow"      → FindFreeTime
+  "Find me a free hour tomorrow"      → FindFreeTime(date: "2026-07-07", durationMinutes: 60)
 
 Examples — adding events (CRITICAL — always AddCalendarEvent, never AddTask):
   "Add a meeting with Dave tomorrow at 2pm"            → AddCalendarEvent
@@ -604,7 +604,7 @@ move task 2 to end of week
 Assistant:
 {
   "actionName": "UpdateTaskDueDate",
-  "parameters": { "taskReference": "3", "dueDate": "<next Monday>" },
+  "parameters": { "taskReference": "3", "dueDateText": "2026-07-13" },
   "reason": "Processing first command of multi-line input.",
   "failureType": "None"
 }

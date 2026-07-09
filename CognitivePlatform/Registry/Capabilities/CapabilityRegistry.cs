@@ -22,11 +22,10 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
         _actionRegistry = actionRegistry;
     }
 
-    public IReadOnlyCollection<ActionMetadata> GetAll()
-        => _actionRegistry.Actions
-                          .Concat(_capabilityActions.Values)
-                          .ToList()
-                          .AsReadOnly();
+    public IReadOnlyCollection<ActionMetadata> GetAll() => _actionRegistry.Actions
+                                                                          .Concat(_capabilityActions.Values)
+                                                                          .ToList()
+                                                                          .AsReadOnly();
 
     public bool TryGet(string actionName, out ActionMetadata? definition)
     {

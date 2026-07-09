@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CognitivePlatform.Api.Insights.Models;
 
 /// <summary>
@@ -25,7 +27,10 @@ public sealed record Insight
     /// </summary>
     public Dictionary<string, string>? SuggestedParameters { get; init; }
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public InsightPriority Priority { get; init; } = InsightPriority.Normal;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public InsightCategory Category { get; init; } = InsightCategory.General;
 
     /// <summary>

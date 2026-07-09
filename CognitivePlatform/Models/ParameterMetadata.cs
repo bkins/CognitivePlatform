@@ -16,6 +16,11 @@ public class ParameterMetadata
     public Type ParameterType { get; init; } = typeof(object);
 
     /// <summary>
+    /// A human-friendly name for the parameter type, e.g. "string", "int", "bool", "DateTime", or "MyCustomType".
+    /// </summary>
+    public string FriendlyTypeName => FriendlyName(ParameterType);
+    
+    /// <summary>
     /// Description provided via <see cref="NaturalLanguageParamAttribute"/>.
     /// </summary>
     public string Description { get; init; } = string.Empty;
@@ -46,4 +51,24 @@ public class ParameterMetadata
     /// Reflection reference to the underlying parameter.
     /// </summary>
     public ParameterInfo? ParameterInfo { get; init; }
+    
+    private static string FriendlyName(Type type)
+        {
+            if (type == typeof(string))
+                return "string";
+    
+            if (type == typeof(int))
+                return "int";
+    
+            if (type == typeof(bool))
+                return "bool";
+    
+            if (type == typeof(DateTime))
+                return "DateTime";
+    
+            if (Nullable.GetUnderlyingType(type) is Type underlying)
+                return $"{FriendlyName(underlying)}?";
+    
+            return type.Name;
+        }
 }

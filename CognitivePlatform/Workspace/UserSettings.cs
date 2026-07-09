@@ -30,5 +30,5 @@ public sealed record UserSettings
     /// Explicit whitelist of action names allowed for autonomous execution.
     /// Default is empty for safety.
     /// </summary>
-    public IReadOnlySet<string> AllowedAutomationActions { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> AllowedAutomationActions { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }

@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Calendar;
@@ -153,12 +153,20 @@ public class CalendarActions
 
         if (end <= start) return "The end time must be after the start time.";
 
-        var created = await _calendar.AddEventAsync(title
+        CalendarEvent? created;
+        try
+        {
+            created = await _calendar.AddEventAsync(title
                                                   , start
                                                   , end
                                                   , location.HasNoValue() 
                                                             ? null 
                                                             : location);
+        }
+        catch (CalendarAuthException)
+        {
+            return ReAuthMessage();
+        }
 
         if (created is null) return "Failed to create the calendar event. Please try again.";
 
@@ -385,8 +393,25 @@ public class CalendarActions
          + $"Open {GetBaseUrl()}/auth/google/connect in your browser to authorise access, then try again.";
 
     private string ReAuthMessage()
-        => "Your Google Calendar session has expired. "
-         + $"Open {GetBaseUrl()}/auth/google/connect in your browser to re-authorise, then try again.";
+    {
+        var url = $"{GetBaseUrl()}/auth/google/connect";
+        try
+        {
+            global::System.Diagnostics.Process.Start(new global::System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+            return "Your Google Calendar session has expired. "
+                 + "I have opened the re-authorisation URL in your default browser. "
+                 + "Please re-authorise and try again.";
+        }
+        catch (Exception)
+        {
+            return "Your Google Calendar session has expired. "
+                 + $"Open {url} in your browser to re-authorise, then try again.";
+        }
+    }
 
     private string GetBaseUrl()
     {

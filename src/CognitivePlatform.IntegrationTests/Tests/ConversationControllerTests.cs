@@ -48,14 +48,14 @@ public sealed class ConversationControllerTests : IDisposable
         _fixture.Log($"Arrange — session ID: {sessionId}");
 
         // --- Arrange: send a converse request to create session metadata ---
-        // A FastPath "Status" command is a known-good fast-path trigger.
+        // A FastPath "System Status" command is a known-good fast-path trigger.
         // The important part of this test is the CRUD operations on metadata;
         // if the converse call cannot succeed (LLM unavailable, no FastPath match),
         // we skip gracefully rather than fail.
         var conversePayload = new
         {
             SessionId = sessionId
-          , Input     = "Status"
+          , Input     = "system: System Status"
           , FastPath  = true
           , Streaming = false
         };
@@ -212,5 +212,49 @@ public sealed class ConversationControllerTests : IDisposable
 
         _fixture.LogAssertion("status code is 404 Not Found");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ----------------------------------------------------------------
+    // Converse — fast-path action name assertion
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task Converse_FastPath_ListActions_ReturnsSelectedActionAndFastPathFlag()
+    {
+        var sessionId = $"integration-fastpath-{Guid.NewGuid():N}";
+
+        var payload = new
+        {
+            SessionId = sessionId
+          , Input     = "list actions"
+        };
+
+        _fixture.Log("Act — POST /api/conversation/converse with 'list actions'");
+        var response = await _fixture.Client.PostAsJsonAsync(
+            "/api/conversation/converse", payload);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _fixture.Log("Skip — converse returned non-success; orchestrator unavailable");
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync();
+        var json = JsonSerializer.Deserialize<JsonElement>(body, ApiFixture.JsonOptions);
+
+        _fixture.LogAssertion("wasFastPath is true for 'list actions'");
+        json.GetProperty("wasFastPath").GetBoolean().Should().BeTrue();
+
+        _fixture.LogAssertion("selectedAction is 'ListActions'");
+        json.GetProperty("selectedAction").GetString().Should().Be("ListActions");
+
+        _fixture.LogAssertion("success is true");
+        json.GetProperty("success").GetBoolean().Should().BeTrue();
+
+        _fixture.LogAssertion("message is not null or empty");
+        json.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
+
+        // Cleanup — remove session metadata
+        await _fixture.Client.DeleteAsync($"/api/conversation/{sessionId}");
     }
 }

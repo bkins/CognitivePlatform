@@ -293,7 +293,11 @@ public class GoogleCalendarProvider : ICalendarProvider
                                                     , CancellationToken ct       = default )
     {
         var accessToken = await GetValidAccessTokenAsync(ct);
-        if (accessToken is null) return null;
+        if (accessToken is null)
+        {
+            _logger.LogWarning("No valid access token -- throwing CalendarAuthException");
+            throw new CalendarAuthException();
+        }
 
         var body = new
                    {

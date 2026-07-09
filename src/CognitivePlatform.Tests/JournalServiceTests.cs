@@ -737,8 +737,10 @@ public class JournalServiceTests
         _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
         _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new float[] { 0.1f, 0.2f, 0.3f });
+        var signal = new System.Threading.SemaphoreSlim(0, 1);
         _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
-                        .Returns(Task.CompletedTask);
+                        .Returns(Task.CompletedTask)
+                        .Callback(() => signal.Release());
 
         await _service.AddEntryAsync("Great day."
                                    , Array.Empty<string>()
@@ -747,7 +749,7 @@ public class JournalServiceTests
                                    , moodLevel:  null
                                    , mediaPaths: Array.Empty<string>());
 
-        await Task.Delay(100);
+        await signal.WaitAsync(TimeSpan.FromSeconds(5));
 
         _embeddingMock.Verify(service => service.EmbedAsync("Great day.", It.IsAny<CancellationToken>()), Times.Once);
         _vectorStoreMock.Verify(store => store.SaveAsync(It.Is<VectorEntry>(entry => entry.Domain      == "journal"

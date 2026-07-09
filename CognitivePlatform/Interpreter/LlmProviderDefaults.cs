@@ -48,6 +48,7 @@ public class LlmProviderDefaults
               , LlmProvider.Gemini     => _settings.Gemini.Model
               , LlmProvider.OpenRouter => _settings.OpenRouter.Model
               , LlmProvider.Cerebras   => _settings.Cerebras.Model
+              , LlmProvider.Mock       => "mock-model"
               , _                      => string.Empty
         };
     }

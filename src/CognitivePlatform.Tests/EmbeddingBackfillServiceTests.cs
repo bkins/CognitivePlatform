@@ -34,9 +34,7 @@ public class EmbeddingBackfillServiceTests
     {
         _embeddingMock.Setup(service => service.IsAvailable).Returns(false);
 
-        await _service.StartAsync(CancellationToken.None);
-        await Task.Delay(100);
-        await _service.StopAsync(CancellationToken.None);
+        await _service.RunBackfillAsync(CancellationToken.None);
 
         _storeMock.Verify(store => store.List<JournalEntry>(It.IsAny<string?>()
                                                            , It.IsAny<DateTimeOffset?>()
@@ -73,9 +71,7 @@ public class EmbeddingBackfillServiceTests
         _storeMock.Setup(store => store.List<DailyRecord>(null, null, null))
                   .Returns(new List<DailyRecord>());
 
-        await _service.StartAsync(CancellationToken.None);
-        await Task.Delay(200);
-        await _service.StopAsync(CancellationToken.None);
+        await _service.RunBackfillAsync(CancellationToken.None);
 
         _embeddingMock.Verify(service => service.EmbedAsync("Today was a great day."
                                                            , It.IsAny<CancellationToken>())
@@ -110,9 +106,7 @@ public class EmbeddingBackfillServiceTests
         _storeMock.Setup(store => store.List<DailyRecord>(null, null, null))
                   .Returns(new List<DailyRecord>());
 
-        await _service.StartAsync(CancellationToken.None);
-        await Task.Delay(200);
-        await _service.StopAsync(CancellationToken.None);
+        await _service.RunBackfillAsync(CancellationToken.None);
 
         _embeddingMock.Verify(service => service.EmbedAsync("Finish the report Focus on the executive summary"
                                                            , It.IsAny<CancellationToken>())
@@ -143,9 +137,7 @@ public class EmbeddingBackfillServiceTests
         _storeMock.Setup(store => store.List<DailyRecord>(null, null, null))
                   .Returns(new List<DailyRecord>());
 
-        await _service.StartAsync(CancellationToken.None);
-        await Task.Delay(200);
-        await _service.StopAsync(CancellationToken.None);
+        await _service.RunBackfillAsync(CancellationToken.None);
 
         _embeddingMock.Verify(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }

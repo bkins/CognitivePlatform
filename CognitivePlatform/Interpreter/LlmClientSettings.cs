@@ -13,6 +13,7 @@ public enum LlmProvider
   , Gemini
   , OpenRouter
   , Cerebras
+  , Mock
 }
 
 // Bound to the "LlmClient" section in appsettings.json.

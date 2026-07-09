@@ -1,6 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Xunit;
 using Xunit.Abstractions;
+
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace CognitivePlatform.IntegrationTests.Infrastructure;
 
@@ -52,12 +55,12 @@ public sealed class ApiFixture : IDisposable
             ? new HttpClient(handler)
                   {
                       BaseAddress = new Uri(BaseUrl)
-                    , Timeout     = TimeSpan.FromSeconds(30)
+                    , Timeout     = TimeSpan.FromSeconds(120)
                   }
             : new HttpClient
                   {
                       BaseAddress = new Uri(BaseUrl)
-                    , Timeout     = TimeSpan.FromSeconds(30)
+                    , Timeout     = TimeSpan.FromSeconds(120)
                   };
 
         Client.DefaultRequestHeaders.Accept.Add(

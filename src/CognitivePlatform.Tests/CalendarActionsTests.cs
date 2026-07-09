@@ -271,6 +271,23 @@ public class CalendarActionsTests
     }
 
     [Fact]
+    public async Task AddCalendarEvent_ReturnsReAuthMessage_WhenTokenExpired()
+    {
+        _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);
+        _calendarMock.Setup(cal => cal.AddEventAsync( It.IsAny<string>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<DateTimeOffset>()
+                                                     , It.IsAny<string?>()
+                                                     , It.IsAny<CancellationToken>()))
+                     .ThrowsAsync(new CalendarAuthException());
+
+        var result = await _actions.AddCalendarEvent("Sprint Review", "2026-04-15T10:00:00");
+
+        Assert.Contains("expired", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Failed to create", result);
+    }
+
+    [Fact]
     public async Task AddCalendarEvent_ReturnsError_WhenEndTimeBeforeOrEqualStartTime()
     {
         _calendarMock.SetupGet(cal => cal.IsConnected).Returns(true);

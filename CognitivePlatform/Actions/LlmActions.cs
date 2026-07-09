@@ -28,9 +28,26 @@ public static class LlmActions
     public const string SessionModelKey    = "session_model";
     public const string SessionProviderKey = "session_provider";
 
-    private static ConversationContext?  _context;
-    private static LlmModelCatalog?      _catalog;
-    private static LlmProviderDefaults?  _providerDefaults;
+    private static readonly System.Threading.AsyncLocal<ConversationContext?> _contextLocal = new();
+    private static ConversationContext? _context
+    {
+        get => _contextLocal.Value;
+        set => _contextLocal.Value = value;
+    }
+
+    private static readonly System.Threading.AsyncLocal<LlmModelCatalog?> _catalogLocal = new();
+    private static LlmModelCatalog? _catalog
+    {
+        get => _catalogLocal.Value;
+        set => _catalogLocal.Value = value;
+    }
+
+    private static readonly System.Threading.AsyncLocal<LlmProviderDefaults?> _providerDefaultsLocal = new();
+    private static LlmProviderDefaults? _providerDefaults
+    {
+        get => _providerDefaultsLocal.Value;
+        set => _providerDefaultsLocal.Value = value;
+    }
 
     public static void SetContext (ConversationContext context) => _context = context;
     public static void SetCatalog (LlmModelCatalog     catalog) => _catalog = catalog;

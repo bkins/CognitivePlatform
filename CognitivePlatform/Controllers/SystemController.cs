@@ -5,6 +5,7 @@ using CognitivePlatform.Api.Telemetry;
 using CognitivePlatform.Api.Telemetry.Events;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using CognitivePlatform.Api.Registry.Capabilities;
 
 namespace CognitivePlatform.Api.Controllers;
 
@@ -19,6 +20,7 @@ public class SystemController : ControllerBase
     private readonly ILlmUsageAggregator         _llmUsageAggregator;
     private readonly ILlmRateLimiter             _llmRateLimiter;
     private readonly ITelemetryStreamService     _streamService;
+    private readonly ICapabilityRegistry         _capabilityRegistry;
 
     public SystemController( ITelemetrySink              telemetrySink
                            , IGroqUsageTracker           usageTracker
@@ -26,7 +28,8 @@ public class SystemController : ControllerBase
                            , SystemService               systemService
                            , ILlmUsageAggregator         llmUsageAggregator
                            , ILlmRateLimiter             llmRateLimiter
-                           , ITelemetryStreamService     streamService )
+                           , ITelemetryStreamService     streamService
+                           , ICapabilityRegistry         capabilityRegistry )
     {
         _telemetry           = telemetrySink;
         _usageTracker        = usageTracker;
@@ -35,6 +38,7 @@ public class SystemController : ControllerBase
         _llmUsageAggregator  = llmUsageAggregator;
         _llmRateLimiter      = llmRateLimiter;
         _streamService       = streamService;
+        _capabilityRegistry  = capabilityRegistry;
     }
 
 
@@ -65,6 +69,39 @@ public class SystemController : ControllerBase
         _telemetry.Track(systemEvent);
         
         return Ok(systemEvent);
+    }
+
+    /// <summary>
+    /// Returns a catalog of all registered actions and their parameters.
+    /// Used by the Action Directory UI.
+    /// </summary>
+    [HttpGet("actions")]
+    public IActionResult GetActions()
+    {
+        var allActions = _capabilityRegistry.GetAll();
+
+        var dtos = allActions.Select(action => new Contracts.ActionMetadataDto
+                                          {
+                                                  Name          = action.Name
+                                                , Description   = action.Description
+                                                , Category      = action.Category
+                                                , IsFastPath    = action.IsFastPath
+                                                , IsDestructive = action.IsDestructive
+                                                , Examples      = action.Examples
+                                                , Parameters    = action.Parameters
+                                                                        .Select(parameter => new Contracts.ActionParameterDto
+                                                                                                        {
+                                                                                                                Name        = parameter.Name
+                                                                                                              , Type        = parameter.FriendlyTypeName
+                                                                                                              , Description = parameter.Description
+                                                                                                              , IsRequired  = parameter.IsRequired
+                                                                                                        }).ToList()
+                                          })
+                             .OrderBy(action => action.Category)
+                             .ThenBy(action => action.Name)
+                             .ToList();
+
+        return Ok(dtos);
     }
 
     /// <summary>

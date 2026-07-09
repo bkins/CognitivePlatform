@@ -1,4 +1,4 @@
-﻿using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry;
 using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Tests;

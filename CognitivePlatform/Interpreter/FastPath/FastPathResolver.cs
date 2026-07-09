@@ -71,6 +71,9 @@ public sealed class FastPathResolver : IFastPathResolver
         if (TryResolveCloseDay(input, out action, out parameters))
             return true;
 
+        if (TryResolveDeleteDay(input, out action, out parameters))
+            return true;
+
         // ------------------------------------------------------------
         // MODE 1.1: EXPLICIT "<actionName>:" PREFIX (e.g. "Journal: ...")
         // ------------------------------------------------------------
@@ -307,6 +310,52 @@ public sealed class FastPathResolver : IFastPathResolver
         if (remainder.Length > 0)
             parameters["closingText"] = remainder;
 
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // DeleteDay synonyms and resolution
+    // ----------------------------------------------------------------
+    private static readonly string[] DeleteDaySynonyms =
+    {
+            "delete today's daily record"
+          , "delete daily record"
+          , "delete today's record"
+          , "delete record for today"
+          , "delete day"
+    };
+
+    private bool TryResolveDeleteDay( string                           input
+                                    , out ActionMetadata?             action
+                                    , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.Trim().ToLowerInvariant();
+
+        string? matchedSynonym = null;
+        foreach (var synonym in DeleteDaySynonyms)
+        {
+            if (!normalized.StartsWith(synonym)) continue;
+
+            // Require a word boundary: end of string, a space, or punctuation
+            if (normalized.Length == synonym.Length
+             || (normalized.Length > synonym.Length
+              && (normalized[synonym.Length] == ' '
+               || char.IsPunctuation(normalized[synonym.Length]))))
+            {
+                matchedSynonym = synonym;
+                break;
+            }
+        }
+
+        if (matchedSynonym is null) return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DeleteDay");
+        if (action is null) return false;
+
+        parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         return true;
     }
 

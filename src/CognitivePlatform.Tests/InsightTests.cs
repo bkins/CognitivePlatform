@@ -66,4 +66,29 @@ public class InsightTests
         Assert.Equal(InsightPriority.High,   elevated.Priority);
         Assert.Equal(original.DeduplicationKey, elevated.DeduplicationKey);
     }
+
+    [Fact]
+    public void Serialization_SerializesEnumsAsStrings()
+    {
+        var insight = new Insight
+                      {
+                          Message          = "test"
+                        , Priority         = InsightPriority.High
+                        , Category         = InsightCategory.Journal
+                      };
+
+        var options = new System.Text.Json.JsonSerializerOptions
+                      {
+                          PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                      };
+        var json = System.Text.Json.JsonSerializer.Serialize(insight, options);
+
+        Assert.Contains("\"priority\":\"High\"", json);
+        Assert.Contains("\"category\":\"Journal\"", json);
+
+        var deserialized = System.Text.Json.JsonSerializer.Deserialize<Insight>(json, options);
+        Assert.NotNull(deserialized);
+        Assert.Equal(InsightPriority.High, deserialized.Priority);
+        Assert.Equal(InsightCategory.Journal, deserialized.Category);
+    }
 }

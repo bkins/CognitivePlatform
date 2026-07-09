@@ -194,4 +194,130 @@ public sealed class JournalControllerTests : IDisposable
         _fixture.LogAssertion("status code is 404 Not Found");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    // ----------------------------------------------------------------
+    // Full CRUD: add via converse → find → get by ID → edit → verify
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public async Task AddViaConverse_ThenGetById_ThenEdit_VerifyIsEdited_RoundTrip()
+    {
+        var sessionId    = $"journal-crud-{Guid.NewGuid():N}";
+        var uniqueMarker = $"JournalIntTest-{Guid.NewGuid():N}";
+
+        // ── Create via converse fast-path ──
+        _fixture.Log($"Arrange — add journal entry via converse (marker: {uniqueMarker})");
+        var conversePayload = new
+        {
+            SessionId = sessionId
+          , Input     = $"journal: {uniqueMarker}"
+        };
+
+        var converseResponse = await _fixture.Client.PostAsJsonAsync(
+            "/api/conversation/converse", conversePayload);
+
+        if (!converseResponse.IsSuccessStatusCode)
+        {
+            _fixture.Log("Skip — converse returned non-success; orchestrator unavailable");
+            return;
+        }
+
+        // Verify converse reported fast-path success
+        var converseBody = await converseResponse.Content.ReadAsStringAsync();
+        var converseJson = JsonSerializer.Deserialize<JsonElement>(converseBody, ApiFixture.JsonOptions);
+
+        _fixture.LogAssertion("converse reports wasFastPath = true");
+        converseJson.GetProperty("wasFastPath").GetBoolean().Should().BeTrue();
+
+        _fixture.LogAssertion("converse reports selectedAction = AddJournalEntry");
+        converseJson.GetProperty("selectedAction").GetString().Should().Be("AddJournalEntry");
+
+        // ── Find created entry in the list ──
+        _fixture.Log("Act — GET /api/journals to find created entry");
+        var listResponse = await _fixture.Client.GetAsync("/api/journals");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var entries = await _fixture.ReadJsonAsync<JsonElement>(listResponse);
+        string? entryId = null;
+
+        foreach (var item in entries.EnumerateArray())
+        {
+            // JournalEntryWithRevision shape: { entry: { id, ... }, latestRevision: { text, ... } }
+            if (item.TryGetProperty("latestRevision", out var rev)
+                && rev.TryGetProperty("text", out var textProp)
+                && (textProp.GetString()?.Contains(uniqueMarker
+                       , StringComparison.OrdinalIgnoreCase) ?? false))
+            {
+                if (item.TryGetProperty("entry", out var entryProp)
+                    && entryProp.TryGetProperty("id", out var idProp))
+                {
+                    entryId = idProp.GetString();
+                }
+                break;
+            }
+        }
+
+        _fixture.LogAssertion($"journal entry containing '{uniqueMarker}' appears in list");
+        entryId.Should().NotBeNull(
+            $"created journal entry with marker '{uniqueMarker}' should appear in GET /api/journals");
+
+        // ── Get by ID ──
+        _fixture.Log($"Act — GET /api/journals/{entryId}");
+        var getResponse = await _fixture.Client.GetAsync($"/api/journals/{entryId}");
+
+        _fixture.LogAssertion("get by ID returns 200 OK");
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var entry = await _fixture.ReadJsonAsync<JsonElement>(getResponse);
+
+        _fixture.LogAssertion("entry text contains the unique marker");
+        entry.GetProperty("text").GetString().Should().Contain(uniqueMarker);
+
+        _fixture.LogAssertion("isEdited is false before edit");
+        entry.GetProperty("isEdited").GetBoolean().Should().BeFalse();
+
+        // ── Edit via edit-test endpoint ──
+        _fixture.Log($"Act — POST /api/journals/{entryId}/edit-test");
+        var editPayload = new
+        {
+            Text      = $"Edited: {uniqueMarker}"
+          , Tags      = new[] { "integration-test" }
+          , Mood      = "calm"
+          , MoodScore = (int?)3
+        };
+
+        var editResponse = await _fixture.Client.PostAsJsonAsync(
+            $"/api/journals/{entryId}/edit-test", editPayload);
+
+        _fixture.LogAssertion("edit-test returns 204 No Content");
+        editResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // ── Verify isEdited = true ──
+        _fixture.Log($"Assert — GET /api/journals/{entryId} after edit");
+        var afterEditResponse = await _fixture.Client.GetAsync($"/api/journals/{entryId}");
+        afterEditResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var editedEntry = await _fixture.ReadJsonAsync<JsonElement>(afterEditResponse);
+
+        _fixture.LogAssertion("isEdited is now true after edit");
+        editedEntry.GetProperty("isEdited").GetBoolean().Should().BeTrue();
+
+        _fixture.LogAssertion("text reflects the edit");
+        editedEntry.GetProperty("text").GetString().Should().StartWith("Edited:");
+
+        // ── Verify revisions include both original and edit ──
+        _fixture.Log($"Assert — GET /api/journals/{entryId}/revisions");
+        var revisionsResponse = await _fixture.Client.GetAsync(
+            $"/api/journals/{entryId}/revisions");
+        revisionsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var revisions = await _fixture.ReadJsonAsync<JsonElement>(revisionsResponse);
+
+        _fixture.LogAssertion("revisions array has at least 2 entries (original + edit)");
+        revisions.GetArrayLength().Should().BeGreaterThanOrEqualTo(2,
+            "there should be at least the original revision and the edited revision");
+
+        // Cleanup — remove session metadata
+        await _fixture.Client.DeleteAsync($"/api/conversation/{sessionId}");
+    }
 }

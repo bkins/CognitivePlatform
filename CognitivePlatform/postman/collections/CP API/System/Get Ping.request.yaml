@@ -2,4 +2,4 @@ $kind: http-request
 name: Get Ping
 url: "{{baseUrl}}/api/system/ping"
 method: GET
-order: 2000
+order: 5000

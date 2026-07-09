@@ -76,6 +76,7 @@ public class LlmClientFactory : ILlmClientFactory
                                                                     , _settings.Cerebras.Endpoint
                                                                     , _settings.Cerebras.Model
                                                                     , _settings.Timeout)
+              , LlmProvider.Mock     => new MockLlmClient()
               , _ => throw new InvalidOperationException($"Unknown LLM provider: {provider}")
         };
     }

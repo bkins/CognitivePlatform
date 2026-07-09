@@ -978,6 +978,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             var response = new ConverseResponse
                             {
                                     Message                = confirmationMessage
+                                  , SelectedAction         = selectedAction.Name
                                   , Debug                  = $"Destructive action '{selectedAction.Name}' requires confirmation."
                                   , ExecutionResult        = $"Awaiting user confirmation before executing '{selectedAction.Name}'."
                                   , IsConfirmationRequired = true
@@ -1043,6 +1044,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         var finalResponse = new ConverseResponse
                             {
                                     Message         = finalMessage
+                                  , SelectedAction  = selectedAction.Name
                                   , Insights        = insights
                                   , Debug           = interpretation.DebugInfo
                                   , ExecutionResult = $"Executed action '{selectedAction.Name}' with parameters: {string.Join(", ", execParameters.Select(pair => $"{pair.Key}={pair.Value}"))}"
@@ -1246,6 +1248,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             return new ConverseResponse
                    {
                            Message                = confirmationMessage
+                         , SelectedAction         = actionMeta.Name
                          , Debug                  = $"FastPath destructive action '{actionMeta.Name}' requires confirmation."
                          , ExecutionResult        = $"Awaiting user confirmation before executing '{actionMeta.Name}'."
                          , WasFastPath            = true
@@ -1261,6 +1264,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         return new ConverseResponse
                {
                        Message         = result
+                     , SelectedAction  = actionMeta!.Name
                      , Debug           = $"FastPath → Action={actionMeta!.Name} with Params=[{parameters}]"
                      , ExecutionResult = $"Successfully executed FastPath-resolved action '{actionMeta.Name}'\n"
                                        + $"                  with parameters: {parameters}"

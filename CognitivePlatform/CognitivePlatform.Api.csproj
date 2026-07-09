@@ -48,4 +48,9 @@
     <ProjectReference Include="..\..\CP.Client.Core\CP.Client.Core\CP.Client.Core.csproj" />
   </ItemGroup>
 
+  <Target Name="KillRunningProcesses" BeforeTargets="PrepareForBuild">
+    <Message Importance="high" Text="Killing running instances of CognitivePlatform.Api..." />
+    <Exec Command="taskkill /f /im CognitivePlatform.Api.exe 2&gt;nul || exit 0" IgnoreExitCode="true" />
+  </Target>
+
 </Project>

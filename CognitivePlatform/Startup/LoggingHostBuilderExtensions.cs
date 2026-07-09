@@ -47,6 +47,7 @@ public static class LoggingHostBuilderExtensions
     {
         builder.Services.Configure<PromptLoggingOptions>(builder.Configuration.GetSection("PromptLogging"));
         builder.Services.Configure<BugReportSettings>(builder.Configuration.GetSection("BugReport"));
+        builder.Services.Configure<IdeaReportSettings>(builder.Configuration.GetSection("IdeaReport"));
         builder.Services.AddSingleton<IPromptLogger, PromptLogger>();
 
         return builder;

@@ -30,17 +30,13 @@ public sealed class EmbeddingBackfillService : BackgroundService
         _logger           = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task RunBackfillAsync(CancellationToken stoppingToken)
     {
         if (!_embeddingService.IsAvailable)
         {
             _logger.LogDebug("EmbeddingBackfillService: embedding service unavailable — skipping backfill.");
             return;
         }
-
-        await Task.Yield(); // yield so the rest of app startup completes first
-
-        _logger.LogInformation("EmbeddingBackfillService: starting backfill pass.");
 
         var (journalEmbedded, journalFailed)  = await BackfillJournalsAsync(stoppingToken);
         var (taskEmbedded,    taskFailed)     = await BackfillTasksAsync(stoppingToken);
@@ -52,6 +48,14 @@ public sealed class EmbeddingBackfillService : BackgroundService
         _logger.LogInformation( "EmbeddingBackfillService: pass complete — embedded {Embedded}, failed {Failed}."
                               , totalEmbedded
                               , totalFailed );
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Yield(); // yield so the rest of app startup completes first
+
+        _logger.LogInformation("EmbeddingBackfillService: starting backfill pass.");
+        await RunBackfillAsync(stoppingToken);
     }
 
     // -----------------------------------------------------------------------
