@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <!-- Keep in sync with CognitivePlatform.Api.csproj -->
-    <PackageReference Include="CP.Client.Core" Version="0.1.59" />
+    <PackageReference Include="CP.Client.Core" Version="1.0.0" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
     <!-- Markdown rendering in Journal Admin (revision text view) -->

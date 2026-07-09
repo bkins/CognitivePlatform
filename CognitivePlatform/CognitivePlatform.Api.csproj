@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CP.Shared.Primitives" Version="0.1.52" />
+    <PackageReference Include="CP.Shared.Primitives" Version="1.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.12.11" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
