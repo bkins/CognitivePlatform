@@ -1,0 +1,5 @@
+$kind: http-request
+name: Get Actions
+url: https://localhost:7083/api/system/actions
+method: GET
+order: 4280

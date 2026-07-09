@@ -1,0 +1,963 @@
+ActionName: UseWorkspace
+Description: Switch to a named workspace. Creates the workspace automatically if it doesn't exist yet. All subsequent task, journal, and activity commands will read and write data scoped to this workspace.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: name, Type: String, Optional: False, Description: The workspace name to switch to (e.g. "work", "personal", "family").
+--------------------------------------------------
+ActionName: GetCurrentWorkspace
+Description: Get the name of the currently active workspace.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListWorkspaces
+Description: List all workspaces that have been used on this installation.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetWellbeingReport
+Description: Provides a cross-domain wellbeing summary covering sleep, activity, tasks, and journal patterns.
+Category: wellbeing
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date range to analyse, e.g. 'last week', 'last 7 days'. Defaults to last 7 days.
+--------------------------------------------------
+ActionName: GetWellbeingPatterns
+Description: Lists all detected patterns across health, activity, tasks, and journal data for a period.
+Category: wellbeing
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date range to analyse, e.g. 'last week', 'last 7 days'. Defaults to last 7 days.
+--------------------------------------------------
+ActionName: CheckSleepHealth
+Description: Checks whether you've been getting enough sleep by analysing recent sleep signals.
+Category: wellbeing
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date range to check, e.g. 'last week', 'this week'. Defaults to last 7 days.
+--------------------------------------------------
+ActionName: AddTask
+Description: Create a new task with optional due date, priority, and tags.
+Category: task
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: shortDescription, Type: String, Optional: False, Description: Short description of the task.
+  - Name: details, Type: String, Optional: True, Description: Additional details about the task.
+  - Name: isImportant, Type: Nullable`1, Optional: True, Description: Whether this task is important.
+  - Name: isUrgent, Type: Nullable`1, Optional: True, Description: Whether this task is urgent.
+  - Name: dueDateText, Type: String, Optional: True, Description: Due date or time for the task, if any.
+  - Name: tags, Type: String, Optional: True, Description: Comma-separated list of tags.
+  - Name: priority, Type: TaskPriority, Optional: True, Description: The task's priority: low, normal, high, or critical.
+--------------------------------------------------
+ActionName: BatchAddTasks
+Description: Create multiple tasks at once from a list. Use when the user provides several tasks in a single message.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: descriptions, Type: String, Optional: False, Description: A pipe-separated list of task descriptions extracted from the user's message. Each entry is the short description of one task. Example: 'Review Elena PD|Check CRM servers|Look at bug 161843'
+--------------------------------------------------
+ActionName: ListTasks
+Description: List tasks, optionally filtered by completion, urgency, importance, tag, or due-date window.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: includeCompleted, Type: Nullable`1, Optional: True, Description: Include completed tasks (true/false).
+  - Name: onlyUrgent, Type: Nullable`1, Optional: True, Description: Only show urgent tasks.
+  - Name: onlyImportant, Type: Nullable`1, Optional: True, Description: Only show important tasks.
+  - Name: tag, Type: String, Optional: True, Description: Filter by a single tag.
+  - Name: dueBefore, Type: Nullable`1, Optional: True, Description: Filter tasks due before this date.
+  - Name: dueAfter, Type: Nullable`1, Optional: True, Description: Filter tasks due after this date.
+  - Name: overdueOnly, Type: Boolean, Optional: True, Description: Filter to past-due tasks only.
+--------------------------------------------------
+ActionName: ListCompletedTasks
+Description: List completed tasks, most recently completed first.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: CompleteTask
+Description: Mark a task as completed. Accepts a task position number (from the list) or a full task id.
+Category: task
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: taskReference, Type: String, Optional: False, Description: The position number of the task (e.g. '2') or its full id.
+--------------------------------------------------
+ActionName: CompleteBatch
+Description: Mark multiple tasks as completed in one command. Accepts a mix of position numbers and task ids.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: taskReferences, Type: String, Optional: False, Description: A pipe-separated list of task position numbers or ids to mark complete. Example: '2|4' or '1|3|5'
+--------------------------------------------------
+ActionName: UpdateTaskPriority
+Description: Update the priority, importance, or urgency of an existing task. Accepts a task position number or full task id. Provide at least one of: priority, isImportant, or isUrgent.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: taskReference, Type: String, Optional: False, Description: The position number of the task (e.g. '2') or its full id.
+  - Name: priority, Type: Nullable`1, Optional: True, Description: New priority level: low, normal, high, or critical.
+  - Name: isImportant, Type: Nullable`1, Optional: True, Description: Whether this task is important.
+  - Name: isUrgent, Type: Nullable`1, Optional: True, Description: Whether this task is urgent.
+--------------------------------------------------
+ActionName: UpdateTaskDueDate
+Description: Set or clear the due date on an existing task. Accepts a task position number or full task id. Pass an empty dueDateText to clear the due date.
+Category: task
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: taskReference, Type: String, Optional: False, Description: The position number of the task (e.g. '2') or its full id.
+  - Name: dueDateText, Type: String, Optional: False, Description: The new due date as natural text (e.g. 'Friday', 'April 5th', 'tomorrow'). Pass an empty string to clear the existing due date.
+--------------------------------------------------
+ActionName: DeleteTask
+Description: Soft delete a task. Accepts a task position number (from the list) or a full task id.
+Category: task
+IsDestructive: True
+IsReplayable: True
+Parameters:
+  - Name: taskReference, Type: String, Optional: False, Description: The position number of the task (e.g. '2') or its full id.
+--------------------------------------------------
+ActionName: AnalyzeTasks
+Description: Analyzes all tasks using the Eisenhower Matrix and provides recommendations.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetDailyBrief
+Description: Shows the daily brief: the most urgent tasks (Important & Urgent) and anything due today or overdue.
+Category: task
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ReasonAboutTasks
+Description: Ask a question about your tasks. The AI analyzes your active task list and recent journal entries to provide insights, recommendations, or answers.
+Category: tasks
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: question, Type: String, Optional: False, Description: Your question or request about your tasks and priorities.
+  - Name: fromDate, Type: String, Optional: True, Description: Start date — limit journal context to entries from this date (optional).
+  - Name: toDate, Type: String, Optional: True, Description: End date — limit journal context to entries up to this date (optional).
+--------------------------------------------------
+ActionName: GetVersion
+Description: Gets the current application version.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetEnvironment
+Description: Gets the current hosting environment.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetBuildConfiguration
+Description: Gets the current build configuration (e.g. Debug or Release).
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetUptime
+Description: Gets the current system uptime.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetSystemStatus
+Description: Gets build and runtime information.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetConfigurationValue
+Description: Gets a safe configuration value.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: key, Type: String, Optional: False, Description: The configuration key to retrieve.
+--------------------------------------------------
+ActionName: SemanticSearch
+Description: Semantically searches all your journal entries, tasks, and daily records for content related to the query.
+Category: search
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: query, Type: String, Optional: False, Description: The topic or concept to search for across all your content.
+--------------------------------------------------
+ActionName: FindSimilar
+Description: Finds items within a domain that are semantically similar to a specific existing entry.
+Category: search
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: domain, Type: String, Optional: False, Description: The domain to search within, e.g. 'journal', 'task', 'daily', 'knowledge'.
+  - Name: referenceId, Type: String, Optional: False, Description: The reference ID of the source item to find similar content for.
+--------------------------------------------------
+ActionName: SemanticSearchInDomain
+Description: Semantically searches a specific domain (journal, tasks, daily, knowledge) for content related to the query.
+Category: search
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: domain, Type: String, Optional: False, Description: The domain to search within, e.g. 'journal', 'task', 'daily', 'knowledge'.
+  - Name: query, Type: String, Optional: False, Description: The topic or concept to search for within this domain.
+--------------------------------------------------
+ActionName: CreatePersona
+Description: Creates a new synthetic persona for modeling another person, given a name and optional scenario.
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: name, Type: String, Optional: False, Description: The name of the persona to create.
+  - Name: scenarioDescription, Type: String, Optional: True, Description: Optional description of the scenario or context for this persona.
+--------------------------------------------------
+ActionName: AddPersonaMemory
+Description: Adds a memory fragment to an existing persona — a fact, feeling, or event associated with that person.
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: personaNameOrId, Type: String, Optional: False, Description: The name or id of the persona this memory belongs to.
+  - Name: content, Type: String, Optional: False, Description: The memory content to record.
+  - Name: type, Type: MemoryType, Optional: True, Description: The type of memory: Historical, Emotional, Sensory, Behavioral, Narrative, Hypothetical, or Symbolic.
+  - Name: userAsserted, Type: Boolean, Optional: True, Description: Whether this memory was directly stated by the user (true) or should be treated as inferred (false).
+--------------------------------------------------
+ActionName: BeginPersonaConversation
+Description: Begins a conversation session with a persona by name, entering persona mode for the current conversation.
+Category: Personas
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: personaName, Type: String, Optional: False, Description: The name of the persona to begin a conversation with.
+--------------------------------------------------
+ActionName: EndPersonaConversation
+Description: Ends the current persona conversation session, returning to normal conversation mode.
+Category: Personas
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ConfirmMemory
+Description: Confirms the next pending memory fragment for the active persona conversation, advancing it toward canonical status.
+Category: Personas
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListPendingMemories
+Description: Lists the next few memory fragments awaiting confirmation for the active persona conversation.
+Category: Personas
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetConversationMode
+Description: Sets the conversation mode for a persona conversation — controls how the exchange is framed (e.g. DreamMode, Reflection, FreeConversation).
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: conversationId, Type: String, Optional: False, Description: The conversation ID to change mode for.
+  - Name: mode, Type: ConversationMode, Optional: False, Description: The conversation mode to activate: FreeConversation, Reconstruction, Reflection, AlternateTimeline, HistoricalReplay, DreamMode, or TherapeuticDistance.
+--------------------------------------------------
+ActionName: CreateAlternateTimeline
+Description: Creates an alternate timeline for a persona — a named 'what if' branch from the main narrative.
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: personaId, Type: String, Optional: False, Description: The id of the persona this timeline belongs to.
+  - Name: name, Type: String, Optional: False, Description: A short name for this alternate timeline.
+  - Name: premise, Type: String, Optional: False, Description: The premise or 'what if' premise of this timeline.
+--------------------------------------------------
+ActionName: CreatePersonaSnapshot
+Description: Creates a memory snapshot for a persona — captures the current state of memories and configuration as a named, loadable branch reality.
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: personaId, Type: String, Optional: False, Description: The id of the persona to snapshot.
+  - Name: name, Type: String, Optional: False, Description: A name for this snapshot.
+  - Name: notes, Type: String, Optional: True, Description: Optional notes about what this snapshot represents.
+--------------------------------------------------
+ActionName: LoadSnapshot
+Description: Loads a memory snapshot into a conversation, causing subsequent persona turns to use the snapshot's memories and configuration instead of live state.
+Category: Personas
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: snapshotId, Type: String, Optional: False, Description: The id of the snapshot to load.
+  - Name: conversationId, Type: String, Optional: False, Description: The conversation id to load the snapshot into.
+--------------------------------------------------
+ActionName: ListPersonalities
+Description: Lists all available personalities with their name and description.
+Category: Personality
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetActivePersonality
+Description: Returns the currently active personality.
+Category: Personality
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetPersonality
+Description: Sets the active personality by name.
+Category: Personality
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: name, Type: String, Optional: False, Description: The name of the personality to activate (e.g. 'Zen', 'Programmer', 'Witty').
+--------------------------------------------------
+ActionName: ListPersonas
+Description: Lists all available personas with their name and description.
+Category: PersonaEngine
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetActivePersona
+Description: Returns the currently active persona.
+Category: PersonaEngine
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetPersona
+Description: Sets the active persona by name.
+Category: PersonaEngine
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: name, Type: String, Optional: False, Description: The name of the persona to activate (e.g. 'Zen', 'Programmer', 'Witty').
+--------------------------------------------------
+ActionName: ListAttachments
+Description: Lists all media attachments for a given owner (e.g., a journal entry or task).
+Category: media
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: ownerType, Type: String, Optional: False, Description: The owner type, e.g. JournalEntry or Task.
+  - Name: ownerId, Type: String, Optional: False, Description: The ID of the owner item.
+--------------------------------------------------
+ActionName: GetAttachmentCount
+Description: Returns the number of media attachments for a given owner.
+Category: media
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: ownerType, Type: String, Optional: False, Description: The owner type, e.g. JournalEntry or Task.
+  - Name: ownerId, Type: String, Optional: False, Description: The ID of the owner item.
+--------------------------------------------------
+ActionName: UseKnowledgeDomain
+Description: Sets the active knowledge domain for the current conversation.
+Category: knowledge
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: domainName, Type: String, Optional: False, Description: The name of the knowledge domain to activate.
+--------------------------------------------------
+ActionName: ClearKnowledgeDomain
+Description: Clears the active knowledge domain, returning the assistant to normal conversation.
+Category: knowledge
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListKnowledgeDomains
+Description: Lists all registered knowledge domains and their modes.
+Category: knowledge
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: QueryKnowledge
+Description: Queries the active knowledge domain directly for information using retrieved context.
+Category: knowledge
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: query, Type: String, Optional: False, Description: The question or query to search for.
+--------------------------------------------------
+ActionName: AddJournalEntry
+Description: Adds a new journal entry with optional tags, context, mood, and media.
+Category: journal
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: text, Type: String, Optional: False, Description: The text of the journal entry.
+  - Name: tags, Type: String, Optional: True, Description: Optional tags for the entry (comma-separated).
+  - Name: context, Type: String, Optional: True, Description: Optional context or category.
+  - Name: mood, Type: String, Optional: True, Description: Optional free-form mood description (for example: 'anxious but hopeful').
+  - Name: moodScore, Type: String, Optional: True, Description: Optional mood score from 1 (very negative) to 5 (very positive).
+  - Name: media, Type: String, Optional: True, Description: Optional media file names or paths related to this entry (comma-separated).
+--------------------------------------------------
+ActionName: ListJournalEntries
+Description: Lists journal entries, optionally filtered by date.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: fromDate, Type: String, Optional: True, Description: Start date (optional).
+  - Name: toDate, Type: String, Optional: True, Description: End date (optional).
+--------------------------------------------------
+ActionName: GetJournalEntry
+Description: Retrieves a single journal entry by its 1-based position number. Ordinal words (first, second, third) map to position 1, 2, 3.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: entryReference, Type: String, Optional: False, Description: The 1-based position number of the journal entry (e.g. '3'). Ordinal words map to integers: 'first'=1, 'second'=2, 'third'=3.
+--------------------------------------------------
+ActionName: DeleteJournalEntry
+Description: Deletes a journal entry by its position number. A reason must be provided.
+Category: journal
+IsDestructive: True
+IsReplayable: True
+Parameters:
+  - Name: entryReference, Type: String, Optional: False, Description: The position number of the entry to delete (e.g. '3') from a recent listing.
+  - Name: reason, Type: String, Optional: False, Description: Reason the entry is being deleted.
+--------------------------------------------------
+ActionName: JournalEntriesOnThisDay
+Description: Lists all journal entries that occurred on this calendar day across all years.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SearchJournalEntries
+Description: Searches journal entries for a keyword, optionally within a date range. Matches against entry text, tags, and mood.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: keyword, Type: String, Optional: False, Description: The keyword or phrase to search for.
+  - Name: fromDate, Type: String, Optional: True, Description: Start date (optional).
+  - Name: toDate, Type: String, Optional: True, Description: End date (optional).
+--------------------------------------------------
+ActionName: GetJournalHistory
+Description: Shows the revision history of a journal entry — the original and all subsequent edits with their timestamps.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: entryReference, Type: String, Optional: False, Description: The 1-based position number of the journal entry (e.g. '3'). Ordinal words map to integers: 'first'=1, 'second'=2, 'third'=3.
+--------------------------------------------------
+ActionName: AnalyzeJournal
+Description: Answers a question about your journal by reading your entries and reasoning over them using AI. Use this for questions that require understanding meaning, not just finding a keyword.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: question, Type: String, Optional: False, Description: The question or analysis request about your journal entries.
+  - Name: fromDate, Type: String, Optional: True, Description: Start date — limit analysis to entries from this date onwards (optional).
+  - Name: toDate, Type: String, Optional: True, Description: End date — limit analysis to entries up to this date (optional).
+--------------------------------------------------
+ActionName: GetJournalAttachments
+Description: Lists all media attachments for a journal entry.
+Category: journal
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: entryReference, Type: String, Optional: False, Description: The journal entry reference — a 1-based position number or entry ID.
+--------------------------------------------------
+ActionName: AnalyzePatterns
+Description: Analyzes patterns across your tasks and journal entries using AI. Surfaces connections, trends, and holistic productivity or wellbeing insights.
+Category: insights
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: focus, Type: String, Optional: True, Description: What to focus the analysis on (e.g. 'productivity', 'mood', 'work-life balance', or leave blank for a general overview).
+  - Name: fromDate, Type: String, Optional: True, Description: Start date for the analysis window (optional).
+  - Name: toDate, Type: String, Optional: True, Description: End date for the analysis window (optional).
+--------------------------------------------------
+ActionName: GetProfile
+Description: Returns the current personal profile: name, occupation, core values, traits, and goals.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetProfileField
+Description: Sets a scalar field on the personal profile. Valid fields: PreferredName, Occupation, NarrativeSummary.
+Category: Identity
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: field, Type: String, Optional: False, Description: The field name to set: PreferredName, Occupation, or NarrativeSummary.
+  - Name: value, Type: String, Optional: False, Description: The new value for the field.
+--------------------------------------------------
+ActionName: AddToProfileList
+Description: Appends an item to a list field on the personal profile. Valid fields: CoreValues, PersonalityTraits, LeadershipStyles, LongTermGoals, Strengths, Stressors, CommunicationPreferences.
+Category: Identity
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: field, Type: String, Optional: False, Description: The list field to add to: CoreValues, PersonalityTraits, LeadershipStyles, LongTermGoals, Strengths, Stressors, or CommunicationPreferences.
+  - Name: item, Type: String, Optional: False, Description: The item to add.
+--------------------------------------------------
+ActionName: RemoveFromProfileList
+Description: Removes an item from a list field on the personal profile. Valid fields: CoreValues, PersonalityTraits, LeadershipStyles, LongTermGoals, Strengths, Stressors, CommunicationPreferences.
+Category: Identity
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: field, Type: String, Optional: False, Description: The list field to remove from: CoreValues, PersonalityTraits, LeadershipStyles, LongTermGoals, Strengths, Stressors, or CommunicationPreferences.
+  - Name: item, Type: String, Optional: False, Description: The item to remove.
+--------------------------------------------------
+ActionName: AddIdentityAssertion
+Description: Adds a new identity assertion: a confirmed fact about who the user is under a given topic.
+Category: Identity
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: topic, Type: String, Optional: False, Description: The topic this assertion falls under, e.g. 'stress response', 'leadership style'.
+  - Name: statement, Type: String, Optional: False, Description: The assertion statement, e.g. 'tends to catastrophize timelines under burnout'.
+--------------------------------------------------
+ActionName: ListIdentityAssertions
+Description: Lists all active identity assertions grouped by topic.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ConfirmIdentityAssertion
+Description: Confirms the most recent identity assertion for a given topic, marking it as user-verified.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: topic, Type: String, Optional: False, Description: The topic of the assertion to confirm, e.g. 'stress response'.
+--------------------------------------------------
+ActionName: GenerateInsights
+Description: Analyzes recent journal entries and tasks to discover behavioral patterns and generate AI-derived insights about the user.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GenerateSnapshot
+Description: Generates a narrative personality snapshot synthesizing confirmed profile, behavioral insights, and recent journal entries.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetLatestSnapshot
+Description: Returns the most recent personality snapshot's narrative summary and themes.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListDerivedInsights
+Description: Lists all AI-derived behavioral insights with their confirmation status and confidence scores.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ConfirmDerivedInsight
+Description: Confirms the most recent unconfirmed derived insight matching a given insight type or keyword, marking it as user-verified.
+Category: Identity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: topic, Type: String, Optional: False, Description: The insight type or keyword matching the insight to confirm, e.g. 'stress-response', 'work-pattern'.
+--------------------------------------------------
+ActionName: GetStepCount
+Description: Shows the step count for a date or period from your connected health device.
+Category: health
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date or period to query, e.g. 'yesterday', 'today', 'last week'.
+--------------------------------------------------
+ActionName: GetSleepSummary
+Description: Shows sleep data for a date or period from your connected health device.
+Category: health
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date or period to query — use 'yesterday' for last night.
+--------------------------------------------------
+ActionName: GetHeartRate
+Description: Shows heart rate data for a date or period from your connected health device.
+Category: health
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date or period to query, e.g. 'yesterday', 'today', 'last week'.
+--------------------------------------------------
+ActionName: GetDistance
+Description: Shows distance covered for a date or period from your connected health device.
+Category: health
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: dateRange, Type: String, Optional: False, Description: Date or period to query, e.g. 'yesterday', 'today', 'last week'.
+--------------------------------------------------
+ActionName: ListFiles
+Description: Lists files at a given path on the connected phone.
+Category: file-sync
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: path, Type: String, Optional: False, Description: The remote path on the connected phone to list, e.g. '/storage/emulated/0/Documents'.
+--------------------------------------------------
+ActionName: SyncFolder
+Description: Synchronises a local folder to a path on the connected phone.
+Category: file-sync
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: localPath, Type: String, Optional: False, Description: The local source folder path to sync, e.g. 'C:\Users\ben\Documents\Notes'.
+  - Name: remotePath, Type: String, Optional: False, Description: The destination path on the phone, e.g. '/storage/emulated/0/Documents/Notes'.
+--------------------------------------------------
+ActionName: GetSyncStatus
+Description: Shows the current sync delta between a local folder and a path on the connected phone — no files are copied.
+Category: file-sync
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: localPath, Type: String, Optional: False, Description: The local folder to check, e.g. 'C:\Users\ben\Documents\Notes'.
+  - Name: remotePath, Type: String, Optional: False, Description: The path on the phone to compare against, e.g. '/storage/emulated/0/Documents/Notes'.
+--------------------------------------------------
+ActionName: ResolveSyncConflict
+Description: Resolves a file sync conflict by choosing which version to keep.
+Category: file-sync
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: conflictId, Type: String, Optional: False, Description: The relative file path reported in the conflict list, e.g. 'notes/README.md'.
+  - Name: resolution, Type: String, Optional: False, Description: Which version to keep: 'laptop', 'phone', or 'newest'.
+--------------------------------------------------
+ActionName: ReportBug
+Description: Logs a bug or unexpected behaviour observed during testing to the project bug log. Use when the user says 'Bug:', 'bug report:', 'found a bug:', 'report a bug:', or describes something that went wrong.
+Category: System
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: description, Type: String, Optional: False, Description: The full description of the bug or unexpected behaviour exactly as the user described it.
+--------------------------------------------------
+ActionName: IndexDocument
+Description: Indexes a file on disk so its content becomes searchable via semantic search. Supported formats: .txt, .md, .pdf (machine-readable only).
+Category: document
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: filePath, Type: String, Optional: False, Description: The full path to the file to index, e.g. 'C:\Notes\journal.md'.
+--------------------------------------------------
+ActionName: SearchDocuments
+Description: Semantically searches all indexed documents for content related to the query.
+Category: document
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: query, Type: String, Optional: False, Description: The topic or concept to search for across all indexed documents.
+--------------------------------------------------
+ActionName: ListIndexedDocuments
+Description: Lists all files currently indexed for semantic search.
+Category: document
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: OpenDay
+Description: Open today's daily plan. Call when the user submits their morning intention, priorities, or task list for the day.
+Category: daily
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: openingText, Type: String, Optional: False, Description: The opening text — the user's stated intention for the day.
+  - Name: tasks, Type: String, Optional: True, Description: Comma-separated task titles to add as today's planned tasks.
+  - Name: mood, Type: String, Optional: True, Description: The user's mood label, e.g. 'Focused'.
+  - Name: moodScore, Type: Nullable`1, Optional: True, Description: Mood score from 1 (lowest) to 5 (highest).
+--------------------------------------------------
+ActionName: AddCheckpoint
+Description: Add a check-in for today. Call when the user reports progress, completes tasks, or adds new tasks during the day.
+Category: daily
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: text, Type: String, Optional: False, Description: The check-in text — what the user reported.
+  - Name: completedTaskIds, Type: String, Optional: True, Description: Pipe-separated IDs of completed tasks, e.g. 'abc123|def456'.
+  - Name: newTasks, Type: String, Optional: True, Description: Comma-separated titles of new tasks to add.
+  - Name: mood, Type: String, Optional: True, Description: The user's mood label at check-in time.
+  - Name: moodScore, Type: Nullable`1, Optional: True, Description: Mood score from 1 (lowest) to 5 (highest).
+--------------------------------------------------
+ActionName: CloseDay
+Description: Close today. Call when the user submits their evening report, end-of-day reflection, or signs off for the day.
+Category: daily
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: closingText, Type: String, Optional: True, Description: The closing text — the user's reflection on the day. Optional: if omitted the day is closed with a default note.
+  - Name: mood, Type: String, Optional: True, Description: The user's end-of-day mood label.
+  - Name: moodScore, Type: Nullable`1, Optional: True, Description: Mood score from 1 (lowest) to 5 (highest).
+--------------------------------------------------
+ActionName: ListTodaysTasks
+Description: List today's planned and reactive tasks with their position numbers. Position numbers can be used to complete or delete a task (e.g. 'complete task 3').
+Category: daily
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ClaimRolledOverTasks
+Description: Claim rolled-over tasks from previous days into today's plan.
+Category: daily
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: DeleteDay
+Description: Soft-delete today's daily record so the day can be re-opened fresh. Use only to recover from erroneous test data, an accidental day close, or a timezone glitch.
+Category: daily
+IsDestructive: True
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: EnableCognitiveDistortionDetector
+Description: Enables the cognitive distortion detector, which gently reflects all-or-nothing, catastrophising, or mind-reading language noticed in recent journal entries.
+Category: cognition
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: DisableCognitiveDistortionDetector
+Description: Disables the cognitive distortion detector so journal language patterns are no longer surfaced.
+Category: cognition
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetTodayEvents
+Description: Shows today's events from your Google Calendar.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetEventsForDate
+Description: Shows calendar events for a specific date. For week or multi-day queries, call this once per relevant day.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: date, Type: String, Optional: False, Description: The date to look up, e.g. '2026-04-15' or a day name the LLM will convert to a date.
+--------------------------------------------------
+ActionName: AddCalendarEvent
+Description: Adds a new event to your Google Calendar.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: title, Type: String, Optional: False, Description: Title or name of the event.
+  - Name: startDateTime, Type: String, Optional: False, Description: Start date and time in ISO 8601 format, e.g. '2026-04-15T14:00:00'.
+  - Name: endDateTime, Type: String, Optional: True, Description: End date and time in ISO 8601 format. Defaults to 1 hour after the start time.
+  - Name: location, Type: String, Optional: True, Description: Optional location for the event.
+--------------------------------------------------
+ActionName: ListCalendars
+Description: Lists all Google Calendars on the connected account with their current inclusion status.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetCalendarInclusion
+Description: Includes or excludes a Google Calendar from event queries and daily briefs.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: calendarNameOrId, Type: String, Optional: False, Description: The name or ID of the calendar to include or exclude.
+  - Name: include, Type: Boolean, Optional: False, Description: True to include the calendar in event queries; false to exclude it.
+--------------------------------------------------
+ActionName: FindFreeTime
+Description: Finds free time slots on a given day that are long enough to fit a task of the specified duration.
+Category: calendar
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: date, Type: String, Optional: False, Description: The date to search for free time, e.g. '2026-04-15'.
+  - Name: durationMinutes, Type: Int32, Optional: False, Description: The required block length in minutes, e.g. 60 for one hour.
+--------------------------------------------------
+ActionName: StartBrainDump
+Description: Starts a new guided brain dump session. Prompts you through 7 therapeutic categories to unload mental weight: avoidance, fears, frustrations, discouragements, goals and barriers, hurt, and self-criticism.
+Category: braindump
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetLatestBrainDump
+Description: Shows a summary of the most recent brain dump session, including which categories were filled and whether extraction has been run.
+Category: braindump
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListBrainDumps
+Description: Lists your recent brain dump sessions with their dates and completion status.
+Category: braindump
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: LogActivity
+Description: Records an explicit activity or habit event — e.g. running, meditation, reading — with optional duration, unit, notes, and tags.
+Category: activity
+IsDestructive: False
+IsReplayable: True
+Parameters:
+  - Name: type, Type: String, Optional: False, Description: The activity type — e.g. 'run', 'meditation', 'reading'.
+  - Name: duration, Type: Nullable`1, Optional: True, Description: Optional quantity — e.g. 30 (minutes), 40 (pages), 20 (reps).
+  - Name: unit, Type: String, Optional: True, Description: Optional unit for the quantity — e.g. 'minutes', 'pages', 'reps'.
+  - Name: notes, Type: String, Optional: True, Description: Optional free-text notes about the activity.
+  - Name: tags, Type: String, Optional: True, Description: Optional tags (comma-separated) — e.g. 'outdoors, cardio'.
+--------------------------------------------------
+ActionName: ListActivities
+Description: Lists activity/habit events, grouped by type, optionally filtered by date. Defaults to the last 7 days.
+Category: activity
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: fromDate, Type: Nullable`1, Optional: True, Description: Start date (optional).
+  - Name: toDate, Type: Nullable`1, Optional: True, Description: End date (optional).
+--------------------------------------------------
+ActionName: TestAction
+Description: A test action for Phase 1.
+Category: general
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ShowFastPathDiagnostics
+Description: Shows diagnostic information about all FastPath-enabled actions.
+Category: debug
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: GetDomainGuidance
+Description: Explains how a specific feature area works, including available operations, example phrases, and relationships to other features.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: domainName, Type: String, Optional: False, Description: 
+--------------------------------------------------
+ActionName: SetModel
+Description: Sets the LLM model to use for the remainder of this session. The model must be known and available; use ListModels to see options.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: model, Type: String, Optional: False, Description: 
+--------------------------------------------------
+ActionName: ListModels
+Description: Lists the LLM models that are available and usable in the current session.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: SetProvider
+Description: Switches the LLM provider for the remainder of this session (Groq, Gemini, Ollama, OpenRouter, or Cerebras). The session's model resets to that provider's configured default; use 'set model X' afterwards to pick something non-default.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: provider, Type: String, Optional: False, Description: 
+--------------------------------------------------
+ActionName: ListProviders
+Description: Lists the LLM providers known to the system, marks the active session provider, and notes which ones have a default model configured.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ListActions
+Description: Lists all registered actions known to the system, including their names and descriptions.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: DescribeAction
+Description: Describes an action by name, including its category, parameters, and example phrases.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: actionName, Type: String, Optional: False, Description: 
+--------------------------------------------------
+ActionName: WhyAction
+Description: Explains why the interpreter chose (or failed to choose) the last action.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: ChitChat
+Description: Handles non-command conversational input.
+Category: General
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: text, Type: String, Optional: False, Description: 
+--------------------------------------------------
+ActionName: WhyInsight
+Description: Explains why the system made a recent suggestion or insight.
+Category: interpreter
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------
+ActionName: StoreValue
+Description: Stores a value in the session context.
+Category: memory
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: key, Type: String, Optional: False, Description: The name of the variable to store.
+  - Name: value, Type: String, Optional: False, Description: The value to store under the key.
+--------------------------------------------------
+ActionName: RecallValue
+Description: Retrieves a previously stored value.
+Category: memory
+IsDestructive: False
+IsReplayable: False
+Parameters:
+  - Name: key, Type: String, Optional: True, Description: The variable name to retrieve.
+--------------------------------------------------
+ActionName: RepeatLastAction
+Description: Repeats the last action using the previously extracted parameters.
+Category: meta
+IsDestructive: False
+IsReplayable: False
+Parameters:
+--------------------------------------------------

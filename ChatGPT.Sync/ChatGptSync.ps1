@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # ChatGPT Sync Script – FINAL v5
 # Completely ignores entire obj/ and bin/ folders at traversal level
 # No auto-generated files will EVER be scanned again
@@ -158,7 +158,7 @@ foreach ($file in Get-HandwrittenCsFiles $syncRoot) {
 # -------------------------------------------------------------------
 # STEP 3 — Copy development documentation into Upload/Docs
 # -------------------------------------------------------------------
-$docsSource = "C:\Users\benho\source\Application Documentation\Natural Language Command System"
+$docsSource = "C:\Users\benho\source\Application Documentation\The CP Universe\Natural Language Command System"
 Copy-DocsToUpload -docsSource $docsSource -uploadRoot $uploadDir
 
 
