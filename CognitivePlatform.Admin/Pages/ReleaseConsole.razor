@@ -801,21 +801,41 @@
       , _      => _selectedEnvironment
     };
 
+    private static readonly object _versionLock = new();
+
     private static string GenerateVersion()
     {
-        var now = DateTime.Now;
+        lock (_versionLock)
+        {
+            var path = @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
+            if (!System.IO.File.Exists(path))
+            {
+                return "1.0.0.1";
+            }
 
-        // All four AssemblyVersion components must fit in a UInt16 (0–65535).
-        // yyyyMMdd (up to 20991231) and HHmmss (up to 235959) both exceed that limit.
-        //
-        // Encoding:
-        //   build    = (year % 100) * 1000 + dayOfYear   → e.g. 26154 for 2026-Jun-03
-        //   revision = hour * 100 + minute               → e.g. 1334  for 13:34
-        //
-        // Both stay ≤ 65535 and the result is still roughly human-readable.
-        var build    = (now.Year % 100) * 1000 + now.DayOfYear;
-        var revision = now.Hour * 100 + now.Minute;
-        return $"1.0.{build}.{revision}";
+            try
+            {
+                var json = System.IO.File.ReadAllText(path);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                int majorVal = root.GetProperty("Major").GetInt32();
+                int minorVal = root.GetProperty("Minor").GetInt32();
+                int patchVal = root.GetProperty("Patch").GetInt32();
+                int buildVal = root.GetProperty("Build").GetInt32();
+
+                buildVal++;
+
+                // Write back updated build number
+                var updatedJson = $"{{\n  \"Major\": {majorVal},\n  \"Minor\": {minorVal},\n  \"Patch\": {patchVal},\n  \"Build\": {buildVal}\n}}";
+                System.IO.File.WriteAllText(path, updatedJson);
+
+                return $"{majorVal}.{minorVal}.{patchVal}.{buildVal}";
+            }
+            catch
+            {
+                return "1.0.0.1";
+            }
+        }
     }
 
     private void RegenerateVersion() => _version = GenerateVersion();
