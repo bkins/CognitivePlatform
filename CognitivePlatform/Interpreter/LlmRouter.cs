@@ -85,11 +85,11 @@ public class LlmRouter : ILlmRouter
         {
             response = await client.SendAsync(prompt, resolvedModel, ct);
         }
-        catch (HttpRequestException ex) when (ex.Message.Contains("429", StringComparison.Ordinal)
-                                           || ex.Message.Contains("413", StringComparison.Ordinal)
-                                           || ex.Message.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+        catch (Exception ex) when (ex is HttpRequestException
+                                || ex is TimeoutException
+                                || ex is TaskCanceledException)
         {
-            // Provider returned 429 or 413 (rate limit / TPM exceeded). Walk the explicit fallback chain (if enabled) in
+            // Primary provider failed. Walk the explicit fallback chain (if enabled) in
             // order, skipping entries that also fail. Fall back to the capacity router
             // when the chain is disabled or not configured.
             if (_fallbackChain.Enabled)
@@ -105,16 +105,16 @@ public class LlmRouter : ILlmRouter
                         fallbackResponse  = await fbClient.SendAsync(prompt, fbModel, ct);
                         resolvedModel     = fbModel;
                         resolvedProvider  = fbProvider.ToString();
-                        switchNote        = $"Switched to {fbProvider} ({fbModel}) — {sessionProvider} rate-limited";
+                        switchNote        = $"Switched to {fbProvider} ({fbModel}) — {sessionProvider} unavailable";
                         tierDowngradeNote = _fallbackChain.FallbackNote;
                         context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
                         break;
                     }
-                    catch (HttpRequestException fbEx) when (fbEx.Message.Contains("429", StringComparison.Ordinal)
-                                                         || fbEx.Message.Contains("413", StringComparison.Ordinal)
-                                                         || fbEx.Message.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+                    catch (Exception fbEx) when (fbEx is HttpRequestException
+                                              || fbEx is TimeoutException
+                                              || fbEx is TaskCanceledException)
                     {
-                        // This fallback is also rate-limited; try the next one
+                        // This fallback failed or was rate-limited; try the next one
                     }
                 }
 
@@ -122,7 +122,7 @@ public class LlmRouter : ILlmRouter
                 {
                     return new LlmResponse
                            {
-                                   Content    = "All LLM providers are currently unavailable (rate-limit reached). Please try again later."
+                                   Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
                                  , Usage      = LlmUsageInfo.Empty
                                  , RateLimits = LlmRateLimitSnapshot.Empty
                            };
@@ -141,13 +141,27 @@ public class LlmRouter : ILlmRouter
                 client            = _factory.Create(fallbackProvider);
                 resolvedModel     = fallback.ModelId.Model;
                 resolvedProvider  = fallback.ModelId.Provider;
-                switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} rate-limited";
+                switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} unavailable";
                 tierDowngradeNote = fallback.TierDowngradeNote;
 
                 if (tierDowngradeNote is not null)
                     context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
 
-                response = await client.SendAsync(prompt, resolvedModel, ct);
+                try
+                {
+                    response = await client.SendAsync(prompt, resolvedModel, ct);
+                }
+                catch (Exception fbEx) when (fbEx is HttpRequestException
+                                          || fbEx is TimeoutException
+                                          || fbEx is TaskCanceledException)
+                {
+                    return new LlmResponse
+                           {
+                                   Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
+                                 , Usage      = LlmUsageInfo.Empty
+                                 , RateLimits = LlmRateLimitSnapshot.Empty
+                           };
+                }
             }
         }
 

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.SystemInfo;
 using Scalar.AspNetCore;
+using ConfigurationDiagnostics;
 
 public partial class Program
 {
@@ -72,6 +73,17 @@ public partial class Program
 
         var app = builder.Build();
 
+#if VERBOSE_STARTUP
+        
+        var options = new ConfigurationDumpOptions
+                      {
+                              Mode                = ConfigurationDumpMode.Tree
+                            , MaskSensitiveValues = false
+                            , SortAlphabetically  = true
+                      };
+
+        app.Configuration.DumpToConsole(options);
+#endif
         using (var scope = app.Services.CreateScope())
         {
             var guard = scope.ServiceProvider.GetRequiredService<StartupInvariantGuard>();

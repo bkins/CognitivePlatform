@@ -1,3 +1,5 @@
+using CP.Shared.Primitives.Avails.Extensions;
+
 namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
@@ -19,53 +21,49 @@ public class LlmCapacityRouter : ILlmCapacityRouter
     {
         _rateLimiter = rateLimiter;
 
-        _models = configs
-            .OrderBy(config => config.Priority)
-            .Select(config => new LlmModelCapacity
-                              {
-                                      ModelId = config.Id
-                                    , Limits  = config.Limits
-                                    , Tier    = config.Tier
-                                    , Usage   = new LlmUsageState()
-                              })
-            .ToList();
+        _models = configs.OrderBy(config => config.Priority)
+                         .Select(config => new LlmModelCapacity
+                                           {
+                                                   ModelId = config.Id
+                                                 , Limits  = config.Limits
+                                                 , Tier    = config.Tier
+                                                 , Usage   = new LlmUsageState()
+                                           })
+                         .ToList();
     }
 
     /// <inheritdoc/>
-    public LlmModelId SelectModel()
-        => SelectModel(TaskComplexity.Standard).ModelId;
+    public LlmModelId SelectModel() => SelectModel(TaskComplexity.Standard).ModelId;
 
     /// <inheritdoc/>
     public LlmModelCapacity SelectModel(TaskComplexity complexity)
     {
         lock (_lock)
         {
-            if (_models.Count == 0)
-                throw new LlmCapacityExceededException("No LLM models are configured.");
+            if (_models.Count == 0) throw new LlmCapacityExceededException("No LLM models are configured.");
 
-            foreach (var capacity in _models)
-                RollWindowIfExpired(capacity);
+            foreach (var capacity in _models) RollWindowIfExpired(capacity);
 
             // First pass: highest-priority non-exhausted model at the ideal tier.
-            foreach (var capacity in _models)
+            foreach (var capacity in _models.Where(capacity => capacity.IsExhausted.Not() 
+                                                            && _rateLimiter.IsExhausted(capacity.ModelId.Provider).Not())
+                                            .Where(capacity => IsIdealTierFor(capacity.Tier, complexity)))
             {
-                if (capacity.IsExhausted || _rateLimiter.IsExhausted(capacity.ModelId.Provider))
-                    continue;
-
-                if (IsIdealTierFor(capacity.Tier, complexity))
-                    return capacity;
+                return capacity;
             }
 
             // Second pass: acceptable fallback tier (Heavy→Standard downgrade, or Standard→Heavy upgrade).
             foreach (var capacity in _models)
             {
-                if (capacity.IsExhausted || _rateLimiter.IsExhausted(capacity.ModelId.Provider))
+                if (capacity.IsExhausted 
+                 || _rateLimiter.IsExhausted(capacity.ModelId.Provider))
                     continue;
 
-                if (IsAcceptableFallbackFor(capacity.Tier, complexity))
-                {
-                    var note = BuildDowngradeNote(capacity.Tier, complexity);
-                    return note is null
+                if (IsAcceptableFallbackFor(capacity.Tier, complexity).Not()) continue;
+                
+                var note = BuildDowngradeNote(capacity.Tier, complexity);
+                
+                return note is null
                                ? capacity
                                : new LlmModelCapacity
                                  {
@@ -75,7 +73,6 @@ public class LlmCapacityRouter : ILlmCapacityRouter
                                        , Usage             = capacity.Usage
                                        , TierDowngradeNote = note
                                  };
-                }
             }
 
             throw new LlmCapacityExceededException();
@@ -88,8 +85,7 @@ public class LlmCapacityRouter : ILlmCapacityRouter
         lock (_lock)
         {
             var capacity = FindCapacity(modelId);
-            if (capacity is null)
-                return;
+            if (capacity is null) return;
 
             RollWindowIfExpired(capacity);
 
@@ -116,45 +112,56 @@ public class LlmCapacityRouter : ILlmCapacityRouter
     // Helpers
     // ----------------------------------------------------------------
 
-    private static bool IsIdealTierFor(TaskComplexity modelTier, TaskComplexity requestedComplexity)
+    private static bool IsIdealTierFor( TaskComplexity modelTier
+                                      , TaskComplexity requestedComplexity )
         => requestedComplexity switch
-           {
-               TaskComplexity.Heavy    => modelTier == TaskComplexity.Heavy,
-               TaskComplexity.Standard => modelTier == TaskComplexity.Standard,
-               TaskComplexity.Light    => true,
-               _                       => true
-           };
+        {
+                TaskComplexity.Heavy    => modelTier == TaskComplexity.Heavy
+              , TaskComplexity.Standard => modelTier == TaskComplexity.Standard
+              , TaskComplexity.Light    => true
+              , _                       => true
+        };
 
-    private static bool IsAcceptableFallbackFor(TaskComplexity modelTier, TaskComplexity requestedComplexity)
-        => requestedComplexity switch
-           {
-               TaskComplexity.Heavy    => modelTier == TaskComplexity.Standard,
-               TaskComplexity.Standard => modelTier == TaskComplexity.Heavy,
-               _                       => false
-           };
+    private static bool IsAcceptableFallbackFor( TaskComplexity modelTier
+                                               , TaskComplexity requestedComplexity )
+    {
+        return requestedComplexity switch
+        {
+                TaskComplexity.Heavy    => modelTier == TaskComplexity.Standard
+              , TaskComplexity.Standard => modelTier == TaskComplexity.Heavy
+              , _                       => false
+        };
+    }
 
     private static string? BuildDowngradeNote(TaskComplexity modelTier, TaskComplexity requestedComplexity)
     {
-        if (requestedComplexity == TaskComplexity.Heavy && modelTier == TaskComplexity.Standard)
+        if (requestedComplexity == TaskComplexity.Heavy 
+         && modelTier == TaskComplexity.Standard)
+        {
             return "Note: the model best suited for this analysis isn't available right now. "
                  + "Results may be less detailed than usual — try again later for the best output.";
+        }
 
         return null;
     }
 
     private LlmModelCapacity? FindCapacity(LlmModelId modelId)
-        => _models.FirstOrDefault(capacity => string.Equals(capacity.ModelId.Provider, modelId.Provider, StringComparison.OrdinalIgnoreCase)
-                                           && string.Equals(capacity.ModelId.Model,    modelId.Model,    StringComparison.OrdinalIgnoreCase));
+    {
+        return _models.FirstOrDefault(capacity => string.Equals(capacity.ModelId.Provider
+                                                              , modelId.Provider
+                                                              , StringComparison.OrdinalIgnoreCase)
+                                               && string.Equals(capacity.ModelId.Model
+                                                              , modelId.Model
+                                                              , StringComparison.OrdinalIgnoreCase));
+    }
 
     private static void RollWindowIfExpired(LlmModelCapacity capacity)
     {
-        if (capacity.Limits.Window is null)
-            return;
+        if (capacity.Limits.Window is null) return;
 
         var windowEnd = capacity.Usage.WindowStart + capacity.Limits.Window.Value;
 
-        if (DateTimeOffset.UtcNow < windowEnd)
-            return;
+        if (DateTimeOffset.UtcNow < windowEnd) return;
 
         capacity.Usage.RequestsUsed = 0;
         capacity.Usage.TokensUsed   = 0;

@@ -39,16 +39,29 @@ public static class TaskDateParser
         cleanTitle = title;
         dueDate    = null;
 
+        // Try colon format first: e.g. "due:today", "due: tomorrow"
+        var colonMatch = Regex.Match(title, @"\s+(?:due|by|until)\s*:\s*([\w\s/,.\-]+?)[\s,;.]*$", RegexOptions.IgnoreCase | RegexOptions.RightToLeft);
+        if (colonMatch.Success)
+        {
+            var dateText = colonMatch.Groups[1].Value.Trim();
+            if (TryParseDate(dateText, out var parsed))
+            {
+                cleanTitle = title[..colonMatch.Index].Trim();
+                dueDate    = parsed;
+                return true;
+            }
+        }
+
         var match = DueDateSuffixPattern.Match(title);
 
         if (!match.Success) return false;
 
-        var dateText = match.Groups[1].Value.Trim();
+        var dateText2 = match.Groups[1].Value.Trim();
 
-        if (!TryParseDate(dateText, out var parsed)) return false;
+        if (!TryParseDate(dateText2, out var parsed2)) return false;
 
         cleanTitle = title[..match.Index].Trim();
-        dueDate    = parsed;
+        dueDate    = parsed2;
 
         return true;
     }

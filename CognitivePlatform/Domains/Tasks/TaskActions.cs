@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -63,9 +63,22 @@ public class TaskActions
                                                , Optional    = true)]
                            TaskPriority priority = TaskPriority.Normal )
     {
+        var finalDescription = shortDescription;
+        DateTimeOffset? finalDueDate = null;
+
+        if (TryParseDate(dueDateText, out var due))
+        {
+            finalDueDate = due;
+        }
+        else if (TaskDateParser.TryExtractDueDateFromTitle(shortDescription, out var cleanTitle, out var extractedDue))
+        {
+            finalDescription = cleanTitle;
+            finalDueDate     = extractedDue;
+        }
+
         var task = new TaskItem
                    {
-                           ShortDescription = shortDescription
+                           ShortDescription = finalDescription
                          , Details          = string.IsNullOrWhiteSpace(details) ? null : details.Trim()
                          , IsImportant      = isImportant ?? true
                          , IsUrgent         = isUrgent    ?? false
@@ -73,10 +86,8 @@ public class TaskActions
                          , Priority         = priority
                          , CreatedAt        = DateTimeOffset.UtcNow
                          , UpdatedAt        = DateTimeOffset.UtcNow
+                         , DueDate          = finalDueDate
                    };
-
-        if (TryParseDate(dueDateText, out var due))
-            task.DueDate = due;
 
         _taskService.Create(task);
 

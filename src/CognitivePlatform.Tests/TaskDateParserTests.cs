@@ -191,9 +191,21 @@ public class TaskDateParserTests
         var result = TaskDateParser.TryExtractDueDateFromTitle( "Finish report until Friday"
                                                               , out var cleanTitle
                                                               , out var dueDate);
-
+ 
         Assert.True(result);
         Assert.Equal("Finish report",     cleanTitle);
         Assert.Equal(DayOfWeek.Friday,    dueDate!.Value.DayOfWeek);
+    }
+
+    [Fact]
+    public void TryExtractDueDateFromTitle_Handles_ColonSuffix()
+    {
+        var result = TaskDateParser.TryExtractDueDateFromTitle( "Buy groceries due:today"
+                                                              , out var cleanTitle
+                                                              , out var dueDate);
+
+        Assert.True(result);
+        Assert.Equal("Buy groceries",                     cleanTitle);
+        Assert.Equal(DateTimeOffset.UtcNow.Date,          dueDate!.Value.Date);
     }
 }

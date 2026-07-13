@@ -432,8 +432,17 @@ public sealed class FastPathResolver : IFastPathResolver
 
             // "DueDate:" is a natural alias users write in the block, but the action
             // parameter is "dueDateText". Remap so it isn't silently dropped.
-            if (parameters.Remove("DueDate", out var dueDateValue))
-                parameters["dueDateText"] = dueDateValue;
+            var dueKeys = new[] { "due", "duedate", "due date", "due_date" };
+            foreach (var key in parameters.Keys.ToList())
+            {
+                if (dueKeys.Contains(key.ToLowerInvariant()) || key.Equals("DueDate", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (parameters.Remove(key, out var val))
+                    {
+                        parameters["dueDateText"] = val;
+                    }
+                }
+            }
 
             return true;
         }

@@ -10,7 +10,12 @@
     <UserSecretsId>1be4e63f-a96d-44f6-b08f-ed88ee0739bc</UserSecretsId>
   </PropertyGroup>
 
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DefineConstants>TRACE; VERBOSE_STARTUP</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="ConfigurationDiagnostics" Version="1.0.5" />
     <PackageReference Include="CP.Shared.Primitives" Version="1.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.12.11" />
