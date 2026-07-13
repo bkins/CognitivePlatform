@@ -478,6 +478,25 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
+        // Route "Idea:", "New idea:", "Idea suggestion:", "Suggest an idea:" directly
+        // to ReportIdea without going through the LLM.
+        if (prefix.Equals("idea",              StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("new idea",          StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("idea suggestion",   StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("suggest an idea",   StringComparison.OrdinalIgnoreCase))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction =>
+                         registryAction.Name == "ReportIdea");
+
+            if (action is null) return false;
+
+            var body = input[(colonIndex + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(body)) return false;
+
+            parameters = new Dictionary<string, string> { ["description"] = body };
+            return true;
+        }
+
         return false;
     }
 

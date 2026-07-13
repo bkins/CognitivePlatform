@@ -51,6 +51,7 @@ public class FastPathResolverTests
             , MakeAction("GetHeartRate")
             , MakeAction("GetDistance")
             , MakeAction("ReportBug")
+            , MakeAction("ReportIdea")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -1116,5 +1117,45 @@ public class FastPathResolverTests
 
         Assert.False(extracted);
         Assert.Null(workspaceName);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForIdeaColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Idea: Sort tasks by priority.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Sort tasks by priority.",         parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForNewIdeaColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("New idea: Add dark mode.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Add dark mode.",                  parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForIdeaSuggestionColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Idea suggestion: Attach files to journal.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Attach files to journal.",        parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForSuggestAnIdeaColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Suggest an idea: Reminders for tasks.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Reminders for tasks.",            parameters!["description"]);
     }
 }

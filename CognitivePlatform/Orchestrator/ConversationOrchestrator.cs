@@ -1383,6 +1383,20 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                            Details = $"FastPath.Executed.Stream; Action={actionMeta.Name}; Result {result}\n"
                                                    }));
 
+            var fastResponse = new ConverseResponse
+                               {
+                                       Message     = result
+                                     , Success     = true
+                                     , WasFastPath = true
+                               };
+            await FinalizeAsync(request
+                              , fastResponse
+                              , sw
+                              , TurnPath.FastPath
+                              , actionName: actionMeta.Name
+                              , succeeded:  true
+                              , ct:         ct);
+
             yield return result;
             yield break;
         }
@@ -1413,15 +1427,27 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // Router reads context.Metadata to pick the active provider + model —
         // the "model" key was already populated above based on request/session priority.
         var streamPrompt = BuildPersonaContextualPrompt(request.Input, context);
+        var assistantMessageBuilder = new System.Text.StringBuilder();
         await foreach (var chunk in _llmRouter.StreamAsync(streamPrompt
                                                          , context
                                                          , ct))
         {
+            assistantMessageBuilder.Append(chunk);
             yield return chunk;
         }
-        
-        //TODO:  Figure out how to determine when the stream is complete.
-        // Does this need to be determined in the controller?  
+
+        var streamResponse = new ConverseResponse
+                             {
+                                     Message = assistantMessageBuilder.ToString()
+                                   , Success = true
+                             };
+        await FinalizeAsync(request
+                          , streamResponse
+                          , sw
+                          , TurnPath.Interpreter
+                          , actionName: null
+                          , succeeded:  true
+                          , ct:         ct);
     }
 
     // BUG-20 / EPIC-07-B: returns a human-friendly message for 429 and capacity-exhaustion errors.

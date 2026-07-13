@@ -54,6 +54,26 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         ConversationContext                        context
       , [EnumeratorCancellation] CancellationToken cancellationToken = default )
     {
+        // Skip reflection insights if the last turn was a bug report
+        if (context.Turns.Count > 0)
+        {
+            var lastTurn = context.Turns[^1];
+            if (string.Equals(lastTurn.ActionName, "ReportBug", StringComparison.OrdinalIgnoreCase))
+            {
+                yield break;
+            }
+        }
+
+        // Defensively skip if the user message starts with common bug prefixes
+        var lastUserMsg = context.LastUserMessage?.Trim();
+        if (lastUserMsg != null && (lastUserMsg.StartsWith("bug:", StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("bug report:", StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("found a bug:", StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("report a bug:", StringComparison.OrdinalIgnoreCase)))
+        {
+            yield break;
+        }
+
         var prompt = BuildPromptForContext(context);
         if (prompt is null)
             yield break;

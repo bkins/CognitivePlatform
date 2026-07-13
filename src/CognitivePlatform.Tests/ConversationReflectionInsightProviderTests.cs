@@ -310,4 +310,47 @@ public class ConversationReflectionInsightProviderTests
         Assert.Equal("AddJournalEntry", single.SuggestedAction);
         Assert.StartsWith("reflection.stress-detected.", single.DeduplicationKey);
     }
+
+    [Fact]
+    public async Task GenerateAsync_SkipsReflection_WhenLastTurnIsReportBug()
+    {
+        var context = new ConversationContext("session-r");
+        context.RecordTurn(new ConversationTurn(
+                                   UserMessage:      "Bug: Something is broken."
+                                 , AssistantMessage: "Bug logged ✓"
+                                 , OccurredAt:       DateTimeOffset.UtcNow
+                                 , Path:             TurnPath.FastPath
+                                 , ActionName:       "ReportBug"
+                                 , Succeeded:        true));
+
+        var provider = BuildProvider();
+        var insights = new List<Insight>();
+        await foreach (var insight in provider.GenerateAsync(context))
+            insights.Add(insight);
+
+        Assert.Empty(insights);
+        _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
+                                                   , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
+                                                   , It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SkipsReflection_WhenLastUserMessageStartsWithBugPrefix()
+    {
+        var context = MakeContext("Bug: Something is broken.");
+
+        var provider = BuildProvider();
+        var insights = new List<Insight>();
+        await foreach (var insight in provider.GenerateAsync(context))
+            insights.Add(insight);
+
+        Assert.Empty(insights);
+        _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
+                                                   , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
+                                                   , It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
 }
