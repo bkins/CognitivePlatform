@@ -2282,9 +2282,9 @@ public sealed class FastPathResolver : IFastPathResolver
         action     = null;
         parameters = null;
 
-        // SetModel â€" requires explicit "model" keyword to avoid false positives
+        // SetModel — requires explicit "model" keyword to avoid false positives
         var setModelMatch = Regex.Match(input,
-                                       @"^(?:set\s+model\s+to|use\s+model|switch\s+model\s+to|change\s+model\s+to|switch\s+to\s+model)\s+(.+)$",
+                                       @"^(?:set\s+model(?:\s+to)?|use\s+model|switch\s+model(?:\s+to)?|change\s+model(?:\s+to)?|switch\s+to\s+model|set-model(?:\s+to)?)\s+(.+)$",
                                        RegexOptions.IgnoreCase);
         if (setModelMatch.Success)
         {
@@ -2295,9 +2295,9 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // SetProvider â€" explicit "provider" keyword
+        // SetProvider — explicit "provider" keyword
         var setProviderMatch = Regex.Match(input,
-                                           @"^(?:set\s+provider\s+to|use\s+provider|switch\s+provider\s+to|switch\s+to\s+provider)\s+(.+)$",
+                                           @"^(?:set\s+provider(?:\s+to)?|use\s+provider|switch\s+provider(?:\s+to)?|switch\s+to\s+provider|set-provider(?:\s+to)?)\s+(.+)$",
                                            RegexOptions.IgnoreCase);
         if (setProviderMatch.Success)
         {

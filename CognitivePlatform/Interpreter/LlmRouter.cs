@@ -207,10 +207,157 @@ public class LlmRouter : ILlmRouter
                                                      , ConversationContext                        context
                                                      , [EnumeratorCancellation] CancellationToken ct = default )
     {
-        var (client, model) = Resolve(context);
+        var sessionProvider  = ResolveProvider(context);
+        var sessionModel     = ResolveModel(context, sessionProvider);
+        var client           = _factory.Create(sessionProvider);
+        var resolvedModel    = sessionModel;
+        var resolvedProvider = sessionProvider.ToString();
+        string? switchNote         = null;
+        string? tierDowngradeNote  = null;
 
-        await foreach (var chunk in client.StreamAsync(prompt, model, ct))
-            yield return chunk;
+        if (_rateLimiter.IsExhausted(sessionProvider.ToString()))
+        {
+            var capacity         = _capacityRouter.SelectModel(TaskComplexity.Standard);
+            var capacityProvider = Enum.TryParse<LlmProvider>(capacity.ModelId.Provider, ignoreCase: true, out var parsed)
+                                           ? parsed
+                                           : _factory.DefaultProvider;
+
+            client              = _factory.Create(capacityProvider);
+            resolvedModel       = capacity.ModelId.Model;
+            resolvedProvider    = capacity.ModelId.Provider;
+            switchNote          = $"Switched to {capacity.ModelId.Provider} ({capacity.ModelId.Model}) — {sessionProvider} limit reached";
+            tierDowngradeNote   = capacity.TierDowngradeNote;
+
+            if (tierDowngradeNote != null)
+                context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+        }
+
+        IAsyncEnumerator<string>? enumerator = null;
+        try
+        {
+            enumerator = client.StreamAsync(prompt, resolvedModel, ct).GetAsyncEnumerator(ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+                                || ex is TimeoutException
+                                || ex is TaskCanceledException)
+        {
+            // Primary failed before starting
+        }
+
+        bool primarySucceeded = false;
+        if (enumerator != null)
+        {
+            while (true)
+            {
+                string chunk;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync())
+                        break;
+                    chunk = enumerator.Current;
+                }
+                catch (Exception ex) when (ex is HttpRequestException
+                                        || ex is TimeoutException
+                                        || ex is TaskCanceledException)
+                {
+                    break;
+                }
+                primarySucceeded = true;
+                yield return chunk;
+            }
+            await enumerator.DisposeAsync();
+        }
+
+        if (!primarySucceeded)
+        {
+            if (_fallbackChain.Enabled)
+            {
+                var fallbacks = await _fallbackChain.GetViableFallbacksAsync(ct);
+                bool fallbackSuccess = false;
+
+                foreach (var (fbProvider, fbModel) in fallbacks)
+                {
+                    var fbClient = _factory.Create(fbProvider);
+                    IAsyncEnumerator<string>? fbEnumerator = null;
+                    try
+                    {
+                        fbEnumerator = fbClient.StreamAsync(prompt, fbModel, ct).GetAsyncEnumerator(ct);
+                    }
+                    catch (Exception fbEx) when (fbEx is HttpRequestException
+                                              || fbEx is TimeoutException
+                                              || fbEx is TaskCanceledException)
+                    {
+                        continue;
+                    }
+
+                    if (fbEnumerator != null)
+                    {
+                        resolvedModel     = fbModel;
+                        resolvedProvider  = fbProvider.ToString();
+                        switchNote        = $"Switched to {fbProvider} ({fbModel}) — {sessionProvider} unavailable";
+                        tierDowngradeNote = _fallbackChain.FallbackNote;
+                        context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+
+                        while (true)
+                        {
+                            string chunk;
+                            try
+                            {
+                                if (!await fbEnumerator.MoveNextAsync())
+                                    break;
+                                chunk = fbEnumerator.Current;
+                            }
+                            catch (Exception fbEx) when (fbEx is HttpRequestException
+                                                      || fbEx is TimeoutException
+                                                      || fbEx is TaskCanceledException)
+                            {
+                                break;
+                            }
+                            fallbackSuccess = true;
+                            yield return chunk;
+                        }
+                        await fbEnumerator.DisposeAsync();
+                    }
+
+                    if (fallbackSuccess)
+                        break;
+                }
+
+                if (!fallbackSuccess)
+                {
+                    yield return "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally.";
+                }
+            }
+            else
+            {
+                var fallback = _capacityRouter.SelectModel(TaskComplexity.Standard);
+                var fallbackProvider = Enum.TryParse<LlmProvider>(fallback.ModelId.Provider, ignoreCase: true, out var fp)
+                                               ? fp
+                                               : _factory.DefaultProvider;
+
+                client            = _factory.Create(fallbackProvider);
+                resolvedModel     = fallback.ModelId.Model;
+                resolvedProvider  = fallback.ModelId.Provider;
+                switchNote        = $"Switched to {fallback.ModelId.Provider} ({fallback.ModelId.Model}) — {sessionProvider} unavailable";
+                tierDowngradeNote = fallback.TierDowngradeNote;
+
+                if (tierDowngradeNote is not null)
+                    context.Metadata["tier_downgrade_note"] = tierDowngradeNote;
+
+                var fbEnumerator = client.StreamAsync(prompt, resolvedModel, ct).GetAsyncEnumerator(ct);
+                try
+                {
+                    while (await fbEnumerator.MoveNextAsync())
+                    {
+                        yield return fbEnumerator.Current;
+                    }
+                }
+                finally
+                {
+                    await fbEnumerator.DisposeAsync();
+                }
+            }
+        }
     }
 
     public async Task<string> WeaveAsync( ConversationContext    context

@@ -136,4 +136,11 @@ public class ActionRegistryTests
         Assert.Equal("Task".ToLower(),   noExplicit!.Category.ToLower());   // TasksDomain.Name, no explicit Category on [NaturalLanguageAction]
         Assert.Equal("journal".ToLower(), withExplicit!.Category.ToLower()); // explicit Category = "journal" wins over JournalDomain.Name
     }
+
+    [Fact]
+    public void ReportIdea_IsScanned()
+    {
+        var action = _registry.FindByName("ReportIdea");
+        Assert.NotNull(action);
+    }
 }

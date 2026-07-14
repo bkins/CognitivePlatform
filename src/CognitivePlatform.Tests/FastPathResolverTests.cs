@@ -438,6 +438,8 @@ public class FastPathResolverTests
     [InlineData("switch model to gpt-4o-mini",           "gpt-4o-mini")]
     [InlineData("change model to gemini-2.5-flash-lite", "gemini-2.5-flash-lite")]
     [InlineData("switch to model gemini-2.5-pro",        "gemini-2.5-pro")]
+    [InlineData("set model gemini-2.5-flash",            "gemini-2.5-flash")]
+    [InlineData("set-model gemini-2.5-flash",            "gemini-2.5-flash")]
     public void TryResolve_ResolvesToSetModel_WithExtractedModelName(string input, string expectedModel)
     {
         var resolved = _resolver.TryResolve(input, out var action, out var parameters);
@@ -453,6 +455,8 @@ public class FastPathResolverTests
     [InlineData("use provider OpenRouter", "OpenRouter")]
     [InlineData("switch provider to Groq", "Groq")]
     [InlineData("switch to provider Groq", "Groq")]
+    [InlineData("set provider Groq",       "Groq")]
+    [InlineData("set-provider Groq",      "Groq")]
     public void TryResolve_ResolvesToSetProvider_WithExtractedProviderName(string input, string expectedProvider)
     {
         var resolved = _resolver.TryResolve(input, out var action, out var parameters);
