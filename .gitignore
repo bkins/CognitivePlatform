@@ -60,3 +60,7 @@ publish/
 
 # Local development settings
 appsettings.Development.json
+
+# Python
+__pycache__/
+*.pyc
