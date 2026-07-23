@@ -1,0 +1,5 @@
+$kind: http-request
+name: snapshot
+url: http://localhost:5001/api/dashboard/snapshot
+method: GET
+order: 6000

@@ -1,0 +1,75 @@
+# EditorConfig configuration for C#/.NET projects
+# Establishes coding style rules matching STANDARDS.md
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+# Organization of Usings
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
+
+# Language rules
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_qualification_for_event = false:suggestion
+
+# Style - var preferences
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+csharp_style_var_for_built_in_types = true:suggestion
+
+# Expression-bodied members (Use only for short, trivial members)
+csharp_style_expression_bodied_methods = false:suggestion
+csharp_style_expression_bodied_constructors = false:suggestion
+csharp_style_expression_bodied_operators = false:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_accessors = true:suggestion
+
+# Formatting - New line preferences
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+
+# Space preferences
+csharp_space_after_cast = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_parentheses_of_control_flow_statements = false
+csharp_space_before_colon_in_inheritance_clause = true
+csharp_space_after_colon_in_inheritance_clause = true
+
+# Naming style - Interfaces prefix with I
+dotnet_naming_rule.interface_should_be_begun_with_i.severity = suggestion
+dotnet_naming_rule.interface_should_be_begun_with_i.symbols = interface_symbols
+dotnet_naming_rule.interface_should_be_begun_with_i.style = begin_with_i_style
+
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_symbols.interface_symbols.applicable_accessibilities = *
+dotnet_naming_symbols.interface_symbols.required_modifiers = 
+
+dotnet_naming_style.begin_with_i_style.required_prefix = I
+dotnet_naming_style.begin_with_i_style.required_suffix = 
+dotnet_naming_style.begin_with_i_style.word_separator = 
+dotnet_naming_style.begin_with_i_style.capitalization = pascal_case
+
+# Naming style - C# Test Methods (Allow underscores as word separators)
+dotnet_naming_rule.test_methods_should_use_underscores.severity = suggestion
+dotnet_naming_rule.test_methods_should_use_underscores.symbols = test_method_symbols
+dotnet_naming_rule.test_methods_should_use_underscores.style = underscores_style
+
+dotnet_naming_symbols.test_method_symbols.applicable_kinds = method
+dotnet_naming_symbols.test_method_symbols.applicable_accessibilities = public
+dotnet_naming_symbols.test_method_symbols.required_modifiers = 
+
+dotnet_naming_style.underscores_style.capitalization = pascal_case
+dotnet_naming_style.underscores_style.word_separator = _

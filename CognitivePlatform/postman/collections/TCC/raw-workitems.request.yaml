@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:5001/api/dashboard/raw-workitems
+method: GET
+order: 8000

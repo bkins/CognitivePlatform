@@ -5,18 +5,16 @@ workspace:
 
 cloudResources:
   collections:
-    ..\postman\collections\Ω_Postman Examples: 10918171-a2edafee-ef62-47da-9235-20315d5f9512
-    ..\postman\collections\TCC: 10918171-b3547396-b03b-4199-b71b-44a7a04219bc
-    ..\postman\collections\OFM: 10918171-c9a8612e-3661-4f9b-9182-be7c0321b7e6
-    ..\postman\collections\NLCS: 10918171-e9f9f694-624e-4ef6-bbc0-c10e11cfdd9d
+    ../postman/collections/Ω_Postman Examples: 10918171-a2edafee-ef62-47da-9235-20315d5f9512
     ../postman/collections/TCC: 10918171-b3547396-b03b-4199-b71b-44a7a04219bc
+    ../postman/collections/OFM: 10918171-c9a8612e-3661-4f9b-9182-be7c0321b7e6
     ../postman/collections/NLCS: 10918171-e9f9f694-624e-4ef6-bbc0-c10e11cfdd9d
-    ..\postman\collections\CP API: 91edd2e8-bdab-418d-9117-dfd6a9fef096
+    ../postman/collections/CP API: 91edd2e8-bdab-418d-9117-dfd6a9fef096
 
 localResources:
   docs:
-    - ..\Domains\Source_Vs_Service.md
-    - ..\appsettings.NOTES.json.md
+    - ../Domains/Source_Vs_Service.md
+    - ../appsettings.NOTES.json.md
   collections:
     - ../postman/collections/TCC
     - ../postman/collections/NLCS

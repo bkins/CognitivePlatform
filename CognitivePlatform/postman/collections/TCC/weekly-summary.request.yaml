@@ -1,0 +1,7 @@
+$kind: http-request
+name: weekly-summary
+url: http://localhost:5001/api/dashboard/weekly-summary?relativeTo=2026-07-15
+method: GET
+queryParams:
+  relativeTo: 2026-07-15
+order: 7404
