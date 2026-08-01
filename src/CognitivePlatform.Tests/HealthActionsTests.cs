@@ -111,7 +111,7 @@ public class HealthActionsTests
 
         await _actions.GetStepCount("yesterday");
 
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(-1), capturedFrom.LocalDateTime.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(-1), capturedFrom.LocalDateTime.Date);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class HealthActionsTests
 
         await _actions.GetStepCount("today");
 
-        Assert.Equal(DateTimeOffset.UtcNow.Date, capturedFrom.LocalDateTime.Date);
+        Assert.Equal(DateTimeOffset.Now.Date, capturedFrom.LocalDateTime.Date);
     }
 
     // ================================================================
@@ -221,7 +221,7 @@ public class HealthActionsTests
 
         await _actions.GetSleepSummary("yesterday");
 
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(-1), capturedFrom.LocalDateTime.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(-1), capturedFrom.LocalDateTime.Date);
     }
 
     // ================================================================
@@ -402,7 +402,7 @@ public class HealthActionsTests
 
         await _actions.GetDistance("today");
 
-        Assert.Equal(DateTimeOffset.UtcNow.Date, capturedFrom.LocalDateTime.Date);
+        Assert.Equal(DateTimeOffset.Now.Date, capturedFrom.LocalDateTime.Date);
     }
 
     // ================================================================

@@ -168,4 +168,59 @@ public class TaskActionsTests
         Assert.Contains("## 1.", result);
         Assert.DoesNotContain("**Id:**", result);
     }
+
+    [Fact]
+    public void DeleteTask_DeletesByName_WhenSingleMatchFound()
+    {
+        var task = new TaskItem
+                   {
+                           Id               = Guid.NewGuid().ToString("N")
+                         , ShortDescription = "buying groceries"
+                   };
+
+        _taskServiceMock.Setup(service => service.GetOrderedActiveTasks())
+                        .Returns(new List<(int Position, TaskItem Task)> { (1, task) });
+
+        _taskServiceMock.Setup(service => service.Delete(task.Id));
+
+        var result = _actions.DeleteTask("buying groceries");
+
+        Assert.Contains("buying groceries", result);
+        _taskServiceMock.Verify(service => service.Delete(task.Id), Times.Once);
+    }
+
+    [Fact]
+    public void DeleteTask_ThrowsAmbiguousError_WhenMultipleMatchesFound()
+    {
+        var task1 = new TaskItem
+                    {
+                            Id               = Guid.NewGuid().ToString("N")
+                          , ShortDescription = "buying groceries at store"
+                    };
+        var task2 = new TaskItem
+                    {
+                            Id               = Guid.NewGuid().ToString("N")
+                          , ShortDescription = "buying groceries online"
+                    };
+
+        _taskServiceMock.Setup(service => service.GetOrderedActiveTasks())
+                        .Returns(new List<(int Position, TaskItem Task)> { (1, task1), (2, task2) });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => _actions.DeleteTask("buying groceries"));
+
+        Assert.Contains("Multiple tasks matched", ex.Message);
+        Assert.Contains("position 1", ex.Message);
+        Assert.Contains("position 2", ex.Message);
+    }
+
+    [Fact]
+    public void DeleteTask_ThrowsNotFoundError_WhenNonGuidStringHasNoMatch()
+    {
+        _taskServiceMock.Setup(service => service.GetOrderedActiveTasks())
+                        .Returns(new List<(int Position, TaskItem Task)>());
+
+        var ex = Assert.Throws<InvalidOperationException>(() => _actions.DeleteTask("nonexistent task"));
+
+        Assert.Contains("No active task found matching 'nonexistent task'", ex.Message);
+    }
 }

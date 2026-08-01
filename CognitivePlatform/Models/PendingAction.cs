@@ -25,4 +25,10 @@ public sealed class PendingAction
     public bool   ConfirmationRequired { get; init; }
     public string ConfirmationPrompt { get; init; } = string.Empty;
     
+    /// <summary>
+    /// Indicates whether this pending action was resolved via FastPath.
+    /// Used to correctly label the confirmation response.
+    /// </summary>
+    public bool   WasFastPath { get; init; }
+    
 }

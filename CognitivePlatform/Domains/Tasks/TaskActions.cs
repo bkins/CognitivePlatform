@@ -603,7 +603,10 @@ public class TaskActions
     // --- Private helpers ----------------------------------------------------
 
     /// <summary>
-    /// Resolves a taskReference that is either a 1-based position integer or a GUID string.
+    /// Resolves a taskReference by trying, in order:
+    /// 1. A 1-based display position integer (e.g. "2")
+    /// 2. A GUID string (standard or "N" format)
+    /// 3. A case-insensitive substring match against active tasks' ShortDescription
     /// Returns the resolved TaskItem, or null with an error message in <paramref name="errorMessage"/>.
     /// </summary>
     private TaskItem? TryResolveTaskReference( string      taskReference
@@ -625,16 +628,40 @@ public class TaskActions
             return byPosition;
         }
 
-        var byId = _taskService.Get(taskReference);
-
-        if (byId is null || byId.IsDeleted)
+        if (Guid.TryParseExact(taskReference, "N", out var guidN) || Guid.TryParse(taskReference, out guidN))
         {
-            errorMessage = $"No active task found with id '{taskReference}'.";
+            var byId = _taskService.Get(taskReference);
+
+            if (byId is null || byId.IsDeleted)
+            {
+                errorMessage = $"No active task found with id '{taskReference}'.";
+                return null;
+            }
+
+            errorMessage = null;
+            return byId;
+        }
+
+        var activeTasks = _taskService.GetOrderedActiveTasks();
+        var matchingTasks = activeTasks
+            .Where(taskItem => taskItem.Task.ShortDescription.Contains(taskReference, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (matchingTasks.Count == 1)
+        {
+            errorMessage = null;
+            return matchingTasks[0].Task;
+        }
+
+        if (matchingTasks.Count > 1)
+        {
+            var matchDetails = string.Join(", ", matchingTasks.Select(taskItem => $"'{taskItem.Task.ShortDescription}' (position {taskItem.Position})"));
+            errorMessage = $"Multiple tasks matched '{taskReference}': {matchDetails}. Please disambiguate using the position.";
             return null;
         }
 
-        errorMessage = null;
-        return byId;
+        errorMessage = $"No active task found matching '{taskReference}'.";
+        return null;
     }
 
     private static IEnumerable<TaskItem> FilterByDueDate( DateTimeOffset?       dueBefore

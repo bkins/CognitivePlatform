@@ -81,7 +81,12 @@ public static class TaskDateParser
 
         if (!text.HasValue()) return false;
 
-        var now        = DateTimeOffset.UtcNow;
+        // Anchor relative dates to the server's local clock so that "today" means
+        // the user's calendar day. The stored DateTimeOffset preserves the local
+        // offset, so UTC comparisons elsewhere still work correctly.
+        // Single-user/same-machine assumption — when multi-tz becomes real, source
+        // the offset from ConversationContext metadata instead.
+        var now        = DateTimeOffset.Now;
         var normalized = text!.Trim().ToLowerInvariant();
 
         // ── Simple keyword tokens ────────────────────────────────────────────

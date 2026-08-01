@@ -14,7 +14,7 @@ public class TaskDateParserTests
         var result = TaskDateParser.TryParseDate("today", out var value);
 
         Assert.True(result);
-        Assert.Equal(DateTimeOffset.UtcNow.Date, value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date, value.Date);
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public class TaskDateParserTests
         var result = TaskDateParser.TryParseDate("tomorrow", out var value);
 
         Assert.True(result);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(1), value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(1), value.Date);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class TaskDateParserTests
         var result = TaskDateParser.TryParseDate(token, out var value);
 
         Assert.True(result);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(expectedDaysFromNow), value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(expectedDaysFromNow), value.Date);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class TaskDateParserTests
 
         Assert.True(result);
         Assert.Equal("Fix the login bug",                        cleanTitle);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(1), dueDate!.Value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(1), dueDate!.Value.Date);
     }
 
     [Fact]
@@ -206,6 +206,16 @@ public class TaskDateParserTests
 
         Assert.True(result);
         Assert.Equal("Buy groceries",                     cleanTitle);
-        Assert.Equal(DateTimeOffset.UtcNow.Date,          dueDate!.Value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date,          dueDate!.Value.Date);
+    }
+
+    [Fact]
+    public void TryParseDate_AnchorsToLocalClock_ForTodayToken()
+    {
+        var result = TaskDateParser.TryParseDate("today", out var value);
+
+        Assert.True(result);
+        Assert.Equal(DateTimeOffset.Now.Date, value.Date);
+        Assert.Equal(TimeZoneInfo.Local.GetUtcOffset(DateTime.Now), value.Offset);
     }
 }

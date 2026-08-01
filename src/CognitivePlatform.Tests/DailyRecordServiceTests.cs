@@ -501,7 +501,7 @@ public class DailyRecordServiceTests
 
         Assert.NotNull(capturedTask);
         Assert.Equal("Fix login bug",                             capturedTask!.ShortDescription);
-        Assert.Equal(DateTimeOffset.UtcNow.Date.AddDays(1), capturedTask.DueDate!.Value.Date);
+        Assert.Equal(DateTimeOffset.Now.Date.AddDays(1), capturedTask.DueDate!.Value.Date);
     }
 
     [Fact]

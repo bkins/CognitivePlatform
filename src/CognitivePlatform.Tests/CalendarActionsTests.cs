@@ -497,7 +497,7 @@ public class CalendarActionsTests
     [Fact]
     public async Task GetEventsForDate_ResolvesToday_WhenInputIsToday()
     {
-        var expectedDate = DateTimeOffset.UtcNow.Date;
+        var expectedDate = DateTimeOffset.Now.Date;
 
         DateTimeOffset capturedFrom = default;
 
@@ -516,7 +516,7 @@ public class CalendarActionsTests
     [Fact]
     public async Task GetEventsForDate_ResolvesTomorrow_WhenInputIsTomorrow()
     {
-        var expectedDate = DateTimeOffset.UtcNow.Date.AddDays(1);
+        var expectedDate = DateTimeOffset.Now.Date.AddDays(1);
 
         DateTimeOffset capturedFrom = default;
 

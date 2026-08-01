@@ -332,7 +332,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                      , Debug   = "Delete confirmed and executed."
                                                      , ExecutionResult = $"Executed confirmed action '{confirmedAction.Name}' "
                                                                        + $"with parameters: {string.Join(", ", execParams.Select(pair => $"{pair.Key}={pair.Value}"))}"
-                                                     , WasFastPath = true
+                                                     , WasFastPath = pending.WasFastPath
                                                };
                     return await FinalizeAsync(request
                                              , confirmationResponse
@@ -1243,6 +1243,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                           , RemainingParameters  = new List<string>()
                                           , ConfirmationRequired = true
                                           , ConfirmationPrompt   = confirmationMessage
+                                          , WasFastPath          = true
                                     };
 
             return new ConverseResponse
