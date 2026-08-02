@@ -54,22 +54,33 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         ConversationContext                        context
       , [EnumeratorCancellation] CancellationToken cancellationToken = default )
     {
-        // Skip reflection insights if the last turn was a bug report
+        // Skip reflection insights if the last turn was a bug report or idea report
         if (context.Turns.Count > 0)
         {
             var lastTurn = context.Turns[^1];
-            if (string.Equals(lastTurn.ActionName, "ReportBug", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(lastTurn.ActionName, "ReportBug",  StringComparison.OrdinalIgnoreCase)
+             || string.Equals(lastTurn.ActionName, "ReportIdea", StringComparison.OrdinalIgnoreCase))
             {
                 yield break;
             }
         }
 
-        // Defensively skip if the user message starts with common bug prefixes
+        // Defensively skip if the user message starts with common bug or idea prefixes
         var lastUserMsg = context.LastUserMessage?.Trim();
-        if (lastUserMsg != null && (lastUserMsg.StartsWith("bug:", StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("bug report:", StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("found a bug:", StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("report a bug:", StringComparison.OrdinalIgnoreCase)))
+        if (lastUserMsg != null && (lastUserMsg.StartsWith("bug:",            StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("bug report:",     StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("found a bug:",    StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("report a bug:",   StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("idea:",           StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("new idea:",       StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("idea suggestion:",StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("suggest an idea:",StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("report an idea:", StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("report idea:",    StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("feature idea:",   StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("feature request:",StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("suggestion:",     StringComparison.OrdinalIgnoreCase)
+                                 || lastUserMsg.StartsWith("feature:",        StringComparison.OrdinalIgnoreCase)))
         {
             yield break;
         }

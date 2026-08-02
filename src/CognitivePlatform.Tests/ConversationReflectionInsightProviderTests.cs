@@ -337,9 +337,52 @@ public class ConversationReflectionInsightProviderTests
     }
 
     [Fact]
+    public async Task GenerateAsync_SkipsReflection_WhenLastTurnIsReportIdea()
+    {
+        var context = new ConversationContext("session-r");
+        context.RecordTurn(new ConversationTurn(
+                                   UserMessage:      "Idea: Add dark mode."
+                                 , AssistantMessage: "Idea logged ✓"
+                                 , OccurredAt:       DateTimeOffset.UtcNow
+                                 , Path:             TurnPath.FastPath
+                                 , ActionName:       "ReportIdea"
+                                 , Succeeded:        true));
+
+        var provider = BuildProvider();
+        var insights = new List<Insight>();
+        await foreach (var insight in provider.GenerateAsync(context))
+            insights.Add(insight);
+
+        Assert.Empty(insights);
+        _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
+                                                   , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
+                                                   , It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
+
+    [Fact]
     public async Task GenerateAsync_SkipsReflection_WhenLastUserMessageStartsWithBugPrefix()
     {
         var context = MakeContext("Bug: Something is broken.");
+
+        var provider = BuildProvider();
+        var insights = new List<Insight>();
+        await foreach (var insight in provider.GenerateAsync(context))
+            insights.Add(insight);
+
+        Assert.Empty(insights);
+        _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
+                                                   , It.IsAny<ConversationContext>()
+                                                   , It.IsAny<TaskComplexity>()
+                                                   , It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SkipsReflection_WhenLastUserMessageStartsWithIdeaPrefix()
+    {
+        var context = MakeContext("Idea: Add dark mode.");
 
         var provider = BuildProvider();
         var insights = new List<Insight>();

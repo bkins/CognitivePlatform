@@ -478,12 +478,19 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        // Route "Idea:", "New idea:", "Idea suggestion:", "Suggest an idea:" directly
+        // Route "Idea:", "New idea:", "Idea suggestion:", "Suggest an idea:", "Report an idea:",
+        // "Report idea:", "Feature idea:", "Feature request:", "Suggestion:", "Feature:" directly
         // to ReportIdea without going through the LLM.
         if (prefix.Equals("idea",              StringComparison.OrdinalIgnoreCase)
          || prefix.Equals("new idea",          StringComparison.OrdinalIgnoreCase)
          || prefix.Equals("idea suggestion",   StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("suggest an idea",   StringComparison.OrdinalIgnoreCase))
+         || prefix.Equals("suggest an idea",   StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("report an idea",    StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("report idea",       StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("feature idea",      StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("feature request",   StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("suggestion",        StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("feature",           StringComparison.OrdinalIgnoreCase))
         {
             action = _registry.Actions.FirstOrDefault(registryAction =>
                          registryAction.Name == "ReportIdea");

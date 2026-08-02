@@ -453,4 +453,36 @@ public class OrchestratorInsightIntegrationTests
                                                      , It.IsAny<CancellationToken>())
                          , Times.Never);
     }
+
+    [Fact]
+    public async Task FastPath_ReportBug_And_ReportIdea_SkipInsightEngine_Immediately()
+    {
+        var action = SimpleAction("ReportBug");
+
+        _fastPathMock
+            .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
+                                                 , out It.Ref<ActionMetadata?>.IsAny
+                                                 , out It.Ref<Dictionary<string, string>?>.IsAny))
+            .Returns((string _
+                    , out ActionMetadata? meta
+                    , out Dictionary<string, string>? parameters) =>
+            {
+                meta       = action;
+                parameters = new Dictionary<string, string> { ["description"] = "Test bug description" };
+                return true;
+            });
+
+        StubExecutionReturns("Bug logged ✓ — added to `Bug Log.md` with ID `1234`.");
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(Request("Bug: Test bug description"));
+
+        Assert.Equal("Bug logged ✓ — added to `Bug Log.md` with ID `1234`.", response.Message);
+        Assert.Empty(response.Insights);
+
+        // Insight engine must NOT fire for feedback actions
+        _engineMock.Verify(engine => engine.GenerateInsightsAsync(It.IsAny<ConversationContext>()
+                                                                , It.IsAny<CancellationToken>())
+                          , Times.Never);
+    }
 }

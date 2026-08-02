@@ -241,7 +241,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             try
             {
-                var fastInsights = await SafeGenerateInsightsAsync(context, ct);
+                var fastInsights = string.Equals(actionMeta.Name, "ReportBug",  StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(actionMeta.Name, "ReportIdea", StringComparison.OrdinalIgnoreCase)
+                                   ? (IReadOnlyList<Insight>)Array.Empty<Insight>()
+                                   : await SafeGenerateInsightsAsync(context, ct);
+
                 var fastFinalMessage = await ApplyInsightsToResponseAsync(fastResponse.Message ?? string.Empty
                                                                         , fastInsights
                                                                         , context

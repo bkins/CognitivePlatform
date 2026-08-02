@@ -1162,4 +1162,44 @@ public class FastPathResolverTests
         Assert.Equal("ReportIdea",                      action!.Name);
         Assert.Equal("Reminders for tasks.",            parameters!["description"]);
     }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForReportAnIdeaColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Report an idea: Export data to CSV.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Export data to CSV.",             parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForFeatureIdeaColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Feature idea: Compact view mode.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Compact view mode.",               parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForSuggestionColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Suggestion: Auto-save draft entries.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Auto-save draft entries.",        parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToReportIdea_ForFeatureColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("Feature: Voice input support.", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ReportIdea",                      action!.Name);
+        Assert.Equal("Voice input support.",            parameters!["description"]);
+    }
 }
