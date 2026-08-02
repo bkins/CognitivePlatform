@@ -1076,6 +1076,33 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                       , bool              recordTurn = true
                                                       , CancellationToken ct         = default )
     {
+        var contextForMetadata = _contextStore.GetOrCreate(request.SessionId);
+        if (path == TurnPath.FastPath || response.WasFastPath)
+        {
+            response.WasFastPath = true;
+            response.Provider    = null;
+            response.Model       = null;
+        }
+        else
+        {
+            if (contextForMetadata.Metadata.TryGetValue("provider", out var prov) && prov.HasValue())
+                response.Provider = prov;
+            else if (string.IsNullOrWhiteSpace(response.Provider))
+                response.Provider = "Groq";
+
+            if (contextForMetadata.Metadata.TryGetValue("model", out var mdl) && mdl.HasValue())
+                response.Model = mdl;
+            else if (request.Model.HasValue())
+                response.Model = request.Model;
+            if (string.IsNullOrWhiteSpace(response.Model))
+            {
+                var providerEnum = Enum.TryParse<CognitivePlatform.Api.Interpreter.LlmProvider>(response.Provider, true, out var parsedProv)
+                                   ? parsedProv
+                                   : CognitivePlatform.Api.Interpreter.LlmProvider.Groq;
+                response.Model = _providerDefaults.For(providerEnum);
+            }
+        }
+
         if (_memoryConfirmationQueue is not null)
         {
             response.PendingMemoryCount = _memoryConfirmationQueue.Count(request.SessionId);

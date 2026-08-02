@@ -28,4 +28,10 @@ public class ConverseResponse
 
     /// <summary>Populated when the API falls back to a lower model tier.</summary>
     public string? ModelNotice { get; set; }
+
+    /// <summary>The LLM provider that processed this turn (e.g. Groq, Ollama, etc.). Null for FastPath turns.</summary>
+    public string? Provider { get; set; }
+
+    /// <summary>The LLM model that processed this turn. Null for FastPath turns.</summary>
+    public string? Model { get; set; }
 }
