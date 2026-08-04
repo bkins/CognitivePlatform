@@ -109,6 +109,45 @@ public partial class Program
 
         app.MapSystemEndpoints();
 
+        // ---------- CRASH LOG — write server-side unhandled exceptions to disk ----------
+
+        var crashLogDir  = builder.Configuration["CrashLog:Directory"] ?? @"C:\CP\Logs";
+        var crashLogPath = Path.Combine(crashLogDir, "crash-log.jsonl");
+
+        Directory.CreateDirectory(crashLogDir);
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            var ex   = args.ExceptionObject as Exception;
+            var line = System.Text.Json.JsonSerializer.Serialize(new
+                       {
+                           Platform   = "CognitivePlatform.Api"
+                         , Message    = ex?.Message    ?? args.ExceptionObject?.ToString() ?? "Unknown"
+                         , StackTrace = ex?.StackTrace ?? string.Empty
+                         , Source     = "AppDomain.UnhandledException"
+                         , Timestamp  = DateTime.UtcNow
+                       }) + Environment.NewLine;
+
+            try { File.AppendAllText(crashLogPath, line); }
+            catch { /* last-resort: cannot log the logger */ }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            args.SetObserved();
+            var line = System.Text.Json.JsonSerializer.Serialize(new
+                       {
+                           Platform   = "CognitivePlatform.Api"
+                         , Message    = args.Exception.Message
+                         , StackTrace = args.Exception.StackTrace ?? string.Empty
+                         , Source     = "TaskScheduler.UnobservedTaskException"
+                         , Timestamp  = DateTime.UtcNow
+                       }) + Environment.NewLine;
+
+            try { File.AppendAllText(crashLogPath, line); }
+            catch { /* last-resort */ }
+        };
+
         // Start listening immediately
         var runTask = app.RunAsync();
 

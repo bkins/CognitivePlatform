@@ -4,9 +4,10 @@ using CognitivePlatform.Api.Integrations.Health;
 namespace CognitivePlatform.Api.Startup;
 
 /// <summary>
-/// Registers the Health domain. Uses <see cref="HttpHealthProvider"/> when a phone base URL
-/// is configured under HealthConnect, otherwise falls back to a disconnected stub so the
-/// app still starts cleanly with health integration off.
+/// Registers the Health domain services.
+/// The push-based architecture means the CP API no longer polls the phone —
+/// instead LAA pushes health snapshots to <c>POST /health/data</c>, which are stored
+/// in <see cref="HealthDataCache"/> and read synchronously from <see cref="HealthActions"/>.
 /// </summary>
 public static class HealthServiceCollectionExtensions
 {
@@ -14,14 +15,9 @@ public static class HealthServiceCollectionExtensions
     {
         var healthConnectSection = configuration.GetSection("HealthConnect");
         services.Configure<HealthConnectSettings>(healthConnectSection);
-        services.AddHttpClient("HealthConnect");
 
-        var phoneBaseUrl = healthConnectSection.GetValue<string>(nameof(HealthConnectSettings.PhoneBaseUrl)) ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(phoneBaseUrl))
-            services.AddSingleton<IHealthProvider, HttpHealthProvider>();
-        else
-            services.AddSingleton<IHealthProvider, DisconnectedHealthProvider>();
-
+        services.AddSingleton<HealthDataCache>();
+        services.AddSingleton<IHealthProvider, CacheBackedHealthProvider>();
         services.AddTransient<HealthActions>();
 
         return services;
