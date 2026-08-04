@@ -1,6 +1,7 @@
 using System.Reflection;
 using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.Avails.Extensions;
+using CognitivePlatform.Api.COCE;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Telemetry;
@@ -193,9 +194,16 @@ public class ExecutionEngine : IExecutionEngine
     // Type conversion
     // -----------------------------------------------------------------------
 
-    private static object? ConvertStringToType( string value
-                                              , Type   targetType )
+    private object? ConvertStringToType( string value
+                                       , Type   targetType )
     {
+        if (targetType != typeof(string) && (targetType.IsClass || targetType.IsInterface))
+        {
+            var coce = (IObjectConstructionEngine?)_serviceProvider.GetService(typeof(IObjectConstructionEngine))
+                       ?? new ObjectConstructionEngine();
+            return coce.Construct(value, targetType);
+        }
+
         if (targetType == typeof(string))
             return value;
 
@@ -261,6 +269,9 @@ public class ExecutionEngine : IExecutionEngine
     {
         if (result is null)
             return "Action executed successfully (no return value).";
+
+        if (result is ActionResult actionResult)
+            return actionResult.Message;
 
         return result.ToString()
             ?? "Action executed, but result was not representable as text.";

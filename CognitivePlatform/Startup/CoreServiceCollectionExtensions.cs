@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Audit;
+using CognitivePlatform.Api.COCE;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Orchestrator;
@@ -43,6 +44,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ConversationContextStore>();
         services.AddSingleton<IConversationTurnStore, ConversationTurnStore>();
         services.AddSingleton<IConversationMetadataStore, ConversationMetadataStore>();
+        services.AddSingleton<IObjectConstructionEngine, ObjectConstructionEngine>();
 
         return services;
     }
