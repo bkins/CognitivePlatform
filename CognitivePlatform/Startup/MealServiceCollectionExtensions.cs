@@ -13,6 +13,12 @@ public static class MealServiceCollectionExtensions
         services.AddSingleton<IMealService, MealService>();
         services.AddTransient<MealActions>();
 
+        services.AddHttpClient<INutritionLookupService, OpenFoodFactsNutritionProvider>(client =>
+        {
+            client.BaseAddress = new System.Uri("https://world.openfoodfacts.org/");
+            client.Timeout     = System.TimeSpan.FromSeconds(3);
+        });
+
         return services;
     }
 }

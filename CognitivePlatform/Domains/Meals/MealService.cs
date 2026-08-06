@@ -10,20 +10,26 @@ namespace CognitivePlatform.Api.Domains.Meals;
 
 public class MealService : IMealService
 {
-    private readonly IObjectStore      _store;
-    private readonly IWorkspaceContext _workspaceContext;
+    private readonly IObjectStore             _store;
+    private readonly IWorkspaceContext        _workspaceContext;
+    private readonly INutritionLookupService? _nutritionService;
 
-    public MealService( IObjectStore      store
-                      , IWorkspaceContext workspaceContext )
+    public MealService( IObjectStore              store
+                      , IWorkspaceContext         workspaceContext
+                      , INutritionLookupService?  nutritionService = null )
     {
         _store            = store;
         _workspaceContext = workspaceContext;
+        _nutritionService = nutritionService;
     }
 
     public async Task<Meal> SaveAsync(Meal meal)
     {
         var partitionKey = _workspaceContext.ActivePartitionKey;
         meal.ConsumedAt  = meal.ConsumedAt.ToUniversalTime();
+
+        await EnrichNutritionAsync(meal.Foods).ConfigureAwait(false);
+
         await _store.Save(meal, partitionKey, meal.Id).ConfigureAwait(false);
         return meal;
     }
@@ -42,7 +48,7 @@ public class MealService : IMealService
         var utcTo        = toUtc?.ToUniversalTime();
         var meals        = await _store.ListAsync<Meal>(partitionKey, utcFrom, utcTo).ConfigureAwait(false);
         
-        return meals.Where(meal => meal.IsDeleted.Not())
+        return meals.Where(meal => !meal.IsDeleted)
                     .ToList();
     }
 
@@ -79,6 +85,8 @@ public class MealService : IMealService
         if (meal is null || meal.IsDeleted)
             return null;
 
+        await EnrichNutritionAsync(foodsToAdd).ConfigureAwait(false);
+
         var updatedFoods = meal.Foods.Concat(foodsToAdd).ToList();
         var updatedMeal  = new Meal
                            {
@@ -94,5 +102,26 @@ public class MealService : IMealService
 
         await _store.Save(updatedMeal, partitionKey, meal.Id).ConfigureAwait(false);
         return updatedMeal;
+    }
+
+    private async Task EnrichNutritionAsync(IEnumerable<FoodEntry> foods)
+    {
+        if (_nutritionService is null)
+            return;
+
+        foreach (var food in foods)
+        {
+            if (food.Nutrition is null && food.Name.HasValue())
+            {
+                try
+                {
+                    food.Nutrition = await _nutritionService.LookupAsync(food.Name, food.Quantity, food.Unit).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Ensure save operations remain unblocked if lookup throws unexpectedly
+                }
+            }
+        }
     }
 }

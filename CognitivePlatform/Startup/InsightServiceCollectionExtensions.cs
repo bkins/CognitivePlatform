@@ -23,9 +23,12 @@ public static class InsightServiceCollectionExtensions
         services.AddScoped<IInsightProvider, GoalAlignmentInsightProvider>();
         services.AddScoped<IInsightProvider, HabitReinforcementInsightProvider>();
         services.AddScoped<IInsightProvider, CognitiveDistortionInsightProvider>();
+        services.AddScoped<IInsightProvider, MealInsightProvider>();
 
         services.AddScoped<IInsightEngine, InsightEngine>();
         services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
+        services.AddTransient<InsightActions>();
+        services.AddHostedService<Services.OffPeakInsightService>();
 
         var insightPolicy = configuration.GetSection("Insights").Get<InsightPolicy>()
                           ?? new InsightPolicy();

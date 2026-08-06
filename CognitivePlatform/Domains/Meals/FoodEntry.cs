@@ -12,5 +12,5 @@ public sealed class FoodEntry
     public string?         Preparation { get; init; }
     public string?         Brand       { get; init; }
     public List<string>    Additions   { get; init; } = new();
-    public NutritionalInfo? Nutrition   { get; init; }
+    public NutritionalInfo? Nutrition   { get; set; }
 }
