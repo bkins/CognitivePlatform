@@ -102,4 +102,105 @@ public class MealActionsTests
         Assert.Contains("Updated Breakfast by adding", result.Message);
         Assert.Contains("Apple",                      result.Message);
     }
+
+    [Fact]
+    public async Task LogMeal_WithIdenticalExistingMealOnSameDay_ReturnsExistingWithoutDuplicating()
+    {
+        var food = new FoodEntry { Name = "Pizza", Quantity = 1 };
+        var existingMeal = new Meal
+                           {
+                               Id         = Guid.NewGuid().ToString("N")
+                             , MealType   = MealType.Lunch
+                             , Foods      = new List<FoodEntry> { food }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 13, 30, 0, TimeSpan.Zero)
+                           };
+        var incomingMeal = new Meal
+                           {
+                               MealType   = MealType.Lunch
+                             , Foods      = new List<FoodEntry> { new FoodEntry { Name = "Pizza", Quantity = 1 } }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 13, 32, 0, TimeSpan.Zero)
+                           };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal> { existingMeal });
+
+        var result = await _actions.LogMeal(incomingMeal);
+
+        Assert.True(result.Success);
+        Assert.Contains("already logged", result.Message, StringComparison.OrdinalIgnoreCase);
+        _mealServiceMock.Verify(service => service.SaveAsync(It.IsAny<Meal>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LogMeal_WithNewItemsForExistingMealTypeOnSameDay_MergesItemsIntoExistingEntry()
+    {
+        var existingId = Guid.NewGuid();
+        var existingMeal = new Meal
+                           {
+                               Id         = existingId.ToString("N")
+                             , MealType   = MealType.Lunch
+                             , Foods      = new List<FoodEntry> { new FoodEntry { Name = "Pizza", Quantity = 1 } }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 13, 30, 0, TimeSpan.Zero)
+                           };
+        var incomingMeal = new Meal
+                           {
+                               MealType   = MealType.Lunch
+                             , Foods      = new List<FoodEntry>
+                                            {
+                                                new FoodEntry { Name = "Pizza", Quantity = 1 }
+                                              , new FoodEntry { Name = "Salad", Quantity = 1 }
+                                            }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 13, 35, 0, TimeSpan.Zero)
+                           };
+        var updatedMeal = new Meal
+                          {
+                              Id         = existingId.ToString("N")
+                            , MealType   = MealType.Lunch
+                            , Foods      = new List<FoodEntry>
+                                           {
+                                               new FoodEntry { Name = "Pizza", Quantity = 1 }
+                                             , new FoodEntry { Name = "Salad", Quantity = 1 }
+                                           }
+                            , ConsumedAt = new DateTimeOffset(2026, 8, 4, 13, 30, 0, TimeSpan.Zero)
+                          };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal> { existingMeal });
+        _mealServiceMock.Setup(service => service.UpdateAsync(existingId, It.IsAny<List<FoodEntry>>()))
+                        .ReturnsAsync(updatedMeal);
+
+        var result = await _actions.LogMeal(incomingMeal);
+
+        Assert.True(result.Success);
+        Assert.Contains("Added 1 new item(s) to today's Lunch entry", result.Message, StringComparison.OrdinalIgnoreCase);
+        _mealServiceMock.Verify(service => service.UpdateAsync(existingId, It.Is<List<FoodEntry>>(foods => foods.Count == 1 && foods[0].Name == "Salad")), Times.Once);
+        _mealServiceMock.Verify(service => service.SaveAsync(It.IsAny<Meal>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LogMeal_WithSnackHavingIdenticalItemsOnSameDay_DoesNotDuplicate()
+    {
+        var existingMeal = new Meal
+                           {
+                               Id         = Guid.NewGuid().ToString("N")
+                             , MealType   = MealType.Snack
+                             , Foods      = new List<FoodEntry> { new FoodEntry { Name = "Almonds", Quantity = 1 } }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 15, 0, 0, TimeSpan.Zero)
+                           };
+        var incomingMeal = new Meal
+                           {
+                               MealType   = MealType.Snack
+                             , Foods      = new List<FoodEntry> { new FoodEntry { Name = "Almonds", Quantity = 1 } }
+                             , ConsumedAt = new DateTimeOffset(2026, 8, 4, 15, 5, 0, TimeSpan.Zero)
+                           };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal> { existingMeal });
+
+        var result = await _actions.LogMeal(incomingMeal);
+
+        Assert.True(result.Success);
+        Assert.Contains("already logged", result.Message, StringComparison.OrdinalIgnoreCase);
+        _mealServiceMock.Verify(service => service.SaveAsync(It.IsAny<Meal>()), Times.Never);
+    }
 }

@@ -34,7 +34,7 @@ public class MealActions
       , AllowsClarification = true
       , IsReplayable = true)]
     public async Task<ActionResult> LogMeal(
-        [NaturalLanguageParam(Description = "The Meal object containing foods, meal type, and timestamp."
+        [NaturalLanguageParam(Description = "The Meal object containing foods, meal type, and timestamp. Omit consumedAt unless the user explicitly stated a time."
                             , Optional    = false
                             , AllowEmpty  = false)]
         Meal meal)
@@ -46,6 +46,53 @@ public class MealActions
                        Success = false
                      , Message = "No meal details could be parsed."
                    };
+        }
+
+        var day           = meal.ConsumedAt.ToLocalTime().Date;
+        var offset        = TimeZoneInfo.Local.GetUtcOffset(day);
+        var from          = new DateTimeOffset(day,            offset);
+        var to            = new DateTimeOffset(day.AddDays(1), offset);
+        var existingMeals = await _mealService.ListAsync(from, to).ConfigureAwait(false);
+
+        if (existingMeals is not null && existingMeals.Count > 0)
+        {
+            var existingMeal = existingMeals.FirstOrDefault(m => m.MealType == meal.MealType && meal.MealType != MealType.Unspecified);
+
+            if (existingMeal is not null)
+            {
+                var newFoods = meal.Foods.Where(incoming => !existingMeal.Foods.Any(existing => existing.Name.Equals(incoming.Name, StringComparison.OrdinalIgnoreCase)))
+                                         .ToList();
+
+                if (newFoods.Count == 0)
+                {
+                    return new ActionResult
+                           {
+                               Success = true
+                             , Message = $"An entry for {existingMeal.MealType} containing these items is already logged for today (no duplicate added)."
+                             , Data    = existingMeal
+                           };
+                }
+
+                if (meal.MealType is MealType.Breakfast or MealType.Lunch or MealType.Dinner)
+                {
+                    var updated = await _mealService.UpdateAsync(Guid.Parse(existingMeal.Id), newFoods).ConfigureAwait(false);
+                    var mergeSb = new StringBuilder();
+                    
+                    mergeSb.Append($"Added {newFoods.Count} new item(s) to today's {existingMeal.MealType} entry:");
+                    foreach (var food in newFoods)
+                    {
+                        mergeSb.AppendLine();
+                        mergeSb.Append($"- {FormatFood(food)}");
+                    }
+
+                    return new ActionResult
+                           {
+                               Success = true
+                             , Message = mergeSb.ToString()
+                             , Data    = updated
+                           };
+                }
+            }
         }
 
         var saved = await _mealService.SaveAsync(meal).ConfigureAwait(false);
@@ -95,7 +142,7 @@ public class MealActions
         DateTimeOffset from = DateTimeOffset.Now.Date;
         DateTimeOffset to   = from.AddDays(1);
 
-        if (dateRange.HasValue() && !TryResolveDateRange(dateRange, out from, out to))
+        if (dateRange.HasValue() && !TryResolveDateRange(dateRange!, out from, out to))
         {
             return new ActionResult
                    {

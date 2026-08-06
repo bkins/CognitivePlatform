@@ -425,6 +425,14 @@ Examples — adding events (CRITICAL — always AddCalendarEvent, never AddTask)
   "Create a calendar event: team standup at 8:30am"    → AddCalendarEvent
 
 ---------------------------------------------------------------------
+MEAL LOGGING RULES (MANDATORY):
+---------------------------------------------------------------------
+
+When constructing a Meal object for LogMeal or UpdateMeal:
+- If the user explicitly states a time (e.g. "around 1:30", "at 8am"), set consumedAt to that specific time for today (or the stated date).
+- If the user DOES NOT explicitly state a time (e.g. "For breakfast I had..."), you MUST OMIT the consumedAt property entirely from the Meal JSON object. Do NOT invent or hallucinate a default time like 8:00 AM, 10:00 AM, or 12:00 PM.
+
+---------------------------------------------------------------------
 {{GROUNDING_CONTEXT}}
 ---------------------------------------------------------------------
 AVAILABLE ACTIONS:
