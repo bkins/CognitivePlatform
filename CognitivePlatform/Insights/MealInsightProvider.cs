@@ -7,35 +7,41 @@ using System.Threading.Tasks;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Meals;
+using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Integrations.Health;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Insights;
 
 /// <summary>
-/// Proactively correlates dietary habits (e.g., late dinners after 8:00 PM local time or high-sugar meals)
-/// with next-day sleep telemetry and journaled mood scores over a rolling 14-day window.
+/// Proactively correlates dietary habits (e.g., late dinners, late caffeine, sugar triggers, and protein intake)
+/// with next-day sleep telemetry, journaled mood scores, and task completion volume over a rolling 14-day window.
 /// </summary>
 public sealed class MealInsightProvider : IInsightProvider
 {
-    private const int      WindowDays              = 14;
-    private const int      MinDataPoints           = 5;
-    private const int      MinLateDinners          = 3;
-    private const double   MinSleepReductionMinutes = 30.0;
+    private const int    WindowDays               = 14;
+    private const int    MinDataPoints            = 5;
+    private const int    MinLateDinners           = 3;
+    private const int    MinCorrelationDays       = 3;
+    private const double MinSleepReductionMinutes = 30.0;
 
     private readonly IMealService    _mealService;
     private readonly IHealthProvider _healthProvider;
     private readonly IJournalService _journalService;
+    private readonly ITaskService    _taskService;
 
     public InsightCategory Category => InsightCategory.Health;
 
     public MealInsightProvider( IMealService    mealService
                               , IHealthProvider healthProvider
-                              , IJournalService journalService )
+                              , IJournalService journalService
+                              , ITaskService    taskService )
     {
         _mealService    = mealService    ?? throw new ArgumentNullException(nameof(mealService));
         _healthProvider = healthProvider ?? throw new ArgumentNullException(nameof(healthProvider));
         _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
+        _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
     }
 
     public async IAsyncEnumerable<Insight> GenerateAsync(
@@ -58,12 +64,15 @@ public sealed class MealInsightProvider : IInsightProvider
         {
             var sleepByDate = await CollectDailySleepAsync(today, cancellationToken).ConfigureAwait(false);
 
-            var lateDinnerSleep   = new List<double>();
-            var normalDinnerSleep = new List<double>();
+            var lateDinnerSleep     = new List<double>();
+            var normalDinnerSleep   = new List<double>();
+            var lateCaffeineSleep   = new List<double>();
+            var normalCaffeineSleep = new List<double>();
 
             foreach (var date in sleepByDate.Keys)
             {
                 var sleepMinutes = sleepByDate[date];
+
                 var hasLateDinner = mealsByDate.TryGetValue(date, out var dailyMeals) &&
                                     dailyMeals.Any(meal => meal.MealType == MealType.Dinner && meal.ConsumedAt.ToLocalTime().Hour >= 20);
 
@@ -71,6 +80,14 @@ public sealed class MealInsightProvider : IInsightProvider
                     lateDinnerSleep.Add(sleepMinutes);
                 else
                     normalDinnerSleep.Add(sleepMinutes);
+
+                var hasLateCaffeine = dailyMeals is not null &&
+                                      dailyMeals.Any(meal => meal.ConsumedAt.ToLocalTime().Hour >= 15 && meal.Foods.Any(IsHighCaffeine));
+
+                if (hasLateCaffeine)
+                    lateCaffeineSleep.Add(sleepMinutes);
+                else
+                    normalCaffeineSleep.Add(sleepMinutes);
             }
 
             if (lateDinnerSleep.Count >= MinLateDinners && normalDinnerSleep.Count > 0)
@@ -93,6 +110,95 @@ public sealed class MealInsightProvider : IInsightProvider
                                  };
                 }
             }
+
+            if (lateCaffeineSleep.Count >= MinCorrelationDays && normalCaffeineSleep.Count > 0)
+            {
+                var avgLateCaffeine   = lateCaffeineSleep.Average();
+                var avgNormalCaffeine = normalCaffeineSleep.Average();
+
+                if (avgNormalCaffeine - avgLateCaffeine >= MinSleepReductionMinutes)
+                {
+                    yield return new Insight
+                                 {
+                                     Message          = "In the past 14 days, sleep duration was noticeably lower on nights following caffeine intake after 3:00 PM. Consider moving coffee or high-caffeine beverages earlier in your day."
+                                   , DeduplicationKey = "health.meals.caffeine"
+                                   , Category         = InsightCategory.Health
+                                   , Priority         = InsightPriority.Normal
+                                   , Reasoning        = new InsightReasoning
+                                                       {
+                                                           Explanation = $"On days with caffeine after 3:00 PM, recorded sleep averaged {avgLateCaffeine:F0} minutes compared to {avgNormalCaffeine:F0} minutes on non-late-caffeine days."
+                                                       }
+                                 };
+                }
+            }
+        }
+
+        var journals      = _journalService.ListEntries(fromUtc: fromUtc, toUtc: DateTimeOffset.UtcNow);
+        var lowMoodByDate = journals.Where(entry => entry.LatestRevision.MoodScore.HasValue && entry.LatestRevision.MoodScore <= 2)
+                                    .Select(entry => entry.Entry.CreatedUtc.ToLocalTime().Date)
+                                    .ToHashSet();
+
+        var lowMoodWithTriggerDays = 0;
+        foreach (var date in lowMoodByDate)
+        {
+            if (mealsByDate.TryGetValue(date, out var dailyMeals) && dailyMeals.Any(meal => meal.Foods.Any(IsMoodTrigger)))
+                lowMoodWithTriggerDays++;
+        }
+
+        if (lowMoodByDate.Count >= MinCorrelationDays && lowMoodWithTriggerDays >= MinCorrelationDays && ((double)lowMoodWithTriggerDays / lowMoodByDate.Count) >= 0.6)
+        {
+            yield return new Insight
+                         {
+                             Message          = "A drop in journal mood scores (2 or lower) has repeatedly coincided with meals containing high sugar, alcohol, or heavy dietary triggers over the past 2 weeks."
+                           , DeduplicationKey = "meal.insight.mood_food_correlation"
+                           , Category         = InsightCategory.Health
+                           , Priority         = InsightPriority.Normal
+                           , Reasoning        = new InsightReasoning
+                                               {
+                                                   Explanation = $"Low mood was logged on {lowMoodByDate.Count} days, and on {lowMoodWithTriggerDays} of those days high-sugar or alcohol triggers were recorded in dietary logs."
+                                               }
+                         };
+        }
+
+        var completedTasks = _taskService.List(fromUtc: fromUtc, toUtc: DateTimeOffset.UtcNow, includeCompleted: true)
+                                         .Where(task => task.CompletedAt.HasValue)
+                                         .GroupBy(task => task.CompletedAt!.Value.ToLocalTime().Date)
+                                         .ToDictionary(group => group.Key, group => group.Count());
+
+        var highProteinTaskCounts = new List<int>();
+        var lowProteinTaskCounts  = new List<int>();
+
+        foreach (var (date, dailyMeals) in mealsByDate)
+        {
+            var hasHighProteinBreakfast = dailyMeals.Any(meal => meal.MealType == MealType.Breakfast
+                                                              && meal.Foods.Any(food => food.Nutrition is not null && food.Nutrition.ProteinGrams >= 20.0));
+
+            var count = completedTasks.TryGetValue(date, out var taskCount) ? taskCount : 0;
+            if (hasHighProteinBreakfast)
+                highProteinTaskCounts.Add(count);
+            else if (dailyMeals.Any(meal => meal.MealType == MealType.Breakfast))
+                lowProteinTaskCounts.Add(count);
+        }
+
+        if (highProteinTaskCounts.Count >= MinCorrelationDays && lowProteinTaskCounts.Count > 0)
+        {
+            var avgHighProtein = highProteinTaskCounts.Average();
+            var avgLowProtein  = lowProteinTaskCounts.Average();
+
+            if (avgHighProtein - avgLowProtein >= 1.0 || (avgLowProtein > 0 && (avgHighProtein / avgLowProtein) >= 1.25))
+            {
+                yield return new Insight
+                             {
+                                 Message          = "Your task completion count is noticeably higher on days you recorded breakfast with at least 20g of protein. Starting your morning with steady protein appears to boost daily focus and output."
+                               , DeduplicationKey = "meal.insight.productivity_protein"
+                               , Category         = InsightCategory.Tasks
+                               , Priority         = InsightPriority.Normal
+                               , Reasoning        = new InsightReasoning
+                                                   {
+                                                       Explanation = $"On days logging >= 20g breakfast protein, completed tasks averaged {avgHighProtein:F1} compared to {avgLowProtein:F1} on lower protein morning logs."
+                                                   }
+                             };
+            }
         }
     }
 
@@ -114,5 +220,39 @@ public sealed class MealInsightProvider : IInsightProvider
         }
 
         return sleepByDay;
+    }
+
+    private static bool IsHighCaffeine(FoodEntry food)
+    {
+        var isNameCaffeine = food.Name.HasValue()
+                          && (food.Name.Contains("coffee",       StringComparison.OrdinalIgnoreCase)
+                           || food.Name.Contains("espresso",     StringComparison.OrdinalIgnoreCase)
+                           || food.Name.Contains("caffeine",     StringComparison.OrdinalIgnoreCase)
+                           || food.Name.Contains("energy drink", StringComparison.OrdinalIgnoreCase)
+                           || food.Name.Contains("tea",          StringComparison.OrdinalIgnoreCase));
+        
+        var isAdditionCaffeine = food.Additions.Any(addition => addition.Contains("caffeine", StringComparison.OrdinalIgnoreCase)
+                                                             || addition.Contains("espresso", StringComparison.OrdinalIgnoreCase)
+                                                             || addition.Contains("coffee",   StringComparison.OrdinalIgnoreCase));
+
+        return isNameCaffeine || isAdditionCaffeine;
+    }
+
+    private static bool IsMoodTrigger(FoodEntry food)
+    {
+        var isNameTrigger = food.Name.HasValue()
+                         && (food.Name.Contains("sugar",   StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("soda",    StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("candy",   StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("dessert", StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("alcohol", StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("beer",    StringComparison.OrdinalIgnoreCase)
+                          || food.Name.Contains("wine",    StringComparison.OrdinalIgnoreCase));
+
+        var isAdditionTrigger = food.Additions.Any(addition => addition.Contains("sugar",   StringComparison.OrdinalIgnoreCase)
+                                                            || addition.Contains("syrup",   StringComparison.OrdinalIgnoreCase)
+                                                            || addition.Contains("alcohol", StringComparison.OrdinalIgnoreCase));
+
+        return isNameTrigger || isAdditionTrigger;
     }
 }

@@ -27,7 +27,8 @@ public static class InsightServiceCollectionExtensions
 
         services.AddScoped<IInsightEngine, InsightEngine>();
         services.AddSingleton<IInsightHistoryStore, ObjectStoreInsightHistoryStore>();
-        services.AddTransient<InsightActions>();
+        services.AddScoped<Domains.Insights.IPatternDataAggregator, Domains.Insights.PatternDataAggregator>();
+        services.AddTransient<Domains.Insights.InsightsActions>();
         services.AddHostedService<Services.OffPeakInsightService>();
 
         var insightPolicy = configuration.GetSection("Insights").Get<InsightPolicy>()

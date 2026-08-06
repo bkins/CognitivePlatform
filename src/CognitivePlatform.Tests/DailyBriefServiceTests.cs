@@ -1,5 +1,7 @@
 using Moq;
 using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Insights;
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Integrations.Calendar;
 
 namespace CognitivePlatform.Tests;
@@ -398,4 +400,52 @@ public class DailyBriefServiceTests
 
         Assert.Equal(expectedStart.Offset, capturedStart.Offset);
     }
+
+    // ================================================================
+    // ACTIVE INSIGHTS
+    // ================================================================
+
+    [Fact]
+    public void GetBrief_IncludesActiveInsightsSection_WhenRecentInsightsExist()
+    {
+        var historyStoreMock = new Mock<IInsightHistoryStore>();
+        historyStoreMock.Setup(store => store.GetRecentAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(new List<InsightHistoryItem>
+                                      {
+                                          new()
+                                          {
+                                              Message      = "Caffeine after 2pm correlates with lower sleep quality."
+                                            , Outcome      = InsightOutcome.Unknown
+                                            , EmittedAtUtc = DateTime.UtcNow.AddDays(-1)
+                                          }
+                                      });
+
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, insightHistoryStore: historyStoreMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.Contains("--- Active Insights ---", result);
+        Assert.Contains("• Caffeine after 2pm correlates with lower sleep quality.", result);
+    }
+
+    [Fact]
+    public void GetBrief_OmitsActiveInsightsSection_WhenOnlyResolvedOrDeletedInsightsExist()
+    {
+        var historyStoreMock = new Mock<IInsightHistoryStore>();
+        historyStoreMock.Setup(store => store.GetRecentAsync(It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(new List<InsightHistoryItem>
+                                      {
+                                          new() { Message = "Resolved insight", Outcome = InsightOutcome.ActedOn }
+                                        , new() { Message = "Deleted insight", Outcome = InsightOutcome.Unknown, IsDeleted = true }
+                                      });
+
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, insightHistoryStore: historyStoreMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.DoesNotContain("--- Active Insights ---", result);
+    }
 }
+

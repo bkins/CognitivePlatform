@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Domains.Insights;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
+using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Services;
+using CognitivePlatform.Api.SystemPromptLogging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -16,11 +19,14 @@ namespace CognitivePlatform.Tests;
 public class InsightExecutionTests
 {
     private readonly Mock<IInsightEngine> _insightEngineMock = new();
-    private readonly InsightActions       _actions;
+    private readonly InsightsActions      _actions;
 
     public InsightExecutionTests()
     {
-        _actions = new InsightActions(_insightEngineMock.Object);
+        var aggregatorMock   = new Mock<IPatternDataAggregator>();
+        var llmMock          = new Mock<ILlmClient>();
+        var promptLoggerMock = new Mock<IPromptLogger>();
+        _actions             = new InsightsActions(aggregatorMock.Object, llmMock.Object, promptLoggerMock.Object, _insightEngineMock.Object);
     }
 
     [Fact]

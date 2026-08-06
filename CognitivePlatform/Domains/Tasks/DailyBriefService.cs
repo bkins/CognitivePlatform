@@ -1,4 +1,6 @@
 using System.Text;
+using CognitivePlatform.Api.Insights;
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Wellbeing;
 using Microsoft.Extensions.Logging;
@@ -7,11 +9,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CognitivePlatform.Api.Domains.Tasks;
 
 /// <summary>
-/// Pre-formats a daily brief from three independent data slices:
+/// Pre-formats a daily brief from four independent data slices:
 ///
 ///   1. Do It Now — tasks that are both Important and Urgent (Eisenhower Q1).
 ///   2. Due Today or Overdue — any active task whose due date is today or earlier.
 ///   3. Today's Calendar — events from the connected Google Calendar for the current day.
+///   4. Active Insights & Wellbeing — recent proactive patterns and health correlates.
 ///      The calendar section is omitted when <see cref="ICalendarProvider"/> is null,
 ///      <see cref="ICalendarProvider.IsConnected"/> is false, or the provider throws.
 ///
@@ -24,19 +27,22 @@ public class DailyBriefService : IDailyBriefService
     private readonly ICalendarProvider?          _calendar;
     private readonly IWellbeingSignalCollector?  _wellbeingCollector;
     private readonly IWellbeingPatternService?   _wellbeingPatterns;
+    private readonly IInsightHistoryStore?       _insightHistoryStore;
     private readonly ILogger<DailyBriefService>  _logger;
     private readonly EisenhowerReasoner          _eisenhower = new();
 
-    public DailyBriefService( ITaskService                   taskService
-                             , ICalendarProvider?             calendarProvider     = null
-                             , IWellbeingSignalCollector?     wellbeingCollector   = null
-                             , IWellbeingPatternService?      wellbeingPatterns    = null
-                             , ILogger<DailyBriefService>?   logger               = null )
+    public DailyBriefService( ITaskService                  taskService
+                            , ICalendarProvider?            calendarProvider    = null
+                            , IWellbeingSignalCollector?    wellbeingCollector  = null
+                            , IWellbeingPatternService?     wellbeingPatterns   = null
+                            , IInsightHistoryStore?         insightHistoryStore = null
+                            , ILogger<DailyBriefService>?   logger              = null )
     {
         _taskService         = taskService ?? throw new ArgumentNullException(nameof(taskService));
         _calendar            = calendarProvider;
         _wellbeingCollector  = wellbeingCollector;
         _wellbeingPatterns   = wellbeingPatterns;
+        _insightHistoryStore = insightHistoryStore;
         _logger              = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
@@ -187,6 +193,39 @@ public class DailyBriefService : IDailyBriefService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Today's Calendar section omitted: calendar provider threw");
+            }
+        }
+
+        // ---- Active Insights ----
+        if (_insightHistoryStore is not null)
+        {
+            try
+            {
+                var recentInsights = _insightHistoryStore
+                    .GetRecentAsync(TimeSpan.FromDays(3))
+                    .GetAwaiter()
+                    .GetResult();
+
+                var activeInsights = recentInsights
+                    .Where(item => !item.IsDeleted 
+                                && item.Outcome == InsightOutcome.Unknown 
+                                && !string.IsNullOrWhiteSpace(item.Message))
+                    .Take(3)
+                    .ToList();
+
+                if (activeInsights.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("--- Active Insights ---");
+                    foreach (var insight in activeInsights)
+                    {
+                        sb.AppendLine($"• {insight.Message}");
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Active Insights section omitted: history store threw");
             }
         }
 

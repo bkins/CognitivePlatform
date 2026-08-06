@@ -1,8 +1,11 @@
+using System;
 using System.Text;
+using System.Threading.Tasks;
 using CognitivePlatform.Api.Attributes;
-using CognitivePlatform.Api.Domains.Activity;
-using CognitivePlatform.Api.Domains.Journal.Interfaces;
-using CognitivePlatform.Api.Domains.Tasks;
+using CognitivePlatform.Api.Conversation;
+using CognitivePlatform.Api.Execution;
+using CognitivePlatform.Api.Insights;
+using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Registry.Domains;
 using CognitivePlatform.Api.SystemPromptLogging;
@@ -11,48 +14,38 @@ using CP.Shared.Primitives.Avails.Extensions;
 namespace CognitivePlatform.Api.Domains.Insights;
 
 /// <summary>
-/// Cross-domain AI analysis: spans tasks, journal entries, and explicit activity events to
-/// surface patterns, trends, and holistic wellbeing/productivity insights.
-///
-/// Design decisions:
-/// - Uses the same LLM-over-data pattern as AnalyzeJournal.
-/// - Tasks include completed and deleted entries so patterns like "I keep starting
-///   tasks I never finish" or "I delete a lot of work tasks" are visible.
-/// - Activity events (DEFERRED #4) are included as a third context section after
-///   journal entries when an <see cref="IActivityLog"/> is wired in and contains
-///   events for the window. Absent/empty activity data is omitted, not stubbed.
+/// Cross-domain AI analysis: spans tasks, journal entries, explicit activity events, and meal records to
+/// surface patterns, trends, and holistic wellbeing/productivity insights. Also hosts on-demand
+/// execution of the reflective intelligence engine.
 /// </summary>
 [Domain(typeof(KnowledgeDomain))]
 public class InsightsActions
 {
-    private readonly ITaskService    _taskService;
-    private readonly IJournalService _journalService;
-    private readonly ILlmClient      _llmClient;
-    private readonly IActivityLog?   _activityLog;
-    private readonly IPromptLogger   _promptLogger;
+    private readonly IPatternDataAggregator _aggregator;
+    private readonly ILlmClient             _llmClient;
+    private readonly IPromptLogger          _promptLogger;
+    private readonly IInsightEngine?        _insightEngine;
 
-    public InsightsActions( ITaskService    taskService
-                          , IJournalService journalService
-                          , ILlmClient      llmClient
-                          , IPromptLogger   promptLogger
-                          , IActivityLog?   activityLog = null )
+    public InsightsActions( IPatternDataAggregator aggregator
+                          , ILlmClient             llmClient
+                          , IPromptLogger          promptLogger
+                          , IInsightEngine?        insightEngine = null )
     {
-        _taskService    = taskService    ?? throw new ArgumentNullException(nameof(taskService));
-        _journalService = journalService ?? throw new ArgumentNullException(nameof(journalService));
-        _llmClient      = llmClient      ?? throw new ArgumentNullException(nameof(llmClient));
-        _promptLogger   = promptLogger   ?? throw new ArgumentNullException(nameof(promptLogger));
-        _activityLog    = activityLog;
+        _aggregator    = aggregator   ?? throw new ArgumentNullException(nameof(aggregator));
+        _llmClient     = llmClient    ?? throw new ArgumentNullException(nameof(llmClient));
+        _promptLogger  = promptLogger ?? throw new ArgumentNullException(nameof(promptLogger));
+        _insightEngine = insightEngine;
     }
 
     [NaturalLanguageAction(Description = "Analyzes patterns across your tasks and journal entries using AI. Surfaces connections, trends, and holistic productivity or wellbeing insights."
-                         , Examples = new[]
-                                      {
-                                              "What patterns do you see in my work habits?"
-                                            , "Am I making progress on the things that matter most?"
-                                            , "How does my mood relate to my productivity?"
-                                            , "What recurring themes show up in my tasks and journal?"
-                                            , "Give me an overall picture of how my week went."
-                                      }
+                         , Examples =
+                           [
+                               "What patterns do you see in my work habits?"
+                             , "Am I making progress on the things that matter most?"
+                             , "How does my mood relate to my productivity?"
+                             , "What recurring themes show up in my tasks and journal?"
+                             , "Give me an overall picture of how my week went."
+                           ]
                          , Category = "insights")]
     public async Task<string> AnalyzePatterns( [NaturalLanguageParam(Description  = "What to focus the analysis on (e.g. 'productivity', 'mood', 'work-life balance', or leave blank for a general overview)."
                                                                    , Optional     = true
@@ -67,103 +60,66 @@ public class InsightsActions
                                                                    , DefaultValue = "")]
                                                string? toDate = null)
     {
-        //TODO: Implement a service that does this work of aggregating and formatting the data,
-        // so this action is just responsible for orchestrating the call and sending the prompt to the LLM.
-        // This will also make it easier to write unit tests for the core logic without needing to mock ILlmClient.
-        var from = ParseDate(fromDate);
-        var to   = ParseDate(toDate);
+        var prompt = await _aggregator.AggregateAndFormatAsync(focus, fromDate, toDate).ConfigureAwait(false);
 
-        var tasks      = _taskService.List(from, to, includeCompleted: true);
-        var entries    = _journalService.ListEntries(from, to);
-        var activities = _activityLog is not null
-                                 ? await _activityLog.ListAsync(from, to)
-                                 : (IReadOnlyList<ActivityEvent>)Array.Empty<ActivityEvent>();
-
-        if (tasks.Count == 0 
-         && entries.Count == 0 
-         && activities.Count == 0)
+        if (prompt is null || prompt.HasNoValue())
             return "No tasks, journal, or activity entries found for the specified date range.";
 
-        var focusLabel = focus.HasValue() ? focus! : "general patterns and trends";
+        _promptLogger.Log("InsightsAnalysisPrompt", prompt!, _llmClient.GetType().Name);
 
-        var sb = new StringBuilder();
-        sb.AppendLine("You are a personal productivity and wellbeing assistant. Analyze the tasks, journal entries, and logged activities below and identify patterns, trends, and actionable insights.");
-        sb.AppendLine($"Focus area: {focusLabel}");
-        sb.AppendLine();
-
-        if (tasks.Count > 0)
-        {
-            sb.AppendLine("=== Tasks ===");
-            foreach (var task in tasks)
-            {
-                var status = task.CompletedAt.HasValue ? "[Done]"
-                           : task.IsDeleted            ? "[Deleted]"
-                                                       : "[Active]";
-                sb.Append($"{status} {task.ShortDescription}");
-                if (task.IsImportant)      sb.Append(" [Important]");
-                if (task.IsUrgent)         sb.Append(" [Urgent]");
-                if (task.DueDate.HasValue) sb.Append($" (due {task.DueDate:yyyy-MM-dd})");
-                if (task.Tags.Count > 0)   sb.Append($" [tags: {string.Join(", ", task.Tags)}]");
-                
-                sb.AppendLine();
-            }
-            sb.AppendLine();
-        }
-
-        if (entries.Count > 0)
-        {
-            sb.AppendLine("=== Journal Entries ===");
-            // Cap journal context at 30 entries to keep prompt size reasonable
-            foreach (var ewr in entries.Take(30))
-            {
-                sb.Append($"[{ewr.Entry.CreatedUtc:yyyy-MM-dd}] {ewr.LatestRevision.Text}");
-                if (ewr.LatestRevision.Mood is not null)       sb.Append($" [mood: {ewr.LatestRevision.Mood}]");
-                if (ewr.LatestRevision.MoodScore.HasValue)     sb.Append($" [mood score: {ewr.LatestRevision.MoodScore}]");
-                if (ewr.LatestRevision.Tags is { Count: > 0 }) sb.Append($" [tags: {string.Join(", ", ewr.LatestRevision.Tags)}]");
-                
-                sb.AppendLine();
-            }
-            sb.AppendLine();
-        }
-
-        if (activities.Count <= 0)
-        {
-            var promptWithoutActivities = sb.ToString();
-        
-            _promptLogger.Log("InsightsAnalysisPromptWithoutActivities", promptWithoutActivities, _llmClient.GetType().Name);
-            return (await _llmClient.SendAsync(sb.ToString())).Content;
-        }
-
-        sb.AppendLine("=== Recent Activities ===");
-        // Cap at 50 events to keep prompt size reasonable
-        foreach (var activityEvent in activities.Take(50))
-        {
-            sb.Append($"[{activityEvent.OccurredUtc:yyyy-MM-dd}] {activityEvent.ActivityType}");
-            if (activityEvent.Duration.HasValue)
-            {
-                sb.Append($" ({activityEvent.Duration.Value}");
-                if (activityEvent.Unit.HasValue()) sb.Append($" {activityEvent.Unit}");
-                
-                sb.Append(')');
-            }
-            if (activityEvent.Notes.HasValue()) sb.Append($" — {activityEvent.Notes}");
-            if (activityEvent.Tags.Count > 0)   sb.Append($" [tags: {string.Join(", ", activityEvent.Tags)}]");
-            
-            sb.AppendLine();
-        }
-        sb.AppendLine();
-
-        var promptWithActivities = sb.ToString();
-        
-        _promptLogger.Log("InsightsAnalysisPromptWithActivities", promptWithActivities, _llmClient.GetType().Name);
-        
-        return (await _llmClient.SendAsync(promptWithActivities)).Content;
+        var response = await _llmClient.SendAsync(prompt!).ConfigureAwait(false);
+        return response.Content;
     }
 
-    private static DateTimeOffset? ParseDate(string? input)
+    [FastPath]
+    [NaturalLanguageAction(
+        Description = "Runs all registered insight providers immediately and returns generated insights."
+      , Examples    =
+        [
+            "Run insights now."
+          , "Check my health insights."
+          , "Generate wellbeing insights."
+        ]
+      , Category    = "Wellbeing")]
+    public async Task<ActionResult> RunInsightsNow()
     {
-        if (input?.HasNoValue() ?? true) return null;
+        if (_insightEngine is null)
+        {
+            return new ActionResult
+                   {
+                       Success = false
+                     , Message = "Insight engine is not configured in this context."
+                     , Data    = Array.Empty<Insight>()
+                   };
+        }
 
-        return DateTimeOffset.TryParse(input, out var result) ? result : null;
+        var context  = new ConversationContext("on-demand-insights");
+        var insights = await _insightEngine.GenerateInsightsAsync(context).ConfigureAwait(false);
+
+        if (insights is null || insights.Count == 0)
+        {
+            return new ActionResult
+                   {
+                       Success = true
+                     , Message = "No new actionable insights generated at this time."
+                     , Data    = Array.Empty<Insight>()
+                   };
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Generated {insights.Count} insight(s):");
+
+        foreach (var insight in insights)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"- **[{insight.Category}]** {insight.Message}");
+        }
+
+        return new ActionResult
+               {
+                   Success = true
+                 , Message = sb.ToString()
+                 , Data    = insights
+               };
     }
 }
