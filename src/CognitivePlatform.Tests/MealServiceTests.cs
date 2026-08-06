@@ -32,14 +32,14 @@ public class MealServiceTests
         var result = await _service.SaveAsync(meal);
 
         Assert.Equal(meal, result);
-        _storeMock.Verify(store => store.Save(meal, "test-workspace", meal.Id.ToString("N")), Times.Once);
+        _storeMock.Verify(store => store.Save(meal, "test-workspace", meal.Id), Times.Once);
     }
 
     [Fact]
     public async Task GetAsync_RetrievesMeal_WithPartitionKey()
     {
         var id   = Guid.NewGuid();
-        var meal = new Meal { Id = id, MealType = MealType.Lunch };
+        var meal = new Meal { Id = id.ToString("N"), MealType = MealType.Lunch };
         _storeMock.Setup(store => store.GetAsync<Meal>(id.ToString("N"), "test-workspace", default))
                   .ReturnsAsync(meal);
 
@@ -51,8 +51,8 @@ public class MealServiceTests
     [Fact]
     public async Task ListAsync_FiltersOut_SoftDeletedMeals()
     {
-        var activeMeal  = new Meal { Id = Guid.NewGuid(), MealType = MealType.Dinner, IsDeleted = false };
-        var deletedMeal = new Meal { Id = Guid.NewGuid(), MealType = MealType.Breakfast, IsDeleted = true };
+        var activeMeal  = new Meal { Id = Guid.NewGuid().ToString("N"), MealType = MealType.Dinner, IsDeleted = false };
+        var deletedMeal = new Meal { Id = Guid.NewGuid().ToString("N"), MealType = MealType.Breakfast, IsDeleted = true };
         _storeMock.Setup(store => store.ListAsync<Meal>("test-workspace", null, null, default))
                   .ReturnsAsync(new List<Meal> { activeMeal, deletedMeal });
 
@@ -66,14 +66,14 @@ public class MealServiceTests
     public async Task SoftDeleteAsync_SetsDeletedFlags_AndSaves()
     {
         var id   = Guid.NewGuid();
-        var meal = new Meal { Id = id, MealType = MealType.Lunch, IsDeleted = false };
+        var meal = new Meal { Id = id.ToString("N"), MealType = MealType.Lunch, IsDeleted = false };
         _storeMock.Setup(store => store.GetAsync<Meal>(id.ToString("N"), "test-workspace", default))
                   .ReturnsAsync(meal);
 
         var result = await _service.SoftDeleteAsync(id);
 
         Assert.True(result);
-        _storeMock.Verify(store => store.Save(It.Is<Meal>(m => m.Id == id && m.IsDeleted && m.DeletedUtc != null)
+        _storeMock.Verify(store => store.Save(It.Is<Meal>(m => m.Id == id.ToString("N") && m.IsDeleted && m.DeletedUtc != null)
                                             , "test-workspace"
                                             , id.ToString("N")), Times.Once);
     }
@@ -84,7 +84,7 @@ public class MealServiceTests
         var id       = Guid.NewGuid();
         var food1    = new FoodEntry { Name = "Egg" };
         var food2    = new FoodEntry { Name = "Toast" };
-        var meal     = new Meal { Id = id, Foods = new List<FoodEntry> { food1 } };
+        var meal     = new Meal { Id = id.ToString("N"), Foods = new List<FoodEntry> { food1 } };
         
         _storeMock.Setup(store => store.GetAsync<Meal>(id.ToString("N"), "test-workspace", default))
                   .ReturnsAsync(meal);
@@ -96,7 +96,7 @@ public class MealServiceTests
         Assert.Equal("Egg",   result.Foods[0].Name);
         Assert.Equal("Toast", result.Foods[1].Name);
         
-        _storeMock.Verify(store => store.Save(It.Is<Meal>(m => m.Id == id && m.Foods.Count == 2)
+        _storeMock.Verify(store => store.Save(It.Is<Meal>(m => m.Id == id.ToString("N") && m.Foods.Count == 2)
                                             , "test-workspace"
                                             , id.ToString("N")), Times.Once);
     }

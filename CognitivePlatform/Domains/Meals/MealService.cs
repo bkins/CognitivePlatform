@@ -23,7 +23,8 @@ public class MealService : IMealService
     public async Task<Meal> SaveAsync(Meal meal)
     {
         var partitionKey = _workspaceContext.ActivePartitionKey;
-        await _store.Save(meal, partitionKey, meal.Id.ToString("N")).ConfigureAwait(false);
+        meal.ConsumedAt  = meal.ConsumedAt.ToUniversalTime();
+        await _store.Save(meal, partitionKey, meal.Id).ConfigureAwait(false);
         return meal;
     }
 
@@ -37,7 +38,9 @@ public class MealService : IMealService
                                                     , DateTimeOffset? toUtc   = null )
     {
         var partitionKey = _workspaceContext.ActivePartitionKey;
-        var meals        = await _store.ListAsync<Meal>(partitionKey, fromUtc, toUtc).ConfigureAwait(false);
+        var utcFrom      = fromUtc?.ToUniversalTime();
+        var utcTo        = toUtc?.ToUniversalTime();
+        var meals        = await _store.ListAsync<Meal>(partitionKey, utcFrom, utcTo).ConfigureAwait(false);
         
         return meals.Where(meal => meal.IsDeleted.Not())
                     .ToList();
@@ -55,7 +58,7 @@ public class MealService : IMealService
                           {
                               Id         = meal.Id
                             , MealType   = meal.MealType
-                            , ConsumedAt = meal.ConsumedAt
+                            , ConsumedAt = meal.ConsumedAt.ToUniversalTime()
                             , Foods      = meal.Foods
                             , Notes      = meal.Notes
                             , Source     = meal.Source
@@ -63,7 +66,7 @@ public class MealService : IMealService
                             , DeletedUtc = DateTime.UtcNow
                           };
 
-        await _store.Save(deletedMeal, partitionKey, meal.Id.ToString("N")).ConfigureAwait(false);
+        await _store.Save(deletedMeal, partitionKey, meal.Id).ConfigureAwait(false);
         return true;
     }
 
@@ -81,7 +84,7 @@ public class MealService : IMealService
                            {
                                Id         = meal.Id
                              , MealType   = meal.MealType
-                             , ConsumedAt = meal.ConsumedAt
+                             , ConsumedAt = meal.ConsumedAt.ToUniversalTime()
                              , Foods      = updatedFoods
                              , Notes      = meal.Notes
                              , Source     = meal.Source
@@ -89,7 +92,7 @@ public class MealService : IMealService
                              , DeletedUtc = meal.DeletedUtc
                            };
 
-        await _store.Save(updatedMeal, partitionKey, meal.Id.ToString("N")).ConfigureAwait(false);
+        await _store.Save(updatedMeal, partitionKey, meal.Id).ConfigureAwait(false);
         return updatedMeal;
     }
 }

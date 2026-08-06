@@ -219,6 +219,13 @@ public class ExecutionEngine : IExecutionEngine
          || targetType == typeof(bool?))
             return bool.TryParse(value, out var b) ? b : default(bool?);
 
+        if (targetType == typeof(Guid)
+         || targetType == typeof(Guid?))
+        {
+            if (string.IsNullOrWhiteSpace(value)) return targetType == typeof(Guid?) ? (Guid?)null : Guid.Empty;
+            return Guid.TryParse(value, out var g) ? (object?)g : (targetType == typeof(Guid?) ? (Guid?)null : Guid.Empty);
+        }
+
         if (targetType == typeof(DateTime)
          || targetType == typeof(DateTime?))
         {

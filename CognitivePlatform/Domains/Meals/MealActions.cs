@@ -122,7 +122,7 @@ public class MealActions
         {
             sb.AppendLine();
             sb.AppendLine();
-            sb.Append($"## {meal.MealType} ({meal.ConsumedAt.ToLocalTime():h:mm tt}) (ID: {meal.Id:N})");
+            sb.Append($"## {meal.MealType} ({meal.ConsumedAt.ToLocalTime():h:mm tt}) (ID: {meal.Id})");
             if (meal.Notes.HasValue())
             {
                 sb.AppendLine();
@@ -181,7 +181,7 @@ public class MealActions
                    };
         }
 
-        var deleted = await _mealService.SoftDeleteAsync(targetMeal.Id).ConfigureAwait(false);
+        var deleted = await _mealService.SoftDeleteAsync(Guid.Parse(targetMeal.Id)).ConfigureAwait(false);
 
         if (!deleted)
         {
@@ -195,7 +195,7 @@ public class MealActions
         return new ActionResult
                {
                    Success = true
-                 , Message = $"Deleted {targetMeal.MealType} entry (ID: {targetMeal.Id:N})."
+                 , Message = $"Deleted {targetMeal.MealType} entry (ID: {Guid.Parse(targetMeal.Id):N})."
                };
     }
 
@@ -239,7 +239,7 @@ public class MealActions
                    };
         }
 
-        var updated = await _mealService.UpdateAsync(targetMeal.Id, foodsToAdd).ConfigureAwait(false);
+        var updated = await _mealService.UpdateAsync(Guid.Parse(targetMeal.Id), foodsToAdd).ConfigureAwait(false);
 
         if (updated is null)
         {

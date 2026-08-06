@@ -476,4 +476,15 @@ public class LlmInterpreterTests
         Assert.Contains("title", result.MissingParameters!);
     }
 
+    [Fact]
+    public void GetFriendlyTypeName_MealType_ReturnsExpectedSchema()
+    {
+        var type = typeof(CognitivePlatform.Api.Domains.Meals.Meal);
+
+        var result = LlmInterpreter.GetFriendlyTypeName(type);
+
+        Assert.Contains("mealType: enum (Unspecified|Breakfast|Lunch|Dinner|Snack)", result);
+        Assert.Contains("notes: string", result);
+        Assert.Contains("foods: JSON array of JSON object", result);
+    }
 }

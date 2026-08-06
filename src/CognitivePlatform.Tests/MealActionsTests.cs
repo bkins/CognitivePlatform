@@ -70,7 +70,7 @@ public class MealActionsTests
     public async Task DeleteMeal_SoftDeletes_ByMealType()
     {
         var id   = Guid.NewGuid();
-        var meal = new Meal { Id = id, MealType = MealType.Breakfast };
+        var meal = new Meal { Id = id.ToString("N"), MealType = MealType.Breakfast };
 
         _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
                         .ReturnsAsync(new List<Meal> { meal });
@@ -88,13 +88,13 @@ public class MealActionsTests
     public async Task UpdateMeal_AppendsFoods_AndReturnsUpdatedMessage()
     {
         var id    = Guid.NewGuid();
-        var meal  = new Meal { Id = id, MealType = MealType.Breakfast };
+        var meal  = new Meal { Id = id.ToString("N"), MealType = MealType.Breakfast };
         var food  = new FoodEntry { Name = "Apple", Quantity = 1 };
 
         _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
                         .ReturnsAsync(new List<Meal> { meal });
         _mealServiceMock.Setup(service => service.UpdateAsync(id, It.IsAny<List<FoodEntry>>()))
-                        .ReturnsAsync(new Meal { Id = id, MealType = MealType.Breakfast, Foods = new List<FoodEntry> { food } });
+                        .ReturnsAsync(new Meal { Id = id.ToString("N"), MealType = MealType.Breakfast, Foods = new List<FoodEntry> { food } });
 
         var result = await _actions.UpdateMeal("breakfast", new List<FoodEntry> { food });
 

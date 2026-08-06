@@ -5,9 +5,9 @@ namespace CognitivePlatform.Api.Domains.Meals;
 
 public sealed class Meal
 {
-    public Guid            Id          { get; init; } = Guid.NewGuid();
+    public string          Id          { get; init; } = Guid.NewGuid().ToString("N");
     public MealType        MealType    { get; init; } = MealType.Unspecified;
-    public DateTime        ConsumedAt  { get; init; } = DateTime.UtcNow;
+    public DateTimeOffset  ConsumedAt  { get; set; } = DateTimeOffset.UtcNow;
     public List<FoodEntry> Foods       { get; init; } = new();
     public string?         Notes       { get; init; }
     public string          Source      { get; init; } = "NaturalLanguage";

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -647,6 +648,39 @@ public class LlmInterpreter : IInterpreter
         if (type == typeof(DateTimeOffset)) return "DateTimeOffset";
         if (type == typeof(DateTime))       return "DateTime";
         if (type == typeof(DateOnly))       return "DateOnly";
+
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+        {
+            var itemType = type.GetGenericArguments()[0];
+            return $"JSON array of {GetFriendlyTypeName(itemType)} objects";
+        }
+
+        if (type.IsClass && type.FullName?.StartsWith("System.") != true)
+        {
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            var propDescriptions = new List<string>();
+            foreach (var prop in props)
+            {
+                if (prop.Name == "Id" || prop.Name == "IsDeleted" || prop.Name == "DeletedUtc" || prop.Name == "DeletedReason")
+                    continue;
+
+                var propType = prop.PropertyType;
+                string typeDesc;
+                if (propType.IsEnum)
+                {
+                    var enumNames = string.Join("|", Enum.GetNames(propType));
+                    typeDesc = $"enum ({enumNames})";
+                }
+                else
+                {
+                    typeDesc = GetFriendlyTypeName(propType);
+                }
+
+                var camelName = char.ToLowerInvariant(prop.Name[0]) + prop.Name.Substring(1);
+                propDescriptions.Add($"{camelName}: {typeDesc}");
+            }
+            return $"JSON object {{ {string.Join(", ", propDescriptions)} }}";
+        }
 
         return type.Name;
     }

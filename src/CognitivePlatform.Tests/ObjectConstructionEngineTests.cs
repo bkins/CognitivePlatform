@@ -82,4 +82,43 @@ public class ObjectConstructionEngineTests
 
         Assert.Throws<InvalidOperationException>(() => _engine.Construct(json, typeof(Meal)));
     }
+
+    [Fact]
+    public void Construct_ParsesTimezoneLessDateTimeAsString_AsLocalTimeOffset()
+    {
+        var json = """
+                   {
+                       "consumedAt": "2026-08-04T13:30:00"
+                   }
+                   """;
+
+        var result = _engine.Construct(json, typeof(Meal)) as Meal;
+
+        Assert.NotNull(result);
+        
+        // Assert that the parsed DateTimeOffset offset is the system local offset
+        var expectedOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 8, 4, 13, 30, 0));
+        Assert.Equal(expectedOffset, result.ConsumedAt.Offset);
+        Assert.Equal(13, result.ConsumedAt.Hour);
+        Assert.Equal(30, result.ConsumedAt.Minute);
+    }
+
+    [Fact]
+    public void Construct_ParsesUtcDateTimeAsString_AsLocalTimeOffset()
+    {
+        var json = """
+                   {
+                       "consumedAt": "2026-08-04T13:30:00Z"
+                   }
+                   """;
+
+        var result = _engine.Construct(json, typeof(Meal)) as Meal;
+
+        Assert.NotNull(result);
+        
+        var expectedOffset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 8, 4, 13, 30, 0));
+        Assert.Equal(expectedOffset, result.ConsumedAt.Offset);
+        Assert.Equal(13, result.ConsumedAt.Hour);
+        Assert.Equal(30, result.ConsumedAt.Minute);
+    }
 }

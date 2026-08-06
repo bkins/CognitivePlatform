@@ -10,8 +10,8 @@ public sealed class LlmStartupProbe
     private readonly LlmModelCatalog          _catalog;
     private readonly ILogger<LlmStartupProbe> _log;
 
-    public bool ShouldProbeModels { get; set; } = true;
-    
+    public bool ShouldProbeModels { get; set; } = false;
+
     public LlmStartupProbe (ILlmClient               llm
                           , LlmModelCatalog          catalog
                           , ILogger<LlmStartupProbe> log)
@@ -19,6 +19,11 @@ public sealed class LlmStartupProbe
         _llm     = llm;
         _catalog = catalog;
         _log     = log;
+
+#if DEBUG
+        ShouldProbeModels = true;
+#endif
+
     }
 
     public async Task RunAsync (IEnumerable<string> candidateModels
@@ -46,7 +51,7 @@ public sealed class LlmStartupProbe
     {
 
         _log.LogInformation("Starting Llm Startup Probe...");
-        
+
         var results = new List<LlmModelInfo>();
 
         foreach (var model in candidateModels)
