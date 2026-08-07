@@ -661,7 +661,7 @@ public class LlmInterpreter : IInterpreter
             var propDescriptions = new List<string>();
             foreach (var prop in props)
             {
-                if (prop.Name == "Id" || prop.Name == "IsDeleted" || prop.Name == "DeletedUtc" || prop.Name == "DeletedReason")
+                if (prop.Name == "Id" || prop.Name == "IsDeleted" || prop.Name == "DeletedUtc" || prop.Name == "DeletedReason" || prop.Name == "Source")
                     continue;
 
                 var propType = prop.PropertyType;

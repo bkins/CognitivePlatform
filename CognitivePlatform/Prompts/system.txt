@@ -429,8 +429,12 @@ MEAL LOGGING RULES (MANDATORY):
 ---------------------------------------------------------------------
 
 When constructing a Meal object for LogMeal or UpdateMeal:
+
 - If the user explicitly states a time (e.g. "around 1:30", "at 8am"), set consumedAt to that specific time for today (or the stated date).
 - If the user DOES NOT explicitly state a time (e.g. "For breakfast I had..."), you MUST OMIT the consumedAt property entirely from the Meal JSON object. Do NOT invent or hallucinate a default time like 8:00 AM, 10:00 AM, or 12:00 PM.
+- ONLY the 'foods' array is required. Inside each food object, ONLY 'name' is required.
+- All other properties (nutrition, brand, unit, preparation, additions, notes, etc.) are strictly optional. Omit them entirely if the user does not specify them. Do NOT include them with null or empty values.
+- If the user mentions multiple ingredients that belong to a single dish (e.g. "oatmeal with blueberries"), place the main item in 'name' and the extras in the 'additions' string array.
 
 ---------------------------------------------------------------------
 {{GROUNDING_CONTEXT}}
