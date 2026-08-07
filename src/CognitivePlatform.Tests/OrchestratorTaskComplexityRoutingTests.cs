@@ -67,6 +67,13 @@ public class OrchestratorTaskComplexityRoutingTests
                                                   , out It.Ref<Dictionary<string, string>?>.IsAny))
             .Returns(false);
 
+        _routerMock
+            .Setup(router => router.SendAsync(It.IsAny<string>()
+                                            , It.IsAny<ConversationContext>()
+                                            , It.IsAny<TaskComplexity>()
+                                            , It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LlmResponse { Content = "mock fallback response" });
+
         _activityLogMock
             .Setup(log => log.LogAsync(It.IsAny<ActivityEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

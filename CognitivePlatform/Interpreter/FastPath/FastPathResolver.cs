@@ -101,6 +101,9 @@ public sealed class FastPathResolver : IFastPathResolver
         if (TryResolveTaskAnalyze(input, out action, out parameters))
             return true;
 
+        if (TryResolveDailyBrief(input, out action, out parameters))
+            return true;
+
         if (TryResolveTaskList(input, out action, out parameters))
             return true;
 
@@ -777,6 +780,7 @@ public sealed class FastPathResolver : IFastPathResolver
           , "eisenhower"
           , "which tasks should i do first"
           , "what should i work on first"
+          , "what should i focus on first"
           , "show my task matrix"
           , "task matrix"
     };
@@ -794,6 +798,39 @@ public sealed class FastPathResolver : IFastPathResolver
             return false;
 
         action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AnalyzeTasks");
+        parameters = new Dictionary<string, string>();
+
+        return action != null;
+    }
+
+    // ----------------------------------------------------------------
+    // GetDailyBrief
+    // "daily brief", "generate my daily brief", "what's on my plate"
+    // ----------------------------------------------------------------
+    private static readonly string[] DailyBriefSignals =
+    {
+            "daily brief"
+          , "generate my daily brief"
+          , "what's on my plate today"
+          , "what's on my plate"
+          , "show me today's priorities"
+          , "what do i need to do today"
+          , "morning briefing"
+    };
+
+    private bool TryResolveDailyBrief( string                           input
+                                     , out ActionMetadata?             action
+                                     , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
+
+        if (BooleanExtensions.Not(DailyBriefSignals.Any(signal => normalized.Contains(signal))))
+            return false;
+
+        action     = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetDailyBrief");
         parameters = new Dictionary<string, string>();
 
         return action != null;

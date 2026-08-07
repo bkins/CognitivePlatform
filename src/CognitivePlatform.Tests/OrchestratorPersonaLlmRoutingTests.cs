@@ -136,11 +136,11 @@ public class OrchestratorPersonaLlmRoutingTests
     }
 
     // ================================================================
-    // No LLM call when persona mode is not active and no action found
+    // LLM fallback is used even when persona mode is not active
     // ================================================================
 
     [Fact]
-    public async Task ConverseAsync_ReturnsNoActionMessage_WhenNoPersonaModeAndNoActionRecognized()
+    public async Task ConverseAsync_UsesLlmFallback_WhenNoPersonaModeAndNoActionRecognized()
     {
         _sessionManagerMock
             .Setup(manager => manager.IsPersonaConversation(SessionId))
@@ -151,12 +151,12 @@ public class OrchestratorPersonaLlmRoutingTests
         var response = await orchestrator.ConverseAsync(
                            new ConverseRequest { Input = "blorp zap", SessionId = SessionId });
 
-        Assert.NotEqual("Hello, it's Sarah speaking.", response.Message);
+        Assert.Equal("Hello, it's Sarah speaking.", response.Message);
         _routerMock.Verify(router => router.SendAsync(It.IsAny<string>()
                                                     , It.IsAny<ConversationContext>()
                                                     , It.IsAny<TaskComplexity>()
                                                     , It.IsAny<CancellationToken>())
-                         , Times.Never);
+                         , Times.Once);
     }
 
     // ================================================================

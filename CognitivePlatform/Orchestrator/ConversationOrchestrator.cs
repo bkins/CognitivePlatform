@@ -870,60 +870,63 @@ public class ConversationOrchestrator : IConversationOrchestrator
             //TODO: Should the `ChitChat` action be interpreted as "no action chosen"
             // or should it be a valid action choice that just happens to be conversational?
 
-            if (context.Metadata.ContainsKey("persona_system_prompt"))
+            // or should it be a valid action choice that just happens to be conversational?
+
+            if (interpretation is { FailureType: InterpreterFailureType.NoMatchingAction, CandidateActions.Count: > 0 })
             {
-                var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
-                var llmResponse     = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
-
-                if (_personaSessionManager is not null
-                 && _personaSessionManager.IsPersonaConversation(context.SessionId))
-                {
-                    var activePersonaId = _personaSessionManager.GetActivePersona(context.SessionId);
-
-                    if (activePersonaId is not null)
-                    {
-                        if (_stabilityTracker is not null
-                         && ContainsPolicyDisclaimerPattern(llmResponse.Content))
-                        {
-                            _stabilityTracker.RecordPolicyInterference(context.SessionId, activePersonaId.Value);
-                        }
-
-                        await TrySampleEmotionalTopologyAsync(context.SessionId
-                                                            , activePersonaId.Value
-                                                            , llmResponse.Content
-                                                            , ct);
-                    }
-                }
-
-                var personaResponse = new ConverseResponse
-                                      {
-                                              Message = llmResponse.Content
-                                            , Debug   = interpretation.DebugInfo
-                                      };
-                FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
+                var message = BuildNoActionMessage(interpretation);
+                var missingActionResponse = new ConverseResponse
+                                            {
+                                                    Message = message
+                                                  , Debug   = interpretation.DebugInfo
+                                            };
+                FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
                 return await FinalizeAsync(request
-                                         , personaResponse
+                                         , missingActionResponse
                                          , stopwatch
                                          , TurnPath.Interpreter
                                          , actionName: null
-                                         , succeeded:  true
+                                         , succeeded:  false
                                          , ct:         ct);
             }
 
-            var message = BuildNoActionMessage(interpretation);
-            var missingActionResponse = new ConverseResponse
-                                        {
-                                                Message = message
-                                              , Debug   = interpretation.DebugInfo
-                                        };
-            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
+            var enrichedPrompt  = BuildPersonaContextualPrompt(request.Input, context);
+            var fallbackLlmResponse = await _llmRouter.SendAsync(enrichedPrompt, context, complexity, ct).ConfigureAwait(false);
+
+            if (_personaSessionManager is not null
+             && _personaSessionManager.IsPersonaConversation(context.SessionId))
+            {
+                var activePersonaId = _personaSessionManager.GetActivePersona(context.SessionId);
+
+                if (activePersonaId is not null)
+                {
+                    if (_stabilityTracker is not null
+                     && ContainsPolicyDisclaimerPattern(fallbackLlmResponse.Content))
+                    {
+                        _stabilityTracker.RecordPolicyInterference(context.SessionId, activePersonaId.Value);
+                    }
+
+                    await TrySampleEmotionalTopologyAsync(context.SessionId
+                                                        , activePersonaId.Value
+                                                        , fallbackLlmResponse.Content
+                                                        , ct);
+                }
+            }
+
+            var personaResponse = new ConverseResponse
+                                  {
+                                          Message = fallbackLlmResponse.Content
+                                        , Debug   = interpretation.DebugInfo
+                                  };
+            FireTrainingRecord(trainingRecord, executionSucceeded: true, latencyMs: stopwatch.ElapsedMilliseconds);
             return await FinalizeAsync(request
-                                     , missingActionResponse
+                                     , personaResponse
                                      , stopwatch
                                      , TurnPath.Interpreter
                                      , actionName: null
-                                     , succeeded:  false
+                                     , succeeded:  true
                                      , ct:         ct);
+
         }
 
         // Step 8 setup for Execution:

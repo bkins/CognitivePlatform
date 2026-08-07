@@ -62,6 +62,13 @@ public class OrchestratorGracefulFailureTests
                                                   , out It.Ref<Dictionary<string, string>?>.IsAny))
             .Returns(false);
 
+        _routerMock
+            .Setup(router => router.SendAsync(It.IsAny<string>()
+                                            , It.IsAny<ConversationContext>()
+                                            , It.IsAny<TaskComplexity>()
+                                            , It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LlmResponse { Content = "mock fallback response" });
+
         _activityLogMock
             .Setup(log => log.LogAsync(It.IsAny<ActivityEvent>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -133,7 +140,7 @@ public class OrchestratorGracefulFailureTests
     }
 
     [Fact]
-    public async Task ConverseAsync_SuggestsHelpCommand_WhenNoActionRecognized()
+    public async Task ConverseAsync_FallsBackToLlm_WhenNoActionRecognized()
     {
         _registryMock.Setup(registry => registry.GetAll())
                      .Returns(Array.Empty<ActionMetadata>());
@@ -159,7 +166,7 @@ public class OrchestratorGracefulFailureTests
                                                             });
 
         Assert.NotNull(response.Message);
-        Assert.Contains("what can you do", response.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("mock fallback response", response.Message);
     }
 
     // ================================================================
