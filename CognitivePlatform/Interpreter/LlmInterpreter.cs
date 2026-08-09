@@ -107,31 +107,34 @@ public class LlmInterpreter : IInterpreter
                                              .FirstOrDefault(info => info.Name.Equals(model
                                                                                     , StringComparison.OrdinalIgnoreCase));
 
-                if (modelInfo is null || modelInfo.IsUsable.Not())
+                // Only fail early when the model is explicitly in the catalog and known-bad.
+                // A null modelInfo means the catalog was never probed (e.g. Release builds or
+                // ShouldProbeModels = false). In that case, proceed and let the LlmRouter
+                // handle provider selection and its configured fallback chain.
+                if (modelInfo is not null && modelInfo.IsUsable.Not())
                 {
-                    var moreInfo = modelInfo?.FailureReason ?? ".";
+                    var moreInfo = modelInfo.FailureReason ?? ".";
                     if (moreInfo != ".")
                     {
                         moreInfo = $". Reason: {GetLimitType(moreInfo)}";
-                        
                     }
 
-                    var failureReason = modelInfo?.FailureReason ?? string.Empty;
+                    var failureReason = modelInfo.FailureReason ?? string.Empty;
                     var extraReason   = (   failureReason.Contains("HTTP 429:")
                                          || failureReason.Contains("HTTP 503:"))
                                               ? $"\n{failureReason}"
                                               : string.Empty;
-                    
-                    var noModelResult= new InterpreterResult
-                           {
-                                   ActionName          = null
-                                 , ExtractedParameters = new()
-                                 , DebugInfo           = $"No usable model found. Requested: '{requestedModel}', Resolved: '{model}'."
-                                 , CandidateActions    = null
-                                 , MissingParameters   = null
-                                 , FailureType         = InterpreterFailureType.NoMatchingAction
-                                 , Reason              = $"Model '{model}' is not usable on this system{moreInfo}{extraReason}"
-                           };
+
+                    var noModelResult = new InterpreterResult
+                                        {
+                                                ActionName          = null
+                                              , ExtractedParameters = new()
+                                              , DebugInfo           = $"No usable model found. Requested: '{requestedModel}', Resolved: '{model}'."
+                                              , CandidateActions    = null
+                                              , MissingParameters   = null
+                                              , FailureType         = InterpreterFailureType.NoMatchingAction
+                                              , Reason              = $"Model '{model}' is not usable on this system{moreInfo}{extraReason}"
+                                        };
 
                     _telemetry.Track(noModelResult.ToEvent());
 

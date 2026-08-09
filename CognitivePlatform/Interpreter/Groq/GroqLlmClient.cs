@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -72,6 +72,11 @@ public class GroqLlmClient : ILlmClient
                                           new GroqMessage { Role = "user", Content = prompt }
                                   ]
                           };
+
+        if (prompt.Contains("REQUIRED JSON FORMAT:"))
+        {
+            requestBody.ResponseFormat = new { type = "json_object" };
+        }
 
         var endpoint = $"{_settings.Groq.Endpoint.TrimEnd('/')}/chat/completions";
 
@@ -318,6 +323,10 @@ public class GroqLlmClient : ILlmClient
         [JsonPropertyName("stream")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool Stream { get; set; }
+
+        [JsonPropertyName("response_format")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public object? ResponseFormat { get; set; }
     }
 
     private sealed class GroqMessage

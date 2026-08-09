@@ -97,18 +97,16 @@ public class MealActions
 
         var saved = await _mealService.SaveAsync(meal).ConfigureAwait(false);
         var sb    = new StringBuilder();
-        
+
         sb.Append($"Logged {saved.MealType} ");
+
         if (saved.Foods.Count == 1)
         {
-            sb.Append($"({saved.Foods[0].Name}) ");
+            sb.Append($"({saved.Foods[0].Name}) for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}.");
         }
-        sb.Append($"for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}.");
-
-        if (saved.Foods.Count > 1)
+        else
         {
-            sb.AppendLine();
-            sb.Append($"Logged {saved.MealType} with {saved.Foods.Count} items:");
+            sb.Append($"with {saved.Foods.Count} items for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}:");
             foreach (var food in saved.Foods)
             {
                 sb.AppendLine();

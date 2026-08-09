@@ -168,6 +168,8 @@ If the user input is a statement, greeting, test message, or
 non-command conversational text that does not imply any action,
 you MUST choose ChitChat(text: <entire user input>).
 
+EXCEPTION: Statements about eating, drinking, or having a meal (e.g. "I had a bowl of oatmeal...") DO imply an action (LogMeal) and are NOT ChitChat.
+
 Do NOT choose DescribeAction for conversational input.
 
 ---------------------------------------------------------------------

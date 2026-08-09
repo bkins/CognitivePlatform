@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
@@ -116,6 +117,26 @@ public sealed class ApiFixture : IDisposable
     }
 
     public void Dispose() => Client.Dispose();
+
+    /// <summary>
+    /// Performs a fast TCP-level check to determine whether the API is accepting
+    /// connections. Tests should call this at the start and return/skip if false
+    /// rather than blocking until the 120 s HTTP timeout fires.
+    /// </summary>
+    public bool IsApiOnline()
+    {
+        var uri = new Uri(BaseUrl);
+        try
+        {
+            using var tcp = new TcpClient();
+            tcp.Connect(uri.Host, uri.Port);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     // ----------------------------------------------------------------
     // Private

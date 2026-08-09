@@ -58,6 +58,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                                   ]
                           };
 
+        if (prompt.Contains("REQUIRED JSON FORMAT:"))
+        {
+            requestBody.ResponseFormat = new { type = "json_object" };
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_endpoint}/chat/completions")
                             {
                                     Content = JsonContent.Create(requestBody, options: JsonOptions)
@@ -179,6 +184,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         [JsonPropertyName("stream")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool Stream { get; set; }
+
+        [JsonPropertyName("response_format")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public object? ResponseFormat { get; set; }
     }
 
     private sealed class ChatMessage

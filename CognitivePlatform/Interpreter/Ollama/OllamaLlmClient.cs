@@ -44,12 +44,17 @@ public class OllamaLlmClient : ILlmClient
             selectedModel = _settings.DefaultModel;
         }
 
-        var requestBody = new
+        var requestBody = new Dictionary<string, object>
                           {
-                                  model  = selectedModel
-                                , prompt = prompt
-                                , stream = false
+                                { "model", selectedModel }
+                              , { "prompt", prompt }
+                              , { "stream", false }
                           };
+
+        if (prompt.Contains("REQUIRED JSON FORMAT:"))
+        {
+            requestBody["format"] = "json";
+        }
 
         var endpoint = _settings.Endpoint?.TrimEnd('/') ?? "http://localhost:11434";
         using var request = new HttpRequestMessage(HttpMethod.Post
@@ -61,7 +66,9 @@ public class OllamaLlmClient : ILlmClient
         Console.WriteLine($"   RequestUri: {request.RequestUri}");
         //Console.WriteLine($"   Content: {request.Content}");
         //Console.WriteLine($"   ContentType: {request.Content.Headers.ContentType}");
-        Console.WriteLine($"   requestBody: {requestBody.ToString()[1..60]}...");
+        var requestBodyString = requestBody.ToString() ?? string.Empty;
+        var displayString = requestBodyString.Length > 60 ? requestBodyString[1..60] : requestBodyString;
+        Console.WriteLine($"   requestBody: {displayString}...");
         
         using var response = await _httpClient.SendAsync(request
                                                        , HttpCompletionOption.ResponseHeadersRead

@@ -63,6 +63,11 @@ public class GeminiLlmClient : ILlmClient
                                   ]
                           };
 
+        if (prompt.Contains("REQUIRED JSON FORMAT:"))
+        {
+            requestBody.ResponseFormat = new { type = "json_object" };
+        }
+
         var endpoint = $"{_settings.Gemini.Endpoint.TrimEnd('/')}/chat/completions";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
@@ -223,6 +228,10 @@ public class GeminiLlmClient : ILlmClient
         [JsonPropertyName("stream")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool Stream { get; set; }
+
+        [JsonPropertyName("response_format")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public object? ResponseFormat { get; set; }
     }
 
     private sealed class ChatMessage
