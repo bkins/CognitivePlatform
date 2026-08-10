@@ -34,12 +34,12 @@ public class TaskKnowledgeSource : IKnowledgeSource
     }
 
     public IEnumerable<KnowledgeItemDto> GetKnowledgeItems (KnowledgeQuery    query
-                                                          , CancellationToken ct)
+                                                           , CancellationToken ct)
     {
         // TODO: introduce filtering
         // NOTE: Filtering is intentionally deferred to the aggregator for now
 
-        var tasks = _taskService.List();
+        var tasks = _objectStore.List<TaskItem>(partitionKey: null);
 
         foreach (var task in tasks)
         {
@@ -52,16 +52,16 @@ public class TaskKnowledgeSource : IKnowledgeSource
                                        : Array.Empty<string>();
             var item = new KnowledgeItemDto
                        {
-                               Id        = Guid.Parse(task.Id)
-                             , Kind      = Kind
-                             , Title     = DeriveTitle(task)
-                             , Summary   = DeriveSummary(task)
-                             , CreatedAt = task.CreatedAt
-                               // , LastModifiedAt = task.TODO
-                             , Status     = GetStatus(task)
-                             , Tags       = tags
-                             , Importance = null
-                             , Urgency    = null
+                               Id             = Guid.Parse(task.Id)
+                             , Kind           = Kind
+                             , Title          = DeriveTitle(task)
+                             , Summary        = DeriveSummary(task)
+                             , CreatedAt      = task.CreatedAt
+                             , LastModifiedAt = task.UpdatedAt
+                             , Status         = GetStatus(task)
+                             , Tags           = tags
+                             , Importance     = null
+                             , Urgency        = null
                        };
             
             yield return item;
@@ -71,7 +71,7 @@ public class TaskKnowledgeSource : IKnowledgeSource
     public IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
                                                    , DateTimeOffset? toUtc)
     {
-        return _taskService.List(fromUtc, toUtc, includeCompleted: true)
+        return _objectStore.List<TaskItem>(partitionKey: null, fromUtc: fromUtc, toUtc: toUtc)
                            .Where(task => !task.IsDeleted)
                            .Select(task => new ObjectHeader(
                                        task.Id

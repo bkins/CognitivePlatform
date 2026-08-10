@@ -168,7 +168,19 @@ If the user input is a statement, greeting, test message, or
 non-command conversational text that does not imply any action,
 you MUST choose ChitChat(text: <entire user input>).
 
-EXCEPTION: Statements about eating, drinking, or having a meal (e.g. "I had a bowl of oatmeal...") DO imply an action (LogMeal) and are NOT ChitChat.
+EXCEPTION: Statements about eating, drinking, or having a meal (e.g. "I had a bowl of oatmeal...") DO imply an action and are NOT ChitChat.
+
+MEAL ROUTING RULES (MANDATORY):
+- When the user mentions EXACTLY ONE meal type  →  use LogMeal (single Meal object).
+- When the user mentions TWO OR MORE meal types in one message (e.g. "lunch ... and dinner ...") → use LogMeals (array of Meal objects).
+- NEVER pass multiple COCE objects separated by "|" or any other delimiter into a single-Meal parameter.
+- NEVER use LogMeals with a single-element array when LogMeal is sufficient.
+
+LogMeals parameter "meals" MUST be a JSON array, e.g.:
+[
+  {"MealType":"Lunch","Foods":[{"Name":"turkey sandwich"}]},
+  {"MealType":"Dinner","Foods":[{"Name":"grilled salmon"},{"Name":"rice"}]}
+]
 
 Do NOT choose DescribeAction for conversational input.
 

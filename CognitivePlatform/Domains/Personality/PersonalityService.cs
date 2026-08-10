@@ -9,12 +9,12 @@ public class PersonalityService : IPersonalityService
     // Fixed IDs for the 6 built-in personalities so seeding is idempotent.
     private static class BuiltInIds
     {
-        public const string FriendlyHelper     = "00000000000000000000000000000001";
-        public const string Programmer         = "00000000000000000000000000000002";
-        public const string Witty              = "00000000000000000000000000000003";
-        public const string Zen                = "00000000000000000000000000000004";
-        public const string TechExpert         = "00000000000000000000000000000005";
-        public const string MotivationalCoach  = "00000000000000000000000000000006";
+        public const string FriendlyHelper     = "3f7a1a2b-0001-4000-8000-000000000001";
+        public const string Programmer         = "3f7a1a2b-0002-4000-8000-000000000002";
+        public const string Witty              = "3f7a1a2b-0003-4000-8000-000000000003";
+        public const string Zen                = "3f7a1a2b-0004-4000-8000-000000000004";
+        public const string TechExpert         = "3f7a1a2b-0005-4000-8000-000000000005";
+        public const string MotivationalCoach  = "3f7a1a2b-0006-4000-8000-000000000006";
     }
 
     public PersonalityService(IObjectStore store)
@@ -94,6 +94,17 @@ public class PersonalityService : IPersonalityService
     private async Task EnsureSeededAsync()
     {
         var existing = _store.List<PersonalityDefinition>();
+
+        // If any old built-in IDs are present, soft delete them so they migrate cleanly
+        var hasOldIds = existing.Any(personality => personality.IsBuiltIn && personality.Id.StartsWith("00000000"));
+        if (hasOldIds)
+        {
+            foreach (var old in existing.Where(p => p.IsBuiltIn && p.Id.StartsWith("00000000")))
+            {
+                await _store.SoftDeleteAsync<PersonalityDefinition>(old.Id).ConfigureAwait(false);
+            }
+            existing = _store.List<PersonalityDefinition>();
+        }
 
         if (existing.Any(personality => personality.IsBuiltIn))
             return;

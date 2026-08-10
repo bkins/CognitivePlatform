@@ -23,7 +23,7 @@ public class MealActions
     }
 
     [NaturalLanguageAction(
-        Description = "Logs a meal constructed via COCE."
+        Description = "Logs a SINGLE meal constructed via COCE. Use LogMeals (plural) when the user mentions more than one meal type in the same message."
       , Examples    =
         [
             "For breakfast I had two scrambled eggs."
@@ -48,77 +48,53 @@ public class MealActions
                    };
         }
 
-        var day           = meal.ConsumedAt.ToLocalTime().Date;
-        var offset        = TimeZoneInfo.Local.GetUtcOffset(day);
-        var from          = new DateTimeOffset(day,            offset);
-        var to            = new DateTimeOffset(day.AddDays(1), offset);
-        var existingMeals = await _mealService.ListAsync(from, to).ConfigureAwait(false);
+        return await ProcessMealAsync(meal).ConfigureAwait(false);
+    }
 
-        if (existingMeals is not null && existingMeals.Count > 0)
+    [NaturalLanguageAction(
+        Description = "Logs MULTIPLE meals from a single message (e.g. lunch AND dinner mentioned together). Pass each meal as a separate object in the array."
+      , Examples    =
+        [
+            "For lunch I had a turkey sandwich, and for dinner I had grilled salmon and rice."
+          , "I had eggs for breakfast and a salad for lunch."
+          , "Breakfast was oatmeal, lunch was soup, dinner was chicken."
+        ]
+      , Category    = "Food"
+      , IsReplayable = true)]
+    public async Task<ActionResult> LogMeals(
+        [NaturalLanguageParam(Description = "Array of Meal objects — one per meal type. Each contains Foods, MealType, and optionally ConsumedAt."
+                            , Optional    = false
+                            , AllowEmpty  = false)]
+        List<Meal> meals)
+    {
+        if (meals is null || meals.Count == 0)
         {
-            var existingMeal = existingMeals.FirstOrDefault(m => m.MealType == meal.MealType && meal.MealType != MealType.Unspecified);
-
-            if (existingMeal is not null)
-            {
-                var newFoods = meal.Foods.Where(incoming => !existingMeal.Foods.Any(existing => existing.Name.Equals(incoming.Name, StringComparison.OrdinalIgnoreCase)))
-                                         .ToList();
-
-                if (newFoods.Count == 0)
-                {
-                    return new ActionResult
-                           {
-                               Success = true
-                             , Message = $"An entry for {existingMeal.MealType} containing these items is already logged for today (no duplicate added)."
-                             , Data    = existingMeal
-                           };
-                }
-
-                if (meal.MealType is MealType.Breakfast or MealType.Lunch or MealType.Dinner)
-                {
-                    var updated = await _mealService.UpdateAsync(Guid.Parse(existingMeal.Id), newFoods).ConfigureAwait(false);
-                    var mergeSb = new StringBuilder();
-                    
-                    mergeSb.Append($"Added {newFoods.Count} new item(s) to today's {existingMeal.MealType} entry:");
-                    foreach (var food in newFoods)
-                    {
-                        mergeSb.AppendLine();
-                        mergeSb.Append($"- {FormatFood(food)}");
-                    }
-
-                    return new ActionResult
-                           {
-                               Success = true
-                             , Message = mergeSb.ToString()
-                             , Data    = updated
-                           };
-                }
-            }
+            return new ActionResult
+                   {
+                       Success = false
+                     , Message = "No meal details could be parsed."
+                   };
         }
 
-        var saved = await _mealService.SaveAsync(meal).ConfigureAwait(false);
-        var sb    = new StringBuilder();
+        var sb      = new StringBuilder();
+        var results = new List<Meal>();
 
-        sb.Append($"Logged {saved.MealType} ");
-
-        if (saved.Foods.Count == 1)
+        foreach (var meal in meals)
         {
-            sb.Append($"({saved.Foods[0].Name}) for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}.");
-        }
-        else
-        {
-            sb.Append($"with {saved.Foods.Count} items for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}:");
-            foreach (var food in saved.Foods)
-            {
+            var result = await ProcessMealAsync(meal).ConfigureAwait(false);
+            if (sb.Length > 0)
                 sb.AppendLine();
-                sb.Append($"- {FormatFood(food)}");
-            }
+            sb.Append(result.Message);
+
+            if (result.Data is Meal savedMeal)
+                results.Add(savedMeal);
         }
 
         return new ActionResult
                {
                    Success = true
                  , Message = sb.ToString()
-                 , Data    = saved
+                 , Data    = results
                };
     }
 
@@ -167,7 +143,7 @@ public class MealActions
         {
             sb.AppendLine();
             sb.AppendLine();
-            sb.Append($"## {meal.MealType} ({meal.ConsumedAt.ToLocalTime():h:mm tt}) (ID: {meal.Id})");
+            sb.Append($"## {meal.MealType} ({meal.ConsumedAt.ToLocalTime():h:mm tt})");
             if (meal.Notes.HasValue())
             {
                 sb.AppendLine();
@@ -308,6 +284,93 @@ public class MealActions
                    Success = true
                  , Message = sb.ToString()
                  , Data    = updated
+               };
+    }
+
+    // -----------------------------------------------------------------------
+    // Core Processing
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Core meal-logging logic shared by <see cref="LogMeal"/> and <see cref="LogMeals"/>.
+    /// Handles duplicate detection, appending to an existing meal, and fresh saves.
+    /// </summary>
+    private async Task<ActionResult> ProcessMealAsync(Meal meal)
+    {
+        var day           = meal.ConsumedAt.ToLocalTime().Date;
+        var offset        = TimeZoneInfo.Local.GetUtcOffset(day);
+        var from          = new DateTimeOffset(day,            offset);
+        var to            = new DateTimeOffset(day.AddDays(1), offset);
+        var existingMeals = await _mealService.ListAsync(from, to).ConfigureAwait(false);
+
+        if (existingMeals is not null && existingMeals.Count > 0)
+        {
+            var existingMeal = existingMeals.FirstOrDefault(existing => existing.MealType == meal.MealType
+                                                                      && meal.MealType != MealType.Unspecified);
+
+            if (existingMeal is not null)
+            {
+                var newFoods = meal.Foods.Where(incoming =>
+                                                    !existingMeal.Foods.Any(existing =>
+                                                        existing.Name.Equals(incoming.Name, StringComparison.OrdinalIgnoreCase)))
+                                         .ToList();
+
+                if (newFoods.Count == 0)
+                {
+                    return new ActionResult
+                           {
+                               Success = true
+                             , Message = $"An entry for {existingMeal.MealType} containing these items is already logged for today (no duplicate added)."
+                             , Data    = existingMeal
+                           };
+                }
+
+                if (meal.MealType is MealType.Breakfast or MealType.Lunch or MealType.Dinner)
+                {
+                    var updated = await _mealService.UpdateAsync(Guid.Parse(existingMeal.Id), newFoods).ConfigureAwait(false);
+                    var mergeSb = new StringBuilder();
+
+                    mergeSb.Append($"Added {newFoods.Count} new item(s) to today's {existingMeal.MealType} entry:");
+                    foreach (var food in newFoods)
+                    {
+                        mergeSb.AppendLine();
+                        mergeSb.Append($"- {FormatFood(food)}");
+                    }
+
+                    return new ActionResult
+                           {
+                               Success = true
+                             , Message = mergeSb.ToString()
+                             , Data    = updated
+                           };
+                }
+            }
+        }
+
+        var saved = await _mealService.SaveAsync(meal).ConfigureAwait(false);
+        var sb    = new StringBuilder();
+
+        sb.Append($"Logged {saved.MealType} ");
+
+        if (saved.Foods.Count == 1)
+        {
+            sb.Append($"({FormatFood(saved.Foods[0])}) for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}.");
+        }
+        else
+        {
+            sb.Append($"with {saved.Foods.Count} items for today at {saved.ConsumedAt.ToLocalTime():h:mm tt}:");
+            foreach (var food in saved.Foods)
+            {
+                sb.AppendLine();
+                sb.Append($"- {FormatFood(food)}");
+            }
+        }
+
+        return new ActionResult
+               {
+                   Success = true
+                 , Message = sb.ToString()
+                 , Data    = saved
                };
     }
 

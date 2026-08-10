@@ -156,10 +156,10 @@ public class TaskKnowledgeSourceTests
 
     private void SetupTaskList(params TaskItem[] tasks)
     {
-        _taskServiceMock.Setup(service => service.List(It.IsAny<DateTimeOffset?>()
+        _storeMock.Setup(store => store.List<TaskItem>(It.IsAny<string?>()
                                                      , It.IsAny<DateTimeOffset?>()
-                                                     , It.IsAny<bool>()))
-                        .Returns(tasks.ToList());
+                                                     , It.IsAny<DateTimeOffset?>()))
+                  .Returns(tasks.ToList());
     }
 
     // ================================================================
@@ -203,7 +203,7 @@ public class TaskKnowledgeSourceTests
     }
 
     [Fact]
-    public void ListHeaders_PassesDateRangeToTaskService()
+    public void ListHeaders_PassesDateRangeToObjectStore()
     {
         var from = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var to   = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
@@ -211,6 +211,6 @@ public class TaskKnowledgeSourceTests
 
         _source.ListHeaders(from, to);
 
-        _taskServiceMock.Verify(service => service.List(from, to, true), Times.Once);
+        _storeMock.Verify(store => store.List<TaskItem>(null, from, to), Times.Once);
     }
 }

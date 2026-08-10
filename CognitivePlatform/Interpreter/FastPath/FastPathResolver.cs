@@ -2419,6 +2419,16 @@ public sealed class FastPathResolver : IFastPathResolver
           , "bug report"
           , "found a bug"
           , "report a bug"
+          , "idea"
+          , "new idea"
+          , "idea suggestion"
+          , "suggest an idea"
+          , "report an idea"
+          , "report idea"
+          , "feature idea"
+          , "feature request"
+          , "suggestion"
+          , "feature"
         };
 
     // ================================================================

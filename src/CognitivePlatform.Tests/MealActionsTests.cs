@@ -203,4 +203,81 @@ public class MealActionsTests
         Assert.Contains("already logged", result.Message, StringComparison.OrdinalIgnoreCase);
         _mealServiceMock.Verify(service => service.SaveAsync(It.IsAny<Meal>()), Times.Never);
     }
+    [Fact]
+    public async Task LogMeals_SavesBothMeals_AndReturnsConsolidatedMessage()
+    {
+        var lunch = new Meal
+                    {
+                        MealType   = MealType.Lunch
+                      , Foods      = new List<FoodEntry> { new FoodEntry { Name = "turkey sandwich" } }
+                      , ConsumedAt = new DateTimeOffset(2026, 8, 9, 12, 0, 0, TimeSpan.Zero)
+                    };
+        var dinner = new Meal
+                     {
+                         MealType   = MealType.Dinner
+                       , Foods      = new List<FoodEntry>
+                                      {
+                                          new FoodEntry { Name = "grilled salmon" }
+                                        , new FoodEntry { Name = "rice" }
+                                      }
+                       , ConsumedAt = new DateTimeOffset(2026, 8, 9, 18, 0, 0, TimeSpan.Zero)
+                     };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal>());
+        _mealServiceMock.Setup(service => service.SaveAsync(lunch)).ReturnsAsync(lunch);
+        _mealServiceMock.Setup(service => service.SaveAsync(dinner)).ReturnsAsync(dinner);
+
+        var result = await _actions.LogMeals(new List<Meal> { lunch, dinner });
+
+        Assert.True(result.Success);
+        Assert.Contains("Logged Lunch",   result.Message);
+        Assert.Contains("Logged Dinner",  result.Message);
+        Assert.Contains("turkey sandwich", result.Message);
+        Assert.Contains("grilled salmon",  result.Message);
+        _mealServiceMock.Verify(service => service.SaveAsync(It.IsAny<Meal>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task LogMeals_WithNullInput_ReturnsFailed()
+    {
+        var result = await _actions.LogMeals(null!);
+
+        Assert.False(result.Success);
+        Assert.Contains("No meal details", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LogMeals_WithEmptyList_ReturnsFailed()
+    {
+        var result = await _actions.LogMeals(new List<Meal>());
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task LogMeal_SingleItemWithAdditions_IncludesAdditionsInMessage()
+    {
+        var food = new FoodEntry
+                   {
+                       Name      = "oatmeal with blueberries"
+                     , Additions = new List<string> { "black coffee" }
+                   };
+        var meal = new Meal
+                   {
+                       MealType   = MealType.Breakfast
+                     , Foods      = new List<FoodEntry> { food }
+                     , ConsumedAt = new DateTimeOffset(2026, 8, 9, 8, 0, 0, TimeSpan.Zero)
+                   };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal>());
+        _mealServiceMock.Setup(service => service.SaveAsync(meal)).ReturnsAsync(meal);
+
+        var result = await _actions.LogMeal(meal);
+
+        Assert.True(result.Success);
+        Assert.Contains("oatmeal with blueberries",   result.Message);
+        Assert.Contains("black coffee",               result.Message);
+    }
 }

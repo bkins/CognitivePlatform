@@ -39,19 +39,25 @@ public class LlmInterpreterTests
     }
 
     [Fact]
-    public async Task InterpretWithContext_WhenModelNotInCatalog_ReturnsNoModelResult_WithoutThrowingNullRef()
+    public async Task InterpretWithContext_WhenModelIsNotUsable_ReturnsNoModelResult_WithoutThrowingNullRef()
     {
-        // Arrange: empty catalog so FirstOrDefault returns null → modelInfo is null
-        var emptyCatalog = new LlmModelCatalog();
-        var interpreter  = BuildInterpreter(emptyCatalog);
+        // Arrange: model in catalog but unusable with null FailureReason
+        var catalog = new LlmModelCatalog();
+        catalog.Add(new LlmModelInfo( Name              : "test-model"
+                                    , IsUsable           : false
+                                    , FailureReason      : null
+                                    , SupportsChat       : true
+                                    , SupportsStreaming  : true ));
+        var interpreter  = BuildInterpreter(catalog);
         var context      = new ConversationContext("test-session");
+        context.Metadata["model"] = "test-model";
 
-        // Act: previously threw NullReferenceException at the extraReason line
+        // Act: previously threw NullReferenceException
         var result = await interpreter.InterpretWithContext("what time is it", context);
 
-        // Assert: returns a structured failure rather than an unhandled exception
+        // Assert: returns a structured failure
         Assert.Equal(InterpreterFailureType.NoMatchingAction, result.FailureType);
-        Assert.NotNull(result.Reason);
+        Assert.Contains("is not usable on this system", result.Reason);
     }
 
     // EPIC-08: Action catalog enrichment — catalog format and parse-path tests.

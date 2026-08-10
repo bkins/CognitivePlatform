@@ -98,6 +98,13 @@ public void CalculateTotal_WithValidItems_ReturnsSum()
 * Edge cases: null, empty, boundary, and unexpected/invalid inputs.
 * Mock external dependencies (like databases, APIs, file systems) using Moq.
 
+## Model Catalog Probing Resiliency Invariant
+
+On Release/production builds or when `ShouldProbeModels = false` in settings, the LLM model catalog remains empty.
+* Never check `modelInfo is null` as a usability failure.
+* Only fail early if `modelInfo` is explicitly present in the catalog AND marked unusable (`IsUsable == false`).
+* If `modelInfo` is null, proceed and let the LLM router handle execution and its configured fallbacks.
+
 ---
 
 ## Definition of Done (DoD)
