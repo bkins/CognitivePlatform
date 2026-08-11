@@ -507,6 +507,62 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
+        if (prefix.Equals("watch", StringComparison.OrdinalIgnoreCase)
+         || prefix.Equals("watchlist", StringComparison.OrdinalIgnoreCase))
+        {
+            var body = input[(colonIndex + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(body)) return false;
+
+            if (body.StartsWith("add ", StringComparison.OrdinalIgnoreCase))
+            {
+                action = _registry.Actions.FirstOrDefault(a => a.Name == "AddWatchItem");
+                if (action is null) return false;
+
+                var itemTitle = body[4..].Trim();
+                parameters = new Dictionary<string, string> { ["title"] = itemTitle };
+                return true;
+            }
+            
+            if (body.Equals("list", StringComparison.OrdinalIgnoreCase))
+            {
+                action = _registry.Actions.FirstOrDefault(a => a.Name == "ListWatchItems");
+                if (action is null) return false;
+
+                parameters = new Dictionary<string, string>();
+                return true;
+            }
+
+            if (body.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
+            {
+                action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
+                if (action is null) return false;
+
+                var itemTitle = body[9..].Trim();
+                parameters = new Dictionary<string, string> { ["title"] = itemTitle };
+                return true;
+            }
+
+            if (body.StartsWith("finished ", StringComparison.OrdinalIgnoreCase))
+            {
+                action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
+                if (action is null) return false;
+
+                var itemTitle = body[9..].Trim();
+                parameters = new Dictionary<string, string> { ["title"] = itemTitle };
+                return true;
+            }
+
+            if (body.StartsWith("watched ", StringComparison.OrdinalIgnoreCase))
+            {
+                action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
+                if (action is null) return false;
+
+                var itemTitle = body[8..].Trim();
+                parameters = new Dictionary<string, string> { ["title"] = itemTitle };
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -2429,6 +2485,8 @@ public sealed class FastPathResolver : IFastPathResolver
           , "feature request"
           , "suggestion"
           , "feature"
+          , "watch"
+          , "watchlist"
         };
 
     // ================================================================

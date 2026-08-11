@@ -52,6 +52,9 @@ public class FastPathResolverTests
             , MakeAction("GetDistance")
             , MakeAction("ReportBug")
             , MakeAction("ReportIdea")
+            , MakeAction("AddWatchItem")
+            , MakeAction("ListWatchItems")
+            , MakeAction("CompleteWatchItem")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -1201,5 +1204,35 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("ReportIdea",                      action!.Name);
         Assert.Equal("Voice input support.",            parameters!["description"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToAddWatchItem_ForWatchAddPrefix()
+    {
+        var resolved = _resolver.TryResolve("watch: add Inception", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("AddWatchItem", action!.Name);
+        Assert.Equal("Inception", parameters!["title"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListWatchItems_ForWatchListPrefix()
+    {
+        var resolved = _resolver.TryResolve("watch: list", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ListWatchItems", action!.Name);
+        Assert.Empty(parameters!);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToCompleteWatchItem_ForWatchCompletePrefix()
+    {
+        var resolved = _resolver.TryResolve("watch: complete Inception", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("CompleteWatchItem", action!.Name);
+        Assert.Equal("Inception", parameters!["title"]);
     }
 }

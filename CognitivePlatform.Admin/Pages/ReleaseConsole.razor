@@ -1446,7 +1446,10 @@
 
         TerminalService.Clear("release");
 
-        var already = Process.GetProcessesByName(processName);
+        var dir     = ApiEnvDir(env);
+        var already = Process.GetProcessesByName(processName)
+                             .Where(proc => IsProcessInDirectory(proc, dir))
+                             .ToArray();
         if (already.Length > 0)
         {
             TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
@@ -1471,7 +1474,9 @@
 
             await Task.Delay(secondsToWait * 1000);
 
-            var running = Process.GetProcessesByName(processName);
+            var running = Process.GetProcessesByName(processName)
+                                 .Where(proc => IsProcessInDirectory(proc, dir))
+                                 .ToArray();
             if (running.Length > 0)
             {
                 TerminalService.AppendLine("release", new TerminalLine($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"));
@@ -1499,7 +1504,10 @@
 
         TerminalService.Clear("release");
 
-        var already = Process.GetProcessesByName(processName);
+        var dir     = CocoEnvDir(env);
+        var already = Process.GetProcessesByName(processName)
+                             .Where(proc => IsProcessInDirectory(proc, dir))
+                             .ToArray();
         if (already.Length > 0)
         {
             TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
@@ -1524,7 +1532,9 @@
 
             await Task.Delay(secondsToWait * 1000);
 
-            var running = Process.GetProcessesByName(processName);
+            var running = Process.GetProcessesByName(processName)
+                                 .Where(proc => IsProcessInDirectory(proc, dir))
+                                 .ToArray();
             if (running.Length > 0)
             {
                 TerminalService.AppendLine("release", new TerminalLine($"[Running — PID {running[0].Id}. Live output is in the Terminal window.]"));
@@ -1565,7 +1575,9 @@
             return;
         }
 
-        var already = Process.GetProcessesByName(processName);
+        var already = Process.GetProcessesByName(processName)
+                             .Where(proc => IsProcessInDirectory(proc, workDir))
+                             .ToArray();
         if (already.Length > 0)
         {
             TerminalService.AppendLine("release", new TerminalLine($"[{processName} is already running — PID {already[0].Id}]"));
@@ -1644,6 +1656,28 @@
             TerminalService.SetExitCode("release", 1);
             proc?.Dispose();
             proc = null;
+        }
+    }
+
+    private static bool IsProcessInDirectory(Process? process, string directoryPath)
+    {
+        if (process is null) return false;
+        try
+        {
+            var fileName = process.MainModule?.FileName;
+            if (fileName is null) return false;
+
+            var processDir = Path.GetDirectoryName(fileName);
+            if (processDir is null) return false;
+
+            var targetDir = Path.GetFullPath(directoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var actualDir = Path.GetFullPath(processDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            return string.Equals(targetDir, actualDir, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 

@@ -65,6 +65,7 @@ public partial class Program
         builder.Services.AddSearchServices();
         builder.Services.AddEmbeddingServices(builder.Configuration);
         builder.Services.AddCalendarServices(builder.Configuration, envName);
+        builder.Services.AddCrossAppIntegrations(builder.Configuration);
 
         builder.Services.AddLlmServices(builder.Configuration);
 

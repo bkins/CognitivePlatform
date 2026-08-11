@@ -13,6 +13,9 @@ public class ConverseResponse
     public bool    WasFastPath            { get; set; }
     public bool    IsConfirmationRequired { get; set; }
     public string? ConfirmationPrompt     { get; set; }
+    public bool    RequiresAuth           { get; set; }
+    public string? AuthProvider           { get; set; }
+    public string? AuthUrl                { get; set; }
 
     /// <summary>
     /// Insights emitted by the Insight Engine on this turn. <see cref="Message"/>

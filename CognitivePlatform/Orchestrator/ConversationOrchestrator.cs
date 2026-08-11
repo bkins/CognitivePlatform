@@ -1080,6 +1080,20 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                       , CancellationToken ct         = default )
     {
         var contextForMetadata = _contextStore.GetOrCreate(request.SessionId);
+
+        if (contextForMetadata.Metadata.TryGetValue("requires_auth", out var reqAuth) && reqAuth == "true")
+        {
+            response.RequiresAuth = true;
+            if (contextForMetadata.Metadata.TryGetValue("auth_provider", out var authProv))
+                response.AuthProvider = authProv;
+            if (contextForMetadata.Metadata.TryGetValue("auth_url", out var authUrl))
+                response.AuthUrl = authUrl;
+
+            contextForMetadata.Metadata.TryRemove("requires_auth", out _);
+            contextForMetadata.Metadata.TryRemove("auth_provider", out _);
+            contextForMetadata.Metadata.TryRemove("auth_url", out _);
+        }
+
         if (path == TurnPath.FastPath || response.WasFastPath)
         {
             response.WasFastPath = true;

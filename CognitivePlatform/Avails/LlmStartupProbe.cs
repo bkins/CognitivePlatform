@@ -2,6 +2,8 @@ using System.Text;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Interpreter;
 
+using Microsoft.Extensions.Configuration;
+
 namespace CognitivePlatform.Api.Avails;
 
 public sealed class LlmStartupProbe
@@ -14,16 +16,24 @@ public sealed class LlmStartupProbe
 
     public LlmStartupProbe (ILlmClient               llm
                           , LlmModelCatalog          catalog
+                          , IConfiguration           config
                           , ILogger<LlmStartupProbe> log)
     {
         _llm     = llm;
         _catalog = catalog;
         _log     = log;
 
+        var shouldProbeConfig = config["ShouldProbe"];
+        if (bool.TryParse(shouldProbeConfig, out var parsedShouldProbe))
+        {
+            ShouldProbeModels = parsedShouldProbe;
+        }
+        else
+        {
 #if DEBUG
-        ShouldProbeModels = true;
+            ShouldProbeModels = true;
 #endif
-
+        }
     }
 
     public async Task RunAsync (IEnumerable<string> candidateModels

@@ -3,6 +3,8 @@ using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Calendar;
 using CognitivePlatform.Api.Registry.Domains;
+using CognitivePlatform.Api.Execution;
+using CognitivePlatform.Api.Conversation;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Configuration;
 
@@ -14,10 +16,14 @@ namespace CognitivePlatform.Api.Domains.Calendar;
 /// has not been completed — the user is guided to /auth/google/connect.
 /// </summary>
 [Domain(typeof(CalendarDomain))]
-public class CalendarActions
+public class CalendarActions : ISessionAware
 {
     private readonly ICalendarProvider _calendar;
     private readonly IConfiguration    _configuration;
+    private ConversationContext?       _sessionContext;
+
+    public void SetSessionContext(ConversationContext context)
+        => _sessionContext = context;
 
     public CalendarActions( ICalendarProvider calendar
                           , IConfiguration    configuration )
@@ -389,12 +395,27 @@ public class CalendarActions
     }
 
     private string NotConnectedMessage()
-        => "Google Calendar is not connected. "
-         + $"Open {GetBaseUrl()}/auth/google/connect in your browser to authorise access, then try again.";
+    {
+        var url = $"{GetBaseUrl()}/auth/google/connect";
+        if (_sessionContext is not null)
+        {
+            _sessionContext.Metadata["requires_auth"] = "true";
+            _sessionContext.Metadata["auth_provider"] = "GoogleCalendar";
+            _sessionContext.Metadata["auth_url"]      = url;
+        }
+        return "Google Calendar is not connected. "
+             + $"Open {url} in your browser to authorise access, then try again.";
+    }
 
     private string ReAuthMessage()
     {
         var url = $"{GetBaseUrl()}/auth/google/connect";
+        if (_sessionContext is not null)
+        {
+            _sessionContext.Metadata["requires_auth"] = "true";
+            _sessionContext.Metadata["auth_provider"] = "GoogleCalendar";
+            _sessionContext.Metadata["auth_url"]      = url;
+        }
         try
         {
             global::System.Diagnostics.Process.Start(new global::System.Diagnostics.ProcessStartInfo
