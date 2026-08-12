@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Actions;
 using CognitivePlatform.Api.Avails;
+using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -107,19 +108,29 @@ public class LlmInterpreter : IInterpreter
                                              .FirstOrDefault(info => info.Name.Equals(model
                                                                                     , StringComparison.OrdinalIgnoreCase));
 
+                LlmModelInfo? requestedModelInfo = null;
+                if (requestedModel.HasValue())
+                {
+                    requestedModelInfo = _modelCatalog.AvailableModels
+                                                      .FirstOrDefault(info => info.Name.Equals(requestedModel
+                                                                                             , StringComparison.OrdinalIgnoreCase));
+                }
+
+                var targetModelInfo = requestedModelInfo ?? modelInfo;
+
                 // Only fail early when the model is explicitly in the catalog and known-bad.
                 // A null modelInfo means the catalog was never probed (e.g. Release builds or
                 // ShouldProbeModels = false). In that case, proceed and let the LlmRouter
                 // handle provider selection and its configured fallback chain.
-                if (modelInfo is not null && modelInfo.IsUsable.Not())
+                if (targetModelInfo is not null && targetModelInfo.IsUsable.Not())
                 {
-                    var moreInfo = modelInfo.FailureReason ?? ".";
+                    var moreInfo = targetModelInfo.FailureReason ?? ".";
                     if (moreInfo != ".")
                     {
                         moreInfo = $". Reason: {GetLimitType(moreInfo)}";
                     }
 
-                    var failureReason = modelInfo.FailureReason ?? string.Empty;
+                    var failureReason = targetModelInfo.FailureReason ?? string.Empty;
                     var extraReason   = (   failureReason.Contains("HTTP 429:")
                                          || failureReason.Contains("HTTP 503:"))
                                               ? $"\n{failureReason}"
@@ -133,7 +144,7 @@ public class LlmInterpreter : IInterpreter
                                               , CandidateActions    = null
                                               , MissingParameters   = null
                                               , FailureType         = InterpreterFailureType.NoMatchingAction
-                                              , Reason              = $"Model '{model}' is not usable on this system{moreInfo}{extraReason}"
+                                              , Reason              = $"Model '{targetModelInfo.Name}' is not usable on this system{moreInfo}{extraReason}"
                                         };
 
                     _telemetry.Track(noModelResult.ToEvent());

@@ -120,4 +120,53 @@ public class LlmStartupProbeTests
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task RunAsync_WhenPrimaryModelFails_TriesAlternativeModelsAndSucceeds()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "ShouldProbe", "true" }
+              , { "LlmClient:Provider", "Gemini" }
+              , { "LlmClient:SortedAllowedModels:0", "gemini-2.5-flash" }
+            })
+            .Build();
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+
+        _llmMock.Setup(llm => llm.ProbeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string model, CancellationToken _) => new LlmModelProbeResult(model, false, Error: "HTTP 429: Quota exceeded"));
+
+        _llmMock.Setup(llm => llm.ProbeAsync("gemini-2.5-flash", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new LlmModelProbeResult("gemini-2.5-flash", true));
+
+        await probe.RunAsync("gemini-3.1-pro-preview", CancellationToken.None);
+
+        var models = _catalog.AvailableModels;
+        Assert.Contains(models, model => model.Name == "gemini-3.1-pro-preview" && !model.IsUsable);
+        Assert.Contains(models, model => model.Name == "gemini-2.5-flash" && model.IsUsable);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAllModelsFail_LogsErrorAndMarksUnusable()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "ShouldProbe", "true" }
+              , { "LlmClient:Provider", "Gemini" }
+              , { "LlmClient:SortedAllowedModels:0", "gemini-2.5-flash" }
+            })
+            .Build();
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+
+        _llmMock.Setup(llm => llm.ProbeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string model, CancellationToken _) => new LlmModelProbeResult(model, false, Error: "HTTP 429: Quota exceeded"));
+
+        await probe.RunAsync("gemini-3.1-pro-preview", CancellationToken.None);
+
+        var models = _catalog.AvailableModels;
+        Assert.Contains(models, model => model.Name == "gemini-3.1-pro-preview" && !model.IsUsable);
+        Assert.Contains(models, model => model.Name == "gemini-2.5-flash" && !model.IsUsable);
+    }
 }

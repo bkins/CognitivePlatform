@@ -2,8 +2,8 @@ using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Interpreter;
-
 using Microsoft.Extensions.Configuration;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Avails;
 
@@ -12,6 +12,7 @@ public sealed class LlmStartupProbe
     private readonly ILlmClient               _llm;
     private readonly LlmModelCatalog          _catalog;
     private readonly ILogger<LlmStartupProbe> _log;
+    private readonly LlmClientSettings?       _settings;
 
     public bool ShouldProbeModels { get; set; } = false;
 
@@ -20,9 +21,10 @@ public sealed class LlmStartupProbe
                           , IConfiguration           config
                           , ILogger<LlmStartupProbe> log)
     {
-        _llm     = llm;
-        _catalog = catalog;
-        _log     = log;
+        _llm      = llm;
+        _catalog  = catalog;
+        _log      = log;
+        _settings = config.GetSection("LlmClient").Get<LlmClientSettings>();
 
         var shouldProbeConfig = config["ShouldProbe"];
         if (bool.TryParse(shouldProbeConfig, out var parsedShouldProbe))
@@ -101,6 +103,110 @@ public sealed class LlmStartupProbe
         _catalog.Add(result);
 
         LogSummary(result);
+
+        if (probe.IsUsable.Not())
+        {
+            var alternatives = GetAlternativeModelsForProvider(candidateModel);
+            if (alternatives.Count > 0)
+            {
+                _log.LogWarning("  ✖ {ModelName} failed startup probe. Attempting to probe available alternative models for provider...", candidateModel);
+
+                foreach (var altModel in alternatives)
+                {
+                    _log.LogInformation("Probing alternative {Model}...", altModel);
+                    var altProbe = await _llm.ProbeAsync(altModel, ct);
+                    if (altProbe is null)
+                    {
+                        continue;
+                    }
+
+                    var altResult = new LlmModelInfo(altModel
+                                                   , altProbe.IsUsable
+                                                   , altProbe.Error
+                                                   , SupportsChat: altProbe.IsUsable
+                                                   , SupportsStreaming: altProbe.IsUsable);
+
+                    _catalog.Add(altResult);
+                    LogSummary(altResult);
+
+                    if (altProbe.IsUsable)
+                    {
+                        _log.LogInformation("  ✔ Successfully found working alternative model {Model} for provider.", altModel);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private IReadOnlyList<string> GetAlternativeModelsForProvider(string originalModel)
+    {
+        var alternatives = new List<string>();
+        if (_settings is null) return alternatives;
+
+        var provider = _settings.Provider;
+
+        // 1. Gather matching models from SortedAllowedModels
+        if (_settings.SortedAllowedModels is not null)
+        {
+            foreach (var model in _settings.SortedAllowedModels)
+            {
+                if (ModelBelongsToProvider(model, provider))
+                {
+                    var cleanedModel = NormalizeModelName(model);
+                    if (string.Equals(cleanedModel, originalModel, StringComparison.OrdinalIgnoreCase).Not()
+                     && alternatives.Contains(cleanedModel).Not())
+                    {
+                        alternatives.Add(cleanedModel);
+                    }
+                }
+            }
+        }
+
+        // 2. Add standard known models as fallbacks
+        var standardFallbacks = GetStandardFallbackModels(provider);
+        foreach (var model in standardFallbacks)
+        {
+            if (string.Equals(model, originalModel, StringComparison.OrdinalIgnoreCase).Not()
+             && alternatives.Contains(model).Not())
+            {
+                alternatives.Add(model);
+            }
+        }
+
+        return alternatives;
+    }
+
+    private static string NormalizeModelName(string model)
+    {
+        return model.Trim().Replace(" ", "-").ToLowerInvariant();
+    }
+
+    private static bool ModelBelongsToProvider(string model, LlmProvider provider)
+    {
+        var modelLower = model.ToLowerInvariant();
+        return provider switch
+        {
+            LlmProvider.Gemini     => modelLower.Contains("gemini")
+          , LlmProvider.Groq       => modelLower.Contains("llama") || modelLower.Contains("mixtral") || modelLower.Contains("gemma") || modelLower.Contains("qwen") || modelLower.Contains("deepseek")
+          , LlmProvider.Cerebras   => modelLower.Contains("llama") || modelLower.Contains("cerebras")
+          , LlmProvider.Ollama     => modelLower.Contains("qwen") || modelLower.Contains("llama") || modelLower.Contains("phi") || modelLower.Contains("mistral") || modelLower.Contains("gemma") || modelLower.Contains(":")
+          , LlmProvider.OpenRouter => modelLower.Contains("/") || modelLower.Contains("openai") || modelLower.Contains("google") || modelLower.Contains("anthropic")
+          , _                      => false
+        };
+    }
+
+    private static IReadOnlyList<string> GetStandardFallbackModels(LlmProvider provider)
+    {
+        return provider switch
+        {
+            LlmProvider.Gemini     => new[] { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro" }
+          , LlmProvider.Groq       => new[] { "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-qwq-32b", "deepseek-r1-distill-llama-70b" }
+          , LlmProvider.Cerebras   => new[] { "llama3.1-8b", "llama-3.3-70b" }
+          , LlmProvider.Ollama     => new[] { "qwen2.5:14b", "llama3.1:8b", "llama3.2", "phi3:mini" }
+          , LlmProvider.OpenRouter => new[] { "openai/gpt-4o-mini", "google/gemini-2.5-flash" }
+          , _                      => Array.Empty<string>()
+        };
     }
 
     private void LogSummary( IEnumerable<LlmModelInfo> models )
