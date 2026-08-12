@@ -1164,6 +1164,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                        ConversationId = request.SessionId
                                                      , CreatedUtc     = DateTime.UtcNow
                                                };
+
+            if (existingMetadata is null && request.Input.HasValue())
+            {
+                var cleanPrompt = request.Input.Trim();
+                metadata.Name = cleanPrompt.Length > 40 
+                    ? cleanPrompt[..40] + "..." 
+                    : cleanPrompt;
+                metadata.Name = metadata.Name.Replace("\r", " ").Replace("\n", " ");
+            }
+
             metadata.LastActiveUtc  = DateTime.UtcNow;
             metadata.MessageCount  += 2;
             await _metadataStore.UpsertAsync(metadata);
