@@ -43,6 +43,23 @@ public class AgentJobsControllerTests
     }
 
     [Fact]
+    public async Task CreateJob_WithModel_SetsModelOnJob()
+    {
+        var request = new CreateAgentJobRequest("Test prompt", "conv-123", "gemini-2.5-pro");
+
+        _storeMock
+            .Setup(store => store.Save(It.IsAny<AgentJob>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync("resolved-id");
+
+        var result = await _sut.CreateJob(request);
+
+        var ok      = Assert.IsType<OkObjectResult>(result);
+        var created = Assert.IsType<AgentJob>(ok.Value);
+        Assert.Equal("gemini-2.5-pro", created.Model);
+        _storeMock.Verify(store => store.Save(It.IsAny<AgentJob>(), "AgentJobs", It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
     public async Task GetPendingJobs_ReturnsOnlyPendingJobs()
     {
         var jobs = new List<AgentJob>

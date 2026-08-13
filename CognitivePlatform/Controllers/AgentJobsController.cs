@@ -26,6 +26,7 @@ public class AgentJobsController : ControllerBase
                   {
                       Prompt         = request.Prompt
                     , ConversationId = request.ConversationId
+                    , Model          = request.Model
                     , Status         = AgentJobStatus.Pending
                     , CreatedUtc     = DateTimeOffset.UtcNow
                   };

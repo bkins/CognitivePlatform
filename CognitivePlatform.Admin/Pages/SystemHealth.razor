@@ -1,7 +1,11 @@
 @page "/"
 @implements IDisposable
+@using System.Diagnostics
+@using System.Text
+@using CognitivePlatform.Admin.Services.ToolScript.Models
 @inject IAdminSystemClient  SystemClient
 @inject EnvironmentService  EnvService
+@inject ITerminalStateService TerminalService
 
 <PageTitle>System Health — CP Admin</PageTitle>
 
@@ -164,6 +168,72 @@ else if (_error is not null)
         </MudGrid>
     }
 
+    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Remote Agent Poller</MudText>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+        Manages the background workstation poller daemon that submits remote prompts to Antigravity.
+    </MudText>
+    <MudCard Elevation="2" Class="mb-6">
+        <MudCardContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="4">
+                <MudStack Spacing="1">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700">Poller Daemon Status</MudText>
+                        @if (_pollerRunning)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.PlayArrow">
+                                @(_pollerRunningViaAdmin ? "Running (Via Admin)" : "Running (External)")
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small" Icon="@Icons.Material.Filled.Stop">
+                                Stopped
+                            </MudChip>
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Script Path: <code>@GetPollerScriptPath()</code>
+                    </MudText>
+                    @if (_pollerError is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error">@_pollerError</MudText>
+                    }
+                </MudStack>
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@_pollerRunning"
+                           OnClick="@StartPollerAsync">
+                    Start Poller
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Stop"
+                           Disabled="@(!_pollerRunning)"
+                           OnClick="@StopPollerAsync">
+                    Stop Poller
+                </MudButton>
+            </MudStack>
+        </MudCardContent>
+        @if (_pollerRunningViaAdmin || _showPollerConsole)
+        {
+            <MudCardActions>
+                <MudButton Variant="Variant.Text"
+                           Size="Size.Small"
+                           StartIcon="@(_showPollerConsole ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                           OnClick="@(() => _showPollerConsole = !_showPollerConsole)">
+                    Console Output
+                </MudButton>
+            </MudCardActions>
+            <MudCollapse Expanded="_showPollerConsole">
+                <MudCardContent Class="pt-0">
+                    <TerminalOutput Terminal="@TerminalService.Get("remote-agent-poller")" />
+                </MudCardContent>
+            </MudCollapse>
+        }
+    </MudCard>
+
     <MudText Typo="Typo.h6" Class="mt-6 mb-2">Object Store</MudText>
     <MudDataGrid Items="@_stats.ObjectCounts"
                  Dense="true"
@@ -189,9 +259,137 @@ else if (_error is not null)
     private DateTime?            _lastRefreshed;
     private Timer?               _refreshTimer;
 
+    private bool                 _pollerRunning;
+    private bool                 _pollerRunningViaAdmin;
+    private bool                 _showPollerConsole;
+    private string?              _pollerError;
+
+    private string GetPollerScriptPath() => @"C:\Users\benho\source\repos\AI.Workspace\Antigravity\remote-agent-poller.ps1";
+
+    private bool IsPollerRunningExternally()
+    {
+        try
+        {
+            using var ps = System.Management.Automation.PowerShell.Create();
+            ps.AddScript("Get-CimInstance Win32_Process -Filter \"name = 'pwsh.exe' or name = 'powershell.exe'\" | Select-Object -ExpandProperty CommandLine");
+            var results = ps.Invoke();
+            foreach (var res in results)
+            {
+                if (res?.ToString()?.Contains("remote-agent-poller.ps1", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+        return false;
+    }
+
+    private void UpdatePollerStatus()
+    {
+        _pollerRunningViaAdmin = TerminalService.Get("remote-agent-poller").IsRunning;
+        var runningExternally = IsPollerRunningExternally();
+        
+        if (_pollerRunningViaAdmin)
+        {
+            _pollerRunning = true;
+        }
+        else
+        {
+            _pollerRunning = runningExternally;
+        }
+    }
+
+    private void OnTerminalChanged(string terminalId)
+    {
+        if (terminalId != "remote-agent-poller") return;
+        InvokeAsync(() =>
+        {
+            UpdatePollerStatus();
+            StateHasChanged();
+        });
+    }
+
+    private async Task StartPollerAsync()
+    {
+        var scriptPath = GetPollerScriptPath();
+        if (!System.IO.File.Exists(scriptPath))
+        {
+            _pollerError = $"Poller script not found at {scriptPath}";
+            return;
+        }
+
+        _pollerError = null;
+        _showPollerConsole = true;
+
+        var startInfo = new ProcessStartInfo
+                        {
+                            FileName               = "pwsh"
+                          , Arguments              = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\""
+                          , RedirectStandardOutput = true
+                          , RedirectStandardError  = true
+                          , UseShellExecute        = false
+                          , CreateNoWindow         = true
+                          , StandardOutputEncoding = Encoding.UTF8
+                          , StandardErrorEncoding  = Encoding.UTF8
+                        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                TerminalService.MarkRunning("remote-agent-poller", true);
+                var exitCode = await TerminalService.RunProcessAsync("remote-agent-poller", startInfo);
+                TerminalService.SetExitCode("remote-agent-poller", exitCode);
+            }
+            catch (Exception ex)
+            {
+                TerminalService.SetError("remote-agent-poller", ex.Message);
+            }
+            finally
+            {
+                TerminalService.MarkRunning("remote-agent-poller", false);
+            }
+        });
+
+        await Task.Delay(500);
+        UpdatePollerStatus();
+    }
+
+    private async Task StopPollerAsync()
+    {
+        _pollerError = null;
+
+        if (_pollerRunningViaAdmin)
+        {
+            TerminalService.Abort("remote-agent-poller");
+        }
+        else
+        {
+            try
+            {
+                using var ps = System.Management.Automation.PowerShell.Create();
+                ps.AddScript("Get-CimInstance Win32_Process -Filter \"name = 'pwsh.exe' or name = 'powershell.exe'\" | Where-Object { $_.CommandLine -like \"*remote-agent-poller.ps1*\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }");
+                ps.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _pollerError = $"Failed to stop external poller: {ex.Message}";
+            }
+        }
+
+        await Task.Delay(500);
+        UpdatePollerStatus();
+    }
+
     protected override void OnInitialized()
     {
         EnvService.EnvironmentChanged += OnEnvironmentChanged;
+        TerminalService.StateChanged += OnTerminalChanged;
+        UpdatePollerStatus();
     }
 
     protected override async Task OnInitializedAsync()
@@ -245,6 +443,7 @@ else if (_error is not null)
     public void Dispose()
     {
         EnvService.EnvironmentChanged -= OnEnvironmentChanged;
+        TerminalService.StateChanged -= OnTerminalChanged;
         _refreshTimer?.Dispose();
     }
 }
