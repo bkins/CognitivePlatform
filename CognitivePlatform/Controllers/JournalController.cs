@@ -2,9 +2,9 @@ using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.Models;
-using CognitivePlatform.Api.Models.TestingTemp;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace CognitivePlatform.Api.Controllers;
 
@@ -105,8 +105,8 @@ public sealed class JournalController : ControllerBase
     // POST /api/journals/{journalId:guid}/edit-test
     [ApiExplorerSettings(GroupName = "dev-only")]
     [HttpPost("{journalId:guid}/edit-test")]
-    public ActionResult EditEntry_Test(Guid                               journalId
-                                      , [FromBody] JournalEditTestRequest request)
+    public ActionResult EditEntry_Test(Guid                   journalId
+                                      , [FromBody] JsonElement request)
     {
         /*
          * TEST-ONLY ENDPOINT
@@ -116,11 +116,35 @@ public sealed class JournalController : ControllerBase
 
         try
         {
+            var text = request.TryGetProperty("Text", out var textProp) ? textProp.GetString() ?? string.Empty : string.Empty;
+
+            IReadOnlyList<string>? tags = null;
+            if (request.TryGetProperty("Tags", out var tagsProp) && tagsProp.ValueKind == JsonValueKind.Array)
+            {
+                var tagList = new List<string>();
+                foreach (var element in tagsProp.EnumerateArray())
+                {
+                    if (element.ValueKind == JsonValueKind.String)
+                    {
+                        tagList.Add(element.GetString()!);
+                    }
+                }
+                tags = tagList;
+            }
+
+            var mood = request.TryGetProperty("Mood", out var moodProp) ? moodProp.GetString() : null;
+
+            int? moodScore = null;
+            if (request.TryGetProperty("MoodScore", out var scoreProp) && scoreProp.ValueKind == JsonValueKind.Number)
+            {
+                moodScore = scoreProp.GetInt32();
+            }
+
             var temp = _journalService.EditEntry(journalId.ToString("N")
-                                               , text: request.Text
-                                               , tags: request.Tags
-                                               , mood: request.Mood
-                                               , moodScore: request.MoodScore);
+                                               , text: text
+                                               , tags: tags
+                                               , mood: mood
+                                               , moodScore: moodScore);
 
             return NoContent();
         }

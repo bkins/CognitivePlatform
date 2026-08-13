@@ -16,16 +16,9 @@ public static class SystemServiceCollectionExtensions
 {
     public static IServiceCollection AddSystemServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<ISystemInfoService, SystemService>();
+        services.AddSingleton<SystemService>();
+        services.AddSingleton<ISystemInfoService>(sp => sp.GetRequiredService<SystemService>());
         services.Configure<SystemPathsOptions>(configuration.GetSection("SystemPaths"));
-
-        services.AddSingleton(sp =>
-        {
-            var environment = sp.GetRequiredService<IHostEnvironment>();
-
-            return new SystemService(environment
-                                    , sp.GetRequiredService<IOptions<SystemPathsOptions>>());
-        });
 
         services.AddTransient<SystemActions>();
         services.AddTransient<FeedbackActions>();

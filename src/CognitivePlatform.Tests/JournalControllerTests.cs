@@ -7,6 +7,7 @@ using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Media;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Models.TestingTemp;
+using System.Text.Json;
 
 namespace CognitivePlatform.Tests;
 
@@ -139,6 +140,8 @@ public class JournalControllerTests
                           , MoodScore = 3
                         };
 
+        var jsonElement = JsonSerializer.SerializeToElement(request);
+
         var revision = new JournalRevision
                        {
                            RevisionId = Guid.NewGuid().ToString("N")
@@ -158,7 +161,7 @@ public class JournalControllerTests
                                                              , null))
                            .Returns(revision);
 
-        var actionResult = _controller.EditEntry_Test(journalId, request);
+        var actionResult = _controller.EditEntry_Test(journalId, jsonElement);
 
         Assert.IsType<NoContentResult>(actionResult);
     }
@@ -168,6 +171,7 @@ public class JournalControllerTests
     {
         var journalId = Guid.NewGuid();
         var request   = new JournalEditTestRequest { Text = "Updated text" };
+        var jsonElement = JsonSerializer.SerializeToElement(request);
 
         _journalServiceMock.Setup(service => service.EditEntry(journalId.ToString("N")
                                                              , "Updated text"
@@ -181,7 +185,7 @@ public class JournalControllerTests
                                                              , null))
                            .Throws<KeyNotFoundException>();
 
-        var actionResult = _controller.EditEntry_Test(journalId, request);
+        var actionResult = _controller.EditEntry_Test(journalId, jsonElement);
 
         Assert.IsType<NotFoundResult>(actionResult);
     }

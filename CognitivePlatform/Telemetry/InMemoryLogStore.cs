@@ -10,16 +10,18 @@ public sealed class InMemoryLogStore
 {
     private const int MaxEntries = 1_000;
 
-    private readonly object          _lock    = new();
-    private readonly List<LogEntry>  _entries = new(MaxEntries);
+    private readonly object           _lock    = new();
+    private readonly Queue<LogEntry>  _entries = new(MaxEntries);
 
     public void Add(LogEntry entry)
     {
         lock (_lock)
         {
-            _entries.Add(entry);
+            _entries.Enqueue(entry);
             if (_entries.Count > MaxEntries)
-                _entries.RemoveAt(0);
+            {
+                _entries.Dequeue();
+            }
         }
     }
 
@@ -33,16 +35,22 @@ public sealed class InMemoryLogStore
     {
         List<LogEntry> snapshot;
         lock (_lock)
+        {
             snapshot = [.._entries];
+        }
 
-        IEnumerable<LogEntry> query = Enumerable.Reverse(snapshot);
+        var query = snapshot.AsEnumerable().Reverse();
 
-        if (string.IsNullOrWhiteSpace(level).Not())
-            query = query.Where(entry => entry.Level.Equals(level, StringComparison.OrdinalIgnoreCase));
+        if (level.HasValue())
+        {
+            query = query.Where(entry => entry.Level.EqualsIgnoreCase(level));
+        }
 
-        if (string.IsNullOrWhiteSpace(search).Not())
-            query = query.Where(entry => entry.Message.Contains(search!, StringComparison.OrdinalIgnoreCase)
-                                      || entry.Category.Contains(search!, StringComparison.OrdinalIgnoreCase));
+        if (search.HasValue())
+        {
+            query = query.Where(entry => entry.Message.ContainsIgnoreCase(search)
+                                      || entry.Category.ContainsIgnoreCase(search));
+        }
 
         return query.Take(take).ToList();
     }
@@ -50,6 +58,8 @@ public sealed class InMemoryLogStore
     public void Clear()
     {
         lock (_lock)
+        {
             _entries.Clear();
+        }
     }
 }
