@@ -61,6 +61,7 @@ public partial class Program
         builder.Services.AddHealthServices(builder.Configuration);
         builder.Services.AddWellbeingServices();
         builder.Services.AddMealServices();
+        builder.Services.AddSecretsServices();
         builder.Services.AddFileSyncServices(builder.Configuration);
         builder.Services.AddSearchServices();
         builder.Services.AddEmbeddingServices(builder.Configuration);

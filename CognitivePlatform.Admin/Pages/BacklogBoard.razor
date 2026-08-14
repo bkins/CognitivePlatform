@@ -1,0 +1,33 @@
+@page "/backlog"
+
+<PageTitle>
+    Backlog Board
+</PageTitle>
+
+<MudStack Row="true"
+          AlignItems="AlignItems.Center"
+          Class="mb-2">
+
+    <MudText Typo="Typo.h5">
+        Multi-Project Backlog Board
+    </MudText>
+
+    <MudSpacer />
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.OpenInNew"
+               Href="/api/backlog-board"
+               Target="_blank">
+        Open in New Tab ↗
+    </MudButton>
+</MudStack>
+
+<MudPaper Elevation="2"
+          Class="pa-0"
+          Style="height: calc(100vh - 160px); width: 100%; overflow: hidden; border-radius: 12px;">
+    <iframe src="/api/backlog-board"
+            style="width: 100%; height: 100%; border: none; background: #0B0F19;"
+            title="Unified Backlog Board">
+    </iframe>
+</MudPaper>

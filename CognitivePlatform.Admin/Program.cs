@@ -89,4 +89,12 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
+app.MapGet("/api/backlog-board", () =>
+{
+    var boardPath = @"C:\Users\benho\source\Application Documentation\UnifiedBacklogBoard.html";
+    return File.Exists(boardPath)
+        ? Results.File(boardPath, "text/html")
+        : Results.NotFound("UnifiedBacklogBoard.html not found.");
+});
+
 app.Run();

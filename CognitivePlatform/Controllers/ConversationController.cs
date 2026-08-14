@@ -1,4 +1,4 @@
-﻿    using System.Diagnostics;
+    using System.Diagnostics;
     using CognitivePlatform.Api.Contracts;
     using CognitivePlatform.Api.Conversation;
     using CognitivePlatform.Api.Orchestrator;
@@ -40,7 +40,7 @@ public class ConversationController : ControllerBase
 
         var result = await _orchestrator.ConverseAsync(request);
 
-        if (result.Success.Not()) return BadRequest(result);
+        if (result.Success.Not() && !result.IsVaultUnlockRequired && !result.IsVaultSetupRequired) return BadRequest(result);
         
         return Ok(result);
     }

@@ -24,6 +24,7 @@ using CognitivePlatform.Api.Training;
 using CognitivePlatform.Api.Workspace;
 using CognitivePlatform.Api.Domains.Knowledge;
 using CognitivePlatform.Api.Domains.Knowledge.Models;
+using CognitivePlatform.Api.Domains.Secrets;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
@@ -59,6 +60,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private readonly ITaskComplexityClassifier      _complexityClassifier;
     private readonly IInterpreterTrainingStore?     _trainingStore;
     private readonly IKnowledgeIngestionService?    _knowledgeIngestionService;
+    private readonly ISecretVaultService?           _secretsVault;
 
     private readonly bool _isDebug  = false;
 
@@ -92,10 +94,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
                                    , IPersonaService?                                               personaServiceForReconstruction = null
                                    , IPersonaStore?                                                 personaStoreForReconstruction   = null
-                                    , IPersonaStabilityTracker?                                      stabilityTracker               = null
-                                    , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
-                                    , IInterpreterTrainingStore?                                     trainingStore                  = null
-                                    , IKnowledgeIngestionService?                                    knowledgeIngestionService      = null )
+                                   , IPersonaStabilityTracker?                                      stabilityTracker               = null
+                                   , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
+                                   , IInterpreterTrainingStore?                                     trainingStore                  = null
+                                   , IKnowledgeIngestionService?                                    knowledgeIngestionService      = null
+                                   , ISecretVaultService?                                           secretsVault                   = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -127,6 +130,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         _stabilityTracker                = stabilityTracker;
         _emotionalTopologyTracker        = emotionalTopologyTracker;
         _knowledgeIngestionService       = knowledgeIngestionService;
+        _secretsVault                    = secretsVault;
 
 #if DEBUG
         _isDebug = true;
@@ -137,6 +141,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
     public async Task<ConverseResponse> ConverseAsync(ConverseRequest    request
                                                     , CancellationToken ct = default)
     {
+        ConverseResponse? vaultError = null;
         //TODO Reflect on the sheer number of dependencies in this class and consider
         // if we can refactor to reduce coupling and improve testability.
         // For example:
@@ -220,6 +225,17 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // produced a ghost "Model not usable" error when the configured model was unavailable.
         if (_fastPath.TryResolve(resolveInput, out var actionMeta, out var fastParams))
         {
+            if (!CheckSecretsVaultStatus(actionMeta!, out vaultError))
+            {
+                return await FinalizeAsync(request
+                                         , vaultError!
+                                         , stopwatch
+                                         , TurnPath.FastPath
+                                         , actionName: actionMeta.Name
+                                         , succeeded:  false
+                                         , ct:         ct);
+            }
+
             await CheckForInsightFollowThroughAsync(actionMeta!.Name, context, ct);
             var fastResponse = await TakeTheFastPath(actionMeta, fastParams, context, ct);
 
@@ -310,6 +326,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                                                 , StringComparison.OrdinalIgnoreCase));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
+                    if (!CheckSecretsVaultStatus(confirmedAction, out vaultError))
+                    {
+                        return await FinalizeAsync(request
+                                                 , vaultError!
+                                                 , stopwatch
+                                                 , TurnPath.Confirmation
+                                                 , actionName: confirmedAction.Name
+                                                 , succeeded:  false
+                                                 , ct:         ct);
+                    }
                     await CheckForInsightFollowThroughAsync(confirmedAction.Name, context, ct);
                     var result     = await _execution.ExecuteAsync(confirmedAction, execParams, context.SessionId, ct);
 
@@ -524,6 +550,16 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.PendingAction = null;
 
             var parameters  = ApplyDefaultValues(action, pending.CollectedParameters);
+            if (!CheckSecretsVaultStatus(action, out vaultError))
+            {
+                return await FinalizeAsync(request
+                                         , vaultError!
+                                         , stopwatch
+                                         , TurnPath.Clarification
+                                         , actionName: action.Name
+                                         , succeeded:  false
+                                         , ct:         ct);
+            }
             await CheckForInsightFollowThroughAsync(action.Name, context, ct);
             var finalOutput = await _execution.ExecuteAsync(action, parameters, context.SessionId, ct);
 
@@ -962,6 +998,18 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                      , succeeded:  false
                                      , ct:         ct);
 
+        }
+
+        if (!CheckSecretsVaultStatus(selectedAction, out vaultError))
+        {
+            FireTrainingRecord(trainingRecord, executionSucceeded: false, latencyMs: stopwatch.ElapsedMilliseconds);
+            return await FinalizeAsync(request
+                                     , vaultError!
+                                     , stopwatch
+                                     , TurnPath.Interpreter
+                                     , actionName: selectedAction.Name
+                                     , succeeded:  false
+                                     , ct:         ct);
         }
 
         // Generic confirmation gate: any action decorated with [DestructiveAction]
@@ -1972,5 +2020,41 @@ public class ConversationOrchestrator : IConversationOrchestrator
         }
 
         return result;
+    }
+
+    private bool CheckSecretsVaultStatus(ActionMetadata action, out ConverseResponse? errorResponse)
+    {
+        errorResponse = null;
+
+        if (action.Category.EqualsIgnoreCase("secrets") 
+         || action.Name.EqualsAnyIgnoreCase("SaveSecret", "GetSecret", "ListSecrets", "DeleteSecret"))
+        {
+            if (_secretsVault is not null)
+            {
+                if (!_secretsVault.IsInitialized())
+                {
+                    errorResponse = new ConverseResponse
+                                    {
+                                        Success              = false
+                                      , IsVaultSetupRequired = true
+                                      , Message              = "The Secrets Vault has not been set up yet. Please set a secure PIN to initialize your vault."
+                                    };
+                    return false;
+                }
+                
+                if (!_secretsVault.IsUnlocked())
+                {
+                    errorResponse = new ConverseResponse
+                                    {
+                                        Success               = false
+                                      , IsVaultUnlockRequired = true
+                                      , Message               = "Secrets vault is locked. Please enter your PIN or use biometrics to unlock."
+                                    };
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }
