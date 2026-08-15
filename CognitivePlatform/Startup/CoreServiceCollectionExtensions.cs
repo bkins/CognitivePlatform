@@ -44,7 +44,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ConversationContextStore>();
         services.AddSingleton<IConversationTurnStore, ConversationTurnStore>();
         services.AddSingleton<IConversationMetadataStore, ConversationMetadataStore>();
+        services.AddSingleton<IObjectValidator, MealValidator>();
         services.AddSingleton<IObjectConstructionEngine, ObjectConstructionEngine>();
+        services.AddSingleton<IIncrementalObjectBuilder, IncrementalObjectBuilder>();
 
         return services;
     }
