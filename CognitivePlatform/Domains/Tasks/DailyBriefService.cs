@@ -1,4 +1,5 @@
 using System.Text;
+using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Integrations.Calendar;
@@ -15,6 +16,7 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 ///   2. Due Today or Overdue — any active task whose due date is today or earlier.
 ///   3. Today's Calendar — events from the connected Google Calendar for the current day.
 ///   4. Active Insights & Wellbeing — recent proactive patterns and health correlates.
+///   5. Nutrition Snapshot — yesterday's logged meals and macro totals.
 ///      The calendar section is omitted when <see cref="ICalendarProvider"/> is null,
 ///      <see cref="ICalendarProvider.IsConnected"/> is false, or the provider throws.
 ///
@@ -28,6 +30,7 @@ public class DailyBriefService : IDailyBriefService
     private readonly IWellbeingSignalCollector?  _wellbeingCollector;
     private readonly IWellbeingPatternService?   _wellbeingPatterns;
     private readonly IInsightHistoryStore?       _insightHistoryStore;
+    private readonly IMealService?               _mealService;
     private readonly ILogger<DailyBriefService>  _logger;
     private readonly EisenhowerReasoner          _eisenhower = new();
 
@@ -36,6 +39,7 @@ public class DailyBriefService : IDailyBriefService
                             , IWellbeingSignalCollector?    wellbeingCollector  = null
                             , IWellbeingPatternService?     wellbeingPatterns   = null
                             , IInsightHistoryStore?         insightHistoryStore = null
+                            , IMealService?                 mealService         = null
                             , ILogger<DailyBriefService>?   logger              = null )
     {
         _taskService         = taskService ?? throw new ArgumentNullException(nameof(taskService));
@@ -43,6 +47,7 @@ public class DailyBriefService : IDailyBriefService
         _wellbeingCollector  = wellbeingCollector;
         _wellbeingPatterns   = wellbeingPatterns;
         _insightHistoryStore = insightHistoryStore;
+        _mealService         = mealService;
         _logger              = logger ?? NullLogger<DailyBriefService>.Instance;
     }
 
@@ -226,6 +231,44 @@ public class DailyBriefService : IDailyBriefService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Active Insights section omitted: history store threw");
+            }
+        }
+
+        // ---- Yesterday's Nutrition Snapshot ----
+        if (_mealService is not null)
+        {
+            try
+            {
+                var yesterdayLocal = effectiveDate.AddDays(-1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
+                var yesterdayStart = new DateTimeOffset(yesterdayLocal);
+                var yesterdayEnd   = yesterdayStart.AddDays(1);
+
+                var yesterdayMeals = _mealService.ListAsync(yesterdayStart, yesterdayEnd)
+                                                 .GetAwaiter()
+                                                 .GetResult();
+
+                if (yesterdayMeals.Count > 0)
+                {
+                    var allFoods      = yesterdayMeals.SelectMany(meal => meal.Foods).ToList();
+                    var enrichedFoods = allFoods.Where(food => food.Nutrition is not null).ToList();
+                    var totalCalories = enrichedFoods.Sum(food => food.Nutrition?.Calories ?? 0);
+                    var totalProtein  = enrichedFoods.Sum(food => food.Nutrition?.ProteinGrams ?? 0);
+
+                    sb.AppendLine();
+                    sb.AppendLine("--- Nutrition Snapshot (Yesterday) ---");
+                    if (enrichedFoods.Count > 0)
+                    {
+                        sb.AppendLine($"• {yesterdayMeals.Count} meal(s) logged ({allFoods.Count} items) — ~{totalCalories:F0} kcal, {totalProtein:F0}g protein");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"• {yesterdayMeals.Count} meal(s) logged ({allFoods.Count} items)");
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Nutrition section omitted: meal service threw");
             }
         }
 

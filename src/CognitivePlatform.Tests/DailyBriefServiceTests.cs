@@ -1,4 +1,5 @@
 using Moq;
+using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
@@ -446,6 +447,74 @@ public class DailyBriefServiceTests
         var result  = service.GetBrief();
 
         Assert.DoesNotContain("--- Active Insights ---", result);
+    }
+
+    // ================================================================
+    // NUTRITION SNAPSHOT (Yesterday)
+    // ================================================================
+
+    [Fact]
+    public void GetBrief_IncludesYesterdayNutritionSection_WhenMealsWereLoggedYesterday()
+    {
+        var mealServiceMock = new Mock<IMealService>();
+        var food = new FoodEntry
+                   {
+                       Name      = "Grilled Chicken"
+                     , Nutrition = new NutritionalInfo
+                                   {
+                                       Calories     = 350
+                                     , ProteinGrams = 45
+                                     , CarbsGrams   = 0
+                                     , FatGrams     = 8
+                                   }
+                   };
+        var meal = new Meal
+                   {
+                       MealType   = MealType.Dinner
+                     , Foods      = new List<FoodEntry> { food }
+                     , ConsumedAt = DateTimeOffset.UtcNow.AddDays(-1)
+                   };
+
+        mealServiceMock.Setup(svc => svc.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                       .ReturnsAsync(new List<Meal> { meal });
+
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, mealService: mealServiceMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.Contains("--- Nutrition Snapshot (Yesterday) ---", result);
+        Assert.Contains("1 meal(s) logged (1 items) — ~350 kcal, 45g protein", result);
+    }
+
+    [Fact]
+    public void GetBrief_OmitsYesterdayNutritionSection_WhenNoMealsWereLoggedYesterday()
+    {
+        var mealServiceMock = new Mock<IMealService>();
+        mealServiceMock.Setup(svc => svc.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                       .ReturnsAsync(new List<Meal>());
+
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, mealService: mealServiceMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.DoesNotContain("--- Nutrition Snapshot (Yesterday) ---", result);
+    }
+
+    [Fact]
+    public void GetBrief_OmitsYesterdayNutritionSection_WhenMealServiceThrows()
+    {
+        var mealServiceMock = new Mock<IMealService>();
+        mealServiceMock.Setup(svc => svc.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                       .ThrowsAsync(new InvalidOperationException("DB error"));
+
+        _tasksMock.Setup(svc => svc.GetActive()).Returns(new List<TaskItem>());
+
+        var service = new DailyBriefService(_tasksMock.Object, mealService: mealServiceMock.Object);
+        var result  = service.GetBrief();
+
+        Assert.DoesNotContain("--- Nutrition Snapshot (Yesterday) ---", result);
     }
 }
 

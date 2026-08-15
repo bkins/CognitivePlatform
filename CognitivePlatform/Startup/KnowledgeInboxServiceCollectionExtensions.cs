@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.Journal;
+using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Domains.Knowledge;
 using CognitivePlatform.Api.KnowledgeInbox;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CognitivePlatform.Api.Startup;
 
 /// <summary>
-/// Registers the Knowledge Inbox domain and its source providers (Journal, Task).
+/// Registers the Knowledge Inbox domain and its source providers (Journal, Task, Meal).
 /// </summary>
 public static class KnowledgeInboxServiceCollectionExtensions
 {
@@ -17,6 +18,7 @@ public static class KnowledgeInboxServiceCollectionExtensions
         services.AddSingleton<IKnowledgeService, KnowledgeService>();
         services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
         services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
+        services.AddSingleton<IKnowledgeSource, MealKnowledgeSource>();
 
         // Phase 4.6: Domain Expert Knowledge Mode
         services.AddSingleton<IKnowledgeIngestionService, KnowledgeIngestionService>();
