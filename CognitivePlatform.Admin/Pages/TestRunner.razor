@@ -85,7 +85,14 @@
                            StartIcon="@Icons.Material.Filled.ContentCopy"
                            Disabled="@(androidLines.Length == 0)"
                            OnClick="@(() => CopyTerminalAsync("test-android"))">
-                    Copy
+                    Copy All
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(androidLines.Length == 0)"
+                           OnClick="@(() => CopyFailuresSummaryAsync("test-android"))">
+                    Copy Failures
                 </MudButton>
                 <MudSpacer />
                 <MudCheckBox @bind-Value="@_forceFailureAndroid" Label="Force Failure" Color="Color.Error" Dense="true" Disabled="@androidState.IsRunning" />
@@ -98,7 +105,7 @@
                 </MudAlert>
             }
 
-            <MudPaper Elevation="4"
+            <MudPaper id="android-terminal-container" Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
                 @if (androidLines.Length == 0)
                 {
@@ -136,6 +143,30 @@
                         <span style="color:#ff6b6b;margin-left:12px">@androidFailed failed</span>
                     }
                 </MudPaper>
+
+                var failedAndroidList = ParseFailedTests(androidLines, "Android Smoke Tests");
+                @if (failedAndroidList.Count > 0)
+                {
+                    <MudExpansionPanels Class="mt-3">
+                        <MudExpansionPanel Title="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
+                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
+                                @foreach (var test in failedAndroidList)
+                                {
+                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
+                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
+                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
+                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
+                                            @if (test.Output.Count > 5)
+                                            {
+                                                <span>...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
             }
         </MudPaper>
     </MudItem>
@@ -212,7 +243,14 @@
                            StartIcon="@Icons.Material.Filled.ContentCopy"
                            Disabled="@(windowsLines.Length == 0)"
                            OnClick="@(() => CopyTerminalAsync("test-windows"))">
-                    Copy
+                    Copy All
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(windowsLines.Length == 0)"
+                           OnClick="@(() => CopyFailuresSummaryAsync("test-windows"))">
+                    Copy Failures
                 </MudButton>
                 <MudSpacer />
                 <MudCheckBox @bind-Value="@_forceFailureWindows" Label="Force Failure" Color="Color.Error" Dense="true" Disabled="@windowsState.IsRunning" />
@@ -225,7 +263,7 @@
                 </MudAlert>
             }
 
-            <MudPaper Elevation="4"
+            <MudPaper id="windows-terminal-container" Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
                 @if (windowsLines.Length == 0)
                 {
@@ -263,6 +301,30 @@
                         <span style="color:#ff6b6b;margin-left:12px">@windowsFailed failed</span>
                     }
                 </MudPaper>
+
+                var failedWindowsList = ParseFailedTests(windowsLines, "Windows Smoke Tests");
+                @if (failedWindowsList.Count > 0)
+                {
+                    <MudExpansionPanels Class="mt-3">
+                        <MudExpansionPanel Title="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
+                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
+                                @foreach (var test in failedWindowsList)
+                                {
+                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
+                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
+                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
+                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
+                                            @if (test.Output.Count > 5)
+                                            {
+                                                <span>...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
             }
         </MudPaper>
     </MudItem>
@@ -339,7 +401,14 @@
                            StartIcon="@Icons.Material.Filled.ContentCopy"
                            Disabled="@(cognitiveLines.Length == 0)"
                            OnClick="@(() => CopyTerminalAsync("test-cognitive-api"))">
-                    Copy
+                    Copy All
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(cognitiveLines.Length == 0)"
+                           OnClick="@(() => CopyFailuresSummaryAsync("test-cognitive-api"))">
+                    Copy Failures
                 </MudButton>
             </MudStack>
 
@@ -350,7 +419,7 @@
                 </MudAlert>
             }
 
-            <MudPaper Elevation="4"
+            <MudPaper id="cognitive-terminal-container" Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
                 @if (cognitiveLines.Length == 0)
                 {
@@ -380,6 +449,30 @@
                         <span style="color:#ff6b6b;margin-left:12px">@cognitiveFailed failed</span>
                     }
                 </MudPaper>
+
+                var failedCognitiveList = ParseFailedTests(cognitiveLines, "Cognitive API Validation");
+                @if (failedCognitiveList.Count > 0)
+                {
+                    <MudExpansionPanels Class="mt-3">
+                        <MudExpansionPanel Title="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
+                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
+                                @foreach (var test in failedCognitiveList)
+                                {
+                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
+                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
+                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
+                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
+                                            @if (test.Output.Count > 5)
+                                            {
+                                                <span>...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
             }
         </MudPaper>
     </MudItem>
@@ -474,7 +567,7 @@
                 </MudAlert>
             }
 
-            <MudPaper Elevation="4"
+            <MudPaper id="unit-tests-terminal-container" Elevation="4"
                       Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
                 @if (unitTestsLines.Length == 0)
                 {
@@ -668,15 +761,15 @@
         if (id is not ("test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests")) return;
         try
         {
-            var endId = id switch
+            var containerId = id switch
             {
-                "test-android" => "android-terminal-end",
-                "test-windows" => "windows-terminal-end",
-                "test-cognitive-api" => "cognitive-terminal-end",
-                "test-unit-tests" => "unit-tests-terminal-end",
+                "test-android"       => "android-terminal-container",
+                "test-windows"       => "windows-terminal-container",
+                "test-cognitive-api" => "cognitive-terminal-container",
+                "test-unit-tests"    => "unit-tests-terminal-container",
                 _ => ""
             };
-            _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(endId); });
+            _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(containerId); });
         }
         catch { /* component disposed */ }
     }
@@ -827,9 +920,6 @@
 
         try
         {
-            await using var api = new ApiLifecycle(TerminalService, "test-cognitive-api");
-            await api.StartIfNeededAsync();
-
             var workingDir = @"C:\Users\benho\source\repos\CP\ValidationPlatform";
             var dotnetArgs = "test src/ValidationPlatform.Tests.CognitiveApi/ValidationPlatform.Tests.CognitiveApi.csproj --logger \"console;verbosity=normal\"";
 
@@ -964,6 +1054,15 @@
 
             TerminalService.SetExitCode("test-unit-tests", overallExitCode == -1 ? null : overallExitCode);
 
+            var snapshot = unitTestsState.Snapshot();
+            int totalPassed = snapshot.Count(l => l.Kind == TerminalLineKind.Pass);
+            int totalFailed = snapshot.Count(l => l.Kind == TerminalLineKind.Fail);
+
+            TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
+            TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+            TerminalService.AppendLine("test-unit-tests", new TerminalLine($"  Grand Total Across All Projects: {totalPassed} Passed, {totalFailed} Failed (Total {totalPassed + totalFailed})", totalFailed == 0 ? TerminalLineKind.PassSummary : TerminalLineKind.FailSummary));
+            TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+
             // Generate report
             try
             {
@@ -1034,8 +1133,6 @@
 
     private static TerminalLine ClassifyLine(string text, bool isError)
     {
-        if (isError) return new TerminalLine(text, TerminalLineKind.Error);
-
         var trimmed = text.TrimStart();
 
         if (trimmed.StartsWith("Passed ", StringComparison.OrdinalIgnoreCase)
@@ -1056,6 +1153,20 @@
         if (trimmed.StartsWith("Failed!", StringComparison.OrdinalIgnoreCase))
             return new TerminalLine(text, TerminalLineKind.FailSummary);
 
+        if (isError)
+        {
+            // Filter out benign diagnostic chatter that native tools (adb, monkey) emit to stderr
+            if (trimmed.Contains("file pulled", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("args:", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("arg:", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("data=", StringComparison.OrdinalIgnoreCase))
+            {
+                return new TerminalLine(text, TerminalLineKind.Normal);
+            }
+
+            return new TerminalLine(text, TerminalLineKind.Error);
+        }
+
         return new TerminalLine(text, TerminalLineKind.Normal);
     }
 
@@ -1069,12 +1180,13 @@
       , _                            => "#d4d4d4"
     };
 
-    private async Task ScrollToBottomAsync(string terminalEndId)
+    private async Task ScrollToBottomAsync(string containerId)
     {
+        if (string.IsNullOrEmpty(containerId)) return;
         try
         {
             await Js.InvokeVoidAsync("eval"
-                                   , $"var el=document.getElementById('{terminalEndId}');if(el)el.scrollIntoView({{behavior:'instant'}});");
+                                   , $"var c=document.getElementById('{containerId}');if(c)c.scrollTop=c.scrollHeight;");
         }
         catch { /* ignore during disposal or when DOM is not ready */ }
     }
@@ -1089,15 +1201,24 @@
     private async Task CopyFailuresSummaryAsync(string id)
     {
         var state = TerminalService.Get(id);
-        var failedTests = ParseFailedTests(state.Snapshot());
+        var suiteTitle = id switch
+        {
+            "test-android"       => "Android Smoke Tests",
+            "test-windows"       => "Windows Smoke Tests",
+            "test-cognitive-api" => "Cognitive API Validation",
+            "test-unit-tests"    => "Unit Tests",
+            _                    => id
+        };
+
+        var failedTests = ParseFailedTests(state.Snapshot(), suiteTitle);
         if (failedTests.Count == 0)
         {
-            await Js.InvokeVoidAsync("navigator.clipboard.writeText", "No test failures detected.");
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", $"No test failures detected for {suiteTitle}.");
             return;
         }
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"# Test Failures Summary ({failedTests.Count} Failed Tests)");
+        sb.AppendLine($"# {suiteTitle} — Failures Summary ({failedTests.Count} Failed {(failedTests.Count == 1 ? "Item" : "Items")})");
         sb.AppendLine();
         foreach (var test in failedTests)
         {
@@ -1105,11 +1226,11 @@
             if (test.Output.Count > 0)
             {
                 sb.AppendLine("```");
-                foreach (var line in test.Output.Take(12))
+                foreach (var line in test.Output.Take(15))
                 {
                     sb.AppendLine(line);
                 }
-                if (test.Output.Count > 12)
+                if (test.Output.Count > 15)
                 {
                     sb.AppendLine("...");
                 }
@@ -1118,7 +1239,7 @@
             sb.AppendLine();
         }
 
-        await Js.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString());
+        await Js.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString().TrimEnd());
     }
 
     private static bool TryExtractPngPath(string text, out string path)
@@ -1259,10 +1380,10 @@
         public List<string> Output { get; } = new();
     }
 
-    private static List<FailedTestDetails> ParseFailedTests(TerminalLine[] lines)
+    private static List<FailedTestDetails> ParseFailedTests(TerminalLine[] lines, string defaultSuiteName = "Unknown")
     {
         var failedTests = new List<FailedTestDetails>();
-        string currentProject = "Unknown";
+        string currentProject = defaultSuiteName;
         FailedTestDetails? currentFailedTest = null;
 
         for (int i = 0; i < lines.Length; i++)
@@ -1278,13 +1399,41 @@
                 continue;
             }
 
-            if (line.Kind == TerminalLineKind.Fail)
+            // Check if line indicates a test or step failure
+            bool isFailLine = line.Kind == TerminalLineKind.Fail
+                           || trimmed.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase)
+                           || trimmed.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase)
+                           || trimmed.StartsWith("FAIL:", StringComparison.OrdinalIgnoreCase)
+                           || trimmed.Contains("✗")
+                           || trimmed.Contains("✘");
+
+            bool isSummaryLine = trimmed.StartsWith("Failed!", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Test Run Failed", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Total tests:", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Failed:", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Passed:", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Total time:", StringComparison.OrdinalIgnoreCase)
+                              || trimmed.StartsWith("Finished in", StringComparison.OrdinalIgnoreCase);
+
+            if (isFailLine && !isSummaryLine)
             {
-                // Skip the word "Failed"
-                string namePart = trimmed.Substring(6).Trim();
-                // Strip trailing "[...]" duration if present
+                string namePart = trimmed;
+                if (namePart.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase))
+                {
+                    namePart = namePart.Substring(7).Trim();
+                }
+                else if (namePart.StartsWith("[FAIL]", StringComparison.OrdinalIgnoreCase))
+                {
+                    namePart = namePart.Substring(6).Trim();
+                }
+                else if (namePart.StartsWith("FAIL:", StringComparison.OrdinalIgnoreCase))
+                {
+                    namePart = namePart.Substring(5).Trim();
+                }
+
+                // Strip trailing duration like "[12 ms]"
                 int bracketIdx = namePart.LastIndexOf('[');
-                if (bracketIdx != -1)
+                if (bracketIdx > 0 && namePart.EndsWith("]"))
                 {
                     namePart = namePart.Substring(0, bracketIdx).Trim();
                 }
@@ -1292,13 +1441,19 @@
                 currentFailedTest = new FailedTestDetails
                 {
                     Project = currentProject,
-                    TestName = namePart
+                    TestName = string.IsNullOrWhiteSpace(namePart) ? "Failed Step / Test" : namePart
                 };
                 failedTests.Add(currentFailedTest);
                 continue;
             }
 
-            if (line.Kind == TerminalLineKind.Pass)
+            if (line.Kind == TerminalLineKind.Pass || trimmed.StartsWith("Passed ", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("[PASS]"))
+            {
+                currentFailedTest = null;
+                continue;
+            }
+
+            if (isSummaryLine)
             {
                 currentFailedTest = null;
                 continue;
@@ -1306,17 +1461,34 @@
 
             if (currentFailedTest != null)
             {
-                if (trimmed.StartsWith("Test Run Failed.") ||
-                    trimmed.StartsWith("Total tests:") ||
-                    trimmed.StartsWith("Failed:") ||
-                    trimmed.StartsWith("Passed:") ||
-                    trimmed.StartsWith("Total time:"))
+                if (!string.IsNullOrWhiteSpace(text))
                 {
-                    currentFailedTest = null;
-                    continue;
+                    currentFailedTest.Output.Add(text);
                 }
+            }
+        }
 
-                currentFailedTest.Output.Add(text);
+        // Fallback: If no structured test failure markers were matched, but error lines or non-zero exit lines exist:
+        if (failedTests.Count == 0)
+        {
+            var problemLines = lines.Where(l => l.Kind == TerminalLineKind.Error || l.Kind == TerminalLineKind.Fail)
+                                    .Where(l => !l.Text.Contains("file pulled", StringComparison.OrdinalIgnoreCase) &&
+                                                !l.Text.StartsWith("args:", StringComparison.OrdinalIgnoreCase) &&
+                                                !l.Text.StartsWith("arg:", StringComparison.OrdinalIgnoreCase) &&
+                                                !l.Text.StartsWith("data=", StringComparison.OrdinalIgnoreCase))
+                                    .ToList();
+            if (problemLines.Count > 0)
+            {
+                var errorSummary = new FailedTestDetails
+                {
+                    Project = currentProject,
+                    TestName = "Execution Failure / Error Output"
+                };
+                foreach (var pl in problemLines)
+                {
+                    errorSummary.Output.Add(pl.Text);
+                }
+                failedTests.Add(errorSummary);
             }
         }
 

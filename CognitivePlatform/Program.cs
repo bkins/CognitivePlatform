@@ -70,7 +70,8 @@ public partial class Program
 
         builder.Services.AddLlmServices(builder.Configuration);
 
-        builder.Services.AddControllers();
+        builder.Services.AddControllers()
+               .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
 // ---------- BUILD APP ----------
 
