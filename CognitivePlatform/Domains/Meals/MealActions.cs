@@ -287,6 +287,89 @@ public class MealActions
                };
     }
 
+    [NaturalLanguageAction(
+        Description = "Summarizes nutritional intake (calories, protein, carbs, fat, fiber) for a given date range."
+      , Examples    =
+        [
+            "Show my nutrition summary for today"
+          , "Macro summary for yesterday"
+          , "How many calories have I eaten today?"
+          , "Show my macros for this week"
+        ]
+      , Category    = "Food")]
+    [FastPath]
+    public async Task<ActionResult> GetNutritionSummary(
+        [NaturalLanguageParam(Description = "Date or period to summarize, e.g. 'today', 'yesterday', 'this week', 'last week'."
+                            , Optional    = true
+                            , AllowEmpty  = true)]
+        string? dateRange = null)
+    {
+        DateTimeOffset from = DateTimeOffset.Now.Date;
+        DateTimeOffset to   = from.AddDays(1);
+
+        if (dateRange.HasValue() && !TryResolveDateRange(dateRange!, out from, out to))
+        {
+            return new ActionResult
+                   {
+                       Success = false
+                     , Message = $"I couldn't parse '{dateRange}' as a date or period. Try 'today', 'yesterday', or 'last week'."
+                   };
+        }
+
+        var meals = await _mealService.ListAsync(from, to).ConfigureAwait(false);
+
+        if (meals.Count == 0)
+        {
+            return new ActionResult
+                   {
+                       Success = true
+                     , Message = $"No meals logged for {FormatDateRange(from, to)}. Log your meals to track nutritional intake."
+                   };
+        }
+
+        var allFoods      = meals.SelectMany(m => m.Foods).ToList();
+        var enrichedFoods = allFoods.Where(f => f.Nutrition is not null).ToList();
+
+        var totalCalories = enrichedFoods.Sum(f => f.Nutrition?.Calories ?? 0);
+        var totalProtein  = enrichedFoods.Sum(f => f.Nutrition?.ProteinGrams ?? 0);
+        var totalCarbs    = enrichedFoods.Sum(f => f.Nutrition?.CarbsGrams ?? 0);
+        var totalFat      = enrichedFoods.Sum(f => f.Nutrition?.FatGrams ?? 0);
+        var totalFiber    = enrichedFoods.Sum(f => f.Nutrition?.FiberGrams ?? 0);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Nutrition Summary ({FormatDateRange(from, to)})");
+        sb.AppendLine($"*Based on {enrichedFoods.Count} of {allFoods.Count} food item(s) with nutrition facts across {meals.Count} meal(s).*");
+        sb.AppendLine();
+        sb.AppendLine("| Metric | Total |");
+        sb.AppendLine("|---|---|");
+        sb.AppendLine($"| **Calories** | {totalCalories:F0} kcal |");
+        sb.AppendLine($"| **Protein** | {totalProtein:F1} g |");
+        sb.AppendLine($"| **Carbohydrates** | {totalCarbs:F1} g |");
+        sb.AppendLine($"| **Fat** | {totalFat:F1} g |");
+        sb.Append($"| **Fiber** | {totalFiber:F1} g |");
+
+        var summaryData = new NutritionSummaryDto
+                          {
+                              FromDateUtc            = from.ToUniversalTime()
+                            , ToDateUtc              = to.ToUniversalTime()
+                            , TotalMeals             = meals.Count
+                            , TotalFoodItems         = allFoods.Count
+                            , EnrichedFoodItemsCount = enrichedFoods.Count
+                            , TotalCalories          = Math.Round(totalCalories, 1)
+                            , TotalProteinGrams      = Math.Round(totalProtein, 1)
+                            , TotalCarbsGrams        = Math.Round(totalCarbs, 1)
+                            , TotalFatGrams          = Math.Round(totalFat, 1)
+                            , TotalFiberGrams        = Math.Round(totalFiber, 1)
+                          };
+
+        return new ActionResult
+               {
+                   Success = true
+                 , Message = sb.ToString()
+                 , Data    = summaryData
+               };
+    }
+
     // -----------------------------------------------------------------------
     // Core Processing
     // -----------------------------------------------------------------------

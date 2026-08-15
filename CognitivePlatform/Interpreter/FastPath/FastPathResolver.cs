@@ -189,6 +189,15 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
 
         // ------------------------------------------------------------
+        // MODE 2.94: MEAL & FOOD FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveMealList(input, out action, out parameters))
+            return true;
+
+        if (TryResolveNutritionSummary(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 3.0: SEMANTIC SEARCH FAST PATHS
         // ------------------------------------------------------------
         if (TryResolveSemanticSearch(input, out action, out parameters))
@@ -663,6 +672,9 @@ public sealed class FastPathResolver : IFastPathResolver
 
         if (domain == "persona")
             return TryResolvePrefixPersona(parts, out action, out parameters);
+
+        if (domain is "meal" or "meals" or "food")
+            return TryResolvePrefixMeal(parts, out action, out parameters);
 
         return false;
     }
@@ -2739,6 +2751,171 @@ public sealed class FastPathResolver : IFastPathResolver
         }
 
         return false;
+    }
+
+    // ================================================================
+    // MEAL & FOOD COMMANDS
+    // ================================================================
+
+    private bool TryResolvePrefixMeal( string[]                         parts
+                                     , out ActionMetadata?             action
+                                     , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        if (parts.Length < 2)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListMeals");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["dateRange"] = "today" };
+            return true;
+        }
+
+        var verb = parts[1].ToLowerInvariant();
+
+        if (verb is "list" or "show" or "log")
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListMeals");
+            if (action is null) return false;
+
+            var dateRange = parts.Length == 3 ? parts[2] : "today";
+            parameters = new Dictionary<string, string> { ["dateRange"] = dateRange };
+            return true;
+        }
+
+        if (verb is "summary" or "macros" or "nutrition")
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetNutritionSummary");
+            if (action is null) return false;
+
+            var dateRange = parts.Length == 3 ? parts[2] : "today";
+            parameters = new Dictionary<string, string> { ["dateRange"] = dateRange };
+            return true;
+        }
+
+        if (verb is "delete" or "remove" && parts.Length == 3)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DeleteMeal");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string> { ["mealIdOrType"] = parts[2] };
+            return true;
+        }
+
+        return false;
+    }
+
+    private static readonly string[] ListMealSignals =
+    {
+        "what did i eat today"
+      , "what did i eat yesterday"
+      , "what did i eat this week"
+      , "what did i eat last week"
+      , "what did i eat"
+      , "what have i eaten today"
+      , "what have i eaten"
+      , "list meals"
+      , "list meal"
+      , "list my meals"
+      , "show meals"
+      , "show my meals"
+      , "show food log"
+      , "show my food log"
+      , "view food log"
+      , "view my food log"
+      , "food log"
+      , "my food log"
+      , "show today's meals"
+      , "show todays meals"
+      , "show yesterday's meals"
+      , "show yesterdays meals"
+      , "list today's meals"
+      , "list todays meals"
+      , "list meals today"
+      , "list meals yesterday"
+    };
+
+    private bool TryResolveMealList( string                           input
+                                   , out ActionMetadata?             action
+                                   , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.').Trim();
+
+        if (!ListMealSignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        // Guard against macro / nutrition query collisions
+        if (normalized.Contains("macro") || normalized.Contains("calorie") || normalized.Contains("protein") || normalized.Contains("nutrition"))
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListMeals");
+        if (action is null) return false;
+
+        var dateRange = "today";
+        if (normalized.Contains("yesterday"))
+            dateRange = "yesterday";
+        else if (normalized.Contains("last week") || normalized.Contains("past week"))
+            dateRange = "last week";
+        else if (normalized.Contains("this week"))
+            dateRange = "this week";
+
+        parameters = new Dictionary<string, string> { ["dateRange"] = dateRange };
+        return true;
+    }
+
+    private static readonly string[] NutritionSummarySignals =
+    {
+        "nutrition summary"
+      , "macro summary"
+      , "macros summary"
+      , "show macros"
+      , "show my macros"
+      , "show nutrition"
+      , "show my nutrition"
+      , "summarize nutrition"
+      , "summarize my nutrition"
+      , "summarize macros"
+      , "summarize my macros"
+      , "how many calories today"
+      , "how many calories have i eaten"
+      , "how many calories did i eat"
+      , "how much protein today"
+      , "how much protein have i eaten"
+      , "how much protein did i eat"
+      , "my macros today"
+      , "my macros yesterday"
+    };
+
+    private bool TryResolveNutritionSummary( string                           input
+                                           , out ActionMetadata?             action
+                                           , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.').Trim();
+
+        if (!NutritionSummarySignals.Any(signal => normalized.Contains(signal)))
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetNutritionSummary");
+        if (action is null) return false;
+
+        var dateRange = "today";
+        if (normalized.Contains("yesterday"))
+            dateRange = "yesterday";
+        else if (normalized.Contains("last week") || normalized.Contains("past week"))
+            dateRange = "last week";
+        else if (normalized.Contains("this week"))
+            dateRange = "this week";
+
+        parameters = new Dictionary<string, string> { ["dateRange"] = dateRange };
+        return true;
     }
 
     /// <inheritdoc />

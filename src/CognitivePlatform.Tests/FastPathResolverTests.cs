@@ -55,6 +55,9 @@ public class FastPathResolverTests
             , MakeAction("AddWatchItem")
             , MakeAction("ListWatchItems")
             , MakeAction("CompleteWatchItem")
+            , MakeAction("ListMeals")
+            , MakeAction("GetNutritionSummary")
+            , MakeAction("DeleteMeal")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -1234,5 +1237,65 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("CompleteWatchItem", action!.Name);
         Assert.Equal("Inception", parameters!["title"]);
+    }
+
+    [Theory]
+    [InlineData("what did I eat today?", "today")]
+    [InlineData("what did I eat yesterday?", "yesterday")]
+    [InlineData("show food log", "today")]
+    [InlineData("show my food log for this week", "this week")]
+    [InlineData("list meals yesterday", "yesterday")]
+    public void TryResolve_ResolvesToListMeals_ForMealListSignals(string input, string expectedDateRange)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ListMeals", action!.Name);
+        Assert.Equal(expectedDateRange, parameters!["dateRange"]);
+    }
+
+    [Theory]
+    [InlineData("show my macros today", "today")]
+    [InlineData("nutrition summary", "today")]
+    [InlineData("macro summary for yesterday", "yesterday")]
+    [InlineData("how many calories today", "today")]
+    [InlineData("how much protein today", "today")]
+    public void TryResolve_ResolvesToGetNutritionSummary_ForNutritionSignals(string input, string expectedDateRange)
+    {
+        var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetNutritionSummary", action!.Name);
+        Assert.Equal(expectedDateRange, parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToListMeals_ForSlashMealListPrefix()
+    {
+        var resolved = _resolver.TryResolve("/meal list yesterday", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("ListMeals", action!.Name);
+        Assert.Equal("yesterday", parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetNutritionSummary_ForSlashFoodMacrosPrefix()
+    {
+        var resolved = _resolver.TryResolve("/food macros yesterday", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetNutritionSummary", action!.Name);
+        Assert.Equal("yesterday", parameters!["dateRange"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToDeleteMeal_ForSlashMealDeletePrefix()
+    {
+        var resolved = _resolver.TryResolve("/meal delete breakfast", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("DeleteMeal", action!.Name);
+        Assert.Equal("breakfast", parameters!["mealIdOrType"]);
     }
 }

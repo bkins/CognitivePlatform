@@ -280,4 +280,62 @@ public class MealActionsTests
         Assert.Contains("oatmeal with blueberries",   result.Message);
         Assert.Contains("black coffee",               result.Message);
     }
+
+    [Fact]
+    public async Task GetNutritionSummary_ReturnsNoMealsMessage_WhenNoMealsExistForRange()
+    {
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal>());
+
+        var result = await _actions.GetNutritionSummary("today");
+
+        Assert.True(result.Success);
+        Assert.Contains("No meals logged for", result.Message);
+    }
+
+    [Fact]
+    public async Task GetNutritionSummary_CalculatesMacroTotals_AndReturnsMarkdownTable()
+    {
+        var food = new FoodEntry
+                   {
+                       Name      = "Greek Yogurt"
+                     , Nutrition = new NutritionalInfo
+                                   {
+                                       Calories     = 150
+                                     , ProteinGrams = 15
+                                     , CarbsGrams   = 8
+                                     , FatGrams     = 5
+                                     , FiberGrams   = 1
+                                   }
+                   };
+        var meal = new Meal
+                   {
+                       MealType   = MealType.Breakfast
+                     , Foods      = new List<FoodEntry> { food }
+                     , ConsumedAt = DateTimeOffset.UtcNow
+                   };
+
+        _mealServiceMock.Setup(service => service.ListAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>()))
+                        .ReturnsAsync(new List<Meal> { meal });
+
+        var result = await _actions.GetNutritionSummary("today");
+
+        Assert.True(result.Success);
+        Assert.Contains("# Nutrition Summary", result.Message);
+        Assert.Contains("150 kcal",            result.Message);
+        Assert.Contains("15.0 g",              result.Message);
+        Assert.NotNull(result.Data);
+        var dto = Assert.IsType<NutritionSummaryDto>(result.Data);
+        Assert.Equal(150, dto.TotalCalories);
+        Assert.Equal(15, dto.TotalProteinGrams);
+    }
+
+    [Fact]
+    public async Task GetNutritionSummary_ReturnsError_WhenDateRangeIsInvalid()
+    {
+        var result = await _actions.GetNutritionSummary("not_a_valid_date_period_xyz");
+
+        Assert.False(result.Success);
+        Assert.Contains("couldn't parse", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

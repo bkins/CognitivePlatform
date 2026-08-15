@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
     "Api-Dev": {
@@ -27,6 +27,15 @@
       "applicationUrl": "https://localhost:7085;http://localhost:5275;http://192.168.0.33:5275",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Prod"
+      }
+    },
+    "Api-Testing": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7086;http://localhost:5276;http://127.0.0.1:5276",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Testing"
       }
     }
   }

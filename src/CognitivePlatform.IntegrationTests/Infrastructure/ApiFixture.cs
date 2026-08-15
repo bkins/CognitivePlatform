@@ -23,7 +23,8 @@ namespace CognitivePlatform.IntegrationTests.Infrastructure;
 /// </summary>
 public sealed class ApiFixture : IDisposable
 {
-    public const string BaseUrl     = "http://localhost:5273";
+    public static readonly string BaseUrl =
+        Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5276";
     public const string AdminSecret = "notverysecurebutthatisok";
 
     public static readonly JsonSerializerOptions JsonOptions = new()
@@ -68,6 +69,38 @@ public sealed class ApiFixture : IDisposable
             new MediaTypeWithQualityHeaderValue("application/json"));
 
         Client.DefaultRequestHeaders.Add("X-Admin-Secret", AdminSecret);
+
+        AssertNotProduction();
+    }
+
+    private void AssertNotProduction()
+    {
+        try
+        {
+            var response = Client.GetAsync("/api/system/environment").GetAwaiter().GetResult();
+            if (response.IsSuccessStatusCode)
+            {
+                var content = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("data", out var dataProp) &&
+                    dataProp.TryGetProperty("Environment", out var envProp) &&
+                    envProp.TryGetProperty("environmentName", out var nameProp))
+                {
+                    var envName = nameProp.GetString();
+                    if (string.Equals(envName, "Prod", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(
+                            $"SAFETY GUARD: Integration tests attempted to execute against '{envName}' environment ({BaseUrl})! Aborting immediately.");
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            // If the endpoint fails or is unreachable, IsApiOnline() will handle connection issues
+        }
     }
 
     // ----------------------------------------------------------------
