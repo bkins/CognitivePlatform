@@ -780,16 +780,18 @@ public class JournalServiceTests
     {
         var id    = Guid.NewGuid().ToString("N");
         var entry = MakeEntry(id);
+        var deleteTcs = new TaskCompletionSource<bool>();
 
         _storeMock.Setup(store => store.Get<JournalEntry>(id, null)).Returns(entry);
         _vectorStoreMock.Setup(store => store.DeleteByReferenceAsync(It.IsAny<string>()
                                                                     , It.IsAny<string>()
                                                                     , It.IsAny<CancellationToken>()))
-                        .Returns(Task.CompletedTask);
+                        .Returns(Task.CompletedTask)
+                        .Callback(() => deleteTcs.TrySetResult(true));
 
         _service.DeleteEntry(id, "no longer needed");
 
-        await Task.Delay(100);
+        await Task.WhenAny(deleteTcs.Task, Task.Delay(1000));
 
         _vectorStoreMock.Verify(store => store.DeleteByReferenceAsync("journal"
                                                                      , id

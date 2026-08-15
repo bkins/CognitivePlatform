@@ -456,7 +456,14 @@
                            StartIcon="@Icons.Material.Filled.ContentCopy"
                            Disabled="@(unitTestsLines.Length == 0)"
                            OnClick="@(() => CopyTerminalAsync("test-unit-tests"))">
-                    Copy
+                    Copy All
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(unitTestsLines.Length == 0)"
+                           OnClick="@(() => CopyFailuresSummaryAsync("test-unit-tests"))">
+                    Copy Failures
                 </MudButton>
             </MudStack>
 
@@ -1079,6 +1086,41 @@
         await Js.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 
+    private async Task CopyFailuresSummaryAsync(string id)
+    {
+        var state = TerminalService.Get(id);
+        var failedTests = ParseFailedTests(state.Snapshot());
+        if (failedTests.Count == 0)
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", "No test failures detected.");
+            return;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# Test Failures Summary ({failedTests.Count} Failed Tests)");
+        sb.AppendLine();
+        foreach (var test in failedTests)
+        {
+            sb.AppendLine($"### ❌ [{test.Project}] {test.TestName}");
+            if (test.Output.Count > 0)
+            {
+                sb.AppendLine("```");
+                foreach (var line in test.Output.Take(12))
+                {
+                    sb.AppendLine(line);
+                }
+                if (test.Output.Count > 12)
+                {
+                    sb.AppendLine("...");
+                }
+                sb.AppendLine("```");
+            }
+            sb.AppendLine();
+        }
+
+        await Js.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString());
+    }
+
     private static bool TryExtractPngPath(string text, out string path)
     {
         path = string.Empty;
@@ -1170,9 +1212,18 @@
     {
         var filename = Path.GetFileNameWithoutExtension(csprojPath);
         
-        // Exclude runner/setup projects if they aren't actual xUnit/NUnit test suites
+        // Exclude runner/setup/seeder projects
         if (filename.Contains("DemoSetup", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase))
+            filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("Seeder", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Exclude integration tests and UI smoke tests from the Unit Tests runner
+        if (filename.Contains("Integration", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("UI.Windows", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -1330,7 +1381,7 @@
             var startInfo = new ProcessStartInfo
             {
                 FileName = exePath,
-                Arguments = "--urls \"http://localhost:5273\"",
+                Arguments = "--urls \"http://0.0.0.0:5273;http://localhost:5273;http://192.168.0.33:5273\"",
                 WorkingDirectory = Path.GetDirectoryName(exePath),
                 UseShellExecute = false,
                 CreateNoWindow = true,

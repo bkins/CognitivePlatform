@@ -612,17 +612,19 @@ public class TaskServiceTests
     [Fact]
     public async Task Create_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
     {
+        var vectorStoreTcs = new TaskCompletionSource<bool>();
         _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
         _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync(new float[] { 0.1f, 0.2f });
         _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
-                        .Returns(Task.CompletedTask);
+                        .Returns(Task.CompletedTask)
+                        .Callback(() => vectorStoreTcs.TrySetResult(true));
 
         var task = new TaskItem { ShortDescription = "Write tests", Details = "Unit tests for the parser" };
 
         _service.Create(task);
 
-        await Task.Delay(100);
+        await Task.WhenAny(vectorStoreTcs.Task, Task.Delay(1000));
 
         _embeddingMock.Verify(service => service.EmbedAsync("Write tests Unit tests for the parser"
                                                            , It.IsAny<CancellationToken>())
@@ -648,8 +650,9 @@ public class TaskServiceTests
     [Fact]
     public async Task Delete_QueuesVectorDelete_WhenTaskExists()
     {
-        var taskId = Guid.NewGuid();
-        var task   = new TaskItem { Id = taskId.ToString("N"), ShortDescription = "Old task" };
+        var taskId    = Guid.NewGuid();
+        var task      = new TaskItem { Id = taskId.ToString("N"), ShortDescription = "Old task" };
+        var deleteTcs = new TaskCompletionSource<bool>();
 
         _storeMock.Setup(store => store.Get<TaskItem>(taskId.ToString("N")
                                                      , It.IsAny<string?>()))
@@ -657,11 +660,12 @@ public class TaskServiceTests
         _vectorStoreMock.Setup(store => store.DeleteByReferenceAsync(It.IsAny<string>()
                                                                     , It.IsAny<string>()
                                                                     , It.IsAny<CancellationToken>()))
-                        .Returns(Task.CompletedTask);
+                        .Returns(Task.CompletedTask)
+                        .Callback(() => deleteTcs.TrySetResult(true));
 
         _service.Delete(taskId);
 
-        await Task.Delay(100);
+        await Task.WhenAny(deleteTcs.Task, Task.Delay(1000));
 
         _vectorStoreMock.Verify(store => store.DeleteByReferenceAsync("task"
                                                                      , taskId.ToString("N")
