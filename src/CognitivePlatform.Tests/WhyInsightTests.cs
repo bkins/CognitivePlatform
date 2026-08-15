@@ -6,6 +6,7 @@ using CognitivePlatform.Api.Insights.Models;
 
 namespace CognitivePlatform.Tests;
 
+[Collection("LlmSharedState")]
 public class WhyInsightTests
 {
     private readonly Mock<IInsightHistoryStore> _historyStoreMock = new();

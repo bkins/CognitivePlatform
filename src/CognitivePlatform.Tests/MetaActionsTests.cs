@@ -6,6 +6,7 @@ using CognitivePlatform.Api.Registry.Capabilities;
 
 namespace CognitivePlatform.Tests;
 
+[Collection("LlmSharedState")]
 public class MetaActionsTests
 {
     // ================================================================
