@@ -138,7 +138,7 @@ public class SqliteObjectStore : IObjectStore
             WHERE Id = $id
               AND Type = $type
               AND DeletedUtc IS NULL
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id"
@@ -177,13 +177,16 @@ public class SqliteObjectStore : IObjectStore
                 SELECT Json
                 FROM Objects
                 WHERE Id = $id
-                  AND Type = $type;
+                  AND Type = $type
+                  AND PartitionKey IS $partitionKey;
                 """;
 
         command.Parameters.AddWithValue("$id"
                                       , id);
         command.Parameters.AddWithValue("$type"
                                       , typeName);
+        command.Parameters.AddWithValue("$partitionKey"
+                                      , (object?)partitionKey ?? DBNull.Value);
 
         using var reader = command.ExecuteReader();
 
@@ -213,7 +216,7 @@ public class SqliteObjectStore : IObjectStore
             FROM Objects
             WHERE Type = $type
               AND DeletedUtc IS NULL
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey)
+              AND PartitionKey IS $partitionKey
               AND ($fromUtc IS NULL OR CreatedUtc >= $fromUtc)
               AND ($toUtc   IS NULL OR CreatedUtc <= $toUtc)
             ORDER BY CreatedUtc;
@@ -267,7 +270,7 @@ public class SqliteObjectStore : IObjectStore
             SET DeletedUtc = $deletedUtc
             WHERE Id = $id
               AND Type = $type
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id",           id);
@@ -305,7 +308,7 @@ public class SqliteObjectStore : IObjectStore
             WHERE Id = $id
               AND Type = $type
               AND DeletedUtc IS NULL
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id",           id);
@@ -339,7 +342,7 @@ public class SqliteObjectStore : IObjectStore
             FROM Objects
             WHERE Type = $type
               AND DeletedUtc IS NULL
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey)
+              AND PartitionKey IS $partitionKey
               AND ($fromUtc IS NULL OR CreatedUtc >= $fromUtc)
               AND ($toUtc   IS NULL OR CreatedUtc <= $toUtc)
             ORDER BY CreatedUtc;
@@ -385,7 +388,7 @@ public class SqliteObjectStore : IObjectStore
             SET DeletedUtc = $deletedUtc
             WHERE Id = $id
               AND Type = $type
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id",           id);
@@ -423,7 +426,7 @@ public class SqliteObjectStore : IObjectStore
             DELETE FROM Objects
             WHERE Id            = $id
               AND Type          = $type
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id",           id);
@@ -454,7 +457,7 @@ public class SqliteObjectStore : IObjectStore
             SELECT Json
             FROM Objects
             WHERE Type = $type
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey)
+              AND PartitionKey IS $partitionKey
               AND ($fromUtc IS NULL OR CreatedUtc >= $fromUtc)
               AND ($toUtc   IS NULL OR CreatedUtc <= $toUtc)
             ORDER BY CreatedUtc;
@@ -503,7 +506,7 @@ public class SqliteObjectStore : IObjectStore
             DELETE FROM Objects
             WHERE Type = $type
               AND CreatedUtc < $cutoff
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$type",         typeName);
@@ -570,7 +573,7 @@ public class SqliteObjectStore : IObjectStore
             SET DeletedUtc = NULL
             WHERE Id   = $id
               AND Type = $type
-              AND ($partitionKey IS NULL OR PartitionKey = $partitionKey);
+              AND PartitionKey IS $partitionKey;
             """;
 
         command.Parameters.AddWithValue("$id",           id);

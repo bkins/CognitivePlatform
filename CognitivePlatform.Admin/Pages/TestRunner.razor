@@ -625,6 +625,106 @@
         </MudPaper>
     </MudItem>
 
+    @* ── System Audit ───────────────────────────────────────────────────────── *@
+    @{
+        var auditState = TerminalService.Get("test-system-audit");
+        var auditLines = auditState.Snapshot();
+    }
+    <MudItem xs="12">
+        <MudPaper Elevation="2" Class="pa-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Policy" />
+                <MudText Typo="Typo.h6">System Invariant & Architecture Audit</MudText>
+                <MudSpacer />
+                @if (auditState.IsRunning)
+                {
+                    <MudChip T="string"
+                             Color="Color.Warning"
+                             Icon="@Icons.Material.Filled.RunCircle"
+                             Size="Size.Small">
+                        @(auditState.ElapsedDisplay.Length > 0 ? auditState.ElapsedDisplay : "Auditing…")
+                    </MudChip>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Stop"
+                               OnClick="@AbortSystemAudit">
+                        Abort
+                    </MudButton>
+                }
+                else if (auditState.ExitCode.HasValue)
+                {
+                    @if (auditState.ExitCode == 0)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Small">
+                            Exit 0 — Completed
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Icon="@Icons.Material.Filled.Error"
+                                 Size="Size.Small">
+                            Exit @auditState.ExitCode — Violations Found
+                        </MudChip>
+                    }
+                }
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Disabled="@auditState.IsRunning"
+                           OnClick="@RunSystemAuditAsync">
+                    Run System Audit
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ClearAll"
+                           Disabled="@auditState.IsRunning"
+                           OnClick="@ClearSystemAudit">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(auditLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-system-audit"))">
+                    Copy Log
+                </MudButton>
+            </MudStack>
+
+            @if (auditState.Error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-2">
+                    Failed to start audit process: @auditState.Error
+                </MudAlert>
+            }
+
+            <MudPaper id="system-audit-terminal-container" Elevation="4"
+                      Style="background:#1e1e1e;padding:16px;height:350px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
+                @if (auditLines.Length == 0)
+                {
+                    <span style="color:#6b7280;font-style:italic">Click 'Run System Audit' to scan all CP repositories for architectural invariants, data isolation, and standards compliance…</span>
+                }
+                else
+                {
+                    @foreach (var line in auditLines)
+                    {
+                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
+                            @line.Text
+                        </div>
+                    }
+                }
+                <div id="system-audit-terminal-end"></div>
+            </MudPaper>
+        </MudPaper>
+    </MudItem>
 
     @* ── Evaluation dashboard link ───────────────────────────────────────────── *@
     <MudItem xs="12">
@@ -758,7 +858,7 @@
 
     private void OnTerminalChanged(string id)
     {
-        if (id is not ("test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests")) return;
+        if (id is not ("test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests" or "test-system-audit")) return;
         try
         {
             var containerId = id switch
@@ -767,6 +867,7 @@
                 "test-windows"       => "windows-terminal-container",
                 "test-cognitive-api" => "cognitive-terminal-container",
                 "test-unit-tests"    => "unit-tests-terminal-container",
+                "test-system-audit"  => "system-audit-terminal-container",
                 _ => ""
             };
             _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(containerId); });
@@ -1129,6 +1230,47 @@
     private void AbortUnitTests()  => TerminalService.Abort("test-unit-tests");
     private void ClearUnitTests()  => TerminalService.Clear("test-unit-tests");
 
+    // ── System Audit execution ───────────────────────────────────────────────────
+
+    private async Task RunSystemAuditAsync()
+    {
+        var auditState = TerminalService.Get("test-system-audit");
+        if (auditState.IsRunning) return;
+
+        TerminalService.Clear("test-system-audit");
+        TerminalService.MarkRunning("test-system-audit", true);
+
+        try
+        {
+            var workingDir = @"C:\Users\benho\source\Antigravity.general";
+            var psArgs = "-NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\benho\\source\\Antigravity.general\\Run-SystemAudit.ps1\"";
+
+            TerminalService.AppendLine("test-system-audit", new TerminalLine($"$ powershell.exe {psArgs}"));
+            TerminalService.AppendLine("test-system-audit", new TerminalLine(string.Empty));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName               = "powershell.exe"
+              , Arguments              = psArgs
+              , WorkingDirectory       = workingDir
+              , RedirectStandardOutput = true
+              , RedirectStandardError  = true
+              , UseShellExecute        = false
+              , CreateNoWindow         = true
+            };
+
+            var exitCode = await TerminalService.RunProcessAsync("test-system-audit", startInfo, ClassifyLine);
+            TerminalService.SetExitCode("test-system-audit", exitCode);
+        }
+        finally
+        {
+            TerminalService.MarkRunning("test-system-audit", false);
+        }
+    }
+
+    private void AbortSystemAudit() => TerminalService.Abort("test-system-audit");
+    private void ClearSystemAudit() => TerminalService.Clear("test-system-audit");
+
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private static TerminalLine ClassifyLine(string text, bool isError)
@@ -1292,7 +1434,12 @@
         var roots = new[]
         {
             @"C:\Users\benho\source\repos\CognitivePlatform",
-            @"C:\Users\benho\source\repos\LocalAIAssistant"
+            @"C:\Users\benho\source\repos\LocalAIAssistant",
+            @"C:\Users\benho\source\repos\CP.Shared.Primitives",
+            @"C:\Users\benho\source\repos\CP.Client.Core",
+            @"C:\Users\benho\source\repos\ConsoleUtilities",
+            @"C:\Users\benho\source\repos\ConfigurationDiagnostics",
+            @"C:\Users\benho\source\repos\WatchList"
         };
 
         var projects = new List<string>();
