@@ -162,7 +162,7 @@ public sealed class SecretVaultService : ISecretVaultService
 
     private static (string EncryptedPayload, string Nonce, string AuthTag) EncryptInternal(string plaintext, byte[] key)
     {
-        using var aesGcm = new AesGcm(key);
+        using var aesGcm = new AesGcm(key, tagSizeInBytes: 16);
         
         var nonce = new byte[12];
         RandomNumberGenerator.Fill(nonce);
@@ -182,7 +182,7 @@ public sealed class SecretVaultService : ISecretVaultService
 
     private static string DecryptInternal(string encryptedPayload, string nonce, string authTag, byte[] key)
     {
-        using var aesGcm = new AesGcm(key);
+        using var aesGcm = new AesGcm(key, tagSizeInBytes: 16);
 
         var ciphertext = Convert.FromBase64String(encryptedPayload);
         var nonceBytes = Convert.FromBase64String(nonce);

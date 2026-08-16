@@ -48,7 +48,7 @@ public sealed class SecretActions
             return "Failed to save secret: title and secret value must be provided.";
         }
 
-        var effectiveCategory = category.HasValue() ? category : "General";
+        var effectiveCategory = category.HasValue() ? category! : "General";
 
         // Encrypt the payload
         var (payload, nonce, tag) = await _vault.EncryptAsync(secretValue).ConfigureAwait(false);
