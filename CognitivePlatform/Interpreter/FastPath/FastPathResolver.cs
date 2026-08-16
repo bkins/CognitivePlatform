@@ -591,7 +591,8 @@ public sealed class FastPathResolver : IFastPathResolver
         return input.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Select(line => line.Split(':', 2, StringSplitOptions.TrimEntries))
                     .Where(parts => parts.Length == 2)
-                    .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.OrdinalIgnoreCase);
+                    .GroupBy(parts => parts[0], StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Last()[1], StringComparer.OrdinalIgnoreCase);
     }
 
     // ================================================================

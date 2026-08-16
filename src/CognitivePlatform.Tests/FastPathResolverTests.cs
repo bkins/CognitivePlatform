@@ -1298,4 +1298,20 @@ public class FastPathResolverTests
         Assert.Equal("DeleteMeal", action!.Name);
         Assert.Equal("breakfast", parameters!["mealIdOrType"]);
     }
+
+    [Fact]
+    public void ParseToDictionary_WithDuplicateKeys_DoesNotThrowAndKeepsLatestValue()
+    {
+        var input = """
+                    Due: today
+                    Priority: High
+                    Due: tomorrow
+                    """;
+
+        var result = FastPathResolver.ParseToDictionary(input);
+
+        Assert.Equal(2,          result.Count);
+        Assert.Equal("tomorrow", result["Due"]);
+        Assert.Equal("High",     result["Priority"]);
+    }
 }
