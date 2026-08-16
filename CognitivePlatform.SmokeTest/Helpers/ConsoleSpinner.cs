@@ -55,7 +55,8 @@ public class ConsoleSpinner : IDisposable
         }
         else
         {
-            _frames = SpinnerStyles[Random.Next(SpinnerStyles.Length)];
+            // Exclude dummy WaveText placeholder from static array lookup
+            _frames = SpinnerStyles[Random.Next(SpinnerStyles.Length - 1)];
         }
         
         _cancellationTokenSource = new CancellationTokenSource();
