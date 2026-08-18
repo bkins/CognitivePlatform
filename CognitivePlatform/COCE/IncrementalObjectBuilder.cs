@@ -4,13 +4,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 
+using CP.Shared.Primitives.Avails.Extensions;
+
 namespace CognitivePlatform.Api.COCE;
 
 public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
 {
     private readonly ConcurrentDictionary<string, IncrementalConstructionSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly IObjectConstructionEngine                                     _constructionEngine;
-    private readonly IEnumerable<IObjectValidator>                                 _validators;
+
+    private readonly IObjectConstructionEngine     _constructionEngine;
+    private readonly IEnumerable<IObjectValidator> _validators;
 
     public IncrementalObjectBuilder( IObjectConstructionEngine    constructionEngine
                                    , IEnumerable<IObjectValidator> validators )
@@ -21,19 +24,18 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
 
     public IncrementalConstructionSession GetOrCreateSession(string sessionId, Type targetType)
     {
-        if (string.IsNullOrWhiteSpace(sessionId))
-            throw new ArgumentException("Session ID cannot be null or empty.", nameof(sessionId));
+        if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("Session ID cannot be null or empty."
+                                                                            , nameof(sessionId));
 
-        return _sessions.GetOrAdd(
-            sessionId
-          , id => new IncrementalConstructionSession
-                  {
-                      SessionId      = id
-                    , TargetType     = targetType
-                    , CurrentJson    = "{}"
-                    , CreatedAtUtc   = DateTimeOffset.UtcNow
-                    , LastUpdatedUtc = DateTimeOffset.UtcNow
-                  });
+        return _sessions.GetOrAdd(sessionId
+                                , id => new IncrementalConstructionSession
+                                        {
+                                                SessionId      = id
+                                              , TargetType     = targetType
+                                              , CurrentJson    = "{}"
+                                              , CreatedAtUtc   = DateTimeOffset.UtcNow
+                                              , LastUpdatedUtc = DateTimeOffset.UtcNow
+                                        });
     }
 
     public bool ApplyIncrementalUpdate( string                     sessionId
@@ -41,13 +43,14 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
                                       , out object?                constructedObject
                                       , out ObjectValidationResult validation )
     {
-        if (string.IsNullOrWhiteSpace(sessionId))
-            throw new ArgumentException("Session ID cannot be null or empty.", nameof(sessionId));
+        if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("Session ID cannot be null or empty."
+                                                                            , nameof(sessionId));
 
-        if (!_sessions.TryGetValue(sessionId, out var session))
+        if ( ! _sessions.TryGetValue(sessionId, out var session))
         {
             constructedObject = null;
             validation        = ObjectValidationResult.Failure(new[] { $"No active construction session found for ID '{sessionId}'." });
+
             return false;
         }
 
@@ -64,6 +67,7 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
             constructedObject      = null;
             validation             = ObjectValidationResult.Failure(new[] { $"Failed to construct object from merged JSON: {ex.Message}" });
             session.LastValidation = validation;
+
             return false;
         }
 
@@ -71,6 +75,7 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
         {
             validation             = ObjectValidationResult.Failure(new[] { "Constructed object was null." });
             session.LastValidation = validation;
+
             return false;
         }
 
@@ -85,15 +90,15 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
     {
         completedObject = null;
 
-        if (string.IsNullOrWhiteSpace(sessionId) || !_sessions.TryGetValue(sessionId, out var session))
-            return false;
+        if (string.IsNullOrWhiteSpace(sessionId)
+         || ! _sessions.TryGetValue(sessionId, out var session)) return false;
 
-        if (session.LastValidation is not { IsValid: true })
-            return false;
+        if (session.LastValidation is not { IsValid: true }) return false;
 
         try
         {
             completedObject = _constructionEngine.Construct(session.CurrentJson, session.TargetType);
+
             return completedObject is not null;
         }
         catch
@@ -104,17 +109,16 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
 
     public void DiscardSession(string sessionId)
     {
-        if (!string.IsNullOrWhiteSpace(sessionId))
-            _sessions.TryRemove(sessionId, out _);
+        if (sessionId.HasValue()) _sessions.TryRemove(sessionId, out _);
     }
 
     private static string MergeJson(string originalJson, string incomingJson)
     {
-        if (string.IsNullOrWhiteSpace(originalJson) || originalJson.Trim() == "{}")
-            return incomingJson;
+        if (originalJson.HasNoValue()
+         || originalJson.Trim() == "{}") return incomingJson;
 
-        if (string.IsNullOrWhiteSpace(incomingJson) || incomingJson.Trim() == "{}")
-            return originalJson;
+        if (incomingJson.HasNoValue()
+         || incomingJson.Trim() == "{}") return originalJson;
 
         JsonNode? originalNode;
         JsonNode? incomingNode;
@@ -129,13 +133,13 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
             return incomingJson;
         }
 
-        if (originalNode is JsonObject originalObj && incomingNode is JsonObject incomingObj)
-        {
-            MergeJsonObjects(originalObj, incomingObj);
-            return originalObj.ToJsonString();
-        }
+        if (originalNode is not JsonObject originalObj
+         || incomingNode is not JsonObject incomingObj) return incomingJson;
 
-        return incomingJson;
+        MergeJsonObjects(originalObj, incomingObj);
+
+        return originalObj.ToJsonString();
+
     }
 
     private static void MergeJsonObjects(JsonObject target, JsonObject source)
@@ -157,14 +161,11 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
             }
             else if (existingValue is JsonArray existingArr && value is JsonArray incomingArr)
             {
-                foreach (var item in incomingArr.ToList())
+                foreach (var item in incomingArr.ToList().OfType<JsonNode>())
                 {
-                    if (item is not null)
-                    {
-                        // Detach item from incoming array before appending to target
-                        incomingArr.Remove(item);
-                        existingArr.Add(item);
-                    }
+                    // Detach item from incoming array before appending to target
+                    incomingArr.Remove(item);
+                    existingArr.Add(item);
                 }
             }
             else

@@ -6,6 +6,8 @@
 @inject IJSRuntime            Js
 @inject NavigationManager     Nav
 @inject ITerminalStateService TerminalService
+@inject IConfiguration        Configuration
+@inject IPowerShellResolver   PowerShellResolver
 
 <PageTitle>Test Runner — CP Admin</PageTitle>
 
@@ -772,82 +774,13 @@
     private bool   _showScreenshotModal;
     private string _selectedScreenshotPath = "";
 
-    // ── Constants ─────────────────────────────────────────────────────────────────
+    // ── Configured paths & tools ──────────────────────────────────────────────────
 
-    private const string LaaRepoDir = @"C:\Users\benho\source\repos\LocalAIAssistant";
+    private string LaaRepoDir => Configuration["SystemPaths:LocalAIAssistantRepo"] ?? @"C:\Users\benho\source\repos\LocalAIAssistant";
 
-    private static readonly string PwshExe = ResolvePwsh();
+    private string PwshExe => PowerShellResolver.ResolvePwsh();
 
-    private static string ResolvePwsh()
-    {
-        // 1. Well-known PowerShell 7 install paths (MSI / system-wide)
-        string[] hardcoded =
-        [
-            @"C:\Program Files\PowerShell\7\pwsh.exe"
-          , @"C:\Program Files\PowerShell\pwsh.exe"
-          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
-                       , @"Microsoft\WindowsApps\pwsh.exe")
-        ];
-        foreach (var path in hardcoded)
-        {
-            if (File.Exists(path)) return path;
-        }
-
-        // 2. Walk every directory in the current process PATH.
-        //    Handles Store installs, winget installs, and non-standard locations.
-        var pathVar = System.Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        foreach (var dir in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            try
-            {
-                var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
-                if (File.Exists(candidate)) return candidate;
-            }
-            catch { /* skip inaccessible or malformed entries */ }
-        }
-
-        // 3. PowerShell 7 not found — fall back to Windows PowerShell 5.1 which is
-        //    always present on Windows and handles the same -NonInteractive -ExecutionPolicy Bypass -File syntax.
-        const string ps51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
-        if (File.Exists(ps51)) return ps51;
-
-        return "powershell"; // guaranteed to exist on any Windows machine
-    }
-
-    /// <summary>
-    /// Returns the path to pwsh.exe (PowerShell 7) specifically, or null if not installed.
-    /// Unlike ResolvePwsh(), this never falls back to powershell.exe — callers that
-    /// require PS7 syntax must fail gracefully when this returns null.
-    /// </summary>
-    private static string? FindPwsh7()
-    {
-        string[] candidates =
-        [
-            @"C:\Program Files\PowerShell\7\pwsh.exe"
-          , @"C:\Program Files\PowerShell\pwsh.exe"
-          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
-                       , @"Microsoft\WindowsApps\pwsh.exe")
-        ];
-        foreach (var path in candidates)
-            if (File.Exists(path)) return path;
-
-        var pathVar = System.Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        foreach (var dir in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            try
-            {
-                var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
-                if (File.Exists(candidate)) return candidate;
-            }
-            catch { /* skip inaccessible or malformed entries */ }
-        }
-
-        // PS7 not found via hardcoded paths or PATH directory scan.
-        // Return the bare command name and let the OS resolve it via PATH —
-        // handles non-standard install locations, winget installs, and Store
-        // installs that add only a shell alias rather than a full .exe path.
-        return "pwsh";
-    }
+    private string? FindPwsh7() => PowerShellResolver.FindPwsh7();
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -1429,17 +1362,18 @@
         return string.Empty;
     }
 
-    private static IReadOnlyList<string> DetectTestProjects()
+    private IReadOnlyList<string> DetectTestProjects()
     {
+        var reposRoot = Configuration["SystemPaths:ReposRoot"] ?? @"C:\Users\benho\source\repos";
         var roots = new[]
         {
-            @"C:\Users\benho\source\repos\CognitivePlatform",
-            @"C:\Users\benho\source\repos\LocalAIAssistant",
-            @"C:\Users\benho\source\repos\CP.Shared.Primitives",
-            @"C:\Users\benho\source\repos\CP.Client.Core",
-            @"C:\Users\benho\source\repos\ConsoleUtilities",
-            @"C:\Users\benho\source\repos\ConfigurationDiagnostics",
-            @"C:\Users\benho\source\repos\WatchList"
+            Path.Combine(reposRoot, "CognitivePlatform"),
+            Path.Combine(reposRoot, "LocalAIAssistant"),
+            Path.Combine(reposRoot, "CP.Shared.Primitives"),
+            Path.Combine(reposRoot, "CP.Client.Core"),
+            Path.Combine(reposRoot, "ConsoleUtilities"),
+            Path.Combine(reposRoot, "ConfigurationDiagnostics"),
+            Path.Combine(reposRoot, "WatchList")
         };
 
         var projects = new List<string>();

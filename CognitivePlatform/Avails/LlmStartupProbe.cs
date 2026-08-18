@@ -9,6 +9,9 @@ namespace CognitivePlatform.Api.Avails;
 
 public sealed class LlmStartupProbe
 {
+    private const int    maxResultLength = 500;
+    private const string ellipsis        = "...";
+
     private readonly ILlmClient               _llm;
     private readonly LlmModelCatalog          _catalog;
     private readonly ILogger<LlmStartupProbe> _log;
@@ -16,10 +19,10 @@ public sealed class LlmStartupProbe
 
     public bool ShouldProbeModels { get; set; } = false;
 
-    public LlmStartupProbe (ILlmClient               llm
+    public LlmStartupProbe( ILlmClient               llm
                           , LlmModelCatalog          catalog
                           , IConfiguration           config
-                          , ILogger<LlmStartupProbe> log)
+                          , ILogger<LlmStartupProbe> log )
     {
         _llm      = llm;
         _catalog  = catalog;
@@ -27,7 +30,8 @@ public sealed class LlmStartupProbe
         _settings = config.GetSection("LlmClient").Get<LlmClientSettings>();
 
         var shouldProbeConfig = config["ShouldProbe"];
-        if (bool.TryParse(shouldProbeConfig, out var parsedShouldProbe))
+        if (bool.TryParse(shouldProbeConfig
+                        , out var parsedShouldProbe))
         {
             ShouldProbeModels = parsedShouldProbe;
         }
@@ -39,26 +43,19 @@ public sealed class LlmStartupProbe
         }
     }
 
-    public async Task RunAsync (IEnumerable<string> candidateModels
-                              , CancellationToken   ct)
+    public async Task RunAsync( IEnumerable<string> candidateModels
+                              , CancellationToken   ct )
     {
 
-        if (ShouldProbeModels)
-        {
-            await ProbeModels(candidateModels
-                            , ct);
-        }
+        if (ShouldProbeModels) await ProbeModels(candidateModels, ct);
     }
 
     public async Task RunAsync( string            candidateModel
                               , CancellationToken ct )
     {
-        if (ShouldProbeModels)
-        {
-            await ProbeModels(candidateModel
-                            , ct);
-        }
+        if (ShouldProbeModels) await ProbeModels(candidateModel, ct);
     }
+
     private async Task ProbeModels( IEnumerable<string> candidateModels
                                   , CancellationToken   ct )
     {
@@ -70,7 +67,8 @@ public sealed class LlmStartupProbe
         foreach (var model in candidateModels)
         {
             _log.LogInformation($"Probing {model}...");
-            var probe = await _llm.ProbeAsync(model, ct);
+            var probe = await _llm.ProbeAsync(model
+                                            , ct);
 
             results.Add(new LlmModelInfo(model
                                        , probe.IsUsable
@@ -109,12 +107,15 @@ public sealed class LlmStartupProbe
             var alternatives = GetAlternativeModelsForProvider(candidateModel);
             if (alternatives.Count > 0)
             {
-                _log.LogWarning("  ✖ {ModelName} failed startup probe. Attempting to probe available alternative models for provider...", candidateModel);
+                _log.LogWarning("  ✖ {ModelName} failed startup probe. Attempting to probe available alternative models for provider..."
+                              , candidateModel);
 
                 foreach (var altModel in alternatives)
                 {
-                    _log.LogInformation("Probing alternative {Model}...", altModel);
-                    var altProbe = await _llm.ProbeAsync(altModel, ct);
+                    _log.LogInformation("Probing alternative {Model}..."
+                                      , altModel);
+                    var altProbe = await _llm.ProbeAsync(altModel
+                                                       , ct);
                     if (altProbe is null)
                     {
                         continue;
@@ -129,17 +130,18 @@ public sealed class LlmStartupProbe
                     _catalog.Add(altResult);
                     LogSummary(altResult);
 
-                    if (altProbe.IsUsable)
-                    {
-                        _log.LogInformation("  ✔ Successfully found working alternative model {Model} for provider.", altModel);
-                        break;
-                    }
+                    if (!altProbe.IsUsable) continue;
+
+                    _log.LogInformation("  ✔ Successfully found working alternative model {Model} for provider."
+                                      , altModel);
+
+                    break;
                 }
             }
         }
     }
 
-    private IReadOnlyList<string> GetAlternativeModelsForProvider(string originalModel)
+    private IReadOnlyList<string> GetAlternativeModelsForProvider( string originalModel )
     {
         var alternatives = new List<string>();
         if (_settings is null) return alternatives;
@@ -149,25 +151,27 @@ public sealed class LlmStartupProbe
         // 1. Gather matching models from SortedAllowedModels
         if (_settings.SortedAllowedModels is not null)
         {
-            foreach (var model in _settings.SortedAllowedModels)
+            foreach (var cleanedModel in
+                     from model in _settings.SortedAllowedModels
+                     where !ModelBelongsToProvider(model, provider).Not()
+                     select NormalizeModelName(model)
+                     into cleanedModel
+                     where string.Equals(cleanedModel
+                                       , originalModel
+                                       , StringComparison.OrdinalIgnoreCase).Not()
+                        && alternatives.Contains(cleanedModel).Not()
+                     select cleanedModel)
             {
-                if (ModelBelongsToProvider(model, provider))
-                {
-                    var cleanedModel = NormalizeModelName(model);
-                    if (string.Equals(cleanedModel, originalModel, StringComparison.OrdinalIgnoreCase).Not()
-                     && alternatives.Contains(cleanedModel).Not())
-                    {
-                        alternatives.Add(cleanedModel);
-                    }
-                }
+                alternatives.Add(cleanedModel);
             }
         }
 
         // 2. Add standard known models as fallbacks
         var standardFallbacks = GetStandardFallbackModels(provider);
+
         foreach (var model in standardFallbacks)
         {
-            if (string.Equals(model, originalModel, StringComparison.OrdinalIgnoreCase).Not()
+            if (model.IsNotEqualTo(originalModel)
              && alternatives.Contains(model).Not())
             {
                 alternatives.Add(model);
@@ -177,35 +181,77 @@ public sealed class LlmStartupProbe
         return alternatives;
     }
 
-    private static string NormalizeModelName(string model)
+    private static string NormalizeModelName( string model )
     {
         return model.Trim().Replace(" ", "-").ToLowerInvariant();
     }
 
-    private static bool ModelBelongsToProvider(string model, LlmProvider provider)
+    private static bool ModelBelongsToProvider( string      model
+                                              , LlmProvider provider )
     {
         var modelLower = model.ToLowerInvariant();
+
         return provider switch
         {
-            LlmProvider.Gemini     => modelLower.Contains("gemini")
-          , LlmProvider.Groq       => modelLower.Contains("llama") || modelLower.Contains("mixtral") || modelLower.Contains("gemma") || modelLower.Contains("qwen") || modelLower.Contains("deepseek")
-          , LlmProvider.Cerebras   => modelLower.Contains("llama") || modelLower.Contains("cerebras")
-          , LlmProvider.Ollama     => modelLower.Contains("qwen") || modelLower.Contains("llama") || modelLower.Contains("phi") || modelLower.Contains("mistral") || modelLower.Contains("gemma") || modelLower.Contains(":")
-          , LlmProvider.OpenRouter => modelLower.Contains("/") || modelLower.Contains("openai") || modelLower.Contains("google") || modelLower.Contains("anthropic")
-          , _                      => false
+                LlmProvider.Gemini => modelLower.Contains("gemini")
+              , LlmProvider.Groq => modelLower.Contains("llama")
+                                 || modelLower.Contains("mixtral")
+                                 || modelLower.Contains("gemma")
+                                 || modelLower.Contains("qwen")
+                                 || modelLower.Contains("deepseek")
+              , LlmProvider.Cerebras => modelLower.Contains("llama") || modelLower.Contains("cerebras")
+              , LlmProvider.Ollama => modelLower.Contains("qwen")
+                                   || modelLower.Contains("llama")
+                                   || modelLower.Contains("phi")
+                                   || modelLower.Contains("mistral")
+                                   || modelLower.Contains("gemma")
+                                   || modelLower.Contains(":")
+              , LlmProvider.OpenRouter => modelLower.Contains("/")
+                                       || modelLower.Contains("openai")
+                                       || modelLower.Contains("google")
+                                       || modelLower.Contains("anthropic")
+              , _ => false
         };
     }
 
-    private static IReadOnlyList<string> GetStandardFallbackModels(LlmProvider provider)
+    private static IReadOnlyList<string> GetStandardFallbackModels( LlmProvider provider )
     {
         return provider switch
         {
-            LlmProvider.Gemini     => new[] { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro" }
-          , LlmProvider.Groq       => new[] { "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-qwq-32b", "deepseek-r1-distill-llama-70b" }
-          , LlmProvider.Cerebras   => new[] { "llama3.1-8b", "llama-3.3-70b" }
-          , LlmProvider.Ollama     => new[] { "qwen2.5:14b", "llama3.1:8b", "llama3.2", "phi3:mini" }
-          , LlmProvider.OpenRouter => new[] { "openai/gpt-4o-mini", "google/gemini-2.5-flash" }
-          , _                      => Array.Empty<string>()
+                LlmProvider.Gemini => new[]
+                                      {
+                                              "gemini-2.5-flash"
+                                            , "gemini-2.5-flash-lite"
+                                            , "gemini-2.0-flash"
+                                            , "gemini-1.5-flash"
+                                            , "gemini-3.1-flash-lite"
+                                            , "gemini-3.1-pro"
+                                      }
+              , LlmProvider.Groq => new[]
+                                    {
+                                            "llama-3.3-70b-versatile"
+                                          , "llama-3.1-8b-instant"
+                                          , "qwen-qwq-32b"
+                                          , "deepseek-r1-distill-llama-70b"
+                                    }
+              , LlmProvider.Cerebras => new[]
+                                        {
+                                                "llama3.1-8b"
+                                              , "llama-3.3-70b"
+                                        }
+              , LlmProvider.Ollama => new[]
+                                      {
+                                              "qwen2.5:14b"
+                                            , "llama3.1:8b"
+                                            , "llama3.2"
+                                            , "phi3:mini"
+                                      }
+              , LlmProvider.OpenRouter => new[]
+                                          {
+                                                  "openai/gpt-4o-mini"
+                                                , "google/gemini-2.5-flash"
+                                          }
+              , _ => Array.Empty<string>()
         };
     }
 
@@ -227,7 +273,6 @@ public sealed class LlmStartupProbe
                               , FormatFailureReason(model.FailureReason));
             }
         }
-
     }
 
     private void LogSummary( LlmModelInfo model )
@@ -248,27 +293,25 @@ public sealed class LlmStartupProbe
 
     }
 
-    private static string FormatFailureReason(string? failureReason)
+    private static string FormatFailureReason( string? failureReason )
     {
-        if (string.IsNullOrWhiteSpace(failureReason))
-        {
-            return "Unknown error";
-        }
+        if (failureReason?.HasNoValue() ?? true) return "Unknown error";
 
-        var jsonText = failureReason.Trim();
-        var prefix = string.Empty;
-
+        var jsonText   = failureReason.Trim();
+        var prefix     = string.Empty;
         var colonIndex = jsonText.IndexOf(':');
-        if (colonIndex > 0 && jsonText.Substring(0, colonIndex).Trim().StartsWith("HTTP", StringComparison.OrdinalIgnoreCase))
+
+        if (colonIndex > 0
+         && jsonText[..colonIndex].Trim().StartsWith("HTTP", StringComparison.OrdinalIgnoreCase))
         {
-            prefix = jsonText.Substring(0, colonIndex + 1).Trim() + " ";
-            jsonText = jsonText.Substring(colonIndex + 1).Trim();
+            prefix   = jsonText[..(colonIndex + 1)].Trim() + " ";
+            jsonText = jsonText[(colonIndex + 1)..].Trim();
         }
 
         try
         {
-            using var doc = JsonDocument.Parse(jsonText);
-            var root = doc.RootElement;
+            using var doc  = JsonDocument.Parse(jsonText);
+            var       root = doc.RootElement;
 
             if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
             {
@@ -277,22 +320,33 @@ public sealed class LlmStartupProbe
 
             if (root.ValueKind == JsonValueKind.Object)
             {
-                if (root.TryGetProperty("error", out var errorProp))
+                if (root.TryGetProperty("error"
+                                      , out var errorProp))
                 {
-                    if (errorProp.ValueKind == JsonValueKind.Object)
+                    switch (errorProp.ValueKind)
                     {
-                        if (errorProp.TryGetProperty("message", out var messageProp) && messageProp.ValueKind == JsonValueKind.String)
-                        {
+                        case JsonValueKind.Object when errorProp.TryGetProperty("message", out var messageProp)
+                                                    && messageProp.ValueKind == JsonValueKind.String:
                             return $"{prefix}{CleanMessage(messageProp.GetString())}";
-                        }
-                    }
-                    else if (errorProp.ValueKind == JsonValueKind.String)
-                    {
-                        return $"{prefix}{CleanMessage(errorProp.GetString())}";
+
+                        case JsonValueKind.String:
+                            return $"{prefix}{CleanMessage(errorProp.GetString())}";
+
+                        case JsonValueKind.Undefined:
+                        case JsonValueKind.Array:
+                        case JsonValueKind.Number:
+                        case JsonValueKind.True:
+                        case JsonValueKind.False:
+                        case JsonValueKind.Null:
+                            break;
+
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
 
-                if (root.TryGetProperty("message", out var directMessageProp) && directMessageProp.ValueKind == JsonValueKind.String)
+                if (root.TryGetProperty("message", out var directMessageProp)
+                 && directMessageProp.ValueKind == JsonValueKind.String)
                 {
                     return $"{prefix}{CleanMessage(directMessageProp.GetString())}";
                 }
@@ -306,15 +360,14 @@ public sealed class LlmStartupProbe
         return $"{prefix}{CleanMessage(jsonText)}";
     }
 
-    private static string CleanMessage(string? message)
+    private static string CleanMessage( string? message )
     {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return "Unknown error";
-        }
+        if (message?.HasNoValue() ?? true) return "Unknown error";
 
         // Replace newlines with spaces to keep it single-line
-        var result = message.Replace("\r", " ").Replace("\n", " ").Trim();
+        var result = message.Replace("\r", " ")
+                            .Replace("\n", " ")
+                            .Trim();
 
         // Collapse multiple spaces
         while (result.Contains("  "))
@@ -323,9 +376,10 @@ public sealed class LlmStartupProbe
         }
 
         // Truncate if excessively long
-        if (result.Length > 500)
+        if (result.Length > maxResultLength)
         {
-            result = result.Substring(0, 497) + "...";
+            result = result[..(maxResultLength - ellipsis.Length)]
+                   + ellipsis;
         }
 
         return result;

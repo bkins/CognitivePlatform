@@ -16,7 +16,13 @@ public sealed record IncrementalConstructionSession
 public interface IIncrementalObjectBuilder
 {
     IncrementalConstructionSession GetOrCreateSession(string sessionId, Type targetType);
-    bool ApplyIncrementalUpdate(string sessionId, string partialJson, out object? constructedObject, out ObjectValidationResult validation);
+
+    bool ApplyIncrementalUpdate(string sessionId
+                              , string partialJson
+                              , out object? constructedObject
+                              , out ObjectValidationResult validation);
+
     bool TryGetCompletedObject(string sessionId, out object? completedObject);
+
     void DiscardSession(string sessionId);
 }

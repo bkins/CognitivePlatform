@@ -7,6 +7,7 @@
 @inject IConfiguration        Configuration
 @inject ITerminalStateService TerminalService
 @inject IJSRuntime            Js
+@inject IPowerShellResolver    PowerShellResolver
 
 <PageTitle>Release Console — CP Admin</PageTitle>
 
@@ -712,53 +713,17 @@
         public string?  ErrorMessage { get; init; }
     }
 
-    // ── Static paths ───────────────────────────────────────────────────────────
+    // ── Configured paths ─────────────────────────────────────────────────────────
 
-    private static readonly string ScriptsDir           = @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
-    private static readonly string CpRepoRoot           = @"C:\Users\benho\source\repos\CognitivePlatform";
-    private static readonly string StagingApiDir        = @"C:\CP\Deploy\Api";
-    private static readonly string StagingLaaDir        = @"C:\CP\Deploy\Laa";
-    private static readonly string StagingLaaWindowsDir = @"C:\CP\Deploy\LaaWindows";
-    private static readonly string StagingCocoDir        = @"C:\CP\Deploy\Coco";
-    private static readonly string ArtifactsRoot        = @"C:\CP\Artifacts";
+    private string ScriptsDir           => Configuration["SystemPaths:ReleaseConsoleScriptsDir"] ?? @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
+    private string CpRepoRoot           => Configuration["SystemPaths:CognitivePlatformRepo"] ?? @"C:\Users\benho\source\repos\CognitivePlatform";
+    private string StagingApiDir        => Configuration["SystemPaths:StagingApiDir"] ?? @"C:\CP\Deploy\Api";
+    private string StagingLaaDir        => Configuration["SystemPaths:StagingLaaDir"] ?? @"C:\CP\Deploy\Laa";
+    private string StagingLaaWindowsDir => Configuration["SystemPaths:StagingLaaWindowsDir"] ?? @"C:\CP\Deploy\LaaWindows";
+    private string StagingCocoDir        => Configuration["SystemPaths:StagingCocoDir"] ?? @"C:\CP\Deploy\Coco";
+    private string ArtifactsRoot        => Configuration["SystemPaths:ArtifactsRoot"] ?? @"C:\CP\Artifacts";
 
-    private static readonly string PwshExe = ResolvePwsh();
-
-    private static string ResolvePwsh()
-    {
-        // 1. Well-known PowerShell 7 install paths (MSI / system-wide)
-        string[] hardcoded =
-        [
-            @"C:\Program Files\PowerShell\7\pwsh.exe"
-          , @"C:\Program Files\PowerShell\pwsh.exe"
-          , Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
-                       , @"Microsoft\WindowsApps\pwsh.exe")
-        ];
-        foreach (var path in hardcoded)
-        {
-            if (File.Exists(path)) return path;
-        }
-
-        // 2. Walk every directory in the current process PATH.
-        //    Handles Store installs, winget installs, and non-standard locations.
-        var pathVar = System.Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        foreach (var dir in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            try
-            {
-                var candidate = Path.Combine(dir.Trim(), "pwsh.exe");
-                if (File.Exists(candidate)) return candidate;
-            }
-            catch { /* skip inaccessible or malformed entries */ }
-        }
-
-        // 3. PowerShell 7 not found — fall back to Windows PowerShell 5.1 which is
-        //    always present on Windows and handles the same -NonInteractive -ExecutionPolicy Bypass -File syntax.
-        const string ps51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
-        if (File.Exists(ps51)) return ps51;
-
-        return "powershell"; // guaranteed to exist on any Windows machine
-    }
+    private string PwshExe => PowerShellResolver.ResolvePwsh();
 
     private static readonly string DeploymentStatePath =
         Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData)
@@ -777,7 +742,7 @@
     private string  _gitDirectory        = string.Empty;
     private string? _workDirWarning;
     private string? _gitDirWarning;
-    private string  _version             = GenerateVersion();
+    private string  _version             = string.Empty; //GenerateVersion();
     private string  _selectedEnvironment = "DEV";
     private string  _customExe           = string.Empty;
     private string  _customArgs          = string.Empty;
@@ -803,11 +768,11 @@
 
     private static readonly object _versionLock = new();
 
-    private static string GenerateVersion()
+    private string GenerateVersion()
     {
         lock (_versionLock)
         {
-            var path = @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
+            var path = Configuration["SystemPaths:VersionJsonPath"] ?? @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
             if (!System.IO.File.Exists(path))
             {
                 return "1.0.0.1";
@@ -1152,12 +1117,12 @@
             await WriteDeploymentStateAsync("API", _selectedEnvironment
                                           , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
-            
+
             await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
-            
+
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
 
@@ -1710,7 +1675,7 @@
         TerminalService.MarkRunning("release", true);
 
         var effectiveWorkDir = workDir;
-        if ( ! string.IsNullOrWhiteSpace(effectiveWorkDir) 
+        if ( ! string.IsNullOrWhiteSpace(effectiveWorkDir)
          &&  ! Directory.Exists(effectiveWorkDir))
         {
             TerminalService.AppendLine("release"
@@ -1741,8 +1706,8 @@
                 lastExitCode = await TerminalService.RunProcessAsync("release"
                                                                    , startInfo
                                                                    , (text, isError) => new TerminalLine(text
-                                                                                                       , isError 
-                                                                                                             ? TerminalLineKind.Error 
+                                                                                                       , isError
+                                                                                                             ? TerminalLineKind.Error
                                                                                                              : TerminalLineKind.Normal));
 
                 if (lastExitCode is not 0) break;

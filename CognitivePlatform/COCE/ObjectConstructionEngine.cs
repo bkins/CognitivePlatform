@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using CP.Shared.Primitives.Avails.Extensions;
+
 namespace CognitivePlatform.Api.COCE;
 
 public class ObjectConstructionEngine : IObjectConstructionEngine
@@ -13,8 +15,8 @@ public class ObjectConstructionEngine : IObjectConstructionEngine
     private static readonly JsonSerializerOptions Options = new()
                                                             {
                                                                 PropertyNameCaseInsensitive = true
-                                                              , Converters = 
-                                                                { 
+                                                              , Converters =
+                                                                {
                                                                     new JsonStringEnumConverter()
                                                                   , new LocalDateTimeOffsetConverter()
                                                                 }
@@ -27,8 +29,7 @@ public class ObjectConstructionEngine : IObjectConstructionEngine
 
     public object? Construct(string json, Type targetType)
     {
-        if (string.IsNullOrWhiteSpace(json))
-            return null;
+        if (json.HasNoValue()) return null;
 
         object? deserialized;
         try

@@ -13,7 +13,10 @@ public sealed class ObjectStoreAuditLog : IAuditLog
 
     public async Task AppendAsync(AuditEvent auditEvent)
     {
-        await _store.Save(auditEvent, partitionKey: null, id: auditEvent.Id).ConfigureAwait(false);
+        await _store.Save(auditEvent
+                        , partitionKey: null,
+                          id: auditEvent.Id)
+                    .ConfigureAwait(false);
     }
 
     public IReadOnlyList<AuditEvent> List( DateTimeOffset? fromUtc = null

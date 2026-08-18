@@ -21,6 +21,7 @@ builder.Services.AddTransient<EnvironmentRoutingHandler>();
 
 // Terminal state — singleton, survives page navigation so output persists when user navigates away.
 builder.Services.AddSingleton<ITerminalStateService, TerminalStateService>();
+builder.Services.AddSingleton<IPowerShellResolver, PowerShellResolver>();
 
 builder.Services.AddTransient<IToolScriptLoader, ToolScriptLoader>();
 builder.Services.AddTransient<IToolMetadataReader, ToolMetadataReader>();

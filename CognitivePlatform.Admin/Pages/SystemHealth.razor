@@ -6,6 +6,7 @@
 @inject IAdminSystemClient  SystemClient
 @inject EnvironmentService  EnvService
 @inject ITerminalStateService TerminalService
+@inject IConfiguration     Configuration
 
 <PageTitle>System Health — CP Admin</PageTitle>
 
@@ -264,7 +265,8 @@ else if (_error is not null)
     private bool                 _showPollerConsole;
     private string?              _pollerError;
 
-    private string GetPollerScriptPath() => @"C:\Users\benho\source\repos\AI.Workspace\Antigravity\remote-agent-poller.ps1";
+    private string GetPollerScriptPath() => 
+        Configuration["SystemPaths:RemoteAgentPollerScript"] ?? @"C:\Users\benho\source\repos\AI.Workspace\Antigravity\remote-agent-poller.ps1";
 
     private bool IsPollerRunningExternally()
     {

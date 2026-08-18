@@ -10,7 +10,7 @@ public static class TestActions
     private static ConversationContext? _context;
 
     // Called by orchestrator once per request/session
-    public static void SetContext(ConversationContext context)
+    public static void SetContext( ConversationContext context )
     {
         _context = context;
     }
@@ -27,14 +27,14 @@ public static class TestActions
                                       }
                          , Category = "memory"
                          , AllowsClarification = true)]
-    public static string StoreValue ([NaturalLanguageParam(Description = "The name of the variable to store."
-                                                         , Optional    = false
-                                                         , AllowEmpty  = false)]
+    public static string StoreValue( [NaturalLanguageParam(Description = "The name of the variable to store."
+                                                         , Optional = false
+                                                         , AllowEmpty = false)]
                                      string key
                                    , [NaturalLanguageParam(Description = "The value to store under the key."
-                                                         , Optional    = false
-                                                         , AllowEmpty  = true)]
-                                     string value)
+                                                         , Optional = false
+                                                         , AllowEmpty = true)]
+                                     string value )
     {
         if (_context is null) return "No conversation context available.";
 
@@ -47,23 +47,22 @@ public static class TestActions
     // 2. RecallValue
     // ---------------------------------------------------------------------
     [NaturalLanguageAction(Description = "Retrieves a previously stored value."
-                         , Examples    = new[]
-                                         {
-                                             "What is x?"
-                                             , "What is 'my key'?"
-                                             , """What is the value of "foo bar"?"""
-                                             , "What did I store under 'some key'?"
-                                             , "What did I say earlier?"
-                                             , "Recall the value of count"
-                                         }
+                         , Examples = new[]
+                                      {
+                                              "What is x?"
+                                            , "What is 'my key'?"
+                                            , """What is the value of "foo bar"?"""
+                                            , "What did I store under 'some key'?"
+                                            , "What did I say earlier?"
+                                            , "Recall the value of count"
+                                      }
                          , Category = "memory")]
-    public static string RecallValue([NaturalLanguageParam(Description = "The variable name to retrieve."
-                                                         , Optional = true
-                                                         , DefaultValue = "foo")]
-                                     string key)
+    public static string RecallValue( [NaturalLanguageParam(Description = "The variable name to retrieve."
+                                                          , Optional = true
+                                                          , DefaultValue = "foo")]
+                                      string key )
     {
-        if (_context is null)
-            return "No conversation context available.";
+        if (_context is null) return "No conversation context available.";
 
         return _context.Metadata
                        .TryGetValue(key, out var value)
@@ -75,28 +74,24 @@ public static class TestActions
     // ---------------------------------------------------------------------
     // 3. RepeatLastAction
     // ---------------------------------------------------------------------
-    [NaturalLanguageAction( Description = "Repeats the last action using the previously extracted parameters."
-                          , Examples    = new[]
-                                          {
+    [NaturalLanguageAction(Description = "Repeats the last action using the previously extracted parameters."
+                         , Examples = new[]
+                                      {
                                               "Do that again"
                                             , "Repeat the last command"
                                             , "Run it again"
-                                          }
-                          , Category = "meta")]
+                                      }
+                         , Category = "meta")]
     public static string RepeatLastAction()
     {
-        if (_context is null)
-            return "No conversation context available.";
-
-        if (_context.LastActionName is null)
-            return "There is no previous action to repeat.";
+        if (_context is null) return "No conversation context available.";
+        if (_context.LastActionName is null) return "There is no previous action to repeat.";
 
         var summary = _context.LastParameters
                               .Count == 0
                                     ? "(no stored parameters)"
-                                    : string.Join(", "
-                                                , _context.LastParameters
-                                                          .Select(pair => $"{pair.Key}={pair.Value}"));
+                                    : string.Join(", ", _context.LastParameters
+                                                                .Select(pair => $"{pair.Key}={pair.Value}"));
 
         return $"Request to repeat action '{_context.LastActionName}' with parameters: {summary}";
     }

@@ -10,7 +10,7 @@ public class AdaptiveConsoleFormatter : ConsoleFormatter
     private readonly SimpleConsoleFormatterOptions _options;
 
     public const string ConsoleSummaryTitle = "Cognitive Platform API — Startup";
-    
+
     public AdaptiveConsoleFormatter(IOptionsMonitor<SimpleConsoleFormatterOptions> options)
             : base("Adaptive")
     {
@@ -53,24 +53,18 @@ public class AdaptiveConsoleFormatter : ConsoleFormatter
         }
 
         textWriter.Write(sb.ToString());
-
     }
 
-    private static string ColorizeDiagnosticLine(string line) 
+    private static string ColorizeDiagnosticLine(string line)
     {
         //Title
-        if (line.Contains(ConsoleSummaryTitle))
-        {
-            return $"{Ansi.Yellow}{line}{Ansi.Reset}";
-        }
-        
+        if (line.Contains(ConsoleSummaryTitle)) return $"{Ansi.Yellow}{line}{Ansi.Reset}";
+
         // Separator lines
-        if (line.TrimStart().StartsWith('─'))
-            return $"{Ansi.Dim}{line}{Ansi.Reset}";
-    
+        if (line.TrimStart().StartsWith('─')) return $"{Ansi.Dim}{line}{Ansi.Reset}";
+
         // URLs
-        if (line.Contains("http"))
-            return $"{Ansi.Green}{line}{Ansi.Reset}";
+        if (line.Contains("http")) return $"{Ansi.Green}{line}{Ansi.Reset}";
 
         // Section headers (no colon, not empty, not indented deeply)
         if (line.Contains(':'))
@@ -78,14 +72,15 @@ public class AdaptiveConsoleFormatter : ConsoleFormatter
             var colon = line.IndexOf(':');
             var label = line[..colon];
             var value = line[colon..];
+
             return $"{Ansi.Cyan}{label}{Ansi.Reset}{Ansi.White}{value}{Ansi.Reset}";
         }
 
         // Title line
-        if (line.Contains('—'))
-            return $"{Ansi.Bold}{Ansi.White}{line}{Ansi.Reset}";
+        return line.Contains('—')
+                       ? $"{Ansi.Bold}{Ansi.White}{line}{Ansi.Reset}"
+                       : line;
 
-        return line;
     }
 
     internal static class Ansi
@@ -98,7 +93,7 @@ public class AdaptiveConsoleFormatter : ConsoleFormatter
         public const string White  = "\u001b[97m";
         public const string Yellow = "\u001b[33m";
     }
-    
+
     private static string ToShortLevel( LogLevel level ) => level switch
     {
             LogLevel.Trace       => "TRC"

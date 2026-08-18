@@ -61,23 +61,18 @@ public sealed class DebugFastPath
             sb.AppendLine(required.Count == 0
                                   ? "(none)"
                                   : string.Join(", "
-                                              , required.Select(r => $"{r.Name}:{r.ParameterType.Name}")));
+                                              , required.Select(reqParam => $"{reqParam.Name}:{reqParam.ParameterType.Name}")));
 
             sb.Append("Optional Parameters: ");
             sb.AppendLine(optional.Count == 0
                                   ? "(none)"
                                   : string.Join(", "
-                                              , optional.Select(o => $"{o.Name}:{o.ParameterType.Name}")));
+                                              , optional.Select(optParam => $"{optParam.Name}:{optParam.ParameterType.Name}")));
 
             // Diagnostic rule: FastPathResolver only considers actions with exactly 1 required param.
-            if (required.Count == 1)
-            {
-                sb.AppendLine("FastPath Status: VALID — eligible for fast-path inference.");
-            }
-            else
-            {
-                sb.AppendLine("FastPath Status: WARNING — not eligible for fast-path (must have exactly one required parameter).");
-            }
+            sb.AppendLine(required.Count == 1
+                                  ? "FastPath Status: VALID — eligible for fast-path inference."
+                                  : "FastPath Status: WARNING — not eligible for fast-path (must have exactly one required parameter).");
         }
 
         return sb.ToString();

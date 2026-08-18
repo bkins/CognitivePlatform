@@ -23,7 +23,7 @@ public static class MetaActions
     /// <summary>
     /// Called once per app lifetime (or startup) to inject the shared action registry.
     /// </summary>
-    public static void SetRegistry (IActionRegistry registry)
+    public static void SetRegistry( IActionRegistry registry )
     {
         _registry = registry;
     }
@@ -33,7 +33,7 @@ public static class MetaActions
     /// When set, the capability registry is preferred over <see cref="SetRegistry(IActionRegistry)"/>
     /// for listing and describing actions so that capability-registered actions are included.
     /// </summary>
-    public static void SetRegistry (ICapabilityRegistry registry)
+    public static void SetRegistry( ICapabilityRegistry registry )
     {
         _capabilityRegistry = registry;
     }
@@ -42,7 +42,7 @@ public static class MetaActions
     /// Called once per request to give meta-actions access
     /// to the live conversation context.
     /// </summary>
-    public static void SetContext (ConversationContext context)
+    public static void SetContext( ConversationContext context )
     {
         _context = context;
     }
@@ -50,7 +50,7 @@ public static class MetaActions
     /// <summary>
     /// Called once at startup to give WhyInsight access to the insight history store.
     /// </summary>
-    public static void SetInsightHistoryStore (IInsightHistoryStore store)
+    public static void SetInsightHistoryStore( IInsightHistoryStore store )
     {
         _insightHistoryStore = store;
     }
@@ -73,12 +73,12 @@ public static class MetaActions
     )]
     public static string ListActions()
     {
-        if (_capabilityRegistry is null && _registry is null)
-            return "The action registry is not available yet. MetaActions.SetRegistry(...) was not called.";
+        if (_capabilityRegistry is null
+         && _registry is null) return "The action registry is not available yet. MetaActions.SetRegistry(...) was not called.";
 
         var result = _capabilityRegistry is not null
-                         ? BuildListActionsResult(_capabilityRegistry)
-                         : BuildListActionsResult(_registry!);
+                             ? BuildListActionsResult(_capabilityRegistry)
+                             : BuildListActionsResult(_registry!);
 
         // For now, we return only the human-readable summary to the user.
         // The structured Metadata is available via BuildListActionsResult for
@@ -92,7 +92,7 @@ public static class MetaActions
     ///
     /// This is the foundation for future meta-behavior (grouping by category, modules, etc.).
     /// </summary>
-    public static ListActionsResult BuildListActionsResult (ICapabilityRegistry registry)
+    public static ListActionsResult BuildListActionsResult( ICapabilityRegistry registry )
     {
         var grouped = registry.GetAll()
                               .GroupBy(action => action.Category)
@@ -111,10 +111,10 @@ public static class MetaActions
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
-            var key     = group.Key;
+            var key = group.Key;
             var heading = key == key.ToLowerInvariant()
-                              ? textInfo.ToTitleCase(key)
-                              : key;
+                                  ? textInfo.ToTitleCase(key)
+                                  : key;
 
             sb.AppendLine();
             sb.AppendLine($"{heading} Actions ({actions.Count}):");
@@ -139,13 +139,12 @@ public static class MetaActions
                                         , StringComparer.OrdinalIgnoreCase)
                                  .ToArray();
 
-        return new ListActionsResult(
-                Metadata: flatSorted
-              , Summary: sb.ToString()
+        return new ListActionsResult(Metadata: flatSorted
+                                   , Summary: sb.ToString()
         );
     }
 
-    public static ListActionsResult BuildListActionsResult (IActionRegistry registry)
+    public static ListActionsResult BuildListActionsResult( IActionRegistry registry )
     {
         // Organize by category (alphabetical), then by action name
         var grouped = registry.Actions
@@ -165,10 +164,10 @@ public static class MetaActions
                                       , StringComparer.OrdinalIgnoreCase)
                                .ToList();
 
-            var key     = group.Key;
+            var key = group.Key;
             var heading = key == key.ToLowerInvariant()
-                              ? textInfo.ToTitleCase(key)
-                              : key;
+                                  ? textInfo.ToTitleCase(key)
+                                  : key;
 
             sb.AppendLine();
             sb.AppendLine($"{heading} Actions ({actions.Count}):");
@@ -194,9 +193,8 @@ public static class MetaActions
                                         , StringComparer.OrdinalIgnoreCase)
                                  .ToArray();
 
-        return new ListActionsResult(
-                Metadata: flatSorted
-              , Summary: sb.ToString()
+        return new ListActionsResult(Metadata: flatSorted
+                                   , Summary: sb.ToString()
         );
     }
 
@@ -209,26 +207,25 @@ public static class MetaActions
                            ]
                          , Category = "interpreter"
     )]
-    public static string DescribeAction (string actionName)
+    public static string DescribeAction( string actionName )
     {
-        if (_capabilityRegistry is null && _registry is null)
-            return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
+        if (_capabilityRegistry is null
+         && _registry is null) return "The action registry is not available. MetaActions.SetRegistry(...) was not called.";
 
-        if (actionName.HasNoValue())
-            return "Please specify the name of the action you want described.";
+        if (actionName.HasNoValue()) return "Please specify the name of the action you want described.";
 
         ActionMetadata? action;
         if (_capabilityRegistry is not null)
         {
-            _capabilityRegistry.TryGet(actionName, out action);
+            _capabilityRegistry.TryGet(actionName
+                                     , out action);
         }
         else
         {
             action = _registry!.FindByName(actionName);
         }
 
-        if (action is null)
-            return $"I can't find any action named '{actionName}'.";
+        if (action is null) return $"I can't find any action named '{actionName}'.";
 
         var sb = new StringBuilder();
 
@@ -267,6 +264,7 @@ public static class MetaActions
         if (action.Examples is not { Length: > 0 }) return sb.ToString();
 
         sb.AppendLine("Examples:");
+
         foreach (var example in action.Examples)
             sb.AppendLine($" - \"{example}\"");
 
@@ -311,7 +309,7 @@ public static class MetaActions
             {
                 sb.AppendLine();
                 sb.AppendLine("Candidate actions:");
-                
+
                 foreach (var name in result.CandidateActions)
                     sb.AppendLine($" - {name}");
             }
@@ -355,30 +353,23 @@ public static class MetaActions
     )]
     public static async Task<string> WhyInsight()
     {
-        if (_context is null)
-            return "No conversation context available.";
-
-        if (_insightHistoryStore is null)
-            return "Insight history is not available.";
+        if (_context is null) return "No conversation context available.";
+        if (_insightHistoryStore is null) return "Insight history is not available.";
 
         var lastInsights = _context.LastEmittedInsights;
 
-        if (lastInsights.Count == 0)
-            return "I haven't made any suggestions recently.";
+        if (lastInsights.Count == 0) return "I haven't made any suggestions recently.";
 
-        var mostRecent = lastInsights[^1];
-
+        var mostRecent    = lastInsights[^1];
         var recentHistory = await _insightHistoryStore.GetRecentAsync(TimeSpan.FromHours(48));
 
-        var historyItem = recentHistory
-            .Where(item => string.Equals(item.InsightKey
-                                       , mostRecent.DeduplicationKey
-                                       , StringComparison.Ordinal))
-            .OrderByDescending(item => item.EmittedAtUtc)
-            .FirstOrDefault();
+        var historyItem = recentHistory.Where(item => string.Equals(item.InsightKey
+                                                                  , mostRecent.DeduplicationKey
+                                                                  , StringComparison.Ordinal))
+                                       .OrderByDescending(item => item.EmittedAtUtc)
+                                       .FirstOrDefault();
 
-        if (historyItem?.Reasoning is null)
-            return $"I recently suggested something, but I don't have detailed reasoning available for that suggestion.";
+        if (historyItem?.Reasoning is null) return $"I recently suggested something, but I don't have detailed reasoning available for that suggestion.";
 
         var sb = new StringBuilder();
 
@@ -390,35 +381,34 @@ public static class MetaActions
 
         sb.AppendLine($"Why: {historyItem.Reasoning.Explanation}");
 
-        if (historyItem.Reasoning.Evidence.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("Evidence:");
-            foreach (var evidence in historyItem.Reasoning.Evidence)
-                sb.AppendLine($" - {evidence.EntityType}: {evidence.EntityId}");
-        }
+        if (historyItem.Reasoning.Evidence.Count <= 0) return sb.ToString().TrimEnd();
+
+        sb.AppendLine();
+        sb.AppendLine("Evidence:");
+        foreach (var evidence in historyItem.Reasoning.Evidence)
+            sb.AppendLine($" - {evidence.EntityType}: {evidence.EntityId}");
 
         return sb.ToString().TrimEnd();
     }
 
-    public static WhyActionResult BuildWhyActionResult (ConversationContext ctx)
+    public static WhyActionResult BuildWhyActionResult( ConversationContext convoContext )
     {
-        var debug = ctx.LastInterpreterDebug
+        var debug = convoContext.LastInterpreterDebug
                  ?? "No interpreter debug information was recorded.";
 
-        IReadOnlyList<string>? candidates = ctx.LastCandidateActions.Count > 0
-                                                    ? ctx.LastCandidateActions.AsReadOnly()
+        IReadOnlyList<string>? candidates = convoContext.LastCandidateActions.Count > 0
+                                                    ? convoContext.LastCandidateActions.AsReadOnly()
                                                     : null;
 
-        IReadOnlyList<string>? missing = ctx.LastMissingParameters.Count > 0
-                                                 ? ctx.LastMissingParameters.AsReadOnly()
+        IReadOnlyList<string>? missing = convoContext.LastMissingParameters.Count > 0
+                                                 ? convoContext.LastMissingParameters.AsReadOnly()
                                                  : null;
 
-        return new WhyActionResult(ActionName: ctx.LastActionName
-                                 , Reason: ctx.LastInterpreterReason
-                                 , Debug: debug
-                                 , FailureType: ctx.LastFailureType
-                                 , CandidateActions: candidates
+        return new WhyActionResult(ActionName:        convoContext.LastActionName
+                                 , Reason:            convoContext.LastInterpreterReason
+                                 , Debug:             debug
+                                 , FailureType:       convoContext.LastFailureType
+                                 , CandidateActions:  candidates
                                  , MissingParameters: missing
         );
     }
