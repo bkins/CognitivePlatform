@@ -1,12 +1,14 @@
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Execution;
+using CognitivePlatform.Api.Registry.Domains;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace CognitivePlatform.Api.Integrations.CrossApp;
 
+[Domain(typeof(WatchListDomain))]
 public sealed class CrossAppActions
 {
     private readonly ExternalAppConnectorRegistry _registry;
