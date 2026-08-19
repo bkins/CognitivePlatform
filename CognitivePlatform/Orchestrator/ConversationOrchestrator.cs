@@ -1147,6 +1147,10 @@ public class ConversationOrchestrator : IConversationOrchestrator
             response.WasFastPath = true;
             response.Provider    = null;
             response.Model       = null;
+            if (string.IsNullOrWhiteSpace(response.ReasoningContent) || response.ReasoningContent.StartsWith("Standard Completion", StringComparison.OrdinalIgnoreCase))
+            {
+                response.ReasoningContent = "Fast-Path (Direct rule-based execution; no LLM reasoning required)";
+            }
         }
         else
         {
@@ -1165,6 +1169,18 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                    ? parsedProv
                                    : CognitivePlatform.Api.Interpreter.LlmProvider.Groq;
                 response.Model = _providerDefaults.For(providerEnum);
+            }
+
+            if (string.IsNullOrWhiteSpace(response.ReasoningContent) || response.ReasoningContent.StartsWith("Standard Completion", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(actionName))
+                {
+                    response.ReasoningContent = $"[Plan] Selected action '{actionName}' -> Executed successfully.";
+                }
+                else
+                {
+                    response.ReasoningContent = "Standard Completion (Direct response generation; no Chain-of-Thought reasoning emitted)";
+                }
             }
         }
 

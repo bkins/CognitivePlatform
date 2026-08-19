@@ -6,13 +6,19 @@ public class OrchestratorProgressEvent : TelemetryEvent
 {
     public override string EventName => "Orchestrator.Progress"; 
     
-    public string Details       { get; init; } = string.Empty;
+    public string Stage        { get; init; } = string.Empty;
+    public string StageMessage { get; init; } = string.Empty;
+    public string Details      { get; init; } = string.Empty;
 
     public override string ToString()
     {
         var details = string.Empty;
         
-        if (Details.HasValue())
+        if (StageMessage.HasValue())
+        {
+            details = $"\n\t[{Stage}] {StageMessage}";
+        }
+        else if (Details.HasValue())
         {
             details = $"\n\t{Details}";
         }

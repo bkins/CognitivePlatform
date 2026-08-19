@@ -39,4 +39,10 @@ public class ConverseResponse
 
     /// <summary>The LLM model that processed this turn. Null for FastPath turns.</summary>
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Live reasoning trace, action planning milestones, or execution transparency summary.
+    /// Non-null value per ENH-54 specifications.
+    /// </summary>
+    public string ReasoningContent { get; set; } = "Standard Completion (Direct response generation; no Chain-of-Thought reasoning emitted)";
 }
