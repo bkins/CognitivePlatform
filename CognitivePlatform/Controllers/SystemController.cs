@@ -204,18 +204,18 @@ public class SystemController : ControllerBase
         Response.Headers.Append("Connection", "keep-alive");
 
         var serializerOptions = new System.Text.Json.JsonSerializerOptions
-        {
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-        };
+                                {
+                                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                                  , WriteIndented        = false
+                                  , Converters           = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                                };
 
         try
         {
             await foreach (var evt in _streamService.SubscribeAsync(ct))
             {
                 var json = System.Text.Json.JsonSerializer.Serialize(evt, evt.GetType(), serializerOptions);
-                await Response.WriteAsync($"data: {json}\n\n", ct);
+                await Response.WriteAsync($"id: {evt.EventId}\nevent: {evt.EventName}\ndata: {json}\n\n", ct);
                 await Response.Body.FlushAsync(ct);
             }
         }
