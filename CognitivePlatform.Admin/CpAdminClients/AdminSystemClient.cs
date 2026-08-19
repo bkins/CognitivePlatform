@@ -13,4 +13,10 @@ public sealed class AdminSystemClient : IAdminSystemClient
 
     public Task<SystemStatsResponse?> GetStatsAsync(CancellationToken ct = default)
         => _http.GetFromJsonAsync<SystemStatsResponse>("api/admin/system/stats", ct);
+
+    public async Task<IReadOnlyList<TelemetryMetricsDto>> GetTelemetryMetricsAsync(CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<List<TelemetryMetricsDto>>("api/system/telemetry", ct);
+        return result ?? [];
+    }
 }

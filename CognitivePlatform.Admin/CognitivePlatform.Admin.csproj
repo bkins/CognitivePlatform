@@ -9,13 +9,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Keep in sync with CognitivePlatform.Api.csproj -->
-    <PackageReference Include="CP.Client.Core" Version="1.0.0" />
+    <PackageReference Include="CP.Client.Core" Version="1.1.0.47" />
+    <PackageReference Include="CP.Shared.Primitives" Version="1.1.0.47" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
     <!-- Markdown rendering in Journal Admin (revision text view) -->
     <PackageReference Include="Markdig"              Version="0.38.0" />
     <PackageReference Include="System.Management.Automation" Version="7.6.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="CP.Shared.Primitives.Avails.Extensions" />
   </ItemGroup>
 
 </Project>

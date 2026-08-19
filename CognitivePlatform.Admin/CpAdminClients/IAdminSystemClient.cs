@@ -7,4 +7,5 @@ namespace CognitivePlatform.Admin.CpAdminClients;
 public interface IAdminSystemClient
 {
     Task<SystemStatsResponse?> GetStatsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<TelemetryMetricsDto>> GetTelemetryMetricsAsync(CancellationToken ct = default);
 }

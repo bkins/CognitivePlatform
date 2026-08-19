@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\CognitivePlatform\CognitivePlatform.Api.csproj" />
+      <ProjectReference Include="..\..\CognitivePlatform.Admin\CognitivePlatform.Admin.csproj" />
     </ItemGroup>
 
 </Project>

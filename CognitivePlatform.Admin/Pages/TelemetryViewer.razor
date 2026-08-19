@@ -1,0 +1,325 @@
+@page "/telemetry"
+@implements IDisposable
+@using System.Collections.Concurrent
+@using CognitivePlatform.Admin.CpAdminClients
+@using CP.Client.Core.Telemetry
+@using MudBlazor
+@inject IAdminSystemClient SystemClient
+@inject EnvironmentService EnvService
+@inject ITelemetryStreamClient StreamClient
+@inject ISnackbar Snackbar
+
+<PageTitle>Telemetry & Diagnostics — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Telemetry & Diagnostics</MudText>
+    <MudSpacer />
+    @if (_isStreaming)
+    {
+        <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.Stream" Size="Size.Small">
+            Live Stream Active
+        </MudChip>
+    }
+    else
+    {
+        <MudChip T="string" Color="Color.Default" Icon="@Icons.Material.Filled.Pause" Size="Size.Small">
+            Stream Paused
+        </MudChip>
+    }
+    <MudButton Variant="Variant.Outlined"
+               Color="@(_isStreaming ? Color.Warning : Color.Success)"
+               StartIcon="@(_isStreaming ? Icons.Material.Filled.Pause : Icons.Material.Filled.PlayArrow)"
+               OnClick="ToggleStreamingAsync">
+        @(_isStreaming ? "Pause Stream" : "Resume Stream")
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.ClearAll"
+               OnClick="ClearEvents">
+        Clear
+    </MudButton>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                   Title="Refresh Metrics"
+                   OnClick="RefreshMetricsAsync"
+                   Disabled="_loadingMetrics" />
+</MudStack>
+
+@if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _error = null">
+        @_error
+    </MudAlert>
+}
+
+<MudText Typo="Typo.h6" Class="mb-2">Aggregated Operational Metrics</MudText>
+<MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
+    Historical operational latency and success rates persisted in Object Store across restarts.
+</MudText>
+
+@if (_loadingMetrics && _metrics.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (_metrics.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        No aggregated telemetry records available yet. Make conversational turns to generate operational events.
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="_metrics" Dense="true" Hover="true" Elevation="2" Class="mb-6">
+        <HeaderContent>
+            <MudTh>Operation</MudTh>
+            <MudTh>Count</MudTh>
+            <MudTh>Avg Latency</MudTh>
+            <MudTh>Min / Max</MudTh>
+            <MudTh>Success Rate</MudTh>
+            <MudTh>Last Active</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Operation">
+                <MudText Typo="Typo.body2" Style="font-weight:600">@context.OperationName</MudText>
+            </MudTd>
+            <MudTd DataLabel="Count">
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                    @context.Count.ToString("N0")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Avg Latency">
+                <code>@context.AverageDurationMs.ToString("F1") ms</code>
+            </MudTd>
+            <MudTd DataLabel="Min / Max">
+                <MudText Typo="Typo.caption">
+                    @context.MinDurationMs.ToString("F0") ms / @context.MaxDurationMs.ToString("F0") ms
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Success Rate">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudProgressLinear Value="@(context.SuccessRate * 100)"
+                                       Color="@GetSuccessColor(context.SuccessRate)"
+                                       Rounded="true"
+                                       Style="width: 80px;" />
+                    <MudText Typo="Typo.caption">@((context.SuccessRate * 100).ToString("F0"))%</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="Last Active">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @context.LastActivity.ToLocalTime().ToString("g")
+                </MudText>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-6 mb-2">
+    <MudText Typo="Typo.h6">Real-Time Event Stream</MudText>
+    <MudSpacer />
+    <MudTextField @bind-Value="_searchFilter"
+                  Placeholder="Filter events..."
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true"
+                  Margin="Margin.Dense"
+                  Variant="Variant.Outlined"
+                  Style="max-width: 300px;" />
+</MudStack>
+
+<MudTable Items="FilteredEvents" Dense="true" Hover="true" Striped="true" Elevation="2">
+    <HeaderContent>
+        <MudTh Style="width: 140px;">Time</MudTh>
+        <MudTh Style="width: 180px;">Event</MudTh>
+        <MudTh Style="width: 150px;">Session ID</MudTh>
+        <MudTh>Payload & Properties</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Time">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:monospace">
+                @context.TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff")
+            </MudText>
+        </MudTd>
+        <MudTd DataLabel="Event">
+            <MudChip T="string" Size="Size.Small" Color="@GetEventChipColor(context.EventName)" Variant="Variant.Filled">
+                @context.EventName
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Session ID">
+            @if (!string.IsNullOrEmpty(context.SessionId))
+            {
+                <code style="font-size:0.75rem;">@TruncateSession(context.SessionId)</code>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Color="Color.Tertiary">—</MudText>
+            }
+        </MudTd>
+        <MudTd DataLabel="Payload & Properties">
+            @if (context.Properties.Count > 0)
+            {
+                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                    @foreach (var kv in context.Properties)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                            <strong>@kv.Key:</strong>&nbsp;@kv.Value
+                        </MudChip>
+                    }
+                </MudStack>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">No properties</MudText>
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="pa-4">
+            @(_isStreaming ? "Listening for real-time events..." : "Stream is paused.")
+        </MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private readonly List<TelemetryMetricsDto> _metrics = new();
+    private readonly List<TelemetryEventDto>   _events = new();
+    private readonly object                    _lock = new();
+
+    private CancellationTokenSource? _streamCts;
+    private bool                     _isStreaming;
+    private bool                     _loadingMetrics;
+    private string?                  _error;
+    private string                   _searchFilter = string.Empty;
+
+    private const int MaxEventBuffer = 250;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshMetricsAsync();
+        StartStreaming();
+    }
+
+    private IEnumerable<TelemetryEventDto> FilteredEvents
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (string.IsNullOrWhiteSpace(_searchFilter))
+                    return _events.ToList();
+
+                return _events.Where(e =>
+                    e.EventName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                    e.SessionId.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                    e.Properties.Values.Any(v => v?.ToString()?.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) == true)
+                ).ToList();
+            }
+        }
+    }
+
+    private async Task RefreshMetricsAsync()
+    {
+        _loadingMetrics = true;
+        _error = null;
+        try
+        {
+            var data = await SystemClient.GetTelemetryMetricsAsync();
+            _metrics.Clear();
+            _metrics.AddRange(data);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load metrics: {ex.Message}";
+        }
+        finally
+        {
+            _loadingMetrics = false;
+        }
+    }
+
+    private void StartStreaming()
+    {
+        _streamCts?.Cancel();
+        _streamCts = new CancellationTokenSource();
+        var token = _streamCts.Token;
+        _isStreaming = true;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var evt in StreamClient.SubscribeAsync(EnvService.BaseUrl, token))
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    lock (_lock)
+                    {
+                        _events.Insert(0, evt);
+                        if (_events.Count > MaxEventBuffer)
+                            _events.RemoveAt(_events.Count - 1);
+                    }
+
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                await InvokeAsync(() =>
+                {
+                    _isStreaming = false;
+                    _error = $"Stream disconnected: {ex.Message}";
+                    StateHasChanged();
+                });
+            }
+        }, token);
+    }
+
+    private async Task ToggleStreamingAsync()
+    {
+        if (_isStreaming)
+        {
+            _streamCts?.Cancel();
+            _isStreaming = false;
+        }
+        else
+        {
+            StartStreaming();
+        }
+    }
+
+    private void ClearEvents()
+    {
+        lock (_lock)
+        {
+            _events.Clear();
+        }
+    }
+
+    private static Color GetSuccessColor(double rate) => rate switch
+    {
+        >= 0.95 => Color.Success,
+        >= 0.80 => Color.Warning,
+        _ => Color.Error
+    };
+
+    private static Color GetEventChipColor(string eventName) => eventName switch
+    {
+        "Converse.Ended" => Color.Primary,
+        "Interpreter.End" => Color.Info,
+        "Interpreter.Error" => Color.Error,
+        "Idempotency.Hit" => Color.Tertiary,
+        var n when n.StartsWith("Action.") => Color.Success,
+        _ => Color.Default
+    };
+
+    private static string TruncateSession(string sessionId)
+    {
+        if (sessionId.Length <= 8) return sessionId;
+        return sessionId[..8] + "...";
+    }
+
+    public void Dispose()
+    {
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+    }
+}

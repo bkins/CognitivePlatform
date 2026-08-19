@@ -43,3 +43,14 @@ public sealed record ObjectCountDto
     public int    Total       { get; init; }
     public int    SoftDeleted { get; init; }
 }
+
+public sealed record TelemetryMetricsDto
+{
+    public string   OperationName     { get; init; } = string.Empty;
+    public int      Count             { get; init; }
+    public double   AverageDurationMs { get; init; }
+    public double   MinDurationMs     { get; init; }
+    public double   MaxDurationMs     { get; init; }
+    public double   SuccessRate       { get; init; }
+    public DateTime LastActivity      { get; init; }
+}

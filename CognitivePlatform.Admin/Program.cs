@@ -76,6 +76,11 @@ builder.Services
        .AddHttpMessageHandler<AdminSecretHandler>()
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
+builder.Services
+       .AddHttpClient<CP.Client.Core.Telemetry.ITelemetryStreamClient, CP.Client.Core.Telemetry.TelemetryStreamClient>(client => client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment().Not())
