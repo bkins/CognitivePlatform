@@ -1,45 +1,115 @@
 @using CognitivePlatform.Admin.Services
 @using CognitivePlatform.Admin.Services.ToolScript.Models
 
-<MudPaper Elevation="4"
-          Class="pa-4"
-          Style="background:#1e1e1e;height:400px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;">
+<MudPaper id="@ContainerId"
+          Elevation="4"
+          Class="@Class"
+          Style="@ComputedStyle">
 
-    @if (Terminal.Lines.Count == 0)
+    @if (_lines.Length == 0)
     {
-        <div style="color:#888">
-            Run this tool to see output...
+        <div style="color:#888;font-style:italic;">
+            @Placeholder
         </div>
     }
     else
     {
-        <div style="background:#1e1e1e;
-                    color:#d4d4d4;
-                    padding:16px;
-                    overflow-y:auto;
-                    height:400px;
-                    font-family:'Cascadia Code','Consolas',monospace;
-                    white-space:pre-wrap;">
+        @foreach (var line in _lines)
+        {
+            var color = LineColor(line.Kind);
 
-            @foreach (var line in Terminal.Lines)
-            {
-                var color = line.Kind switch
+            <div style="color:@color;white-space:pre-wrap;line-height:1.55;">
+                @if (OnScreenshotClicked.HasDelegate && TryExtractPngPath(line.Text, out var path))
                 {
-                        TerminalLineKind.Error   => "#ff6b6b",
-                        TerminalLineKind.Warning => "#ffd166",
-                        _                        => "#d4d4d4"
-                };
+                    <span>Captured failure screenshot: </span>
+                    <a href="javascript:void(0)"
+                       @onclick="@(() => OnScreenshotClicked.InvokeAsync(path))"
+                       style="color:#569cd6;text-decoration:underline;cursor:pointer">
+                        @System.IO.Path.GetFileName(path)
+                    </a>
+                }
+                else
+                {
+                    @line.Text
+                }
+            </div>
+        }
+    }
 
-                <div style="color:@color">@line.Text</div>
-            }
-
-        </div>
+    @if (EndElementId.HasValue())
+    {
+        <div id="@EndElementId"></div>
     }
 
 </MudPaper>
 
 @code
 {
-    [Parameter, EditorRequired]
-    public TerminalState Terminal { get; set; } = null!;
+    [Parameter]
+    public TerminalState? Terminal { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<TerminalLine>? Lines { get; set; }
+
+    [Parameter]
+    public string Height { get; set; } = "400px";
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Run this tool to see output...";
+
+    [Parameter]
+    public string? ContainerId { get; set; }
+
+    [Parameter]
+    public string? EndElementId { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnScreenshotClicked { get; set; }
+
+    [Parameter]
+    public Func<TerminalLineKind, string>? CustomColorResolver { get; set; }
+
+    private TerminalLine[] _lines =>
+        Lines is not null
+            ? [..Lines]
+            : Terminal?.Snapshot() ?? [];
+
+    private string ComputedStyle =>
+        $"background:#1e1e1e;padding:16px;height:{Height};overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;{Style}";
+
+    private string LineColor(TerminalLineKind kind)
+    {
+        if (CustomColorResolver is not null)
+        {
+            return CustomColorResolver(kind);
+        }
+
+        return kind switch
+        {
+            TerminalLineKind.Pass        => "#4ec9b0"
+          , TerminalLineKind.Fail        => "#ff6b6b"
+          , TerminalLineKind.Error       => "#ff6b6b"
+          , TerminalLineKind.Warning     => "#ffd166"
+          , TerminalLineKind.PassSummary => "#4ec9b0"
+          , TerminalLineKind.FailSummary => "#ff6b6b"
+          , _                            => "#d4d4d4"
+        };
+    }
+
+    private static bool TryExtractPngPath(string text, out string path)
+    {
+        path = "";
+        const string marker = "Screenshot saved -> ";
+        var idx = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return false;
+
+        path = text[(idx + marker.Length)..].Trim();
+        return path.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
+    }
 }

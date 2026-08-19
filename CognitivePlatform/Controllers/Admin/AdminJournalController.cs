@@ -130,6 +130,157 @@ public sealed class AdminJournalController : AdminControllerBase
     }
 
     /// <summary>
+    /// Creates a brand new journal entry and its initial revision. Admin use only.
+    /// </summary>
+    [HttpPost("entries")]
+    public async Task<IActionResult> CreateEntry([FromBody] CreateJournalEntryAdminRequest request)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        if (request.Text.HasNoValue())
+            return BadRequest("Text is required.");
+
+        var entryId = Guid.NewGuid().ToString("N");
+        var now     = DateTimeOffset.UtcNow;
+
+        var entry = new JournalEntry
+                    {
+                        Id         = entryId
+                      , CreatedUtc = now
+                    };
+
+        var revision = new JournalRevision
+                       {
+                           RevisionId = Guid.NewGuid().ToString("N")
+                         , EntryId    = entryId
+                         , CreatedUtc = now
+                         , Text       = request.Text.Trim()
+                         , Tags       = request.Tags ?? []
+                         , Mood       = request.Mood
+                         , MoodScore  = request.MoodScore
+                         , MoodLevel  = request.MoodLevel
+                         , State      = JournalEntryState.Active
+                       };
+
+        await _store.Save(entry, id: entry.Id);
+        await _store.Save(revision, id: revision.RevisionId);
+
+        return Ok(new { entryId = entry.Id, revisionId = revision.RevisionId });
+    }
+
+    /// <summary>
+    /// Soft deletes a journal entry.
+    /// </summary>
+    [HttpDelete("entries/{entryId}")]
+    public async Task<IActionResult> SoftDeleteEntry(string entryId, [FromBody] SoftDeleteJournalAdminRequest? request = null)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        var entry = _store.Get<JournalEntry>(entryId);
+        if (entry is null)
+        {
+            var alreadyDeleted = _store.GetDeleted<JournalEntry>(entryId);
+            if (alreadyDeleted is not null)
+                return Ok(new { success = true, message = "Entry is already deleted." });
+
+            return NotFound($"Journal entry '{entryId}' not found.");
+        }
+
+        entry.DeletedUtc    = DateTimeOffset.UtcNow;
+        entry.DeletedReason = request?.Reason ?? "Deleted via Admin Console";
+
+        await _store.Save(entry, id: entry.Id);
+
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted journal entry.
+    /// </summary>
+    [HttpPost("entries/{entryId}/restore")]
+    public async Task<IActionResult> RestoreEntry(string entryId)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        var entry = _store.GetDeleted<JournalEntry>(entryId)
+                 ?? _store.Get<JournalEntry>(entryId);
+
+        if (entry is null)
+            return NotFound($"Journal entry '{entryId}' not found.");
+
+        entry.DeletedUtc    = null;
+        entry.DeletedReason = null;
+
+        await _store.Save(entry, id: entry.Id);
+        _store.Undelete<JournalEntry>(entryId);
+
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Permanently deletes a journal entry and all of its revisions from SQLite. Admin use only.
+    /// </summary>
+    [HttpDelete("entries/{entryId}/hard")]
+    public IActionResult HardDeleteEntry(string entryId)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        var entry = _store.Get<JournalEntry>(entryId)
+                 ?? _store.GetDeleted<JournalEntry>(entryId);
+
+        if (entry is null)
+            return NotFound($"Journal entry '{entryId}' not found.");
+
+        var revisions = _revisions.GetRevisionsByEntryId(entryId);
+        foreach (var rev in revisions)
+        {
+            _store.HardDelete<JournalRevision>(rev.RevisionId);
+        }
+
+        _store.HardDelete<JournalEntry>(entryId);
+
+        return Ok(new { success = true, deletedRevisions = revisions.Count });
+    }
+
+    /// <summary>
+    /// Modifies an existing journal revision directly. Admin use only.
+    /// </summary>
+    [HttpPut("entries/{entryId}/revisions/{revisionId}")]
+    public async Task<IActionResult> UpdateRevision( string                                 entryId
+                                                   , string                                 revisionId
+                                                   , [FromBody] UpdateJournalRevisionAdminRequest request)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+
+        if (request.Text.HasNoValue())
+            return BadRequest("Text is required.");
+
+        var revision = _store.Get<JournalRevision>(revisionId)
+                    ?? _store.GetDeleted<JournalRevision>(revisionId);
+
+        if (revision is null || revision.EntryId != entryId)
+            return NotFound($"Revision '{revisionId}' for entry '{entryId}' not found.");
+
+        var updated = new JournalRevision
+                      {
+                          RevisionId = revision.RevisionId
+                        , EntryId    = revision.EntryId
+                        , CreatedUtc = revision.CreatedUtc
+                        , Text       = request.Text.Trim()
+                        , Tags       = request.Tags ?? revision.Tags
+                        , Mood       = request.Mood ?? revision.Mood
+                        , MoodScore  = request.MoodScore ?? revision.MoodScore
+                        , MoodLevel  = request.MoodLevel ?? revision.MoodLevel
+                        , MediaPaths = revision.MediaPaths
+                        , State      = revision.State
+                      };
+
+        await _store.Save(updated, id: updated.RevisionId);
+
+        return Ok(new { success = true, revisionId = updated.RevisionId });
+    }
+
+    /// <summary>
     /// Sets PartitionKey = NULL for all JournalEntry and JournalRevision rows where
     /// PartitionKey = Id — the fingerprint of records written by old pre-workspace code.
     /// Idempotent: re-running after all rows are repaired returns zeros.
@@ -178,6 +329,29 @@ public sealed class AdminJournalController : AdminControllerBase
                     , RepairDetails       = allDetails
                   });
     }
+}
+
+public sealed record CreateJournalEntryAdminRequest
+{
+    public string    Text      { get; init; } = string.Empty;
+    public string[]? Tags      { get; init; }
+    public string?   Mood      { get; init; }
+    public int?      MoodScore { get; init; }
+    public int?      MoodLevel { get; init; }
+}
+
+public sealed record UpdateJournalRevisionAdminRequest
+{
+    public string    Text      { get; init; } = string.Empty;
+    public string[]? Tags      { get; init; }
+    public string?   Mood      { get; init; }
+    public int?      MoodScore { get; init; }
+    public int?      MoodLevel { get; init; }
+}
+
+public sealed record SoftDeleteJournalAdminRequest
+{
+    public string? Reason { get; init; }
 }
 
 public sealed record AddCorrectionRequest

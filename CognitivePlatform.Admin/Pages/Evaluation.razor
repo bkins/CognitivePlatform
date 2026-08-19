@@ -76,13 +76,9 @@
             {
                 <MudExpansionPanels Class="mt-3" Elevation="0">
                     <MudExpansionPanel Text="Evaluator Output" IsExpanded="@evalState.IsRunning">
-                        <MudPaper id="eval-terminal" Elevation="4"
-                                  Style="background:#1e1e1e;padding:16px;max-height:350px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.82rem;">
-                            @foreach (var line in evalLines)
-                            {
-                                <div style="color:@EvalLineColor(line.Kind);white-space:pre-wrap;line-height:1.5">@line.Text</div>
-                            }
-                        </MudPaper>
+                        <TerminalOutput Terminal="@evalState"
+                                        Height="350px"
+                                        ContainerId="eval-terminal" />
                     </MudExpansionPanel>
                 </MudExpansionPanels>
             }

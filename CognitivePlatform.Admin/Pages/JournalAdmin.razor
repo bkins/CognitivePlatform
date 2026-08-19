@@ -2,6 +2,8 @@
 @implements IDisposable
 @inject IAdminJournalClient JournalClient
 @inject EnvironmentService  EnvService
+@inject IDialogService      DialogService
+@inject ISnackbar           Snackbar
 @using System.Text.Json
 @using System.Xml.Linq
 @using Markdig
@@ -14,6 +16,12 @@
     <MudText Typo="Typo.caption" Color="Color.Secondary">
         @_entries.Count entries (@_entries.Count(entry => entry.IsDeleted) deleted)
     </MudText>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@OpenCreateDialogAsync">
+        New Entry
+    </MudButton>
     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                    Title="Reload entries"
                    OnClick="@LoadEntriesAsync"
@@ -114,6 +122,35 @@ else if (_entriesError is not null)
                             Deletion reason: @_selectedEntry.DeletedReason
                         </MudText>
                     }
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        @if (_selectedEntry.IsDeleted)
+                        {
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Success"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Restore"
+                                       OnClick="@(() => RestoreEntryAsync(_selectedEntry))">
+                                Restore
+                            </MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Warning"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Delete"
+                                       OnClick="@(() => PromptSoftDeleteAsync(_selectedEntry))">
+                                Soft Delete
+                            </MudButton>
+                        }
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.DeleteForever"
+                                   OnClick="@(() => ConfirmHardDeleteAsync(_selectedEntry))">
+                            Hard Delete
+                        </MudButton>
+                    </MudStack>
                 </MudCardContent>
             </MudCard>
 
@@ -157,7 +194,7 @@ else if (_entriesError is not null)
                         <TemplateColumn Title="Excerpt">
                             <CellTemplate>
                                 <MudText Typo="Typo.body2"
-                                         Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">
+                                         Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px">
                                     @(context.Item.Text.Length > 80 ? context.Item.Text[..80] + "…" : context.Item.Text)
                                 </MudText>
                             </CellTemplate>
@@ -170,17 +207,24 @@ else if (_entriesError is not null)
                                 }
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="">
+                        <TemplateColumn Title="Actions">
                             <CellTemplate>
-                                <MudIconButton Icon="@(context.Item == _selectedRevision
-                                                       ? Icons.Material.Filled.VisibilityOff
-                                                       : Icons.Material.Filled.Visibility)"
-                                               Size="Size.Small"
-                                               Color="Color.Primary"
-                                               Title="View full text"
-                                               OnClick="@(() => SelectRevision(
-                                                              context.Item == _selectedRevision
-                                                              ? null : context.Item))" />
+                                <MudStack Row="true" Spacing="0">
+                                    <MudIconButton Icon="@(context.Item == _selectedRevision
+                                                           ? Icons.Material.Filled.VisibilityOff
+                                                           : Icons.Material.Filled.Visibility)"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   Title="View full text"
+                                                   OnClick="@(() => SelectRevision(
+                                                                  context.Item == _selectedRevision
+                                                                  ? null : context.Item))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Color="Color.Secondary"
+                                                   Title="Edit Revision"
+                                                   OnClick="@(() => OpenEditRevisionDialog(context.Item))" />
+                                </MudStack>
                             </CellTemplate>
                         </TemplateColumn>
                     </Columns>
@@ -314,6 +358,138 @@ else if (_entriesError is not null)
         }
     </MudItem>
 </MudGrid>
+
+@* ── Create Entry Dialog ── *@
+<MudDialog @bind-Visible="_createDialogOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create Journal Entry</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_createEntryText"
+                          Label="Entry Content"
+                          Lines="6"
+                          FullWidth="true"
+                          Required="true" />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_createEntryTags"
+                                  Label="Tags (comma-separated, optional)"
+                                  FullWidth="true" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField @bind-Value="_createEntryMood"
+                                  Label="Mood (optional)"
+                                  FullWidth="true" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_createEntryMoodScore"
+                                     Label="Mood score (optional)"
+                                     Min="1"
+                                     Max="10"
+                                     FullWidth="true" />
+                </MudItem>
+            </MudGrid>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _createDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="@SubmitCreateEntryAsync"
+                   Disabled="@(string.IsNullOrWhiteSpace(_createEntryText) || _creatingEntry)">
+            @if (_creatingEntry)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <span>Create Entry</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Edit Revision Dialog ── *@
+<MudDialog @bind-Visible="_editRevisionDialogOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Edit Journal Revision (@_editingRevision?.RevisionId[..8]…)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_editRevisionText"
+                          Label="Revision Content"
+                          Lines="6"
+                          FullWidth="true"
+                          Required="true" />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_editRevisionTags"
+                                  Label="Tags (comma-separated, optional)"
+                                  FullWidth="true" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField @bind-Value="_editRevisionMood"
+                                  Label="Mood (optional)"
+                                  FullWidth="true" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_editRevisionMoodScore"
+                                     Label="Mood score (optional)"
+                                     Min="1"
+                                     Max="10"
+                                     FullWidth="true" />
+                </MudItem>
+            </MudGrid>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _editRevisionDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="@SubmitEditRevisionAsync"
+                   Disabled="@(string.IsNullOrWhiteSpace(_editRevisionText) || _savingRevision)">
+            @if (_savingRevision)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <span>Save Changes</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Soft Delete Reason Dialog ── *@
+<MudDialog @bind-Visible="_softDeleteDialogOpen" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Soft Delete Entry</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_softDeleteReason"
+                      Label="Deletion Reason (optional)"
+                      FullWidth="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _softDeleteDialogOpen = false)">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Warning"
+                   OnClick="@SubmitSoftDeleteAsync"
+                   Disabled="@_deletingEntry">
+            @if (_deletingEntry)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <span>Soft Delete</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
     private enum TextFormat { Auto, Plain, Markdown, Json, Xml }
@@ -567,6 +743,244 @@ else if (_entriesError is not null)
         finally
         {
             _submittingCorrection = false;
+        }
+    }
+
+    // ── CRUD Operations ───────────────────────────────────────────────────────
+
+    private bool                      _createDialogOpen;
+    private string                    _createEntryText       = string.Empty;
+    private string                    _createEntryTags       = string.Empty;
+    private string?                   _createEntryMood;
+    private int?                      _createEntryMoodScore;
+    private bool                      _creatingEntry;
+
+    private bool                      _editRevisionDialogOpen;
+    private JournalRevisionAdminDto?  _editingRevision;
+    private string                    _editRevisionText      = string.Empty;
+    private string                    _editRevisionTags      = string.Empty;
+    private string?                   _editRevisionMood;
+    private int?                      _editRevisionMoodScore;
+    private bool                      _savingRevision;
+
+    private bool                      _softDeleteDialogOpen;
+    private JournalEntryAdminDto?     _entryToSoftDelete;
+    private string                    _softDeleteReason      = string.Empty;
+    private bool                      _deletingEntry;
+
+    private Task OpenCreateDialogAsync()
+    {
+        _createEntryText      = string.Empty;
+        _createEntryTags      = string.Empty;
+        _createEntryMood      = null;
+        _createEntryMoodScore = null;
+        _createDialogOpen     = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task SubmitCreateEntryAsync()
+    {
+        if (_createEntryText.HasNoValue()) return;
+
+        _creatingEntry = true;
+        try
+        {
+            var tags = _createEntryTags.Split(','
+                                            , StringSplitOptions.RemoveEmptyEntries 
+                                            | StringSplitOptions.TrimEntries);
+
+            var entryId = await JournalClient.CreateEntryAsync(new CreateJournalEntryAdminDto
+                                                               {
+                                                                   Text      = _createEntryText
+                                                                 , Tags      = tags
+                                                                 , Mood      = _createEntryMood?.HasNoValue() ?? true ? null : _createEntryMood
+                                                                 , MoodScore = _createEntryMoodScore
+                                                               });
+
+            if (entryId is not null)
+            {
+                Snackbar.Add($"Journal entry created: {entryId[..8]}…", Severity.Success);
+                _createDialogOpen = false;
+                await LoadEntriesAsync();
+                var created = _entries.FirstOrDefault(entry => entry.Id == entryId);
+                if (created is not null)
+                {
+                    await OnEntrySelected(created);
+                }
+            }
+            else
+            {
+                Snackbar.Add("Failed to create journal entry — check API logs.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating entry: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _creatingEntry = false;
+        }
+    }
+
+    private void OpenEditRevisionDialog(JournalRevisionAdminDto revision)
+    {
+        _editingRevision       = revision;
+        _editRevisionText      = revision.Text;
+        _editRevisionTags      = revision.Tags is { Length: > 0 } ? string.Join(", ", revision.Tags) : string.Empty;
+        _editRevisionMood      = revision.Mood;
+        _editRevisionMoodScore = revision.MoodScore;
+        _editRevisionDialogOpen = true;
+    }
+
+    private async Task SubmitEditRevisionAsync()
+    {
+        if (_editingRevision is null 
+         || _selectedEntry is null
+         || _editRevisionText.HasNoValue()) return;
+
+        _savingRevision = true;
+        try
+        {
+            var tags = _editRevisionTags.Split(','
+                                             , StringSplitOptions.RemoveEmptyEntries 
+                                             | StringSplitOptions.TrimEntries);
+
+            var success = await JournalClient.UpdateRevisionAsync(
+                _selectedEntry.Id
+              , _editingRevision.RevisionId
+              , new UpdateJournalRevisionAdminDto
+                {
+                    Text      = _editRevisionText
+                  , Tags      = tags
+                  , Mood      = _editRevisionMood?.HasNoValue() ?? true ? null : _editRevisionMood
+                  , MoodScore = _editRevisionMoodScore
+                });
+
+            if (success)
+            {
+                Snackbar.Add("Revision updated successfully.", Severity.Success);
+                _editRevisionDialogOpen = false;
+                await OnEntrySelected(_selectedEntry);
+            }
+            else
+            {
+                Snackbar.Add("Failed to update revision — check API logs.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating revision: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _savingRevision = false;
+        }
+    }
+
+    private void PromptSoftDeleteAsync(JournalEntryAdminDto entry)
+    {
+        _entryToSoftDelete     = entry;
+        _softDeleteReason      = string.Empty;
+        _softDeleteDialogOpen = true;
+    }
+
+    private async Task SubmitSoftDeleteAsync()
+    {
+        if (_entryToSoftDelete is null) return;
+
+        _deletingEntry = true;
+        try
+        {
+            var success = await JournalClient.SoftDeleteEntryAsync(
+                _entryToSoftDelete.Id
+              , new SoftDeleteJournalAdminDto { Reason = _softDeleteReason.HasNoValue() ? null : _softDeleteReason });
+
+            if (success)
+            {
+                Snackbar.Add("Entry soft-deleted.", Severity.Success);
+                _softDeleteDialogOpen = false;
+                await LoadEntriesAsync();
+                if (_selectedEntry?.Id == _entryToSoftDelete.Id)
+                {
+                    _selectedEntry = _entries.FirstOrDefault(entry => entry.Id == _entryToSoftDelete.Id);
+                }
+            }
+            else
+            {
+                Snackbar.Add("Failed to soft-delete entry.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting entry: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _deletingEntry = false;
+        }
+    }
+
+    private async Task RestoreEntryAsync(JournalEntryAdminDto entry)
+    {
+        try
+        {
+            var success = await JournalClient.RestoreEntryAsync(entry.Id);
+            if (success)
+            {
+                Snackbar.Add("Entry restored.", Severity.Success);
+                await LoadEntriesAsync();
+                if (_selectedEntry?.Id == entry.Id)
+                {
+                    _selectedEntry = _entries.FirstOrDefault(item => item.Id == entry.Id);
+                }
+            }
+            else
+            {
+                Snackbar.Add("Failed to restore entry.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error restoring entry: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmHardDeleteAsync(JournalEntryAdminDto entry)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Hard Delete"
+          , $"Permanently delete entry '{entry.Id}' and ALL its revisions? This cannot be undone."
+          , yesText: "Hard Delete"
+          , cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await DoHardDeleteAsync(entry);
+        }
+    }
+
+    private async Task DoHardDeleteAsync(JournalEntryAdminDto entry)
+    {
+        try
+        {
+            var success = await JournalClient.HardDeleteEntryAsync(entry.Id);
+            if (success)
+            {
+                Snackbar.Add("Entry permanently deleted.", Severity.Success);
+                _selectedEntry    = null;
+                _selectedRevision = null;
+                _revisions        = [];
+                await LoadEntriesAsync();
+            }
+            else
+            {
+                Snackbar.Add("Hard delete failed.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error during hard delete: {ex.Message}", Severity.Error);
         }
     }
 }

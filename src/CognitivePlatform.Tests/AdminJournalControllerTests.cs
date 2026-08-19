@@ -198,6 +198,209 @@ public class AdminJournalControllerTests : IDisposable
         Assert.NotNull(okResult.Value);
     }
 
+    // ── CreateEntry ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateEntry_Returns401_WhenAdminSecretMissing()
+    {
+        var controller = CreateUnauthenticated();
+        var request    = new CreateJournalEntryAdminRequest { Text = "Test entry" };
+
+        var result = await controller.CreateEntry(request);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(401, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateEntry_Returns400_WhenTextIsEmpty()
+    {
+        var request = new CreateJournalEntryAdminRequest { Text = "  " };
+
+        var result = await _sut.CreateEntry(request);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Text is required.", badRequest.Value);
+    }
+
+    [Fact]
+    public async Task CreateEntry_Returns200_AndPersistsEntryAndRevision()
+    {
+        var request = new CreateJournalEntryAdminRequest
+                      {
+                          Text      = "Fresh entry created by admin"
+                        , Tags      = new[] { "admin", "test" }
+                        , Mood      = "Happy"
+                        , MoodScore = 8
+                        , MoodLevel = 4
+                      };
+
+        var result = await _sut.CreateEntry(request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+
+        var entryIdProp = okResult.Value.GetType().GetProperty("entryId")?.GetValue(okResult.Value)?.ToString();
+        Assert.NotNull(entryIdProp);
+
+        var savedEntry = _store.Get<JournalEntry>(entryIdProp);
+        Assert.NotNull(savedEntry);
+        Assert.Null(savedEntry.DeletedUtc);
+    }
+
+    // ── SoftDeleteEntry & RestoreEntry ─────────────────────────────────────────
+
+    [Fact]
+    public async Task SoftDeleteEntry_Returns404_WhenEntryNotFound()
+    {
+        var result = await _sut.SoftDeleteEntry("non-existent-id");
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Journal entry 'non-existent-id' not found.", notFound.Value);
+    }
+
+    [Fact]
+    public async Task SoftDeleteEntry_SetsDeletedUtcAndReason()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        var entry   = new JournalEntry { Id = entryId, CreatedUtc = DateTimeOffset.UtcNow };
+        await _store.Save(entry, id: entryId);
+
+        var result = await _sut.SoftDeleteEntry(entryId, new SoftDeleteJournalAdminRequest { Reason = "Admin audit" });
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+
+        var deletedEntry = _store.GetDeleted<JournalEntry>(entryId);
+        Assert.NotNull(deletedEntry);
+        Assert.NotNull(deletedEntry.DeletedUtc);
+        Assert.Equal("Admin audit", deletedEntry.DeletedReason);
+    }
+
+    [Fact]
+    public async Task RestoreEntry_ClearsDeletedUtcAndReason()
+    {
+        var entryId = Guid.NewGuid().ToString("N");
+        var entry   = new JournalEntry
+                      {
+                          Id            = entryId
+                        , CreatedUtc    = DateTimeOffset.UtcNow
+                        , DeletedUtc    = DateTimeOffset.UtcNow
+                        , DeletedReason = "Testing delete"
+                      };
+        await _store.Save(entry, id: entryId);
+        _store.SoftDelete<JournalEntry>(entryId);
+
+        var result = await _sut.RestoreEntry(entryId);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+
+        var restored = _store.Get<JournalEntry>(entryId);
+        Assert.NotNull(restored);
+        Assert.Null(restored.DeletedUtc);
+        Assert.Null(restored.DeletedReason);
+    }
+
+    // ── HardDeleteEntry ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task HardDeleteEntry_PermanentlyRemovesEntryAndRevisions()
+    {
+        var entryId    = Guid.NewGuid().ToString("N");
+        var revisionId = Guid.NewGuid().ToString("N");
+
+        var entry    = new JournalEntry { Id = entryId, CreatedUtc = DateTimeOffset.UtcNow };
+        var revision = new JournalRevision
+                       {
+                           RevisionId = revisionId
+                         , EntryId    = entryId
+                         , CreatedUtc = DateTimeOffset.UtcNow
+                         , Text       = "Revision to delete"
+                       };
+
+        await _store.Save(entry, id: entryId);
+        await _store.Save(revision, id: revisionId);
+
+        _revisionsMock.Setup(repo => repo.GetRevisionsByEntryId(entryId))
+                      .Returns(new List<JournalRevision> { revision });
+
+        var result = _sut.HardDeleteEntry(entryId);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+
+        var fetchedEntry    = _store.Get<JournalEntry>(entryId) ?? _store.GetDeleted<JournalEntry>(entryId);
+        var fetchedRevision = _store.Get<JournalRevision>(revisionId) ?? _store.GetDeleted<JournalRevision>(revisionId);
+
+        Assert.Null(fetchedEntry);
+        Assert.Null(fetchedRevision);
+    }
+
+    // ── UpdateRevision ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateRevision_Returns400_WhenTextIsEmpty()
+    {
+        var request = new UpdateJournalRevisionAdminRequest { Text = "" };
+
+        var result = await _sut.UpdateRevision("entry-1", "rev-1", request);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Text is required.", badRequest.Value);
+    }
+
+    [Fact]
+    public async Task UpdateRevision_Returns404_WhenRevisionNotFound()
+    {
+        var request = new UpdateJournalRevisionAdminRequest { Text = "Updated text" };
+
+        var result = await _sut.UpdateRevision("entry-1", "rev-non-existent", request);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Revision 'rev-non-existent' for entry 'entry-1' not found.", notFound.Value);
+    }
+
+    [Fact]
+    public async Task UpdateRevision_UpdatesExistingRevisionContent()
+    {
+        var entryId    = Guid.NewGuid().ToString("N");
+        var revisionId = Guid.NewGuid().ToString("N");
+
+        var revision = new JournalRevision
+                       {
+                           RevisionId = revisionId
+                         , EntryId    = entryId
+                         , CreatedUtc = DateTimeOffset.UtcNow
+                         , Text       = "Initial text"
+                         , Tags       = new[] { "tag1" }
+                       };
+
+        await _store.Save(revision, id: revisionId);
+
+        var updateRequest = new UpdateJournalRevisionAdminRequest
+                            {
+                                Text      = "Direct revision update text"
+                              , Tags      = new[] { "updated" }
+                              , Mood      = "Excited"
+                              , MoodScore = 9
+                              , MoodLevel = 5
+                            };
+
+        var result = await _sut.UpdateRevision(entryId, revisionId, updateRequest);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(okResult.Value);
+
+        var updated = _store.Get<JournalRevision>(revisionId);
+        Assert.NotNull(updated);
+        Assert.Equal("Direct revision update text", updated.Text);
+        Assert.Equal(new[] { "updated" }, updated.Tags);
+        Assert.Equal("Excited", updated.Mood);
+        Assert.Equal(9, updated.MoodScore);
+        Assert.Equal(5, updated.MoodLevel);
+    }
+
     // ── RepairPartitionKeys ───────────────────────────────────────────────────
 
     [Fact]

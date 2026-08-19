@@ -107,31 +107,12 @@
                 </MudAlert>
             }
 
-            <MudPaper id="android-terminal-container" Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (androidLines.Length == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Run Android tests to see output here…</span>
-                }
-                else
-                {
-                    @foreach (var line in androidLines)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
-                            @if (TryExtractPngPath(line.Text, out var path))
-                            {
-                                <span>Captured failure screenshot: </span>
-                                <a href="javascript:void(0)" @onclick="@(() => ShowScreenshot(path))" style="color:#569cd6;text-decoration:underline;cursor:pointer">@System.IO.Path.GetFileName(path)</a>
-                            }
-                            else
-                            {
-                                @line.Text
-                            }
-                        </div>
-                    }
-                }
-                <div id="android-terminal-end"></div>
-            </MudPaper>
+            <TerminalOutput Terminal="@androidState"
+                            Height="450px"
+                            Placeholder="Run Android tests to see output here…"
+                            ContainerId="android-terminal-container"
+                            EndElementId="android-terminal-end"
+                            OnScreenshotClicked="@ShowScreenshot" />
 
             @if (!androidState.IsRunning && androidState.ExitCode.HasValue && (androidPassed + androidFailed) > 0)
             {
@@ -265,31 +246,12 @@
                 </MudAlert>
             }
 
-            <MudPaper id="windows-terminal-container" Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (windowsLines.Length == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Run Windows tests to see output here…</span>
-                }
-                else
-                {
-                    @foreach (var line in windowsLines)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
-                            @if (TryExtractPngPath(line.Text, out var path))
-                            {
-                                <span>Captured failure screenshot: </span>
-                                <a href="javascript:void(0)" @onclick="@(() => ShowScreenshot(path))" style="color:#569cd6;text-decoration:underline;cursor:pointer">@System.IO.Path.GetFileName(path)</a>
-                            }
-                            else
-                            {
-                                @line.Text
-                            }
-                        </div>
-                    }
-                }
-                <div id="windows-terminal-end"></div>
-            </MudPaper>
+            <TerminalOutput Terminal="@windowsState"
+                            Height="450px"
+                            Placeholder="Run Windows tests to see output here…"
+                            ContainerId="windows-terminal-container"
+                            EndElementId="windows-terminal-end"
+                            OnScreenshotClicked="@ShowScreenshot" />
 
             @if (!windowsState.IsRunning && windowsState.ExitCode.HasValue && (windowsPassed + windowsFailed) > 0)
             {
@@ -421,23 +383,11 @@
                 </MudAlert>
             }
 
-            <MudPaper id="cognitive-terminal-container" Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (cognitiveLines.Length == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Run Cognitive API validation tests to see output here…</span>
-                }
-                else
-                {
-                    @foreach (var line in cognitiveLines)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
-                            @line.Text
-                        </div>
-                    }
-                }
-                <div id="cognitive-terminal-end"></div>
-            </MudPaper>
+            <TerminalOutput Terminal="@cognitiveState"
+                            Height="450px"
+                            Placeholder="Run Cognitive API validation tests to see output here…"
+                            ContainerId="cognitive-terminal-container"
+                            EndElementId="cognitive-terminal-end" />
 
             @if (!cognitiveState.IsRunning && cognitiveState.ExitCode.HasValue && (cognitivePassed + cognitiveFailed) > 0)
             {
@@ -569,23 +519,11 @@
                 </MudAlert>
             }
 
-            <MudPaper id="unit-tests-terminal-container" Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:450px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (unitTestsLines.Length == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Run Unit tests to see output here…</span>
-                }
-                else
-                {
-                    @foreach (var line in unitTestsLines)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
-                            @line.Text
-                        </div>
-                    }
-                }
-                <div id="unit-tests-terminal-end"></div>
-            </MudPaper>
+            <TerminalOutput Terminal="@unitTestsState"
+                            Height="450px"
+                            Placeholder="Run Unit tests to see output here…"
+                            ContainerId="unit-tests-terminal-container"
+                            EndElementId="unit-tests-terminal-end" />
 
             @if (!unitTestsState.IsRunning && unitTestsState.ExitCode.HasValue && (unitTestsPassed + unitTestsFailed) > 0)
             {
@@ -708,23 +646,11 @@
                 </MudAlert>
             }
 
-            <MudPaper id="system-audit-terminal-container" Elevation="4"
-                      Style="background:#1e1e1e;padding:16px;height:350px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-                @if (auditLines.Length == 0)
-                {
-                    <span style="color:#6b7280;font-style:italic">Click 'Run System Audit' to scan all CP repositories for architectural invariants, data isolation, and standards compliance…</span>
-                }
-                else
-                {
-                    @foreach (var line in auditLines)
-                    {
-                        <div style="color:@LineColor(line.Kind);white-space:pre-wrap;line-height:1.55">
-                            @line.Text
-                        </div>
-                    }
-                }
-                <div id="system-audit-terminal-end"></div>
-            </MudPaper>
+            <TerminalOutput Terminal="@auditState"
+                            Height="350px"
+                            Placeholder="Click 'Run System Audit' to scan all CP repositories for architectural invariants, data isolation, and standards compliance…"
+                            ContainerId="system-audit-terminal-container"
+                            EndElementId="system-audit-terminal-end" />
         </MudPaper>
     </MudItem>
 

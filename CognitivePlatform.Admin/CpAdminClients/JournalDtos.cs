@@ -36,6 +36,32 @@ public sealed record AddCorrectionRevisionRequest
     public int?     MoodLevel { get; init; }
 }
 
+/// <summary>Request body for creating a new journal entry via Admin API.</summary>
+public sealed record CreateJournalEntryAdminDto
+{
+    public string   Text      { get; init; } = string.Empty;
+    public string[] Tags      { get; init; } = [];
+    public string?  Mood      { get; init; }
+    public int?     MoodScore { get; init; }
+    public int?     MoodLevel { get; init; }
+}
+
+/// <summary>Request body for updating an existing journal revision via Admin API.</summary>
+public sealed record UpdateJournalRevisionAdminDto
+{
+    public string   Text      { get; init; } = string.Empty;
+    public string[] Tags      { get; init; } = [];
+    public string?  Mood      { get; init; }
+    public int?     MoodScore { get; init; }
+    public int?     MoodLevel { get; init; }
+}
+
+/// <summary>Request body for soft-deleting a journal entry via Admin API.</summary>
+public sealed record SoftDeleteJournalAdminDto
+{
+    public string? Reason { get; init; }
+}
+
 /// <summary>Per-record change captured during a repair operation.</summary>
 public sealed record RepairDetailDto
 {

@@ -647,24 +647,10 @@
     <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_rs.Error</MudAlert>
 }
 
-@{
-    var _releaseLines = _rs.Snapshot();
-}
-<MudPaper Elevation="4"
-          Style="background:#1e1e1e;padding:16px;height:500px;overflow-y:auto;font-family:'Cascadia Code','Consolas',monospace;font-size:0.83rem;">
-    @if (_releaseLines.Length == 0)
-    {
-        <span style="color:#6b7280;font-style:italic">Run a command to see output here…</span>
-    }
-    else
-    {
-        @foreach (var line in _releaseLines)
-        {
-            <div style="color:@(line.Kind == TerminalLineKind.Error ? "#ff6b6b" : "#d4d4d4");white-space:pre-wrap;line-height:1.55">@line.Text</div>
-        }
-    }
-    <div id="terminal-end"></div>
-</MudPaper>
+<TerminalOutput Terminal="@_rs"
+                Height="500px"
+                Placeholder="Run a command to see output here…"
+                EndElementId="terminal-end" />
 
 @code {
     // ── Record types ───────────────────────────────────────────────────────────
