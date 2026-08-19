@@ -594,4 +594,27 @@ public class DailyRecordServiceTests
 
         _embeddingMock.Verify(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task OpenDayAsync_UsesDateFromInjectedDateProvider()
+    {
+        var customDate = new DateOnly(2027, 4, 15);
+        var dateProviderMock = new Mock<IDateProvider>();
+        dateProviderMock.Setup(provider => provider.Today).Returns(customDate);
+
+        var service = new DailyRecordService( _storeMock.Object
+                                            , _taskMock.Object
+                                            , _journalMock.Object
+                                            , _embeddingMock.Object
+                                            , _vectorStoreMock.Object
+                                            , _loggerMock.Object
+                                            , dateProviderMock.Object );
+
+        _storeMock.Setup(store => store.Get<DailyRecord>("2027-04-15", null)).Returns((DailyRecord?)null);
+
+        var result = await service.OpenDayAsync("Future planning.", Array.Empty<string>());
+
+        Assert.Equal("2027-04-15", result.Id);
+        Assert.Equal(customDate, result.Date);
+    }
 }

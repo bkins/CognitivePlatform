@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.DailyRecord;
 
 namespace CognitivePlatform.Api.Startup;
@@ -9,6 +10,7 @@ public static class DailyRecordServiceCollectionExtensions
 {
     public static IServiceCollection AddDailyRecordServices(this IServiceCollection services)
     {
+        services.AddSingleton<IDateProvider, SystemDateProvider>();
         services.AddSingleton<IDailyRecordCommandParser, DailyRecordCommandParser>();
         services.AddSingleton<IDailyRecordService, DailyRecordService>();
         services.AddTransient<DailyRecordActions>();

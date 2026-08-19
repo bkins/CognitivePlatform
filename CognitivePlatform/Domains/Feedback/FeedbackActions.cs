@@ -79,33 +79,25 @@ public sealed class FeedbackActions : ISessionAware
 
         try
         {
-            lock (FileLock)
+            var id = GenerateUniqueId(_settings.FilePath);
+            var timestamp = DateTimeOffset.UtcNow;
+
+            var report = new BugReport
             {
-                var dir = Path.GetDirectoryName(_settings.FilePath);
-                if (dir.HasValue()) Directory.CreateDirectory(dir!);
+                Id = id,
+                Timestamp = timestamp.ToString("yyyy-MM-dd HH:mm"),
+                TimeSuffix = "UTC",
+                Status = "Open",
+                Severity = string.IsNullOrWhiteSpace(severity) ? "Medium" : severity.Trim(),
+                Tags = string.IsNullOrWhiteSpace(tags) ? "None" : tags.Trim(),
+                Context = string.IsNullOrWhiteSpace(context) ? "None" : context.Trim(),
+                TriageNotes = "None",
+                Description = description.Trim()
+            };
 
-                var id = GenerateUniqueId(_settings.FilePath);
-                var timestamp = DateTimeOffset.UtcNow;
+            AppendBugToLog(report);
 
-                var report = new BugReport
-                {
-                    Id = id,
-                    Timestamp = timestamp.ToString("yyyy-MM-dd HH:mm"),
-                    TimeSuffix = "UTC",
-                    Status = "Open",
-                    Severity = string.IsNullOrWhiteSpace(severity) ? "Medium" : severity.Trim(),
-                    Tags = string.IsNullOrWhiteSpace(tags) ? "None" : tags.Trim(),
-                    Context = string.IsNullOrWhiteSpace(context) ? "None" : context.Trim(),
-                    TriageNotes = "None",
-                    Description = description.Trim()
-                };
-
-                var reports = LoadAllBugs(_settings.FilePath);
-                reports.Add(report);
-                SaveAllBugs(_settings.FilePath, reports);
-
-                return $"Bug logged ✓ — added to `{Path.GetFileName(_settings.FilePath)}` with ID `{id}`.";
-            }
+            return $"Bug logged ✓ — added to `{Path.GetFileName(_settings.FilePath)}` with ID `{id}`.";
         }
         catch (Exception ex)
         {
@@ -544,6 +536,40 @@ public sealed class FeedbackActions : ISessionAware
         }
 
         File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+    }
+
+    private void AppendBugToLog(BugReport report)
+    {
+        var dir = Path.GetDirectoryName(_settings.FilePath);
+        if (dir.HasValue()) Directory.CreateDirectory(dir!);
+
+        var entry = new StringBuilder();
+        entry.AppendLine();
+        entry.AppendLine("---");
+        entry.AppendLine();
+        entry.AppendLine($"### \U0001f4cc Field Report [ID: {report.Id}] — {report.Timestamp} ({report.TimeSuffix})");
+        entry.AppendLine($"- **Status:** {report.Status}");
+        entry.AppendLine($"- **Severity:** {report.Severity}");
+        entry.AppendLine($"- **Tags:** {report.Tags}");
+        entry.AppendLine($"- **Context:** {report.Context}");
+        entry.AppendLine($"- **Triage Notes:** {report.TriageNotes}");
+        entry.AppendLine();
+        entry.AppendLine(report.Description);
+
+        lock (FileLock)
+        {
+            if (File.Exists(_settings.FilePath).Not())
+            {
+                var header = new StringBuilder();
+                header.AppendLine("# Bug Log — Field Reports");
+                header.AppendLine();
+                header.AppendLine("*In-session bug reports captured via the `ReportBug` action.*");
+                header.AppendLine("*Add structured analysis and resolution notes directly in this file.*");
+                File.WriteAllText(_settings.FilePath, header.ToString(), Encoding.UTF8);
+            }
+
+            File.AppendAllText(_settings.FilePath, entry.ToString(), Encoding.UTF8);
+        }
     }
 
     private void AppendIdeaToLog(string description)

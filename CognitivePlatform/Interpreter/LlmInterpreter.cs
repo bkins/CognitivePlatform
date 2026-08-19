@@ -475,33 +475,42 @@ public class LlmInterpreter : IInterpreter
         return sb.ToString();
     }
 
+    internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ActionMetadata, string> ActionBlockCache = new();
+
+    internal static string BuildSingleActionSummary(ActionMetadata action)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Action: {action.Name}");
+        sb.AppendLine($"  Description: {action.Description}");
+
+        if (action.Parameters.Count > 0)
+        {
+            sb.AppendLine("  Parameters:");
+            foreach (var parameter in action.Parameters)
+            {
+                var typeName = GetFriendlyTypeName(parameter.ParameterType);
+                sb.AppendLine($"    - {parameter.Name} ({typeName}, required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
+            }
+        }
+
+        if (action.Examples is { Length: > 0 })
+        {
+            sb.AppendLine("  Examples:");
+            foreach (var ex in action.Examples)
+                sb.AppendLine($"    - {ex}");
+        }
+
+        sb.AppendLine();
+        return sb.ToString();
+    }
+
     internal static string BuildActionsSummary(IEnumerable<ActionMetadata> actions)
     {
         var sb = new StringBuilder();
 
         foreach (var action in actions)
         {
-            sb.AppendLine($"Action: {action.Name}");
-            sb.AppendLine($"  Description: {action.Description}");
-
-            if (action.Parameters.Count > 0)
-            {
-                sb.AppendLine("  Parameters:");
-                foreach (var parameter in action.Parameters)
-                {
-                    var typeName = GetFriendlyTypeName(parameter.ParameterType);
-                    sb.AppendLine($"    - {parameter.Name} ({typeName}, required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
-                }
-            }
-
-            if (action.Examples is { Length: > 0 })
-            {
-                sb.AppendLine("  Examples:");
-                foreach (var ex in action.Examples)
-                    sb.AppendLine($"    - {ex}");
-            }
-
-            sb.AppendLine();
+            sb.Append(ActionBlockCache.GetValue(action, static a => BuildSingleActionSummary(a)));
         }
 
         return sb.ToString();
@@ -567,7 +576,7 @@ public class LlmInterpreter : IInterpreter
       , string                      userInput
       , Func<string, string?>       getDomainSummary)
     {
-        var allActions = actions.ToList();
+        var allActions = actions as IReadOnlyList<ActionMetadata> ?? actions.ToList();
 
         // Collect unique domain definitions keyed by name.
         var domainsByName = allActions
@@ -603,30 +612,10 @@ public class LlmInterpreter : IInterpreter
             var isNullDomain = !domainsByName.ContainsKey(domainName);
             if (isRelevant || isNullDomain)
             {
-                // Full per-action detail for this domain.
+                // Full per-action detail for this domain using cached action blocks.
                 foreach (var action in group)
                 {
-                    sb.AppendLine($"Action: {action.Name}");
-                    sb.AppendLine($"  Description: {action.Description}");
-
-                    if (action.Parameters.Count > 0)
-                    {
-                        sb.AppendLine("  Parameters:");
-                        foreach (var parameter in action.Parameters)
-                        {
-                            var typeName = GetFriendlyTypeName(parameter.ParameterType);
-                            sb.AppendLine($"    - {parameter.Name} ({typeName}, required={parameter.IsOptional.Not()}, allowEmpty={parameter.AllowEmpty}): \"{parameter.Description}\"");
-                        }
-                    }
-
-                    if (action.Examples is { Length: > 0 })
-                    {
-                        sb.AppendLine("  Examples:");
-                        foreach (var ex in action.Examples)
-                            sb.AppendLine($"    - {ex}");
-                    }
-
-                    sb.AppendLine();
+                    sb.Append(ActionBlockCache.GetValue(action, static a => BuildSingleActionSummary(a)));
                 }
             }
             else

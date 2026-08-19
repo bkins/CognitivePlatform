@@ -26,13 +26,15 @@ public class DailyRecordService : IDailyRecordService
     private readonly IEmbeddingService             _embeddingService;
     private readonly IVectorStore                  _vectorStore;
     private readonly ILogger<DailyRecordService>   _logger;
+    private readonly IDateProvider                 _dateProvider;
 
     public DailyRecordService( IObjectStore                  store
                               , ITaskService                  taskService
                               , IJournalService               journalService
                               , IEmbeddingService             embeddingService
                               , IVectorStore                  vectorStore
-                              , ILogger<DailyRecordService>   logger )
+                              , ILogger<DailyRecordService>   logger
+                              , IDateProvider?                dateProvider = null )
     {
         _store            = store;
         _taskService      = taskService;
@@ -40,6 +42,7 @@ public class DailyRecordService : IDailyRecordService
         _embeddingService = embeddingService;
         _vectorStore      = vectorStore;
         _logger           = logger;
+        _dateProvider     = dateProvider ?? new SystemDateProvider();
     }
 
     public async Task<DailyRecord> OpenDayAsync( string                  openingText
@@ -272,17 +275,9 @@ public class DailyRecordService : IDailyRecordService
 
     // --- Private helpers ---------------------------------------------------------
 
-    private static string TodayKey()
+    private string TodayKey()
     {
-        // Development override: set CP_DAILY_DATE=yyyy-MM-dd to simulate a different day
-        // without waiting for the real calendar to advance.
-        var envOverride = Environment.GetEnvironmentVariable("CP_DAILY_DATE");
-
-        if (!string.IsNullOrWhiteSpace(envOverride)
-         && DateOnly.TryParse(envOverride, out var overrideDate))
-            return overrideDate.ToString("yyyy-MM-dd");
-
-        return DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        return _dateProvider.Today.ToString("yyyy-MM-dd");
     }
 
     private DailyRecord RequireOpenRecord()

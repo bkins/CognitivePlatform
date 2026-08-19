@@ -116,6 +116,29 @@ public sealed class SqliteVectorStore : IVectorStore
         await command.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task<int> EvictOlderThanAsync(TimeSpan maxAge, string? domain = null, CancellationToken ct = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow.Subtract(maxAge).ToString("O");
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(ct);
+
+        await using var command = connection.CreateCommand();
+        if (domain is null)
+        {
+            command.CommandText = "DELETE FROM vectors WHERE embeddedAt < $cutoff";
+        }
+        else
+        {
+            command.CommandText = "DELETE FROM vectors WHERE domain = $domain AND embeddedAt < $cutoff";
+            command.Parameters.AddWithValue("$domain", domain);
+        }
+
+        command.Parameters.AddWithValue("$cutoff", cutoff);
+
+        return await command.ExecuteNonQueryAsync(ct);
+    }
+
     // -----------------------------------------------------------------------
     // Schema bootstrap
     // -----------------------------------------------------------------------
@@ -138,6 +161,7 @@ public sealed class SqliteVectorStore : IVectorStore
             );
             CREATE INDEX IF NOT EXISTS IX_Vectors_Domain     ON vectors(domain);
             CREATE INDEX IF NOT EXISTS IX_Vectors_Reference  ON vectors(domain, referenceId);
+            CREATE INDEX IF NOT EXISTS IX_Vectors_EmbeddedAt ON vectors(embeddedAt);
             """;
         command.ExecuteNonQuery();
     }

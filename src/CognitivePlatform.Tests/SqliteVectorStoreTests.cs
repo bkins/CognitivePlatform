@@ -198,4 +198,43 @@ public sealed class SqliteVectorStoreTests : IDisposable
         Assert.Single(results);
         Assert.Equal("t-ref", results[0].Entry.Id);
     }
+
+    // ================================================================
+    // EvictOlderThanAsync
+    // ================================================================
+
+    [Fact]
+    public async Task EvictOlderThanAsync_DeletesExpiredEntries()
+    {
+        var oldEntry = new VectorEntry
+                       {
+                           Id          = "old-entry"
+                         , Domain      = "journal"
+                         , ReferenceId = "r1"
+                         , Text        = "old text"
+                         , Embedding   = new float[] { 1f, 0f }
+                         , EmbeddedAt  = DateTimeOffset.UtcNow.AddDays(-10)
+                       };
+
+        var newEntry = new VectorEntry
+                       {
+                           Id          = "new-entry"
+                         , Domain      = "journal"
+                         , ReferenceId = "r2"
+                         , Text        = "new text"
+                         , Embedding   = new float[] { 0f, 1f }
+                         , EmbeddedAt  = DateTimeOffset.UtcNow
+                       };
+
+        await _store.SaveAsync(oldEntry);
+        await _store.SaveAsync(newEntry);
+
+        var evicted = await _store.EvictOlderThanAsync(TimeSpan.FromDays(7));
+
+        Assert.Equal(1, evicted);
+
+        var results = await _store.SearchAsync(new float[] { 1f, 0f }, topK: 10);
+        Assert.Single(results);
+        Assert.Equal("new-entry", results[0].Entry.Id);
+    }
 }

@@ -10,6 +10,7 @@ public interface IVectorStore
     Task<VectorEntry?>          GetByReferenceAsync (string domain, string referenceId,                  CancellationToken ct = default);
     Task DeleteAsync            (string id,                                                              CancellationToken ct = default);
     Task DeleteByReferenceAsync (string domain, string referenceId,                                      CancellationToken ct = default);
+    Task<int> EvictOlderThanAsync(TimeSpan maxAge, string? domain = null,                                CancellationToken ct = default);
 }
 
 public sealed record VectorSearchResult(VectorEntry Entry, float Score);

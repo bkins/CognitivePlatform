@@ -10,4 +10,7 @@ public interface IIdempotencyStore
     Task StoreAsync( Guid              clientRequestId
                    , ConverseResponse  response
                    , CancellationToken ct );
+
+    Task<int> EvictOlderThanAsync( TimeSpan          maxAge
+                                 , CancellationToken ct = default );
 }

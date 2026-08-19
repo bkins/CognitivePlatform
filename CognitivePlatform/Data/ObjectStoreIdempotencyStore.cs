@@ -37,4 +37,19 @@ public class ObjectStoreIdempotencyStore : IIdempotencyStore
 
         return Task.CompletedTask;
     }
+
+    public async Task<int> EvictOlderThanAsync(TimeSpan maxAge, CancellationToken ct = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow.Subtract(maxAge);
+        var expired = await _store.ListAsync<ProcessedRequest>(toUtc: cutoff, cancellationToken: ct);
+        int evictedCount = 0;
+
+        foreach (var record in expired)
+        {
+            if (await _store.SoftDeleteAsync<ProcessedRequest>(record.Id, cancellationToken: ct))
+                evictedCount++;
+        }
+
+        return evictedCount;
+    }
 }
