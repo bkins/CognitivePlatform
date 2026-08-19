@@ -86,6 +86,78 @@ public class ConversationController : ControllerBase
         return Ok(conversations);
     }
 
+    [HttpGet("sync")]
+    public async Task<IActionResult> SyncConversations([FromQuery] string? workspace, [FromQuery] DateTimeOffset? since)
+    {
+        var cutoff = since ?? DateTimeOffset.MinValue;
+        var allMetas = await _metadataStore.ListAllAsync();
+
+        var filteredMetas = allMetas
+            .Where(meta => !meta.IsDeleted && (meta.LastActiveUtc >= cutoff.UtcDateTime || meta.CreatedUtc >= cutoff.UtcDateTime))
+            .OrderByDescending(meta => meta.LastActiveUtc)
+            .ToList();
+
+        var updatedConversations = new List<ConversationSyncDto>();
+
+        foreach (var meta in filteredMetas)
+        {
+            var turns = _turnStore.GetRecent(meta.ConversationId, 50)
+                                  .Where(turn => turn.OccurredAt >= cutoff)
+                                  .ToList();
+
+            var messages = new List<ConversationSyncMessageDto>();
+            foreach (var turn in turns)
+            {
+                if (turn.UserMessage.HasValue())
+                {
+                    messages.Add(new ConversationSyncMessageDto
+                    {
+                        Sender       = "user"
+                      , Content      = turn.UserMessage
+                      , TimestampUtc = turn.OccurredAt
+                    });
+                }
+
+                if (turn.AssistantMessage.HasValue())
+                {
+                    var reasoning = turn.Path == TurnPath.FastPath
+                                        ? "Fast-Path (Direct rule-based execution; no LLM reasoning required)"
+                                        : turn.ActionName.HasValue()
+                                            ? $"[Plan] Selected action '{turn.ActionName}' -> Executed successfully."
+                                            : "Standard Completion (Direct response generation; no Chain-of-Thought reasoning emitted)";
+
+                    messages.Add(new ConversationSyncMessageDto
+                    {
+                        Sender           = "assistant"
+                      , Content          = turn.AssistantMessage
+                      , ActionName       = turn.ActionName
+                      , WasFastPath      = turn.Path == TurnPath.FastPath
+                      , ReasoningContent = reasoning
+                      , TimestampUtc     = turn.OccurredAt
+                    });
+                }
+            }
+
+            updatedConversations.Add(new ConversationSyncDto
+            {
+                Id           = meta.ConversationId
+              , Title        = meta.Name ?? meta.ConversationId
+              , LastUpdated  = new DateTimeOffset(meta.LastActiveUtc, TimeSpan.Zero)
+              , MessageCount = meta.MessageCount
+              , Messages     = messages
+            });
+        }
+
+        var response = new SyncResponseDto
+        {
+            Workspace            = workspace.HasValue() ? workspace! : "Default"
+          , SyncedAtUtc          = DateTimeOffset.UtcNow
+          , UpdatedConversations = updatedConversations
+        };
+
+        return Ok(response);
+    }
+
     [HttpGet("{id}/metadata")]
     public async Task<IActionResult> GetMetadata([FromRoute] string id)
     {
