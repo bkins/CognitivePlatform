@@ -1,6 +1,5 @@
-using System.Reflection;
+﻿using System.Reflection;
 using CognitivePlatform.Api.Audit;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.COCE;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Models;
@@ -222,14 +221,14 @@ public class ExecutionEngine : IExecutionEngine
         if (targetType == typeof(Guid)
          || targetType == typeof(Guid?))
         {
-            if (string.IsNullOrWhiteSpace(value)) return targetType == typeof(Guid?) ? (Guid?)null : Guid.Empty;
+            if (value.HasNoValue()) return targetType == typeof(Guid?) ? (Guid?)null : Guid.Empty;
             return Guid.TryParse(value, out var g) ? (object?)g : (targetType == typeof(Guid?) ? (Guid?)null : Guid.Empty);
         }
 
         if (targetType == typeof(DateTime)
          || targetType == typeof(DateTime?))
         {
-            if (string.IsNullOrWhiteSpace(value)) return targetType == typeof(DateTime?) ? (object?)(DateTime?)null : default(DateTime);
+            if (value.HasNoValue()) return targetType == typeof(DateTime?) ? (object?)(DateTime?)null : default(DateTime);
             return DateTime.TryParse(value, out var dt) ? (object?)dt : (targetType == typeof(DateTime?) ? (DateTime?)null : default(DateTime));
         }
 
@@ -237,7 +236,7 @@ public class ExecutionEngine : IExecutionEngine
         var underlyingType = Nullable.GetUnderlyingType(targetType);
         if (underlyingType is not null && underlyingType.IsEnum)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            if (value.HasNoValue())
                 return null;
 
             try   { return Enum.Parse(underlyingType, value, ignoreCase: true); }

@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Conversation;
+﻿using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Registry.Capabilities;
 using CognitivePlatform.Api.Telemetry;
 
@@ -24,7 +24,7 @@ public class MockInterpreter : IInterpreter
 
         var match = _registry.GetAll()
                              .FirstOrDefault(metadata => metadata.Name
-                                 .StartsWith(trimmed, StringComparison.OrdinalIgnoreCase));
+                                 .StartsWithIgnoreCase(trimmed));
 
         var debugInfo = match is null
                             ? $"No action matched '{trimmed}'."

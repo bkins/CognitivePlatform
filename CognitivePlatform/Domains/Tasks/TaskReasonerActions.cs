@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -176,7 +176,7 @@ public class TaskReasonerActions
 
     private static DateTimeOffset? ParseDate(string? input)
     {
-        if (string.IsNullOrWhiteSpace(input))
+        if (input.HasNoValue())
             return null;
 
         return DateTimeOffset.TryParse(input, out var result) ? result : null;

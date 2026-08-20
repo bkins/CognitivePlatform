@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -395,7 +395,7 @@ public class MealActions
             {
                 var newFoods = meal.Foods.Where(incoming =>
                                                     !existingMeal.Foods.Any(existing =>
-                                                        existing.Name.Equals(incoming.Name, StringComparison.OrdinalIgnoreCase)))
+                                                        existing.Name.EqualsIgnoreCase(incoming.Name)))
                                          .ToList();
 
                 if (newFoods.Count == 0)

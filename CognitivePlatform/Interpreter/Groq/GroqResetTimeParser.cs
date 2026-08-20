@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -22,7 +22,7 @@ public static class GroqResetTimeParser
     /// </summary>
     public static TimeSpan Parse(string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
             return TimeSpan.Zero;
 
         var match = DurationPattern.Match(raw.Trim());

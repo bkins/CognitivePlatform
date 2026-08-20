@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CP.Shared.Primitives.Avails;
@@ -139,7 +139,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
 
         foreach (var other in Directives)
         {
-            if (other.Equals(directive, StringComparison.OrdinalIgnoreCase))
+            if (other.EqualsIgnoreCase(directive))
                 continue;
 
             var idx = line.IndexOf(other, start, StringComparison.OrdinalIgnoreCase);
@@ -160,7 +160,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
 
         foreach (var other in Directives)
         {
-            if (other.Equals(directive, StringComparison.OrdinalIgnoreCase)) continue;
+            if (other.EqualsIgnoreCase(directive)) continue;
 
             var idx = line.IndexOf(other, contentStart, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0 && idx < end) end = idx;

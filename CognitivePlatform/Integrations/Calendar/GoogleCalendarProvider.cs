@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.Api.Data;
@@ -51,8 +51,8 @@ public class GoogleCalendarProvider : ICalendarProvider
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_settings.ClientId)
-             || string.IsNullOrWhiteSpace(_settings.ClientSecret))
+            if (_settings.ClientId.HasNoValue()
+             || _settings.ClientSecret.HasNoValue())
                 return false;
 
             return _store.Get<CalendarTokens>("default", _settings.TokenStorePartitionKey) is not null;

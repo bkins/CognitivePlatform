@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -16,7 +16,7 @@ public sealed class WatchListConnector : IExternalAppConnector
 
     public string AppName => "WatchList";
 
-    public bool IsConfigured => _settings.WatchList.Enabled && !string.IsNullOrWhiteSpace(_settings.WatchList.DbPath);
+    public bool IsConfigured => _settings.WatchList.Enabled && _settings.WatchList.DbPath.HasValue();
 
     public WatchListConnector(IOptions<CrossAppSettings> settings, ILogger<WatchListConnector> logger)
     {
@@ -75,7 +75,7 @@ public sealed class WatchListConnector : IExternalAppConnector
 
     private async Task<bool> AddWatchItemAsync(string dbPath, IDictionary<string, object> parameters, CancellationToken ct)
     {
-        if (!parameters.TryGetValue("title", out var titleObj) || titleObj is not string title || string.IsNullOrWhiteSpace(title))
+        if (!parameters.TryGetValue("title", out var titleObj) || titleObj is not string title || title.HasNoValue())
         {
             throw new ArgumentException("Parameter 'title' is required and must be a non-empty string.");
         }
@@ -135,7 +135,7 @@ public sealed class WatchListConnector : IExternalAppConnector
 
     private async Task<bool> CompleteWatchItemAsync(string dbPath, IDictionary<string, object> parameters, CancellationToken ct)
     {
-        if (!parameters.TryGetValue("title", out var titleObj) || titleObj is not string title || string.IsNullOrWhiteSpace(title))
+        if (!parameters.TryGetValue("title", out var titleObj) || titleObj is not string title || title.HasNoValue())
         {
             throw new ArgumentException("Parameter 'title' is required and must be a non-empty string.");
         }

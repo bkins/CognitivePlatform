@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,7 +37,7 @@ public sealed class SecretsController : ControllerBase
     [HttpPost("setup")]
     public async Task<IActionResult> Setup([FromBody] VaultPinRequest request)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.Pin))
+        if (request is null || request.Pin.HasNoValue())
         {
             return BadRequest("PIN is required.");
         }
@@ -54,7 +54,7 @@ public sealed class SecretsController : ControllerBase
     [HttpPost("unlock")]
     public async Task<IActionResult> Unlock([FromBody] VaultPinRequest request)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.Pin))
+        if (request is null || request.Pin.HasNoValue())
         {
             return BadRequest("PIN is required.");
         }

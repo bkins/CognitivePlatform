@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Avails;
+﻿using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 
@@ -41,7 +41,7 @@ public class HybridPersonaEngine : IPersonaEngine
 
     public async Task<PersonaContextResult> ResolveAsync(string userMessage, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(userMessage))
+        if (userMessage.HasNoValue())
         {
             return new PersonaContextResult
                    {
@@ -165,7 +165,7 @@ public class HybridPersonaEngine : IPersonaEngine
     {
         foreach (var keyword in PersonaKeywords)
         {
-            if (userMessage.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (userMessage.ContainsIgnoreCase(keyword))
                 return true;
         }
 

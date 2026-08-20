@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Personas.Models;
 using CognitivePlatform.Api.Registry.Domains;
@@ -104,8 +104,8 @@ public class PersonaActions
         var searchTerm = personaNameOrId.Trim();
 
         var persona = personas.FirstOrDefault(candidate =>
-            candidate.Name.Equals(searchTerm, StringComparison.OrdinalIgnoreCase)
-         || candidate.Id.ToString().Equals(searchTerm, StringComparison.OrdinalIgnoreCase));
+            candidate.Name.EqualsIgnoreCase(searchTerm)
+         || candidate.Id.ToString().EqualsIgnoreCase(searchTerm));
 
         if (persona is null)
             return $"No persona found matching '{personaNameOrId}'. Create one first with 'create persona {personaNameOrId}'.";
@@ -138,7 +138,7 @@ public class PersonaActions
         var personas = await _personaService.ListAsync();
 
         var persona = personas.FirstOrDefault(candidate =>
-            candidate.Name.Equals(personaName.Trim(), StringComparison.OrdinalIgnoreCase));
+            candidate.Name.EqualsIgnoreCase(personaName.Trim()));
 
         if (persona is null)
             return $"No persona found matching '{personaName}'. Create one first with 'create persona {personaName}'.";
@@ -148,7 +148,7 @@ public class PersonaActions
 
         var sb = new StringBuilder();
 
-        var scenarioContext = !string.IsNullOrWhiteSpace(persona.ScenarioDescription)
+        var scenarioContext = persona.ScenarioDescription.HasValue()
                                      ? $" {persona.ScenarioDescription}"
                                      : string.Empty;
 

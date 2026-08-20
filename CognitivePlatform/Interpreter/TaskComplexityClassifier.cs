@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Interpreter;
+﻿namespace CognitivePlatform.Api.Interpreter;
 
 /// <summary>
 /// Rule-based <see cref="ITaskComplexityClassifier"/>. Two ordered gates before
@@ -36,14 +36,14 @@ public sealed class TaskComplexityClassifier : ITaskComplexityClassifier
 
     public TaskComplexity Classify(string userMessage)
     {
-        if (string.IsNullOrWhiteSpace(userMessage))
+        if (userMessage.HasNoValue())
             return TaskComplexity.Standard;
 
         var trimmed = userMessage.Trim();
 
         foreach (var keyword in HeavyKeywords)
         {
-            if (trimmed.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (trimmed.ContainsIgnoreCase(keyword))
                 return TaskComplexity.Heavy;
         }
 
@@ -52,7 +52,7 @@ public sealed class TaskComplexityClassifier : ITaskComplexityClassifier
 
         foreach (var prefix in LightPrefixes)
         {
-            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (trimmed.StartsWithIgnoreCase(prefix))
                 return TaskComplexity.Light;
         }
 

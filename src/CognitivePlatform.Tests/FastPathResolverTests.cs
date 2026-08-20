@@ -568,8 +568,8 @@ public class FastPathResolverTests
                                            , out var parameters );
 
         Assert.True(resolved);
-        Assert.False(string.IsNullOrWhiteSpace(parameters!["openingText"])
-                   , "openingText must not be empty when Plan: body is absent");
+        Assert.True(parameters!["openingText"].HasValue()
+                  , "openingText must not be empty when Plan: body is absent");
     }
 
     [Fact]

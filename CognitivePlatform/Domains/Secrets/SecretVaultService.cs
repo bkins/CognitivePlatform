@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -51,7 +51,7 @@ public sealed class SecretVaultService : ISecretVaultService
 
     public async Task<bool> SetupAsync(string pin)
     {
-        if (string.IsNullOrWhiteSpace(pin))
+        if (pin.HasNoValue())
         {
             return false;
         }
@@ -80,7 +80,7 @@ public sealed class SecretVaultService : ISecretVaultService
 
     public async Task<bool> UnlockAsync(string pin)
     {
-        if (string.IsNullOrWhiteSpace(pin))
+        if (pin.HasNoValue())
         {
             return false;
         }

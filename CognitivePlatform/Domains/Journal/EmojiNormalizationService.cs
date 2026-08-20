@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Domains.Journal;
+﻿namespace CognitivePlatform.Api.Domains.Journal;
 
 public static class EmojiNormalizationService
 {
@@ -18,7 +18,7 @@ public static class EmojiNormalizationService
 
     public static string MapAffectEmoji(string? mood)
     {
-        if (string.IsNullOrWhiteSpace(mood)) return "❓";
+        if (mood.HasNoValue()) return "❓";
 
         var normalized = mood.Trim().ToLowerInvariant();
 

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Registry.Domains;
 
@@ -100,7 +100,7 @@ public class PersonalityActions
         var personalities = await _personalityService.GetAllAsync().ConfigureAwait(false);
 
         var match = personalities.FirstOrDefault(personality =>
-            string.Equals(personality.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+            personality.Name.EqualsIgnoreCase(name.Trim()));
 
         if (match is null)
         {

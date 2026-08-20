@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -33,7 +33,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<KnowledgeDomain> CreateDomainAsync(string name, string description, KnowledgeDomainMode mode)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (name.HasNoValue())
             throw new ArgumentException("Domain name cannot be empty.", nameof(name));
 
         var domain = new KnowledgeDomain
@@ -51,7 +51,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<KnowledgeDomain?> GetDomainAsync(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (name.HasNoValue())
             return null;
 
         var key = NormalizeDomainName(name);
@@ -66,7 +66,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<bool> DeleteDomainAsync(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (name.HasNoValue())
             return false;
 
         var domain = await GetDomainAsync(name);
@@ -94,11 +94,11 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
         List<string>? tags = null,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(domainName))
+        if (domainName.HasNoValue())
             throw new ArgumentException("Domain name cannot be empty.", nameof(domainName));
-        if (string.IsNullOrWhiteSpace(title))
+        if (title.HasNoValue())
             throw new ArgumentException("Title cannot be empty.", nameof(title));
-        if (string.IsNullOrWhiteSpace(content))
+        if (content.HasNoValue())
             throw new ArgumentException("Content cannot be empty.", nameof(content));
 
         var domain = await GetDomainAsync(domainName);
@@ -150,7 +150,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<DomainKnowledgeObject?> GetObjectAsync(string domainName, Guid objectId)
     {
-        if (string.IsNullOrWhiteSpace(domainName))
+        if (domainName.HasNoValue())
             return null;
 
         var partition = GetObjectsPartition(domainName);
@@ -159,7 +159,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<IReadOnlyList<DomainKnowledgeObject>> ListObjectsAsync(string domainName)
     {
-        if (string.IsNullOrWhiteSpace(domainName))
+        if (domainName.HasNoValue())
             return Array.Empty<DomainKnowledgeObject>();
 
         var partition = GetObjectsPartition(domainName);
@@ -169,7 +169,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
 
     public async Task<bool> DeleteObjectAsync(string domainName, Guid objectId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(domainName))
+        if (domainName.HasNoValue())
             return false;
 
         var partition = GetObjectsPartition(domainName);
@@ -193,7 +193,7 @@ public sealed class KnowledgeIngestionService : IKnowledgeIngestionService
         int limit = 3,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(domainName) || string.IsNullOrWhiteSpace(query))
+        if (domainName.HasNoValue() || query.HasNoValue())
             return Array.Empty<VectorSearchResult>();
 
         if (!_embeddingService.IsAvailable)

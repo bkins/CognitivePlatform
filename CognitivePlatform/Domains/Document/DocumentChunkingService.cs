@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Domains.Document;
+﻿namespace CognitivePlatform.Api.Domains.Document;
 
 /// <summary>
 /// Splits a document string into overlapping fixed-size chunks, preserving
@@ -14,7 +14,7 @@ public sealed class DocumentChunkingService
 
     public IReadOnlyList<string> Chunk(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.HasNoValue())
             return [];
 
         var chunks = new List<string>();

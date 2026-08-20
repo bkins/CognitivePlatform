@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Attributes;
+﻿using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Registry.Domains;
@@ -74,7 +74,7 @@ public sealed class CrossAppActions
                 var title = item.TryGetValue("Title", out var titleVal) ? titleVal.ToString() : "Unknown";
                 var status = item.TryGetValue("IsWatched", out var iw) && iw is bool watched && watched ? "Watched" : "Unwatched";
                 var ss = item.TryGetValue("StreamingService", out var ssVal) && ssVal != null ? ssVal.ToString() : string.Empty;
-                var ssDisplay = string.IsNullOrEmpty(ss) ? string.Empty : $" on {ss}";
+                var ssDisplay = ss.IsNullOrEmpty() ? string.Empty : $" on {ss}";
                 
                 sb.AppendLine($"- **{title}** ({type}) - {status}{ssDisplay}");
             }

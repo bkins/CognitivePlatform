@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Workspace;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -260,7 +260,7 @@ public class TaskService : ITaskService
 
     private void QueueEmbedding(string domain, string referenceId, string text)
     {
-        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+        if (!_embeddingService.IsAvailable || text.HasNoValue()) return;
 
         _ = Task.Run(async () =>
         {
@@ -304,7 +304,7 @@ public class TaskService : ITaskService
     private static string BuildTaskEmbeddingText(TaskItem task)
     {
         var parts = new[] { task.ShortDescription, task.Details }
-                    .Where(text => !string.IsNullOrWhiteSpace(text));
+                    .Where(text => text.HasValue());
         return string.Join(" ", parts);
     }
 
@@ -377,7 +377,7 @@ public class TaskService : ITaskService
     /// </summary>
     private static Guid ParseId(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("id cannot be null or empty.", nameof(id));
 
         if (Guid.TryParseExact(id, "N", out var guidN))

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Conversation;
@@ -81,7 +81,7 @@ public static class LlmActions
         var trimmed = model.Trim();
         var match = _catalog.AvailableModels
                             .FirstOrDefault(info => info.Name
-                                                        .Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+                                                        .EqualsIgnoreCase(trimmed));
 
         if (match is null)
         {
@@ -127,8 +127,7 @@ public static class LlmActions
 
         foreach (var info in _catalog.AvailableModels)
         {
-            var marker = info.Name.Equals(currentModel
-                                        , StringComparison.OrdinalIgnoreCase)
+            var marker = info.Name.EqualsIgnoreCase(currentModel)
                                  ? " (current)"
                                  : string.Empty;
 
@@ -175,7 +174,7 @@ public static class LlmActions
 
         var defaultModel = _providerDefaults?.For(parsed);
 
-        if (string.IsNullOrWhiteSpace(defaultModel))
+        if (defaultModel.HasNoValue())
         {
             return $"Provider '{parsed}' has no default model configured. "
                  + $"Set one under 'Llm:Defaults:{parsed}' in configuration.";
@@ -208,8 +207,7 @@ public static class LlmActions
         foreach (var provider in Enum.GetValues<LlmProvider>())
         {
             var defaultModel = _providerDefaults?.For(provider);
-            var isCurrent = provider.ToString().Equals(currentProvider
-                                                     , StringComparison.OrdinalIgnoreCase);
+            var isCurrent = provider.ToString().EqualsIgnoreCase(currentProvider);
 
             var marker = isCurrent
                                  ? " (current)"

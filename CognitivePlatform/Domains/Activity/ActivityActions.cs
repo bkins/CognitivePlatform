@@ -136,11 +136,11 @@ public sealed class ActivityActions
                 {
                     sb.Append(' ');
                     sb.Append(activityEvent.Duration.Value);
-                    if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
+                    if (activityEvent.Unit.HasValue())
                         sb.Append($" {activityEvent.Unit}");
                 }
 
-                if (!string.IsNullOrWhiteSpace(activityEvent.Notes))
+                if (activityEvent.Notes.HasValue())
                     sb.Append($" — {RedactGuids(activityEvent.Notes)}");
 
                 if (activityEvent.Tags.Count > 0)
@@ -166,7 +166,7 @@ public sealed class ActivityActions
         if (activityEvent.Duration.HasValue)
         {
             sb.Append(" — ").Append(activityEvent.Duration.Value);
-            if (!string.IsNullOrWhiteSpace(activityEvent.Unit))
+            if (activityEvent.Unit.HasValue())
                 sb.Append(' ').Append(activityEvent.Unit);
         }
 
@@ -205,13 +205,13 @@ public sealed class ActivityActions
 
     private static string? NormaliseOptional(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (value.HasNoValue()) return null;
         return value.Trim();
     }
 
     private static List<string> SplitCommaSeparated(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
+        if (value.HasNoValue()) return new List<string>();
 
         return value.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .Select(item => item.Trim())

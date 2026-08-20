@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace CognitivePlatform.DemoSetup;
@@ -72,7 +72,7 @@ public sealed class DemoReset
         var convCount = 0;
 
         var allConvIds = new List<string>(manifest.ConversationIds);
-        if (!string.IsNullOrEmpty(manifest.SeedSessionId))
+        if (manifest.SeedSessionId.HasValue())
             allConvIds.Add(manifest.SeedSessionId);
         allConvIds.Add(_resetSession);
 

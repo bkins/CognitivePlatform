@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.IntegrationTests.Infrastructure;
@@ -246,7 +246,7 @@ public sealed class JournalControllerTests : IDisposable
             if (hasRev && (rev.TryGetProperty("text", out var textProp) || rev.TryGetProperty("Text", out textProp)))
             {
                 var textVal = textProp.GetString();
-                if (textVal?.Contains(uniqueMarker, StringComparison.OrdinalIgnoreCase) == true)
+                if (textVal?.ContainsIgnoreCase(uniqueMarker) == true)
                 {
                     var hasEntry = item.TryGetProperty("entry", out var entryProp) || item.TryGetProperty("Entry", out entryProp);
                     if (hasEntry && (entryProp.TryGetProperty("id", out var idProp) || entryProp.TryGetProperty("Id", out idProp)))

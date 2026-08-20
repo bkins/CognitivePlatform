@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Integrations.FileSync.Models;
+﻿using CognitivePlatform.Api.Integrations.FileSync.Models;
 
 namespace CognitivePlatform.Api.Integrations.FileSync;
 
@@ -41,7 +41,7 @@ public sealed class LocalFileSystem : ILocalFileSystem
     public async Task WriteAsync(string path, Stream content, CancellationToken ct = default)
     {
         var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
+        if (directory.HasValue())
             Directory.CreateDirectory(directory);
 
         await using var output = new FileStream( path

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -24,8 +24,8 @@ public sealed class MediaActions
 
     private string ResolveOwnerReference(string ownerType, string ownerId)
     {
-        if (string.Equals(ownerType, "JournalEntry", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(ownerType, "Journal", StringComparison.OrdinalIgnoreCase))
+        if (ownerType.EqualsIgnoreCase("JournalEntry")
+            || ownerType.EqualsIgnoreCase("Journal"))
         {
             if (_journalService is not null)
             {
@@ -37,7 +37,7 @@ public sealed class MediaActions
                 }
             }
         }
-        else if (string.Equals(ownerType, "Task", StringComparison.OrdinalIgnoreCase))
+        else if (ownerType.EqualsIgnoreCase("Task"))
         {
             if (_taskService is not null)
             {

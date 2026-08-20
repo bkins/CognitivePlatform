@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using CognitivePlatform.Api.Insights.Models;
 
 namespace CognitivePlatform.Api.Insights;
@@ -23,7 +23,7 @@ public sealed class InMemoryInsightHistoryStore : IInsightHistoryStore
 
         foreach (var insight in insights)
         {
-            if (string.IsNullOrWhiteSpace(insight.DeduplicationKey))
+            if (insight.DeduplicationKey.HasNoValue())
                 continue;
 
             var item = new InsightHistoryItem
@@ -46,7 +46,7 @@ public sealed class InMemoryInsightHistoryStore : IInsightHistoryStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(deduplicationKey))
+        if (deduplicationKey.HasNoValue())
             return Task.FromResult(false);
 
         if (_items.TryGetValue(deduplicationKey, out var item).Equals(false))
@@ -62,7 +62,7 @@ public sealed class InMemoryInsightHistoryStore : IInsightHistoryStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(deduplicationKey))
+        if (deduplicationKey.HasNoValue())
             return Task.CompletedTask;
 
         if (_items.TryGetValue(deduplicationKey, out var item)

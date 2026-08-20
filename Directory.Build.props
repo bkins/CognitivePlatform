@@ -6,4 +6,8 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="CP.Shared.Primitives.Avails.Extensions" />
+  </ItemGroup>
 </Project>

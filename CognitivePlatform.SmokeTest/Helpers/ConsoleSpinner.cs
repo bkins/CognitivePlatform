@@ -1,5 +1,4 @@
-using CognitivePlatform.Api.Avails.Extensions;
-
+﻿
 namespace CognitivePlatform.SmokeTest.Helpers;
 
 public class ConsoleSpinner : IDisposable

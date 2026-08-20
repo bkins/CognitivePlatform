@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,7 +24,7 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
 
     public IncrementalConstructionSession GetOrCreateSession(string sessionId, Type targetType)
     {
-        if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("Session ID cannot be null or empty."
+        if (sessionId.HasNoValue()) throw new ArgumentException("Session ID cannot be null or empty."
                                                                             , nameof(sessionId));
 
         return _sessions.GetOrAdd(sessionId
@@ -43,7 +43,7 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
                                       , out object?                constructedObject
                                       , out ObjectValidationResult validation )
     {
-        if (string.IsNullOrWhiteSpace(sessionId)) throw new ArgumentException("Session ID cannot be null or empty."
+        if (sessionId.HasNoValue()) throw new ArgumentException("Session ID cannot be null or empty."
                                                                             , nameof(sessionId));
 
         if ( ! _sessions.TryGetValue(sessionId, out var session))
@@ -90,7 +90,7 @@ public sealed class IncrementalObjectBuilder : IIncrementalObjectBuilder
     {
         completedObject = null;
 
-        if (string.IsNullOrWhiteSpace(sessionId)
+        if (sessionId.HasNoValue()
          || ! _sessions.TryGetValue(sessionId, out var session)) return false;
 
         if (session.LastValidation is not { IsValid: true }) return false;

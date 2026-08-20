@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -118,8 +118,7 @@ public class SystemService : ISystemInfoService
                                        , kvp => kvp.Value);
         if (key is not null)
         {
-            values = values.Where(kvp => kvp.Key.Equals(key
-                                                      , StringComparison.OrdinalIgnoreCase))
+            values = values.Where(kvp => kvp.Key.EqualsIgnoreCase(key))
                            .ToDictionary(kvp => kvp.Key
                                        , kvp => kvp.Value);
         }

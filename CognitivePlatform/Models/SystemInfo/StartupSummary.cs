@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.System;
+﻿using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -25,7 +25,7 @@ public record StartupSummary
         
         if (GoogleCalendarConnected.Not())
         {
-            connectToGoogleCalendarUrl = Urls.Where(url => url.Contains("localhost", StringComparison.CurrentCultureIgnoreCase))
+            connectToGoogleCalendarUrl = Urls.Where(url => url.ContainsIgnoreCase("localhost"))
                                              .FirstOrDefault()
                                        + "/auth/google/connect";
         }

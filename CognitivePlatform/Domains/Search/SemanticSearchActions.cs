@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -35,8 +35,8 @@ public class SemanticSearchActions
 
     private string ResolveReferenceLabel(string domain, string referenceId)
     {
-        if (string.Equals(domain, "journal", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(domain, "JournalEntry", StringComparison.OrdinalIgnoreCase))
+        if (domain.EqualsIgnoreCase("journal")
+            || domain.EqualsIgnoreCase("JournalEntry"))
         {
             if (_journalService is not null)
             {
@@ -48,7 +48,7 @@ public class SemanticSearchActions
                 }
             }
         }
-        else if (string.Equals(domain, "task", StringComparison.OrdinalIgnoreCase))
+        else if (domain.EqualsIgnoreCase("task"))
         {
             if (_taskService is not null)
             {
@@ -60,7 +60,7 @@ public class SemanticSearchActions
                 }
             }
         }
-        else if (string.Equals(domain, "braindump", StringComparison.OrdinalIgnoreCase))
+        else if (domain.EqualsIgnoreCase("braindump"))
         {
             if (_brainDumpService is not null)
             {
@@ -138,10 +138,10 @@ public class SemanticSearchActions
         if (!_embeddingService.IsAvailable)
             return UnavailableMessage();
 
-        if (string.IsNullOrWhiteSpace(domain))
+        if (domain.HasNoValue())
             return "Please specify a domain (e.g. 'journal', 'task', 'daily').";
 
-        if (string.IsNullOrWhiteSpace(referenceId))
+        if (referenceId.HasNoValue())
             return "Please specify the ID of the item to find similar content for.";
 
         try
@@ -208,7 +208,7 @@ public class SemanticSearchActions
         if (!_embeddingService.IsAvailable)
             return UnavailableMessage();
 
-        if (string.IsNullOrWhiteSpace(domain))
+        if (domain.HasNoValue())
             return "Please specify a domain (e.g. 'journal', 'task', 'daily').";
 
         try

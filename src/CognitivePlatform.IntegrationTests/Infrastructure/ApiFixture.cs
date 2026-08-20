@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -57,10 +57,7 @@ public sealed class ApiFixture : IDisposable
 
     /// <summary>True when VERBOSE_INTEGRATION=true is set in the environment.</summary>
     public static readonly bool IsVerbose =
-        string.Equals(
-            Environment.GetEnvironmentVariable("VERBOSE_INTEGRATION")
-          , "true"
-          , StringComparison.OrdinalIgnoreCase);
+        Environment.GetEnvironmentVariable("VERBOSE_INTEGRATION").EqualsIgnoreCase("true");
 
     private readonly ITestOutputHelper? _output;
     private readonly CognitivePlatformTestApp? _factory;
@@ -75,7 +72,7 @@ public sealed class ApiFixture : IDisposable
     {
         _output = output;
 
-        if (string.IsNullOrWhiteSpace(ExternalBaseUrl))
+        if (ExternalBaseUrl.HasNoValue())
         {
             _factory = new CognitivePlatformTestApp();
             Client = _factory.CreateClient();
@@ -129,8 +126,8 @@ public sealed class ApiFixture : IDisposable
                     envProp.TryGetProperty("environmentName", out var nameProp))
                 {
                     var envName = nameProp.GetString();
-                    if (string.Equals(envName, "Prod", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase))
+                    if (envName.EqualsIgnoreCase("Prod") ||
+                        envName.EqualsIgnoreCase("Production"))
                     {
                         throw new InvalidOperationException(
                             $"SAFETY GUARD: Integration tests attempted to execute against '{envName}' environment! Aborting immediately.");

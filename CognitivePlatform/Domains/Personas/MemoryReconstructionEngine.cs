@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Personas.Models;
 using CognitivePlatform.Api.Interpreter;
@@ -32,7 +32,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
       , string            conversationTurn
       , CancellationToken cancellationToken = default )
     {
-        if (string.IsNullOrWhiteSpace(conversationTurn))
+        if (conversationTurn.HasNoValue())
             return [];
 
         var prompt = BuildExtractionPrompt(personaId, conversationTurn);
@@ -134,7 +134,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
       , string            conversationTurn
       , CancellationToken cancellationToken = default )
     {
-        if (string.IsNullOrWhiteSpace(conversationTurn))
+        if (conversationTurn.HasNoValue())
             return null;
 
         var allMemories = await _personaStore.GetMemoriesAsync(persona.Id, cancellationToken)
@@ -150,7 +150,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
 
             var question = response.Content?.Trim();
 
-            return string.IsNullOrWhiteSpace(question) || IsNullSentinel(question)
+            return question.HasNoValue() || IsNullSentinel(question)
                        ? null
                        : question;
         }
@@ -251,7 +251,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
 
     private static IReadOnlyList<PersonaMemory> ParseExtractedFragments(Guid personaId, string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
             return [];
 
         try
@@ -266,7 +266,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
             var now = DateTime.UtcNow;
 
             return elements
-                .Where(fragment => !string.IsNullOrWhiteSpace(fragment.Content))
+                .Where(fragment => fragment.Content.HasValue())
                 .Select(fragment => new PersonaMemory
                 {
                     Id              = Guid.NewGuid()
@@ -291,7 +291,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
 
     private static float ParseConfidenceScore(string? raw, float fallback)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
             return fallback;
 
         var trimmed = raw.Trim();
@@ -309,7 +309,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
 
     private static MemoryContradiction? ParseContradiction(Guid existingId, Guid candidateId, string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
             return null;
 
         try
@@ -334,7 +334,7 @@ public class MemoryReconstructionEngine : IMemoryReconstructionEngine
     }
 
     private static bool IsNullSentinel(string value) =>
-        value.Equals("NULL", StringComparison.OrdinalIgnoreCase);
+        value.EqualsIgnoreCase("NULL");
 
     private static MemoryType ParseMemoryType(string? raw) =>
         Enum.TryParse<MemoryType>(raw, ignoreCase: true, out var parsed)

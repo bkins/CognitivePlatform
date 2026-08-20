@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.Personality;
+﻿using CognitivePlatform.Api.Domains.Personality;
 using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 
 namespace CognitivePlatform.Api.Domains.PersonaEngine;
@@ -32,7 +32,7 @@ public class RuleBasedPersonaEngine : IPersonaEngine, IIntentAnalyzer
 
     private static IntentAnalysisResult ClassifyIntent(string message)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (message.HasNoValue())
         {
             return new IntentAnalysisResult
                    {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,7 +15,7 @@ public sealed class ExternalAppConnectorRegistry
 
     public IExternalAppConnector? GetConnector(string appName)
     {
-        return _connectors.FirstOrDefault(c => c.AppName.Equals(appName, StringComparison.OrdinalIgnoreCase));
+        return _connectors.FirstOrDefault(c => c.AppName.EqualsIgnoreCase(appName));
     }
 
     public IEnumerable<IExternalAppConnector> GetAllConnectors() => _connectors;

@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Attributes;
+﻿using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Registry.Domains;
 
 namespace CognitivePlatform.Api.Workspace;
@@ -47,7 +47,7 @@ public class WorkspaceActions
         await _workspaceContext.SetActiveWorkspaceAsync(name);
         var current = _workspaceContext.ActiveWorkspace;
 
-        return previous.Equals(current, StringComparison.OrdinalIgnoreCase)
+        return previous.EqualsIgnoreCase(current)
                    ? $"Already in workspace: {current}"
                    : $"Switched to workspace: {current}";
     }
@@ -83,7 +83,7 @@ public class WorkspaceActions
         var workspaces = _workspaceContext.KnownWorkspaces;
 
         var items = workspaces.Select(workspace =>
-                                   workspace.Equals(active, StringComparison.OrdinalIgnoreCase)
+                                   workspace.EqualsIgnoreCase(active)
                                        ? $"{workspace} (active)"
                                        : workspace);
 

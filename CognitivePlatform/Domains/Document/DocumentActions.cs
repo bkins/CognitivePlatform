@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Integrations.Embeddings;
@@ -48,7 +48,7 @@ public class DocumentActions
         [NaturalLanguageParam(Description = "The full path to the file to index, e.g. 'C:\\Notes\\journal.md'.")]
         string filePath )
     {
-        if (string.IsNullOrWhiteSpace(filePath))
+        if (filePath.HasNoValue())
             return "Please provide the full path to the file you want to index.";
 
         if (!_embeddingService.IsAvailable)
@@ -90,7 +90,7 @@ public class DocumentActions
         [NaturalLanguageParam(Description = "The topic or concept to search for across all indexed documents.")]
         string query )
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (query.HasNoValue())
             return "Please provide a search query.";
 
         if (!_embeddingService.IsAvailable)

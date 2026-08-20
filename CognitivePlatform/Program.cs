@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Startup;
 using Microsoft.Extensions.Options;
@@ -23,7 +23,7 @@ public partial class Program
                                                    });
 
         var envName = builder.Environment.EnvironmentName;
-        var configEnvName = string.Equals(envName, "PROD", StringComparison.OrdinalIgnoreCase) ? "Production" : envName;
+        var configEnvName = envName.EqualsIgnoreCase("PROD") ? "Production" : envName;
         builder.Configuration
                .AddJsonFile("appsettings.json")
                .AddJsonFile($"appsettings.{configEnvName}.json", optional: true)

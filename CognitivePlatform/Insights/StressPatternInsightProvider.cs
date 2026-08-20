@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Insights.Models;
@@ -81,7 +81,7 @@ public sealed class StressPatternInsightProvider : IInsightProvider
 
     private static bool ContainsStressSignal(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.HasNoValue())
             return false;
 
         var lower = text.ToLowerInvariant();

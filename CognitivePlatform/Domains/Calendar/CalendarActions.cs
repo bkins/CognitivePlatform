@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Calendar;
@@ -257,8 +257,8 @@ public class CalendarActions : ISessionAware
         }
 
         var match = summaries.FirstOrDefault(summary =>
-                        summary.Name.Equals(calendarNameOrId, StringComparison.OrdinalIgnoreCase)
-                     || summary.Id.Equals(calendarNameOrId,   StringComparison.OrdinalIgnoreCase));
+                        summary.Name.EqualsIgnoreCase(calendarNameOrId)
+                     || summary.Id.EqualsIgnoreCase(calendarNameOrId));
 
         if (match is null)
             return $"No calendar found with name or ID '{calendarNameOrId}'.";
@@ -440,8 +440,7 @@ public class CalendarActions : ISessionAware
 
         var httpLocalhost = urls.Split(';')
                                 .Select(url => url.Trim())
-                                .FirstOrDefault(url => url.StartsWith("http://localhost"
-                                                                     , StringComparison.OrdinalIgnoreCase));
+                                .FirstOrDefault(url => url.StartsWithIgnoreCase("http://localhost"));
 
         return httpLocalhost ?? "http://localhost";
     }

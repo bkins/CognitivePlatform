@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.IntegrationTests.Infrastructure;
@@ -281,8 +281,7 @@ public sealed class TaskControllerTests : IDisposable
         var createdTask = tasks.EnumerateArray()
                                .FirstOrDefault(t =>
                                    t.TryGetProperty("shortDescription", out var desc)
-                                   && (desc.GetString()?.Contains(uniqueMarker
-                                          , StringComparison.OrdinalIgnoreCase) ?? false));
+                                   && (desc.GetString()?.ContainsIgnoreCase(uniqueMarker) ?? false));
 
         _fixture.LogAssertion($"task containing '{uniqueMarker}' appears in active list");
         createdTask.ValueKind.Should().NotBe(JsonValueKind.Undefined,

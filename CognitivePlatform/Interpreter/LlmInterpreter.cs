@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -105,15 +105,13 @@ public class LlmInterpreter : IInterpreter
                 model = ResolveModel(requestedModel);
 
                 var modelInfo = _modelCatalog.AvailableModels
-                                             .FirstOrDefault(info => info.Name.Equals(model
-                                                                                    , StringComparison.OrdinalIgnoreCase));
+                                             .FirstOrDefault(info => info.Name.EqualsIgnoreCase(model));
 
                 LlmModelInfo? requestedModelInfo = null;
                 if (requestedModel.HasValue())
                 {
                     requestedModelInfo = _modelCatalog.AvailableModels
-                                                      .FirstOrDefault(info => info.Name.Equals(requestedModel
-                                                                                             , StringComparison.OrdinalIgnoreCase));
+                                                      .FirstOrDefault(info => info.Name.EqualsIgnoreCase(requestedModel));
                 }
 
                 var targetModelInfo = requestedModelInfo ?? modelInfo;
@@ -290,7 +288,7 @@ public class LlmInterpreter : IInterpreter
                     var metric = violations[0].GetProperty("quotaMetric").GetString();
 
                     // Logic: If it contains "day", it's the hard cap
-                    return metric?.Contains("day", StringComparison.OrdinalIgnoreCase) ?? false 
+                    return metric?.ContainsIgnoreCase("day") ?? false 
                                    ? LimitType.DailyQuota 
                                    : LimitType.RateLimit;
                 }
@@ -348,8 +346,7 @@ public class LlmInterpreter : IInterpreter
         // 1. Requested model is usable
         if (requestedModel.HasValue())
         {
-            var match = usable.FirstOrDefault(info => info.Name.Equals(requestedModel
-                                                                      , StringComparison.OrdinalIgnoreCase));
+            var match = usable.FirstOrDefault(info => info.Name.EqualsIgnoreCase(requestedModel));
             if (match is not null)
                 return match.Name;
         }
@@ -357,8 +354,7 @@ public class LlmInterpreter : IInterpreter
         // 2. Settings default is usable
         if (_settings.DefaultModel.HasValue())
         {
-            var defaultMatch = usable.FirstOrDefault(info => info.Name.Equals(_settings.DefaultModel
-                                                                             , StringComparison.OrdinalIgnoreCase));
+            var defaultMatch = usable.FirstOrDefault(info => info.Name.EqualsIgnoreCase(_settings.DefaultModel));
             if (defaultMatch is not null)
                 return defaultMatch.Name;
         }
@@ -386,7 +382,7 @@ public class LlmInterpreter : IInterpreter
 
         var groundingContext = string.Empty;
         if (context.Metadata.TryGetValue("active_knowledge_domain", out var domainName)
-            && !string.IsNullOrWhiteSpace(domainName)
+            && domainName.HasValue()
             && _ingestionService is not null)
         {
             var domain = await _ingestionService.GetDomainAsync(domainName);
@@ -467,7 +463,7 @@ public class LlmInterpreter : IInterpreter
             sb.AppendLine($"Last action: {context.LastActionName}");
 
         if (context.Metadata.TryGetValue("calendar_connected", out var calendarConnected)
-            && calendarConnected.Equals("true", StringComparison.OrdinalIgnoreCase))
+            && calendarConnected.EqualsIgnoreCase("true"))
         {
             sb.AppendLine("Calendar: connected");
         }
@@ -534,7 +530,7 @@ public class LlmInterpreter : IInterpreter
         string                         userInput
       , IEnumerable<IDomainDefinition> domains)
     {
-        if (string.IsNullOrWhiteSpace(userInput))
+        if (userInput.HasNoValue())
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var lowerInput = userInput.ToLowerInvariant();
@@ -542,7 +538,7 @@ public class LlmInterpreter : IInterpreter
 
         foreach (var domain in domains)
         {
-            if (domain.Name.Equals("System", StringComparison.OrdinalIgnoreCase))
+            if (domain.Name.EqualsIgnoreCase("System"))
                 continue; // System domain handled separately — always full
 
             foreach (var keyword in domain.Keywords)
@@ -603,7 +599,7 @@ public class LlmInterpreter : IInterpreter
         foreach (var group in groupedByDomain)
         {
             var domainName  = group.Key;
-            var isSystem    = domainName.Equals("System", StringComparison.OrdinalIgnoreCase);
+            var isSystem    = domainName.EqualsIgnoreCase("System");
             var isRelevant  = isSystem || relevantDomainNames.Contains(domainName);
 
             // Actions with no [Domain] attribute always emit in full — they can't be
@@ -737,7 +733,7 @@ public class LlmInterpreter : IInterpreter
     internal static ParsedModelResponse ParseModelResponse( string                      raw
                                                           , IEnumerable<ActionMetadata> actions )
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        if (raw.HasNoValue())
         {
             return new ParsedModelResponse
                    {
@@ -794,7 +790,7 @@ public class LlmInterpreter : IInterpreter
                                      ? actProp.GetString()
                                      : null;
 
-            if (string.Equals(actionName, "none", StringComparison.OrdinalIgnoreCase))
+            if (actionName.EqualsIgnoreCase("none"))
                 actionName = null;
 
             var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -853,7 +849,7 @@ public class LlmInterpreter : IInterpreter
             if (phase39LookupName is not null && missingParameters.Count > 0)
             {
                 var meta = actionsList.FirstOrDefault(candidate =>
-                    candidate.Name.Equals(phase39LookupName, StringComparison.OrdinalIgnoreCase));
+                    candidate.Name.EqualsIgnoreCase(phase39LookupName));
 
                 if (meta is not null)
                 {

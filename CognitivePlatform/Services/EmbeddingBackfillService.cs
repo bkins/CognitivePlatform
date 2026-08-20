@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -88,7 +88,7 @@ public sealed class EmbeddingBackfillService : BackgroundService
 
             var text = revision.Text;
 
-            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (text.HasNoValue()) continue;
 
             try
             {
@@ -134,7 +134,7 @@ public sealed class EmbeddingBackfillService : BackgroundService
 
             var text = BuildTaskText(task);
 
-            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (text.HasNoValue()) continue;
 
             try
             {
@@ -180,7 +180,7 @@ public sealed class EmbeddingBackfillService : BackgroundService
 
             var text = BuildDailyRecordText(record);
 
-            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (text.HasNoValue()) continue;
 
             try
             {
@@ -214,15 +214,15 @@ public sealed class EmbeddingBackfillService : BackgroundService
     private static string BuildTaskText(TaskItem task)
     {
         var parts = new[] { task.ShortDescription, task.Details }
-                    .Where(text => !string.IsNullOrWhiteSpace(text));
+                    .Where(text => text.HasValue());
         return string.Join(" ", parts);
     }
 
     private static string BuildDailyRecordText(DailyRecord record)
     {
         var parts = new[] { record.OpeningText, record.ClosingText }
-                    .Where(text => !string.IsNullOrWhiteSpace(text));
+                    .Where(text => text.HasValue());
         var body  = string.Join(" ", parts);
-        return string.IsNullOrWhiteSpace(body) ? string.Empty : $"Day {record.Date}: {body}";
+        return body.HasNoValue() ? string.Empty : $"Day {record.Date}: {body}";
     }
 }

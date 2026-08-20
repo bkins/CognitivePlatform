@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using CognitivePlatform.IntegrationTests.Infrastructure;
 using Xunit.Abstractions;
@@ -285,9 +285,9 @@ public sealed class MealLoggingControllerTests : IDisposable
         if (json.TryGetProperty("message", out var msgProp))
         {
             var msg = msgProp.GetString() ?? string.Empty;
-            if (msg.Contains("not usable on this system",  StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("No usable model found",       StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("didn't recognize that",       StringComparison.OrdinalIgnoreCase))
+            if (msg.ContainsIgnoreCase("not usable on this system")
+             || msg.ContainsIgnoreCase("No usable model found")
+             || msg.ContainsIgnoreCase("didn't recognize that"))
             {
                 _fixture.Log($"[SKIP] LLM provider not usable: {msg}");
                 return null;

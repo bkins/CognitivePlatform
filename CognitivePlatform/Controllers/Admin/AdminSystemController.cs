@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Interpreter;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -76,7 +76,7 @@ public sealed class AdminSystemController : AdminControllerBase
                                                               Name        = "HealthConnect (phone health gateway)"
                                                             , ConfigKey   = "HealthConnect:PhoneBaseUrl"
                                                             , ConfiguredUrl = healthUrl
-                                                            , IsConfigured  = !string.IsNullOrWhiteSpace(healthUrl)
+                                                            , IsConfigured  = healthUrl.HasValue()
                                                             , Note          = "LAA Android app — port 5050. Configure in appsettings.{Environment}.json."
                                                       }
                                                     , new
@@ -84,7 +84,7 @@ public sealed class AdminSystemController : AdminControllerBase
                                                               Name        = "FileSync (phone file gateway)"
                                                             , ConfigKey   = "FileSync:GatewayBaseUrl"
                                                             , ConfiguredUrl = fileSyncUrl
-                                                            , IsConfigured  = !string.IsNullOrWhiteSpace(fileSyncUrl)
+                                                            , IsConfigured  = fileSyncUrl.HasValue()
                                                             , Note          = "LAA Android app — port 5051. Configure in appsettings.{Environment}.json."
                                                       }
                                               }

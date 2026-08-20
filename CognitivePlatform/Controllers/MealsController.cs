@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,7 +55,7 @@ public sealed class MealsController : ControllerBase
         DateTimeOffset fromOffset;
         DateTimeOffset toOffset;
 
-        if (string.IsNullOrWhiteSpace(from) && string.IsNullOrWhiteSpace(to))
+        if (from.HasNoValue() && to.HasNoValue())
         {
             var today  = DateTimeOffset.Now.Date;
             fromOffset = today;
@@ -63,7 +63,7 @@ public sealed class MealsController : ControllerBase
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            if (from.HasNoValue() || to.HasNoValue())
                 return BadRequest("Both 'from' and 'to' query parameters are required when filtering by range.");
 
             if (!DateTimeOffset.TryParse(from, out fromOffset) && !DateOnly.TryParse(from, out var fromDate))

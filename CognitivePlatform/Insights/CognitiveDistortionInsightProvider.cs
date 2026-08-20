@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Conversation;
@@ -78,7 +78,7 @@ public sealed class CognitiveDistortionInsightProvider : IInsightProvider
 
         var result = TryParseResponse(response);
 
-        if (result?.Detected != true || string.IsNullOrWhiteSpace(result.Message))
+        if (result?.Detected != true || result.Message.HasNoValue())
             yield break;
 
         yield return new Insight
@@ -89,7 +89,7 @@ public sealed class CognitiveDistortionInsightProvider : IInsightProvider
                            , Priority         = InsightPriority.Normal
                            , Reasoning        = new InsightReasoning
                                                {
-                                                       Explanation = string.IsNullOrWhiteSpace(result.Pattern)
+                                                       Explanation = result.Pattern.HasNoValue()
                                                                          ? "Cognitive distortion language detected in recent journals."
                                                                          : $"Pattern detected: {result.Pattern}."
                                                }
@@ -137,7 +137,7 @@ public sealed class CognitiveDistortionInsightProvider : IInsightProvider
 
     private DistortionResult? TryParseResponse(string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (raw.HasNoValue()) return null;
 
         var json = ExtractJsonObject(raw);
         if (json is null)

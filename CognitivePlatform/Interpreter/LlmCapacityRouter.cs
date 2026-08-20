@@ -1,4 +1,4 @@
-using CP.Shared.Primitives.Avails.Extensions;
+﻿using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Interpreter;
 
@@ -147,12 +147,8 @@ public class LlmCapacityRouter : ILlmCapacityRouter
 
     private LlmModelCapacity? FindCapacity(LlmModelId modelId)
     {
-        return _models.FirstOrDefault(capacity => string.Equals(capacity.ModelId.Provider
-                                                              , modelId.Provider
-                                                              , StringComparison.OrdinalIgnoreCase)
-                                               && string.Equals(capacity.ModelId.Model
-                                                              , modelId.Model
-                                                              , StringComparison.OrdinalIgnoreCase));
+        return _models.FirstOrDefault(capacity => capacity.ModelId.Provider.EqualsIgnoreCase(modelId.Provider)
+                                               && capacity.ModelId.Model.EqualsIgnoreCase(modelId.Model));
     }
 
     private static void RollWindowIfExpired(LlmModelCapacity capacity)

@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -249,7 +249,7 @@ public sealed class FastPathResolver : IFastPathResolver
             case DailyCommandType.Plan:
                 // When the user writes "Plan:\nTask..." with no opening text on the first line,
                 // BodyText is empty. Substitute a minimal default so openingText is never blank.
-                parameters["openingText"] = string.IsNullOrWhiteSpace(parsed.BodyText)
+                parameters["openingText"] = parsed.BodyText.HasNoValue()
                                                 ? "Plan"
                                                 : parsed.BodyText;
                 if (parsed.Tasks.Count    > 0) parameters["tasks"]     = string.Join(", ", parsed.Tasks);
@@ -421,9 +421,9 @@ public sealed class FastPathResolver : IFastPathResolver
         if (colonIndex <= 0) return false;
 
         var prefix = input[..colonIndex].Trim();
-        if (string.IsNullOrWhiteSpace(prefix)) return false;
+        if (prefix.HasNoValue()) return false;
 
-        if (prefix.Equals("journal", StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("journal"))
         {
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");
             if (action is null) return false;
@@ -434,7 +434,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        if (prefix.Equals("task", StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("task"))
         {
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddTask");
             if (action is null) return false;
@@ -447,7 +447,7 @@ public sealed class FastPathResolver : IFastPathResolver
             var dueKeys = new[] { "due", "duedate", "due date", "due_date" };
             foreach (var key in parameters.Keys.ToList())
             {
-                if (dueKeys.Contains(key.ToLowerInvariant()) || key.Equals("DueDate", StringComparison.OrdinalIgnoreCase))
+                if (dueKeys.Contains(key.ToLowerInvariant()) || key.EqualsIgnoreCase("DueDate"))
                 {
                     if (parameters.Remove(key, out var val))
                     {
@@ -459,7 +459,7 @@ public sealed class FastPathResolver : IFastPathResolver
             return true;
         }
 
-        if (prefix.Equals("system", StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("system"))
         {
             SetSystemAction(input:  input
                           , action: ref action);
@@ -473,10 +473,10 @@ public sealed class FastPathResolver : IFastPathResolver
         // to ReportBug without going through the LLM.  Previously these fell through to
         // TryResolveGenericFastPath which was blocked by the IsBatchIntent colon guard,
         // causing every Bug: input to reach the LLM Interpreter (or workspace extractor).
-        if (prefix.Equals("bug",            StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("bug report",    StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("found a bug",   StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("report a bug",  StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("bug")
+         || prefix.EqualsIgnoreCase("bug report")
+         || prefix.EqualsIgnoreCase("found a bug")
+         || prefix.EqualsIgnoreCase("report a bug"))
         {
             action = _registry.Actions.FirstOrDefault(registryAction =>
                          registryAction.Name == "ReportBug");
@@ -484,7 +484,7 @@ public sealed class FastPathResolver : IFastPathResolver
             if (action is null) return false;
 
             var body = input[(colonIndex + 1)..].Trim();
-            if (string.IsNullOrWhiteSpace(body)) return false;
+            if (body.HasNoValue()) return false;
 
             parameters = new Dictionary<string, string> { ["description"] = body };
             return true;
@@ -493,16 +493,16 @@ public sealed class FastPathResolver : IFastPathResolver
         // Route "Idea:", "New idea:", "Idea suggestion:", "Suggest an idea:", "Report an idea:",
         // "Report idea:", "Feature idea:", "Feature request:", "Suggestion:", "Feature:" directly
         // to ReportIdea without going through the LLM.
-        if (prefix.Equals("idea",              StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("new idea",          StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("idea suggestion",   StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("suggest an idea",   StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("report an idea",    StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("report idea",       StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("feature idea",      StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("feature request",   StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("suggestion",        StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("feature",           StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("idea")
+         || prefix.EqualsIgnoreCase("new idea")
+         || prefix.EqualsIgnoreCase("idea suggestion")
+         || prefix.EqualsIgnoreCase("suggest an idea")
+         || prefix.EqualsIgnoreCase("report an idea")
+         || prefix.EqualsIgnoreCase("report idea")
+         || prefix.EqualsIgnoreCase("feature idea")
+         || prefix.EqualsIgnoreCase("feature request")
+         || prefix.EqualsIgnoreCase("suggestion")
+         || prefix.EqualsIgnoreCase("feature"))
         {
             action = _registry.Actions.FirstOrDefault(registryAction =>
                          registryAction.Name == "ReportIdea");
@@ -510,19 +510,19 @@ public sealed class FastPathResolver : IFastPathResolver
             if (action is null) return false;
 
             var body = input[(colonIndex + 1)..].Trim();
-            if (string.IsNullOrWhiteSpace(body)) return false;
+            if (body.HasNoValue()) return false;
 
             parameters = new Dictionary<string, string> { ["description"] = body };
             return true;
         }
 
-        if (prefix.Equals("watch", StringComparison.OrdinalIgnoreCase)
-         || prefix.Equals("watchlist", StringComparison.OrdinalIgnoreCase))
+        if (prefix.EqualsIgnoreCase("watch")
+         || prefix.EqualsIgnoreCase("watchlist"))
         {
             var body = input[(colonIndex + 1)..].Trim();
-            if (string.IsNullOrWhiteSpace(body)) return false;
+            if (body.HasNoValue()) return false;
 
-            if (body.StartsWith("add ", StringComparison.OrdinalIgnoreCase))
+            if (body.StartsWithIgnoreCase("add "))
             {
                 action = _registry.Actions.FirstOrDefault(a => a.Name == "AddWatchItem");
                 if (action is null) return false;
@@ -532,7 +532,7 @@ public sealed class FastPathResolver : IFastPathResolver
                 return true;
             }
             
-            if (body.Equals("list", StringComparison.OrdinalIgnoreCase))
+            if (body.EqualsIgnoreCase("list"))
             {
                 action = _registry.Actions.FirstOrDefault(a => a.Name == "ListWatchItems");
                 if (action is null) return false;
@@ -541,7 +541,7 @@ public sealed class FastPathResolver : IFastPathResolver
                 return true;
             }
 
-            if (body.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
+            if (body.StartsWithIgnoreCase("complete "))
             {
                 action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
                 if (action is null) return false;
@@ -551,7 +551,7 @@ public sealed class FastPathResolver : IFastPathResolver
                 return true;
             }
 
-            if (body.StartsWith("finished ", StringComparison.OrdinalIgnoreCase))
+            if (body.StartsWithIgnoreCase("finished "))
             {
                 action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
                 if (action is null) return false;
@@ -561,7 +561,7 @@ public sealed class FastPathResolver : IFastPathResolver
                 return true;
             }
 
-            if (body.StartsWith("watched ", StringComparison.OrdinalIgnoreCase))
+            if (body.StartsWithIgnoreCase("watched "))
             {
                 action = _registry.Actions.FirstOrDefault(a => a.Name == "CompleteWatchItem");
                 if (action is null) return false;
@@ -610,7 +610,7 @@ public sealed class FastPathResolver : IFastPathResolver
         var lines = input.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         if (lines.Length < 2)                                                    return false;
-        if (!lines[0].Equals("Journal", StringComparison.OrdinalIgnoreCase))    return false;
+        if (!lines[0].EqualsIgnoreCase("Journal"))    return false;
 
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AddJournalEntry");
         if (action is null) return false;
@@ -748,7 +748,7 @@ public sealed class FastPathResolver : IFastPathResolver
         {
             case "add":
             {
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "AddTask");
                 if (action is null) return false;
@@ -766,7 +766,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
                 // "/task list" with no qualifier means "show everything" â€" same
                 // contract as "show my tasks" in natural language.
-                if (string.IsNullOrWhiteSpace(arg))
+                if (arg.HasNoValue())
                     listParams["includeCompleted"] = "true";
 
                 parameters = listParams;
@@ -776,7 +776,7 @@ public sealed class FastPathResolver : IFastPathResolver
             case "complete":
             case "done":
             {
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "CompleteTask");
                 if (action is null) return false;
@@ -788,7 +788,7 @@ public sealed class FastPathResolver : IFastPathResolver
             case "delete":
             case "remove":
             {
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "DeleteTask");
                 if (action is null) return false;
@@ -801,13 +801,13 @@ public sealed class FastPathResolver : IFastPathResolver
             {
                 // /task due <ref> <date>  e.g. "/task due 2 Friday"
                 // Split arg into reference (first token) and date text (remainder).
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 var dueParts   = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 var dueRef     = dueParts[0];
                 var dueDateArg = dueParts.Length == 2 ? dueParts[1] : string.Empty;
 
-                if (string.IsNullOrWhiteSpace(dueDateArg)) return false;
+                if (dueDateArg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "UpdateTaskDueDate");
                 if (action is null) return false;
@@ -1258,7 +1258,7 @@ public sealed class FastPathResolver : IFastPathResolver
 
         // Extract the date text that follows the signal phrase.
         var dateText = ExtractDueDateText(normalized);
-        if (string.IsNullOrWhiteSpace(dateText)) return false;
+        if (dateText.HasNoValue()) return false;
 
         parameters = new Dictionary<string, string>
                      {
@@ -1423,7 +1423,7 @@ public sealed class FastPathResolver : IFastPathResolver
             case "use":
             case "switch":
             {
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersonality");
                 if (action is null) return false;
@@ -1573,7 +1573,7 @@ public sealed class FastPathResolver : IFastPathResolver
             case "use":
             case "switch":
             {
-                if (string.IsNullOrWhiteSpace(arg)) return false;
+                if (arg.HasNoValue()) return false;
 
                 action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SetPersona");
                 if (action is null) return false;
@@ -1648,7 +1648,7 @@ public sealed class FastPathResolver : IFastPathResolver
                 continue;
 
             var query = normalized.Substring(prefix.Length).Trim();
-            if (string.IsNullOrWhiteSpace(query))
+            if (query.HasNoValue())
                 continue;
 
             if (domain is null)
@@ -1761,7 +1761,7 @@ public sealed class FastPathResolver : IFastPathResolver
             if (BooleanExtensions.Not(ContainsFastPathSignal(normalized))) continue;
 
             var extracted = ExtractPrimaryValue(normalized);
-            if (string.IsNullOrWhiteSpace(extracted))
+            if (extracted.HasNoValue())
                 continue;
 
             action = meta;
@@ -2234,7 +2234,7 @@ public sealed class FastPathResolver : IFastPathResolver
             else if (remainder.StartsWith("my "))
                 remainder = remainder.Substring(3).Trim();
 
-            if (string.IsNullOrWhiteSpace(remainder))
+            if (remainder.HasNoValue())
                 continue;
 
             // Map to a canonical domain name. If the extracted term does not resolve
@@ -2297,7 +2297,7 @@ public sealed class FastPathResolver : IFastPathResolver
         // Prefix match — "task management" → "Tasks"
         foreach (var kvp in GuidanceDomainAliases)
         {
-            if (normalized.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
+            if (normalized.StartsWithIgnoreCase(kvp.Key))
                 return kvp.Value;
         }
 
@@ -2742,7 +2742,7 @@ public sealed class FastPathResolver : IFastPathResolver
             if (topic.EndsWith(" insight"))
                 topic = topic[..^" insight".Length].Trim();
 
-            if (string.IsNullOrWhiteSpace(topic)) continue;
+            if (topic.HasNoValue()) continue;
 
             action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ConfirmDerivedInsight");
             if (action is null) return false;
@@ -2946,11 +2946,11 @@ public sealed class FastPathResolver : IFastPathResolver
 
         // Registered action names (Journal:, AddTask:, etc.) are handled by Mode 1.1.
         if (_registry.Actions.Any(registryAction =>
-                registryAction.Name.Equals(token, StringComparison.OrdinalIgnoreCase)))
+                registryAction.Name.EqualsIgnoreCase(token)))
             return false;
         
         if (_registry.Actions.Any(registryAction =>
-                registryAction.Category.Equals(token, StringComparison.OrdinalIgnoreCase)))
+                registryAction.Category.EqualsIgnoreCase(token)))
             return false;
         
         workspaceName = token;

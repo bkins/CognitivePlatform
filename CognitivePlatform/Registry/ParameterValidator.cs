@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Registry;
+﻿namespace CognitivePlatform.Api.Registry;
 
 public static class ParameterValidator
 {
@@ -14,13 +14,13 @@ public static class ParameterValidator
         {
             if (rule == Required)
             {
-                if (string.IsNullOrWhiteSpace(rawValue))
+                if (rawValue.HasNoValue())
                     yield return $"{parameterDefinition.DisplayName} is required.";
             }
 
-            if (rule.StartsWith($"{MaxLength}:", StringComparison.OrdinalIgnoreCase))
+            if (rule.StartsWithIgnoreCase($"{MaxLength}:"))
             {
-                if (!string.IsNullOrEmpty(rawValue)
+                if (rawValue.HasValue()
                  && rawValue.Length > int.Parse(rule.Split(':')[1]))
                 {
                     yield return $"{parameterDefinition.DisplayName} must not exceed {rule.Split(':')[1]} characters.";

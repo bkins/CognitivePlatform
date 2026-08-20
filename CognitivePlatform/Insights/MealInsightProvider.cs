@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -225,15 +225,15 @@ public sealed class MealInsightProvider : IInsightProvider
     private static bool IsHighCaffeine(FoodEntry food)
     {
         var isNameCaffeine = food.Name.HasValue()
-                          && (food.Name.Contains("coffee",       StringComparison.OrdinalIgnoreCase)
-                           || food.Name.Contains("espresso",     StringComparison.OrdinalIgnoreCase)
-                           || food.Name.Contains("caffeine",     StringComparison.OrdinalIgnoreCase)
-                           || food.Name.Contains("energy drink", StringComparison.OrdinalIgnoreCase)
-                           || food.Name.Contains("tea",          StringComparison.OrdinalIgnoreCase));
+                          && (food.Name.ContainsIgnoreCase("coffee")
+                           || food.Name.ContainsIgnoreCase("espresso")
+                           || food.Name.ContainsIgnoreCase("caffeine")
+                           || food.Name.ContainsIgnoreCase("energy drink")
+                           || food.Name.ContainsIgnoreCase("tea"));
         
-        var isAdditionCaffeine = food.Additions.Any(addition => addition.Contains("caffeine", StringComparison.OrdinalIgnoreCase)
-                                                             || addition.Contains("espresso", StringComparison.OrdinalIgnoreCase)
-                                                             || addition.Contains("coffee",   StringComparison.OrdinalIgnoreCase));
+        var isAdditionCaffeine = food.Additions.Any(addition => addition.ContainsIgnoreCase("caffeine")
+                                                             || addition.ContainsIgnoreCase("espresso")
+                                                             || addition.ContainsIgnoreCase("coffee"));
 
         return isNameCaffeine || isAdditionCaffeine;
     }
@@ -241,17 +241,17 @@ public sealed class MealInsightProvider : IInsightProvider
     private static bool IsMoodTrigger(FoodEntry food)
     {
         var isNameTrigger = food.Name.HasValue()
-                         && (food.Name.Contains("sugar",   StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("soda",    StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("candy",   StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("dessert", StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("alcohol", StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("beer",    StringComparison.OrdinalIgnoreCase)
-                          || food.Name.Contains("wine",    StringComparison.OrdinalIgnoreCase));
+                         && (food.Name.ContainsIgnoreCase("sugar")
+                          || food.Name.ContainsIgnoreCase("soda")
+                          || food.Name.ContainsIgnoreCase("candy")
+                          || food.Name.ContainsIgnoreCase("dessert")
+                          || food.Name.ContainsIgnoreCase("alcohol")
+                          || food.Name.ContainsIgnoreCase("beer")
+                          || food.Name.ContainsIgnoreCase("wine"));
 
-        var isAdditionTrigger = food.Additions.Any(addition => addition.Contains("sugar",   StringComparison.OrdinalIgnoreCase)
-                                                            || addition.Contains("syrup",   StringComparison.OrdinalIgnoreCase)
-                                                            || addition.Contains("alcohol", StringComparison.OrdinalIgnoreCase));
+        var isAdditionTrigger = food.Additions.Any(addition => addition.ContainsIgnoreCase("sugar")
+                                                            || addition.ContainsIgnoreCase("syrup")
+                                                            || addition.ContainsIgnoreCase("alcohol"));
 
         return isNameTrigger || isAdditionTrigger;
     }

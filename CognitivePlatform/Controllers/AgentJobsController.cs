@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using CognitivePlatform.Api.Contracts;
@@ -60,7 +60,7 @@ public class AgentJobsController : ControllerBase
 
         job.Status = AgentJobStatus.Running;
         job.StartedUtc = DateTimeOffset.UtcNow;
-        if (!string.IsNullOrEmpty(conversationId))
+        if (conversationId.HasValue())
         {
             job.ConversationId = conversationId;
         }
@@ -79,7 +79,7 @@ public class AgentJobsController : ControllerBase
         job.Status = AgentJobStatus.Completed;
         job.Response = request.Response;
         job.CompletedUtc = DateTimeOffset.UtcNow;
-        if (!string.IsNullOrEmpty(request.ConversationId))
+        if (request.ConversationId.HasValue())
         {
             job.ConversationId = request.ConversationId;
         }

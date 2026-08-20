@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Data;
+﻿namespace CognitivePlatform.Api.Data;
 
 /// <summary>
 /// Default system date provider with development environment override support (CP_DAILY_DATE).
@@ -10,7 +10,7 @@ public class SystemDateProvider : IDateProvider
         get
         {
             var envOverride = Environment.GetEnvironmentVariable("CP_DAILY_DATE");
-            if (!string.IsNullOrWhiteSpace(envOverride)
+            if (envOverride.HasValue()
              && DateOnly.TryParse(envOverride, out var overrideDate))
             {
                 return overrideDate;

@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Conversation;
@@ -73,7 +73,7 @@ public sealed class GoalAlignmentInsightProvider : IInsightProvider
 
         var result = TryParseResponse(response);
 
-        if (result is null || result.Type is "none" or "" || string.IsNullOrWhiteSpace(result.Message))
+        if (result is null || result.Type is "none" or "" || result.Message.HasNoValue())
             yield break;
 
         var goalSlug       = ComputeGoalSlug(result.Goal ?? string.Empty);
@@ -145,7 +145,7 @@ public sealed class GoalAlignmentInsightProvider : IInsightProvider
 
     private AlignmentResult? TryParseResponse(string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (raw.HasNoValue()) return null;
 
         var json = ExtractJsonObject(raw);
         if (json is null)
@@ -188,7 +188,7 @@ public sealed class GoalAlignmentInsightProvider : IInsightProvider
 
     private static string ComputeGoalSlug(string goal)
     {
-        if (string.IsNullOrWhiteSpace(goal)) return "unknown";
+        if (goal.HasNoValue()) return "unknown";
 
         var clean = new string(
             goal.ToLowerInvariant()

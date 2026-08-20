@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Conversation;
@@ -58,8 +58,8 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         if (context.Turns.Count > 0)
         {
             var lastTurn = context.Turns[^1];
-            if (string.Equals(lastTurn.ActionName, "ReportBug",  StringComparison.OrdinalIgnoreCase)
-             || string.Equals(lastTurn.ActionName, "ReportIdea", StringComparison.OrdinalIgnoreCase))
+            if (lastTurn.ActionName.EqualsIgnoreCase("ReportBug")
+             || lastTurn.ActionName.EqualsIgnoreCase("ReportIdea"))
             {
                 yield break;
             }
@@ -67,20 +67,20 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
 
         // Defensively skip if the user message starts with common bug or idea prefixes
         var lastUserMsg = context.LastUserMessage?.Trim();
-        if (lastUserMsg != null && (lastUserMsg.StartsWith("bug:",            StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("bug report:",     StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("found a bug:",    StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("report a bug:",   StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("idea:",           StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("new idea:",       StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("idea suggestion:",StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("suggest an idea:",StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("report an idea:", StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("report idea:",    StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("feature idea:",   StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("feature request:",StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("suggestion:",     StringComparison.OrdinalIgnoreCase)
-                                 || lastUserMsg.StartsWith("feature:",        StringComparison.OrdinalIgnoreCase)))
+        if (lastUserMsg != null && (lastUserMsg.StartsWithIgnoreCase("bug:")
+                                 || lastUserMsg.StartsWithIgnoreCase("bug report:")
+                                 || lastUserMsg.StartsWithIgnoreCase("found a bug:")
+                                 || lastUserMsg.StartsWithIgnoreCase("report a bug:")
+                                 || lastUserMsg.StartsWithIgnoreCase("idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("new idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("idea suggestion:")
+                                 || lastUserMsg.StartsWithIgnoreCase("suggest an idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("report an idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("report idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("feature idea:")
+                                 || lastUserMsg.StartsWithIgnoreCase("feature request:")
+                                 || lastUserMsg.StartsWithIgnoreCase("suggestion:")
+                                 || lastUserMsg.StartsWithIgnoreCase("feature:")))
         {
             yield break;
         }
@@ -111,7 +111,7 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
         if (turns.Count == 0)
         {
             var fallback = context.LastUserMessage;
-            return string.IsNullOrWhiteSpace(fallback)
+            return fallback.HasNoValue()
                            ? null
                            : BuildReflectionPrompt(fallback);
         }
@@ -258,7 +258,7 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
 
     private List<Insight>? TryParse(string rawResponse, string sessionId)
     {
-        if (string.IsNullOrWhiteSpace(rawResponse))
+        if (rawResponse.HasNoValue())
             return null;
 
         var json = ExtractJsonObject(rawResponse);
@@ -278,17 +278,17 @@ public sealed class ConversationReflectionInsightProvider : IInsightProvider
             var sanitised = new List<Insight>(envelope.Insights.Count);
             foreach (var item in envelope.Insights)
             {
-                if (string.IsNullOrWhiteSpace(item.Message))
+                if (item.Message.HasNoValue())
                     continue;
 
-                var deduplicationKey = string.IsNullOrWhiteSpace(item.DeduplicationKey)
+                var deduplicationKey = item.DeduplicationKey.HasNoValue()
                                                ? $"reflection.unspecified.{sessionId}"
                                                : $"{item.DeduplicationKey}.{sessionId}";
 
                 sanitised.Add(new Insight
                               {
                                       Message          = item.Message
-                                    , SuggestedAction  = string.IsNullOrWhiteSpace(item.SuggestedAction)
+                                    , SuggestedAction  = item.SuggestedAction.HasNoValue()
                                                                  ? null
                                                                  : item.SuggestedAction
                                     , Priority         = InsightPriority.Normal

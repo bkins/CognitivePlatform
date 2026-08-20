@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -63,7 +63,7 @@ public class ObjectConstructionEngine : IObjectConstructionEngine
         result     = null;
         validation = ObjectValidationResult.Success();
 
-        if (string.IsNullOrWhiteSpace(json))
+        if (json.HasNoValue())
         {
             validation = ObjectValidationResult.Failure(new[] { "Input JSON was empty or whitespace." });
             return false;
@@ -101,7 +101,7 @@ public class LocalDateTimeOffsetConverter : JsonConverter<DateTimeOffset>
     public override DateTimeOffset Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         var str = reader.GetString();
-        if (string.IsNullOrWhiteSpace(str))
+        if (str.HasNoValue())
             return default;
 
         if (DateTimeOffset.TryParse(str, out var dto))

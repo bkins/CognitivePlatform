@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Conversation;
+﻿using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 using CognitivePlatform.Api.Interpreter;
 
@@ -15,7 +15,7 @@ public class LlmIntentAnalyzer : IIntentAnalyzer
 
     public async Task<IntentAnalysisResult> AnalyzeAsync(string message, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (message.HasNoValue())
         {
             return new IntentAnalysisResult
                    {

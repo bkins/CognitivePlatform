@@ -1,4 +1,4 @@
-using Moq;
+﻿using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Cognition;
 using CognitivePlatform.Api.Insights;
@@ -51,7 +51,7 @@ public class CognitionActionsTests
 
         var result = await _actions.EnableCognitiveDistortionDetector();
 
-        Assert.False(string.IsNullOrWhiteSpace(result));
+        Assert.False(result.HasNoValue());
         Assert.Contains("on", result, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -91,7 +91,7 @@ public class CognitionActionsTests
 
         var result = await _actions.DisableCognitiveDistortionDetector();
 
-        Assert.False(string.IsNullOrWhiteSpace(result));
+        Assert.False(result.HasNoValue());
         Assert.Contains("off", result, StringComparison.OrdinalIgnoreCase);
     }
 }

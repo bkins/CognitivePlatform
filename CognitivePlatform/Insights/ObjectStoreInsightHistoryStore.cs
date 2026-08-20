@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Insights.Models;
 
 namespace CognitivePlatform.Api.Insights;
@@ -41,7 +41,7 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
 
         foreach (var insight in insights)
         {
-            if (string.IsNullOrWhiteSpace(insight.DeduplicationKey))
+            if (insight.DeduplicationKey.HasNoValue())
                 continue;
 
             var item = new InsightHistoryItem
@@ -63,7 +63,7 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(deduplicationKey))
+        if (deduplicationKey.HasNoValue())
             return false;
 
         var cutoff  = DateTime.UtcNow - window;
@@ -86,7 +86,7 @@ public sealed class ObjectStoreInsightHistoryStore : IInsightHistoryStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(deduplicationKey))
+        if (deduplicationKey.HasNoValue())
             return;
 
         var all = await _store.ListAsync<InsightHistoryItem>( partitionKey:      PartitionKey

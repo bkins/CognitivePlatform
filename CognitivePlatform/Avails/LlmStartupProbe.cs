@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Interpreter;
@@ -156,9 +156,7 @@ public sealed class LlmStartupProbe
                      where !ModelBelongsToProvider(model, provider).Not()
                      select NormalizeModelName(model)
                      into cleanedModel
-                     where string.Equals(cleanedModel
-                                       , originalModel
-                                       , StringComparison.OrdinalIgnoreCase).Not()
+                     where cleanedModel.EqualsIgnoreCase(originalModel).Not()
                         && alternatives.Contains(cleanedModel).Not()
                      select cleanedModel)
             {
@@ -302,7 +300,7 @@ public sealed class LlmStartupProbe
         var colonIndex = jsonText.IndexOf(':');
 
         if (colonIndex > 0
-         && jsonText[..colonIndex].Trim().StartsWith("HTTP", StringComparison.OrdinalIgnoreCase))
+         && jsonText[..colonIndex].Trim().StartsWithIgnoreCase("HTTP"))
         {
             prefix   = jsonText[..(colonIndex + 1)].Trim() + " ";
             jsonText = jsonText[(colonIndex + 1)..].Trim();

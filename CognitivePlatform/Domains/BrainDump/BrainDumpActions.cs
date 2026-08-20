@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Registry.Domains;
 
@@ -141,7 +141,7 @@ public class BrainDumpActions
 
     private static void AppendCategory(StringBuilder sb, string label, string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.HasNoValue())
             return;
 
         sb.AppendLine($"**{label}**");
@@ -152,13 +152,13 @@ public class BrainDumpActions
     private static int CountFilledCategories(BrainDumpSession session)
     {
         var count = 0;
-        if (!string.IsNullOrWhiteSpace(session.Avoidance))        count++;
-        if (!string.IsNullOrWhiteSpace(session.Fears))            count++;
-        if (!string.IsNullOrWhiteSpace(session.Frustrations))     count++;
-        if (!string.IsNullOrWhiteSpace(session.Discouragements))  count++;
-        if (!string.IsNullOrWhiteSpace(session.GoalsAndBarriers)) count++;
-        if (!string.IsNullOrWhiteSpace(session.HurtAndSorrow))    count++;
-        if (!string.IsNullOrWhiteSpace(session.SelfCriticism))    count++;
+        if (session.Avoidance.HasValue())        count++;
+        if (session.Fears.HasValue())            count++;
+        if (session.Frustrations.HasValue())     count++;
+        if (session.Discouragements.HasValue())  count++;
+        if (session.GoalsAndBarriers.HasValue()) count++;
+        if (session.HurtAndSorrow.HasValue())    count++;
+        if (session.SelfCriticism.HasValue())    count++;
         return count;
     }
 }

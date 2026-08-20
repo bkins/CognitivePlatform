@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,7 +28,7 @@ public sealed class AdminKnowledgeDomainController : AdminControllerBase
     {
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (request.Name.HasNoValue())
             return BadRequest("Domain name is required.");
 
         if (!Enum.TryParse<KnowledgeDomainMode>(request.Mode, true, out var mode))
@@ -61,9 +61,9 @@ public sealed class AdminKnowledgeDomainController : AdminControllerBase
     {
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
-        if (string.IsNullOrWhiteSpace(request.Title))
+        if (request.Title.HasNoValue())
             return BadRequest("Document title is required.");
-        if (string.IsNullOrWhiteSpace(request.Content))
+        if (request.Content.HasNoValue())
             return BadRequest("Document content is required.");
 
         try

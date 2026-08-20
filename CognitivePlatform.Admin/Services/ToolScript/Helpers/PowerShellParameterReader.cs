@@ -1,4 +1,4 @@
-using System.Management.Automation.Language;
+﻿using System.Management.Automation.Language;
 using CognitivePlatform.Admin.Services.ToolScript.Interfaces;
 using CognitivePlatform.Admin.Services.ToolScript.Models;
 using CP.Client.Core.Avails;
@@ -49,21 +49,18 @@ public sealed class PowerShellParameterReader : IPowerShellParameterReader
         {
             var attributeName = attribute.TypeName.Name;
 
-            if (attributeName.Equals("Parameter"
-                                   , StringComparison.OrdinalIgnoreCase))
+            if (attributeName.EqualsIgnoreCase("Parameter"))
             {
                 foreach (var namedArgument in attribute.NamedArguments)
                 {
-                    if (namedArgument.ArgumentName.Equals("Mandatory"
-                                                        , StringComparison.OrdinalIgnoreCase))
+                    if (namedArgument.ArgumentName.EqualsIgnoreCase("Mandatory"))
                     {
                         mandatory = true;
                     }
                 }
             }
 
-            if (attributeName.Equals("ValidateSet"
-                                    , StringComparison.OrdinalIgnoreCase)
+            if (attributeName.EqualsIgnoreCase("ValidateSet")
                              .Not()) continue;
             
             foreach (var value in attribute.PositionalArguments)
@@ -102,7 +99,7 @@ public sealed class PowerShellParameterReader : IPowerShellParameterReader
         return parameterType switch
         {
                 ToolParameterType.Boolean =>
-                        text.Equals("$true", StringComparison.OrdinalIgnoreCase)
+                        text.EqualsIgnoreCase("$true")
                         
               , ToolParameterType.Number =>
                         int.TryParse(text, out var i)

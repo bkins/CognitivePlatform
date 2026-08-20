@@ -31,10 +31,10 @@ while (true)
     Console.Write("> ");
     var input = Console.ReadLine();
 
-    if (string.IsNullOrWhiteSpace(input))
+    if (input.HasNoValue())
         continue;
 
-    var isVerbose = input.EndsWith("[Verbose]", StringComparison.OrdinalIgnoreCase);
+    var isVerbose = input.EndsWithIgnoreCase("[Verbose]");
 
     if (isVerbose)
     {
@@ -130,7 +130,7 @@ static void RenderActionCatalog(JsonElement metadata)
 
             Console.WriteLine($" • {HumanizeActionName(name)}");
 
-            if (!string.IsNullOrWhiteSpace(description))
+            if (description.HasValue())
                 Console.WriteLine($"   {description}");
         }
 
@@ -260,7 +260,7 @@ static bool TryRenderMessage(JsonDocument doc)
 //     Console.Write("> ");
 //     var input = Console.ReadLine();
 //
-//     if (string.IsNullOrWhiteSpace(input))
+//     if (input.HasNoValue())
 //         continue;
 //
 //     var request = new

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,7 +80,7 @@ public class MockLlmClient : ILlmClient
             """;
         }
 
-        if (prompt.Contains("breakfast", StringComparison.OrdinalIgnoreCase) || prompt.Contains("scrambled eggs", StringComparison.OrdinalIgnoreCase))
+        if (prompt.ContainsIgnoreCase("breakfast") || prompt.ContainsIgnoreCase("scrambled eggs"))
         {
             return """
             {
@@ -99,7 +99,7 @@ public class MockLlmClient : ILlmClient
             """;
         }
 
-        if (prompt.Contains("lunch", StringComparison.OrdinalIgnoreCase) || prompt.Contains("turkey sandwich", StringComparison.OrdinalIgnoreCase))
+        if (prompt.ContainsIgnoreCase("lunch") || prompt.ContainsIgnoreCase("turkey sandwich"))
         {
             return """
             {
@@ -118,7 +118,7 @@ public class MockLlmClient : ILlmClient
             """;
         }
 
-        if (prompt.Contains("dinner", StringComparison.OrdinalIgnoreCase) || prompt.Contains("grilled salmon", StringComparison.OrdinalIgnoreCase))
+        if (prompt.ContainsIgnoreCase("dinner") || prompt.ContainsIgnoreCase("grilled salmon"))
         {
             return """
             {
@@ -137,7 +137,7 @@ public class MockLlmClient : ILlmClient
             """;
         }
 
-        if (prompt.Contains("what did i eat", StringComparison.OrdinalIgnoreCase) || prompt.Contains("list meals", StringComparison.OrdinalIgnoreCase))
+        if (prompt.ContainsIgnoreCase("what did i eat") || prompt.ContainsIgnoreCase("list meals"))
         {
             return """
             {

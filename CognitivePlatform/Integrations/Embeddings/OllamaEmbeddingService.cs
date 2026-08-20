@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
@@ -45,7 +45,7 @@ public sealed class OllamaEmbeddingService : IEmbeddingService
 
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.HasNoValue())
             return Array.Empty<float>();
 
         try

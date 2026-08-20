@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Attributes;
+﻿using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Registry.Domains;
 
@@ -172,7 +172,7 @@ public class DailyRecordActions
                                                             , Optional    = true)]
                                         int? moodScore = null)
     {
-        var effectiveText = string.IsNullOrWhiteSpace(closingText) ? "Day closed." : closingText;
+        var effectiveText = closingText.HasNoValue() ? "Day closed." : closingText;
         var record = await _dailyRecordService.CloseDayAsync(effectiveText, mood, moodScore);
         var rolloverCount = record.PlannedTaskIds.Count
                           + record.ReactiveTaskIds.Count
@@ -358,7 +358,7 @@ public class DailyRecordActions
     }
 
     private static IReadOnlyList<string> SplitCommaSeparated(string? input)
-        => string.IsNullOrWhiteSpace(input)
+        => input.HasNoValue()
                ? Array.Empty<string>()
                : input.Split(',', StringSplitOptions.RemoveEmptyEntries)
                       .Select(value => value.Trim())
@@ -366,7 +366,7 @@ public class DailyRecordActions
                       .ToList();
 
     private static IReadOnlyList<string> SplitPipeSeparated(string? input)
-        => string.IsNullOrWhiteSpace(input)
+        => input.HasNoValue()
                ? Array.Empty<string>()
                : input.Split('|', StringSplitOptions.RemoveEmptyEntries)
                       .Select(value => value.Trim())

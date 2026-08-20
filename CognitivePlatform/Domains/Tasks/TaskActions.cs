@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -79,7 +79,7 @@ public class TaskActions
         var task = new TaskItem
                    {
                            ShortDescription = finalDescription
-                         , Details          = string.IsNullOrWhiteSpace(details) ? null : details.Trim()
+                         , Details          = details.HasNoValue() ? null : details.Trim()
                          , IsImportant      = isImportant ?? true
                          , IsUrgent         = isUrgent    ?? false
                          , Tags             = ParseTags(tags)
@@ -502,7 +502,7 @@ public class TaskActions
 
         var previousDue = task.DueDate;
 
-        if (string.IsNullOrWhiteSpace(dueDateText))
+        if (dueDateText.HasNoValue())
         {
             if (task.DueDate is null)
                 return $"Task '{task.ShortDescription}' already has no due date.";
@@ -644,7 +644,7 @@ public class TaskActions
 
         var activeTasks = _taskService.GetOrderedActiveTasks();
         var matchingTasks = activeTasks
-            .Where(taskItem => taskItem.Task.ShortDescription.Contains(taskReference, StringComparison.OrdinalIgnoreCase))
+            .Where(taskItem => taskItem.Task.ShortDescription.ContainsIgnoreCase(taskReference))
             .ToList();
 
         if (matchingTasks.Count == 1)

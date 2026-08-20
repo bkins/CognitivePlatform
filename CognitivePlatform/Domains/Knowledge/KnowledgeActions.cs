@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -50,7 +50,7 @@ public sealed class KnowledgeActions : ISessionAware
         if (_context is null)
             return "No conversation context active.";
 
-        if (string.IsNullOrWhiteSpace(domainName))
+        if (domainName.HasNoValue())
             return "Please specify a domain name.";
 
         var domain = await _ingestionService.GetDomainAsync(domainName);
@@ -127,10 +127,10 @@ public sealed class KnowledgeActions : ISessionAware
         if (_context is null)
             return "No conversation context active.";
 
-        if (string.IsNullOrWhiteSpace(query))
+        if (query.HasNoValue())
             return "Please provide a query.";
 
-        if (!_context.Metadata.TryGetValue("active_knowledge_domain", out var domainName) || string.IsNullOrWhiteSpace(domainName))
+        if (!_context.Metadata.TryGetValue("active_knowledge_domain", out var domainName) || domainName.HasNoValue())
             return "Please activate a knowledge domain first using 'use knowledge domain [name]'.";
 
         var domain = await _ingestionService.GetDomainAsync(domainName);

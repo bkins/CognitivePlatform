@@ -13,9 +13,7 @@ public class ActionRegistry : IActionRegistry
 
     public IReadOnlyCollection<ActionMetadata> Actions                  => _actions;
     public IReadOnlyList<ActionMetadata>       FastPathActions          => _fastPathActions;
-    public ActionMetadata?                     FindByName (string name) => _actions.FirstOrDefault(action => string.Equals(action.Name
-                                                                                                                         , name
-                                                                                                                         , StringComparison.OrdinalIgnoreCase));
+    public ActionMetadata?                     FindByName (string name) => _actions.FirstOrDefault(action => action.Name.EqualsIgnoreCase(name));
     public ActionRegistry ()
     {
         LoadActions();
@@ -26,7 +24,7 @@ public class ActionRegistry : IActionRegistry
     {
         //TODO: When runtime plugin loading is introduced (future phase), this method
         // will need to support post-startup registration. For now, pre-startup only.
-        if (_actions.Any(action => string.Equals(action.Name, definition.Name, StringComparison.OrdinalIgnoreCase)))
+        if (_actions.Any(action => action.Name.EqualsIgnoreCase(definition.Name)))
             throw new InvalidOperationException(
                 $"An action named '{definition.Name}' is already registered.");
 

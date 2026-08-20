@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.DailyRecord;
+﻿using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Domains.Tasks;
 using Moq;
 
@@ -38,7 +38,7 @@ public class DailyRecordActionsTests
         await _actions.CloseDay(closingText: null);
 
         Assert.NotNull(capturedText);
-        Assert.False(string.IsNullOrWhiteSpace(capturedText)
+        Assert.False(capturedText.HasNoValue()
                    , "Service must not receive null or empty closing text.");
     }
 
@@ -59,7 +59,7 @@ public class DailyRecordActionsTests
         await _actions.CloseDay(closingText: "   ");
 
         Assert.NotNull(capturedText);
-        Assert.False(string.IsNullOrWhiteSpace(capturedText)
+        Assert.False(capturedText.HasNoValue()
                    , "Service must not receive whitespace-only closing text.");
     }
 

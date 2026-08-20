@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Audit;
@@ -257,8 +257,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
             try
             {
-                var fastInsights = string.Equals(actionMeta.Name, "ReportBug",  StringComparison.OrdinalIgnoreCase)
-                                || string.Equals(actionMeta.Name, "ReportIdea", StringComparison.OrdinalIgnoreCase)
+                var fastInsights = actionMeta.Name.EqualsIgnoreCase("ReportBug")
+                                || actionMeta.Name.EqualsIgnoreCase("ReportIdea")
                                    ? (IReadOnlyList<Insight>)Array.Empty<Insight>()
                                    : await SafeGenerateInsightsAsync(context, ct);
 
@@ -321,9 +321,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                     context.PendingAction = null;
 
                     var confirmedAction = _registry.GetAll()
-                                                   .First(action => string.Equals(action.Name
-                                                                                , pending.ActionName
-                                                                                , StringComparison.OrdinalIgnoreCase));
+                                                   .First(action => action.Name.EqualsIgnoreCase(pending.ActionName));
 
                     var execParams = ApplyDefaultValues(confirmedAction, pending.CollectedParameters);
                     if (!CheckSecretsVaultStatus(confirmedAction, out vaultError))
@@ -415,9 +413,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             
             // Look up action metadata
             var action = _registry.GetAll()
-                                  .FirstOrDefault(action => string.Equals(action.Name
-                                                                        , pending.ActionName
-                                                                        , StringComparison.OrdinalIgnoreCase));
+                                  .FirstOrDefault(action => action.Name.EqualsIgnoreCase(pending.ActionName));
 
             if (action is null)
             {
@@ -514,11 +510,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
             if (pending.RemainingParameters.Count > 0)
             {
                 var followingName = pending.RemainingParameters[0];
-                var paramMeta     = action.Parameters.FirstOrDefault(parameters => string.Equals(parameters.Name
-                                                                                               , followingName
-                                                                                               , StringComparison.OrdinalIgnoreCase));
+                var paramMeta     = action.Parameters.FirstOrDefault(parameters => parameters.Name.EqualsIgnoreCase(followingName));
 
-                var friendlyName = string.IsNullOrWhiteSpace(paramMeta?.Description)
+                var friendlyName = (paramMeta?.Description).HasNoValue()
                                            ? followingName
                                            : paramMeta.Description;
 
@@ -632,8 +626,8 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
         var actionName = interpretation.ActionName;
         if (context.Metadata.ContainsKey("active_knowledge_domain")
-            && !string.IsNullOrWhiteSpace(actionName)
-            && string.Equals(actionName, "ChitChat", StringComparison.OrdinalIgnoreCase))
+            && actionName.HasValue()
+            && actionName.EqualsIgnoreCase("ChitChat"))
         {
             actionName = null;
         }
@@ -718,9 +712,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             })
         {
             // Look up action metadata
-            var action = _registry.GetAll().FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                                  , interpretation.ActionName
-                                                                                  , StringComparison.OrdinalIgnoreCase));
+            var action = _registry.GetAll().FirstOrDefault(metadata => metadata.Name.EqualsIgnoreCase(interpretation.ActionName));
 
             if (action is null)
             {
@@ -757,14 +749,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                  .ToList();
 
                 // Special handling for StoreValue: always ask for "key" first, then "value"
-                if (action.Name.Equals("StoreValue", StringComparison.OrdinalIgnoreCase))
+                if (action.Name.EqualsIgnoreCase("StoreValue"))
                 {
                     var ordered = new List<string>();
 
-                    if (missingNames.Any(name => name.Equals("key", StringComparison.OrdinalIgnoreCase)))
+                    if (missingNames.Any(name => name.EqualsIgnoreCase("key")))
                         ordered.Add("key");
 
-                    if (missingNames.Any(name => name.Equals("value", StringComparison.OrdinalIgnoreCase)))
+                    if (missingNames.Any(name => name.EqualsIgnoreCase("value")))
                         ordered.Add("value");
 
                     // Fall back to whatever we got if something unexpected happens
@@ -775,11 +767,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 var firstMissing = missingNames[0];
 
                 var paramMeta = action.Parameters
-                                      .FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                              , firstMissing
-                                                                              , StringComparison.OrdinalIgnoreCase));
+                                      .FirstOrDefault(metadata => metadata.Name.EqualsIgnoreCase(firstMissing));
 
-                var friendlyName = string.IsNullOrWhiteSpace(paramMeta?.Description)
+                var friendlyName = (paramMeta?.Description).HasNoValue()
                                            ? firstMissing
                                            : paramMeta.Description;
 
@@ -853,7 +843,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         if (actionName?.HasNoValue() ?? true)
         {
             if (context.Metadata.TryGetValue("active_knowledge_domain", out var domainName)
-                && !string.IsNullOrWhiteSpace(domainName)
+                && domainName.HasValue()
                 && _knowledgeIngestionService is not null)
             {
                 var domain = await _knowledgeIngestionService.GetDomainAsync(domainName);
@@ -972,9 +962,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         
         // 8. Look up the action reflectively
         var selectedAction = _registry.GetAll()
-                                      .FirstOrDefault(metadata => string.Equals(metadata.Name
-                                                                              , actionName
-                                                                              , StringComparison.OrdinalIgnoreCase));
+                                      .FirstOrDefault(metadata => metadata.Name.EqualsIgnoreCase(actionName));
 
         if (selectedAction is null)
         {
@@ -1090,7 +1078,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
         // the capacity router stores a note in context.Metadata.  Surface it to the user once.
         string? modelNotice = null;
         if (context.Metadata.TryGetValue("tier_downgrade_note", out var downgradeNote)
-         && !string.IsNullOrEmpty(downgradeNote))
+         && downgradeNote.HasValue())
         {
             modelNotice = downgradeNote;
             context.Metadata.TryRemove("tier_downgrade_note", out _);
@@ -1147,7 +1135,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             response.WasFastPath = true;
             response.Provider    = null;
             response.Model       = null;
-            if (string.IsNullOrWhiteSpace(response.ReasoningContent) || response.ReasoningContent.StartsWith("Standard Completion", StringComparison.OrdinalIgnoreCase))
+            if (response.ReasoningContent.HasNoValue() || response.ReasoningContent.StartsWithIgnoreCase("Standard Completion"))
             {
                 response.ReasoningContent = "Fast-Path (Direct rule-based execution; no LLM reasoning required)";
             }
@@ -1156,14 +1144,14 @@ public class ConversationOrchestrator : IConversationOrchestrator
         {
             if (contextForMetadata.Metadata.TryGetValue("provider", out var prov) && prov.HasValue())
                 response.Provider = prov;
-            else if (string.IsNullOrWhiteSpace(response.Provider))
+            else if (response.Provider.HasNoValue())
                 response.Provider = "Groq";
 
             if (contextForMetadata.Metadata.TryGetValue("model", out var mdl) && mdl.HasValue())
                 response.Model = mdl;
             else if (request.Model.HasValue())
                 response.Model = request.Model;
-            if (string.IsNullOrWhiteSpace(response.Model))
+            if (response.Model.HasNoValue())
             {
                 var providerEnum = Enum.TryParse<CognitivePlatform.Api.Interpreter.LlmProvider>(response.Provider, true, out var parsedProv)
                                    ? parsedProv
@@ -1171,9 +1159,9 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 response.Model = _providerDefaults.For(providerEnum);
             }
 
-            if (string.IsNullOrWhiteSpace(response.ReasoningContent) || response.ReasoningContent.StartsWith("Standard Completion", StringComparison.OrdinalIgnoreCase))
+            if (response.ReasoningContent.HasNoValue() || response.ReasoningContent.StartsWithIgnoreCase("Standard Completion"))
             {
-                if (!string.IsNullOrWhiteSpace(actionName))
+                if (actionName.HasValue())
                 {
                     response.ReasoningContent = $"[Plan] Selected action '{actionName}' -> Executed successfully.";
                 }
@@ -1673,9 +1661,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                         , CancellationToken  ct )
     {
         var match = context.LastEmittedInsights
-            .FirstOrDefault(emitted => string.Equals(emitted.SuggestedAction
-                                                    , resolvedActionName
-                                                    , StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(emitted => emitted.SuggestedAction.EqualsIgnoreCase(resolvedActionName));
 
         if (match is not null)
         {
@@ -1717,7 +1703,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             context.Metadata.TryGetValue("model", out var currentModel);
 
             if (modelConfig.ModelId is not null
-             && !string.Equals(modelConfig.ModelId, currentModel, StringComparison.OrdinalIgnoreCase))
+             && !modelConfig.ModelId.EqualsIgnoreCase(currentModel))
             {
                 context.Metadata["model"] = modelConfig.ModelId;
             }
@@ -1826,7 +1812,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                                  .GenerateExcavationPromptAsync(persona, userMessage, ct)
                                                  .ConfigureAwait(false);
 
-                if (!string.IsNullOrWhiteSpace(excavationPrompt))
+                if (excavationPrompt.HasValue())
                     context.Metadata["persona_excavation_prompt"] = excavationPrompt;
             }
         }
@@ -1876,7 +1862,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
                 _stabilityTracker?.RecordImmersionBreak(context.SessionId, personaId.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(personaContext.PreferredModelName))
+            if (personaContext.PreferredModelName.HasValue())
                 context.Metadata["persona_preferred_model"] = personaContext.PreferredModelName;
 
             if (snapshotOverride is not null)
@@ -1891,11 +1877,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
     private static string BuildPersonaContextualPrompt(string userMessage, ConversationContext context)
     {
         if (!context.Metadata.TryGetValue("persona_system_prompt", out var systemPrompt)
-         || string.IsNullOrWhiteSpace(systemPrompt))
+         || systemPrompt.HasNoValue())
             return userMessage;
 
         var hasMemories = context.Metadata.TryGetValue("persona_memories", out var memories)
-                       && !string.IsNullOrWhiteSpace(memories);
+                       && memories.HasValue();
 
         context.Metadata.TryGetValue("persona_excavation_prompt", out var excavationPrompt);
         context.Metadata.TryRemove("persona_excavation_prompt", out _);
@@ -1904,7 +1890,7 @@ public class ConversationOrchestrator : IConversationOrchestrator
             ? $"{systemPrompt}\n\nRelevant memories:\n{memories}\n\nUser message:\n{userMessage}"
             : $"{systemPrompt}\n\nUser message:\n{userMessage}";
 
-        if (!string.IsNullOrWhiteSpace(excavationPrompt))
+        if (excavationPrompt.HasValue())
             prompt += $"\n\n💭 {excavationPrompt}";
 
         return prompt;
@@ -1953,12 +1939,12 @@ public class ConversationOrchestrator : IConversationOrchestrator
 
     private static bool ContainsPolicyDisclaimerPattern(string? content)
     {
-        if (string.IsNullOrEmpty(content))
+        if (content.IsNullOrEmpty())
             return false;
 
-        return content.Contains("I'm an AI",  StringComparison.OrdinalIgnoreCase)
-            || content.Contains("as an AI",   StringComparison.OrdinalIgnoreCase)
-            || content.Contains("I can't",    StringComparison.OrdinalIgnoreCase);
+        return content.ContainsIgnoreCase("I'm an AI")
+            || content.ContainsIgnoreCase("as an AI")
+            || content.ContainsIgnoreCase("I can't");
     }
 
     // ---------------------------------------------------------------------

@@ -1,4 +1,4 @@
-using CP.Shared.Primitives.Avails;
+﻿using CP.Shared.Primitives.Avails;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -87,9 +87,8 @@ public static class EvalResultParser
         {
             var cleanLine = StripConsoleMarkup(line);
 
-            if (cleanLine.Contains("FINAL SUMMARY"
-                                 , StringComparison.OrdinalIgnoreCase))
-                    //if (cleanLine.Contains("MODEL SUMMARY", StringComparison.OrdinalIgnoreCase))
+            if (cleanLine.ContainsIgnoreCase("FINAL SUMMARY"))
+                    //if (cleanLine.ContainsIgnoreCase("MODEL SUMMARY"))
             {
                 inSummary = true;
                 continue;
@@ -113,7 +112,7 @@ public static class EvalResultParser
             if (cleanLine.StartsWith("==="))
                 break; // end of summary block
 
-            if (!headerSeen || string.IsNullOrWhiteSpace(cleanLine))
+            if (!headerSeen || cleanLine.HasNoValue())
                 continue;
 
             var row = TryParseModelRow(cleanLine
@@ -187,7 +186,7 @@ public static class EvalResultParser
         foreach (var rawLine in lines)
         {
             var line = StripConsoleMarkup(rawLine);
-            if (string.IsNullOrWhiteSpace(line))
+            if (line.HasNoValue())
                 continue;
 
             var tokMatch = Regex.Match(line
@@ -202,8 +201,7 @@ public static class EvalResultParser
                 pendingTokPerSecond = tokPerSecond;
             }
 
-            if (line.Contains("RESULT SUMMARY"
-                            , StringComparison.OrdinalIgnoreCase))
+            if (line.ContainsIgnoreCase("RESULT SUMMARY"))
             {
                 AddResultBlock(aggregates
                              , current);
@@ -239,8 +237,7 @@ public static class EvalResultParser
                            , "Parsed"
                            , out var parsed))
             {
-                current.Parsed = parsed.Equals("Yes"
-                                             , StringComparison.OrdinalIgnoreCase);
+                current.Parsed = parsed.EqualsIgnoreCase("Yes");
                 continue;
             }
 
@@ -248,8 +245,7 @@ public static class EvalResultParser
                            , "Action Correct"
                            , out var actionCorrect))
             {
-                current.ActionCorrect = actionCorrect.Equals("Yes"
-                                                           , StringComparison.OrdinalIgnoreCase);
+                current.ActionCorrect = actionCorrect.EqualsIgnoreCase("Yes");
                 continue;
             }
 
@@ -257,8 +253,7 @@ public static class EvalResultParser
                            , "Parameters Correct"
                            , out var parametersCorrect))
             {
-                current.ParametersCorrect = parametersCorrect.Equals("Yes"
-                                                                   , StringComparison.OrdinalIgnoreCase);
+                current.ParametersCorrect = parametersCorrect.EqualsIgnoreCase("Yes");
                 continue;
             }
         }
@@ -280,7 +275,7 @@ public static class EvalResultParser
                                       , ResultBlock?                       block )
     {
         if (block is null
-         || string.IsNullOrWhiteSpace(block.Model)
+         || block.Model.HasNoValue()
          || block.Score is null)
             return;
 
@@ -406,8 +401,7 @@ public static class EvalResultParser
 
         foreach (var line in lines)
         {
-            if (line.StartsWith("Generated"
-                              , StringComparison.OrdinalIgnoreCase))
+            if (line.StartsWithIgnoreCase("Generated"))
             {
                 var colonIndex = line.IndexOf(':');
                 if (colonIndex < 0)
@@ -427,8 +421,7 @@ public static class EvalResultParser
                     dateGenerated = parsed.ToLocalTime();
             }
 
-            if (line.StartsWith("Configuration"
-                              , StringComparison.OrdinalIgnoreCase))
+            if (line.StartsWithIgnoreCase("Configuration"))
             {
                 var colonIndex = line.IndexOf(':');
                 if (colonIndex < 0)
@@ -439,7 +432,7 @@ public static class EvalResultParser
             }
 
             if (dateGenerated.HasValue
-             && !string.IsNullOrWhiteSpace(configuration))
+             && configuration.HasValue())
             {
                 return (dateGenerated.Value, configuration);
             }

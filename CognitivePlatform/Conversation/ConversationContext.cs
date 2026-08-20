@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
@@ -14,8 +14,8 @@ public sealed record LlmSession(string Provider, string Model)
 {
     public static LlmSession Empty { get; } = new(string.Empty, string.Empty);
 
-    public bool HasProvider => !string.IsNullOrWhiteSpace(Provider);
-    public bool HasModel    => !string.IsNullOrWhiteSpace(Model);
+    public bool HasProvider => Provider.HasValue();
+    public bool HasModel    => Model.HasValue();
 }
 
 /// <summary>

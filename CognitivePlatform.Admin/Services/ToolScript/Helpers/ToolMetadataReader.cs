@@ -1,4 +1,4 @@
-using CognitivePlatform.Admin.Services.ToolScript.Interfaces;
+﻿using CognitivePlatform.Admin.Services.ToolScript.Interfaces;
 using CognitivePlatform.Admin.Services.ToolScript.Models;
 using CP.Client.Core.Avails;
 
@@ -19,8 +19,7 @@ public sealed class ToolMetadataReader : IToolMetadataReader
 
             if (!insideToolBlock)
             {
-                if (line.Equals("@tool"
-                              , StringComparison.OrdinalIgnoreCase))
+                if (line.EqualsIgnoreCase("@tool"))
                 {
                     insideToolBlock = true;
                 }
@@ -34,7 +33,7 @@ public sealed class ToolMetadataReader : IToolMetadataReader
                 break;
             }
 
-            if (string.IsNullOrWhiteSpace(line))
+            if (line.HasNoValue())
             {
                 continue;
             }

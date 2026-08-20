@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,7 +16,7 @@ public class TaskRepositoryInMemory
 
     public TaskItem? GetById(string id)
     {
-        if (string.IsNullOrWhiteSpace(id)) return null;
+        if (id.HasNoValue()) return null;
 
         return _store.TryGetValue(id, out var task)
                        ? task
@@ -25,7 +25,7 @@ public class TaskRepositoryInMemory
 
     public void Save(TaskItem task)
     {
-        if (string.IsNullOrWhiteSpace(task.Id))
+        if (task.Id.HasNoValue())
         {
             task.Id = Guid.NewGuid().ToString("N");
         }

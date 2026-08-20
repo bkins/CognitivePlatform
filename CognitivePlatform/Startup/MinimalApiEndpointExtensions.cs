@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CognitivePlatform.Api.Avails;
 using CognitivePlatform.Api.Domains.System;
@@ -47,7 +47,7 @@ public static class MinimalApiEndpointExtensions
                                    , HttpContext httpContext) =>
         {
             var secret = settings.Value.SharedSecret;
-            if (!string.IsNullOrEmpty(secret))
+            if (secret.HasValue())
             {
                 var provided = httpContext.Request.Headers["X-CP-Key"].FirstOrDefault();
                 if (provided != secret)

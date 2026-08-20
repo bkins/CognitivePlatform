@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using CognitivePlatform.Api.Integrations.FileSync.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -38,7 +38,7 @@ public sealed class HttpFileSyncProvider : IFileSyncProvider
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_settings.GatewayBaseUrl))
+            if (_settings.GatewayBaseUrl.HasNoValue())
                 return false;
 
             try
@@ -221,7 +221,7 @@ public sealed class HttpFileSyncProvider : IFileSyncProvider
     {
         var request = new HttpRequestMessage(method, relativeUrl);
 
-        if (!string.IsNullOrWhiteSpace(_settings.SharedSecret))
+        if (_settings.SharedSecret.HasValue())
             request.Headers.TryAddWithoutValidation(CpKeyHeader, _settings.SharedSecret);
 
         return request;

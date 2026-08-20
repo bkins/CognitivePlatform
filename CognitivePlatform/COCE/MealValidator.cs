@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CognitivePlatform.Api.Domains.Meals;
@@ -39,7 +39,7 @@ public sealed class MealValidator : IObjectValidator<Meal>
             {
                 var food = meal.Foods[index];
                 if (food is not null
-                 && ! string.IsNullOrWhiteSpace(food.Name)) continue;
+                 && food.Name.HasValue()) continue;
 
                 errors.Add($"Food item at index {index} is missing a valid name.");
                 missingProperties.Add($"{nameof(Meal.Foods)}[{index}].{nameof(FoodEntry.Name)}");

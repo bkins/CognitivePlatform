@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -478,7 +478,7 @@ public sealed class JournalActions
     // ----------------------------------------------------------------------
     private static List<string> SplitCommaSeparated(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
+        if (value.HasNoValue()) return new List<string>();
 
         value = value.Replace(@""""
                             , "");
@@ -490,7 +490,7 @@ public sealed class JournalActions
     
     private static int? TryParseMoodScore(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (value.HasNoValue()) return null;
 
         if (int.TryParse(value, out var score)
                .Not()) return null;

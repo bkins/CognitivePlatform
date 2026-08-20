@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Microsoft.Data.Sqlite;
 
 namespace CognitivePlatform.Api.Execution;
@@ -52,8 +52,7 @@ public class SafeServiceInvoker : IServiceInvoker
         // so check the inner exception for the real cause.
         var cause = ex?.InnerException ?? ex;
 
-        var isTransportLevelError = cause?.Message.Contains("transport-level error"
-                                                          , StringComparison.OrdinalIgnoreCase)
+        var isTransportLevelError = cause?.Message.ContainsIgnoreCase("transport-level error")
                                  ?? false;
 
         return cause is SqliteException

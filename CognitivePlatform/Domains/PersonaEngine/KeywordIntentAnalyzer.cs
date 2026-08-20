@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.PersonaEngine.Models;
+﻿using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 
 namespace CognitivePlatform.Api.Domains.PersonaEngine;
 
@@ -13,7 +13,7 @@ public class KeywordIntentAnalyzer : IIntentAnalyzer
 
     public Task<IntentAnalysisResult> AnalyzeAsync(string message, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (message.HasNoValue())
         {
             return Task.FromResult(new IntentAnalysisResult
                                    {
@@ -24,7 +24,7 @@ public class KeywordIntentAnalyzer : IIntentAnalyzer
 
         foreach (var (keyword, (intent, personaName)) in _rules)
         {
-            if (message.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (message.ContainsIgnoreCase(keyword))
             {
                 return Task.FromResult(new IntentAnalysisResult
                                        {

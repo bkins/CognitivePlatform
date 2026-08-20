@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
@@ -214,7 +214,7 @@ public class DailyBriefService : IDailyBriefService
                 var activeInsights = recentInsights
                     .Where(item => !item.IsDeleted 
                                 && item.Outcome == InsightOutcome.Unknown 
-                                && !string.IsNullOrWhiteSpace(item.Message))
+                                && item.Message.HasValue())
                     .Take(3)
                     .ToList();
 

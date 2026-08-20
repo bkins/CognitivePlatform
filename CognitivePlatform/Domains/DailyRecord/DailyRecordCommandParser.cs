@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 using CP.Shared.Primitives.Avails;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -88,7 +88,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
             }
 
             // Tasks: — inline or block header
-            if (line.StartsWith("Tasks:", StringComparison.OrdinalIgnoreCase))
+            if (line.StartsWithIgnoreCase("Tasks:"))
             {
                 hasExplicitTasksBlock = true;
                 var inlinePart = line.Substring("Tasks:".Length).Trim();
@@ -283,7 +283,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 
         foreach (var other in MetaDirectives)
         {
-            if (other.Equals(directive, StringComparison.OrdinalIgnoreCase)) continue;
+            if (other.EqualsIgnoreCase(directive)) continue;
 
             var idx = line.IndexOf(other, start, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0 && idx < end) end = idx;

@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 
 namespace CognitivePlatform.Api.Domains.Personality;
 
@@ -74,7 +74,7 @@ public class PersonalityService : IPersonalityService
     {
         if (personality is null) throw new ArgumentNullException(nameof(personality));
 
-        if (string.IsNullOrWhiteSpace(personality.Id))
+        if (personality.Id.HasNoValue())
             personality.Id = Guid.NewGuid().ToString("N");
 
         var now = DateTimeOffset.UtcNow;

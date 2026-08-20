@@ -1,4 +1,4 @@
-namespace CognitivePlatform.Api.Workspace;
+﻿namespace CognitivePlatform.Api.Workspace;
 
 /// <summary>
 /// Well-known workspace names and the mapping to IObjectStore partition keys.
@@ -26,7 +26,7 @@ public static class WorkspaceKeys
     /// parameter. "personal" maps to <c>null</c>; all other names pass through as-is.
     /// </summary>
     public static string? ToPartitionKey(string workspaceName) =>
-        workspaceName.Equals(Personal, StringComparison.OrdinalIgnoreCase)
+        workspaceName.EqualsIgnoreCase(Personal)
             ? null
             : workspaceName;
 }

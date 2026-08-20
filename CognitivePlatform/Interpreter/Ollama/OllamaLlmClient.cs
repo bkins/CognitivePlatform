@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Models;
 using Microsoft.Extensions.Options;
 using static System.Text.Encoding;
@@ -32,7 +31,7 @@ public class OllamaLlmClient : ILlmClient
         //                         , stream = false
         //                   };
 
-        var selectedModel = string.IsNullOrWhiteSpace(model)
+        var selectedModel = model.HasNoValue()
                                     ? _settings.DefaultModel
                                     : model.Trim();
 
@@ -84,9 +83,9 @@ public class OllamaLlmClient : ILlmClient
             throw new InvalidOperationException("LLM returned no JSON response.");
 
         // Some models return null for `response` until `done = true`
-        var content = (json.response.DoesNotHaveValueOrIsNullOrEmpty())
+        var content = json.response.HasValue()
                           ? json.response!
-                          : json.response ?? string.Empty;
+                          : string.Empty;
 
         var usage = new LlmUsageInfo
                     {
@@ -107,7 +106,7 @@ public class OllamaLlmClient : ILlmClient
                                                      , string?           model             = null
                             , [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var selectedModel = string.IsNullOrWhiteSpace(model)
+        var selectedModel = model.HasNoValue()
                                     ? _settings.DefaultModel
                                     : model.Trim();
 
@@ -148,7 +147,7 @@ public class OllamaLlmClient : ILlmClient
         while ((line = await reader.ReadLineAsync()) is not null 
             && cancellationToken.IsCancellationRequested.Not())
         {
-            if (line.DoesNotHaveValueOrIsNullOrEmpty()) continue;
+            if (line.HasNoValue()) continue;
 
             OllamaStreamChunk? chunk;
 

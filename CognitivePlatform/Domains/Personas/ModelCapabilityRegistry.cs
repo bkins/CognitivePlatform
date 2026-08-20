@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.Personas.Models;
+﻿using CognitivePlatform.Api.Domains.Personas.Models;
 using Microsoft.Extensions.Options;
 
 namespace CognitivePlatform.Api.Domains.Personas;
@@ -16,9 +16,7 @@ public class ModelCapabilityRegistry : IModelCapabilityRegistry
         => _profiles;
 
     public ModelCapabilityProfile? GetByModel(string modelName)
-        => _profiles.FirstOrDefault(profile => string.Equals(profile.ModelName
-                                                            , modelName
-                                                            , StringComparison.OrdinalIgnoreCase));
+        => _profiles.FirstOrDefault(profile => profile.ModelName.EqualsIgnoreCase(modelName));
 
     public IReadOnlyList<ModelCapabilityProfile> GetByRestrictionLevel(ProviderRestrictionLevel level)
         => _profiles

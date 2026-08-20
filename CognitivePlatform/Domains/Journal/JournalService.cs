@@ -1,6 +1,5 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
-using CognitivePlatform.Api.Avails.Extensions;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Integrations.Embeddings;
@@ -192,7 +191,7 @@ public sealed class JournalService : IJournalService
                                                                 , DateTimeOffset? fromUtc = null
                                                                 , DateTimeOffset? toUtc   = null)
     {
-        if (string.IsNullOrWhiteSpace(keyword))
+        if (keyword.HasNoValue())
             return ListEntries(fromUtc, toUtc);
 
         var needle = keyword.Trim();
@@ -204,19 +203,19 @@ public sealed class JournalService : IJournalService
 
     private static bool ContainsKeyword(JournalRevision revision, string keyword)
     {
-        if (revision.Text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+        if (revision.Text.ContainsIgnoreCase(keyword))
             return true;
 
         if (revision.Mood is not null
-         && revision.Mood.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+         && revision.Mood.ContainsIgnoreCase(keyword))
             return true;
 
-        return revision.Tags.Any(tag => tag.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        return revision.Tags.Any(tag => tag.ContainsIgnoreCase(keyword));
     }
 
     public JournalEntry? GetEntry (string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (id.HasNoValue())
             throw new ArgumentException("id cannot be null or empty.", nameof(id));
 
         return _store.Get<JournalEntry>(id, _workspaceContext.ActivePartitionKey)
@@ -331,7 +330,7 @@ public sealed class JournalService : IJournalService
 
     private void QueueEmbedding(string domain, string referenceId, string text)
     {
-        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+        if (!_embeddingService.IsAvailable || text.HasNoValue()) return;
 
         _ = Task.Run(async () =>
         {
@@ -381,7 +380,7 @@ public sealed class JournalService : IJournalService
 
         foreach (var raw in mediaPaths)
         {
-            if (string.IsNullOrWhiteSpace(raw)) continue;
+            if (raw.HasNoValue()) continue;
 
             var trimmed = raw.Trim();
 

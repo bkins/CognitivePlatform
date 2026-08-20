@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Integrations.Embeddings;
@@ -270,7 +270,7 @@ public class DailyRecordService : IDailyRecordService
     public IReadOnlyList<TaskItem> GetRolledOverTasks()
         => _taskService.List(includeCompleted: false)
                        .Where(task => task.Tags.Any(tag =>
-                           tag.StartsWith("rolled-over:", StringComparison.OrdinalIgnoreCase)))
+                           tag.StartsWithIgnoreCase("rolled-over:")))
                        .ToList();
 
     // --- Private helpers ---------------------------------------------------------
@@ -296,7 +296,7 @@ public class DailyRecordService : IDailyRecordService
 
     private void QueueEmbedding(string domain, string referenceId, string text)
     {
-        if (!_embeddingService.IsAvailable || string.IsNullOrWhiteSpace(text)) return;
+        if (!_embeddingService.IsAvailable || text.HasNoValue()) return;
 
         _ = Task.Run(async () =>
         {
@@ -340,9 +340,9 @@ public class DailyRecordService : IDailyRecordService
     private static string BuildDailyRecordText(DailyRecord record)
     {
         var parts = new[] { record.OpeningText, record.ClosingText }
-                    .Where(text => !string.IsNullOrWhiteSpace(text));
+                    .Where(text => text.HasValue());
         var body  = string.Join(" ", parts);
-        return string.IsNullOrWhiteSpace(body) ? string.Empty : $"Day {record.Date}: {body}";
+        return body.HasNoValue() ? string.Empty : $"Day {record.Date}: {body}";
     }
 
     private static IReadOnlyList<string> BuildJournalTags( IEnumerable<string>     systemTags

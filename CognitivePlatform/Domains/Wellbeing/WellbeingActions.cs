@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Registry.Domains;
@@ -113,7 +113,7 @@ public class WellbeingActions
             var report = await _patternService.AnalyseAsync(from, to);
 
             var sleepPatterns = report.Patterns
-                .Where(pattern => pattern.Name.Contains("Sleep", StringComparison.OrdinalIgnoreCase))
+                .Where(pattern => pattern.Name.ContainsIgnoreCase("Sleep"))
                 .ToList();
 
             if (sleepPatterns.Count == 0)
@@ -142,7 +142,7 @@ public class WellbeingActions
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
 
-        if (string.IsNullOrWhiteSpace(dateRange))
+        if (dateRange.HasNoValue())
             return (today.AddDays(-7), today);
 
         var normalized = dateRange.Trim().ToLowerInvariant();

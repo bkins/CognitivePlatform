@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Execution;
@@ -281,7 +281,7 @@ public class IdentityActions : ISessionAware
         var assertions = await _identityService.GetAssertionsAsync(CancellationToken.None);
 
         var match = assertions
-                    .Where(assertion => assertion.Topic.Equals(topic.Trim(), StringComparison.OrdinalIgnoreCase))
+                    .Where(assertion => assertion.Topic.EqualsIgnoreCase(topic.Trim()))
                     .OrderByDescending(assertion => assertion.LastReinforced)
                     .FirstOrDefault();
 
@@ -350,7 +350,7 @@ public class IdentityActions : ISessionAware
     {
         var snapshot = await _analysisService.GenerateSnapshotAsync(string.Empty, CancellationToken.None, _sessionContext);
 
-        if (string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
+        if (snapshot.NarrativeSummary.HasNoValue())
             return "Could not generate a snapshot — not enough data available. Try adding journal entries and insights first.";
 
         var sb = new StringBuilder();
@@ -476,8 +476,8 @@ public class IdentityActions : ISessionAware
         var insights = await _identityService.GetDerivedInsightsAsync(CancellationToken.None);
 
         var match = insights
-                    .Where(insight => insight.InsightType.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase)
-                                   || insight.Description.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase))
+                    .Where(insight => insight.InsightType.ContainsIgnoreCase(topic.Trim())
+                                   || insight.Description.ContainsIgnoreCase(topic.Trim()))
                     .Where(insight => insight.UserConfirmed.Not())
                     .OrderByDescending(insight => insight.GeneratedAt)
                     .FirstOrDefault();
@@ -512,7 +512,7 @@ public class IdentityActions : ISessionAware
 
     private static IReadOnlyList<string> AppendToList(IReadOnlyList<string> existing, string item)
     {
-        if (existing.Any(existingItem => existingItem.Equals(item, StringComparison.OrdinalIgnoreCase)))
+        if (existing.Any(existingItem => existingItem.EqualsIgnoreCase(item)))
             return existing;
 
         return existing.Append(item).ToList();
@@ -521,12 +521,12 @@ public class IdentityActions : ISessionAware
     private static IReadOnlyList<string> RemoveFromList(IReadOnlyList<string> existing, string item)
     {
         return existing
-               .Where(existingItem => existingItem.Equals(item, StringComparison.OrdinalIgnoreCase).Not())
+               .Where(existingItem => existingItem.EqualsIgnoreCase(item).Not())
                .ToList();
     }
 
     private static string FormatScalar(string value)
-        => string.IsNullOrWhiteSpace(value) ? "_Not set_" : value;
+        => value.HasNoValue() ? "_Not set_" : value;
 
     private static string FormatList(IReadOnlyList<string> items)
         => items.Count > 0 ? string.Join(", ", items) : "_None_";

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -31,8 +31,8 @@ public sealed class StartupInvariantGuard
 
         var info = _system.GetEnvironment();
 
-        if (string.IsNullOrWhiteSpace(info.DatabasePath) 
-         || string.Equals(info.DatabasePath, info.DataRoot, StringComparison.OrdinalIgnoreCase))
+        if (info.DatabasePath.HasNoValue() 
+         || info.DatabasePath.EqualsIgnoreCase(info.DataRoot))
         {
             throw new InvalidOperationException("Production database path is not configured or resolved to the data root directory.");
         }
@@ -106,7 +106,7 @@ public sealed class StartupInvariantGuard
             cmd.CommandText = "SELECT value FROM system_metadata WHERE key = 'prod_sentinel';";
             var existing = cmd.ExecuteScalar() as string;
 
-            if (string.IsNullOrWhiteSpace(existing))
+            if (existing.HasNoValue())
             {
                 var sentinel = new ProdSentinel
                                {
@@ -127,9 +127,7 @@ public sealed class StartupInvariantGuard
 
             // Validate
             var parsed = JsonSerializer.Deserialize<ProdSentinel>(existing);
-            if (string.Equals(parsed?.Environment
-                             , "PROD"
-                             , StringComparison.OrdinalIgnoreCase)
+            if ((parsed?.Environment).EqualsIgnoreCase("PROD")
                       .Not())
             {
                 _log.LogCritical("Invalid PROD sentinel. Expected Environment=PROD, found {Env}."

@@ -1,4 +1,4 @@
-using System.Management.Automation.Language;
+﻿using System.Management.Automation.Language;
 using CP.Client.Core.Avails;
 
 namespace CognitivePlatform.Admin.Services.ToolScript.Helpers;
@@ -19,7 +19,7 @@ internal static class PowerShellCommentReader
         {
             var line = lines[i].Trim();
 
-            if (string.IsNullOrWhiteSpace(line))
+            if (line.HasNoValue())
                 continue;
 
             if (line.StartsWith("# @Label "

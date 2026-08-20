@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.Personas;
+﻿using CognitivePlatform.Api.Domains.Personas;
 using CognitivePlatform.Api.Domains.Personas.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -203,7 +203,7 @@ public sealed class PersonaController : ControllerBase
         if (persona is null)
             return NotFound($"Persona '{id}' not found.");
 
-        if (!string.IsNullOrWhiteSpace(conversationId))
+        if (conversationId.HasValue())
         {
             var queued = _confirmationQueue.Peek(conversationId, count: 10);
             return Ok(queued);

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -91,7 +91,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
 
         var snapshot = ParseSnapshotResponse(rawResponse);
 
-        if (!string.IsNullOrWhiteSpace(snapshot.NarrativeSummary))
+        if (snapshot.NarrativeSummary.HasValue())
             await _identityService.AddSnapshotAsync(snapshot, ct);
 
         return snapshot;
@@ -131,7 +131,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
                 var date    = entry.Entry.CreatedUtc.ToString("yyyy-MM-dd");
                 var text    = entry.LatestRevision.Text;
                 var mood    = entry.LatestRevision.Mood;
-                var moodStr = string.IsNullOrWhiteSpace(mood) ? string.Empty : $" [mood: {mood}]";
+                var moodStr = mood.HasNoValue() ? string.Empty : $" [mood: {mood}]";
                 sb.AppendLine($"[{date}]{moodStr} {entry.Entry.Id}: {text}");
             }
             sb.AppendLine();
@@ -184,9 +184,9 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         sb.AppendLine();
 
         sb.AppendLine("=== Confirmed profile ===");
-        if (!string.IsNullOrWhiteSpace(profile.PreferredName))
+        if (profile.PreferredName.HasValue())
             sb.AppendLine($"Name: {profile.PreferredName}");
-        if (!string.IsNullOrWhiteSpace(profile.Occupation))
+        if (profile.Occupation.HasValue())
             sb.AppendLine($"Occupation: {profile.Occupation}");
         if (profile.CoreValues.Count > 0)
             sb.AppendLine($"Core values: {string.Join(", ", profile.CoreValues)}");
@@ -222,7 +222,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
             {
                 var date = entry.Entry.CreatedUtc.ToString("yyyy-MM-dd");
                 var mood = entry.LatestRevision.Mood;
-                var moodStr = string.IsNullOrWhiteSpace(mood) ? string.Empty : $" [mood: {mood}]";
+                var moodStr = mood.HasNoValue() ? string.Empty : $" [mood: {mood}]";
                 sb.AppendLine($"[{date}]{moodStr} {entry.LatestRevision.Text}");
             }
             sb.AppendLine();
@@ -255,7 +255,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
       , IReadOnlyList<JournalEntryWithRevision> journalEntries )
     {
         var json = ExtractJson(rawResponse);
-        if (string.IsNullOrWhiteSpace(json))
+        if (json.HasNoValue())
             return [];
 
         try
@@ -277,7 +277,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
                 var confidence       = element.TryGetProperty("confidence",       out var conf) && conf.TryGetDouble(out var confVal) ? confVal : 0.5;
                 var sourceRefs       = ParseStringArray(element, "sourceReferences");
 
-                if (string.IsNullOrWhiteSpace(insightType) || string.IsNullOrWhiteSpace(description))
+                if (insightType.HasNoValue() || description.HasNoValue())
                     continue;
 
                 results.Add(new DerivedInsight
@@ -303,7 +303,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
     private static PersonalitySnapshot ParseSnapshotResponse(string rawResponse)
     {
         var json = ExtractJson(rawResponse);
-        if (string.IsNullOrWhiteSpace(json))
+        if (json.HasNoValue())
             return EmptySnapshot();
 
         try
@@ -340,7 +340,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
 
     private static string ExtractJson(string rawResponse)
     {
-        if (string.IsNullOrWhiteSpace(rawResponse))
+        if (rawResponse.HasNoValue())
             return string.Empty;
 
         // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
@@ -375,7 +375,7 @@ public class IdentityAnalysisService : IIdentityAnalysisService
         return arrayElement.EnumerateArray()
                            .Where(arrayItem => arrayItem.ValueKind == JsonValueKind.String)
                            .Select(arrayItem => arrayItem.GetString() ?? string.Empty)
-                           .Where(value => !string.IsNullOrWhiteSpace(value))
+                           .Where(value => value.HasValue())
                            .ToList();
     }
 

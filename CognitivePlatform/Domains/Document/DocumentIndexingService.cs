@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Data;
@@ -48,7 +48,7 @@ public sealed class DocumentIndexingService : IDocumentIndexingService
 
     public async Task<IndexedDocument?> IndexAsync(string filePath, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
+        if (filePath.HasNoValue())
             return null;
 
         if (!File.Exists(filePath))
@@ -74,7 +74,7 @@ public sealed class DocumentIndexingService : IDocumentIndexingService
         }
 
         var text = await ExtractTextAsync(filePath, ct);
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.HasNoValue())
         {
             _logger.LogWarning("Document indexing skipped — no text extracted from '{FilePath}'", filePath);
             return null;

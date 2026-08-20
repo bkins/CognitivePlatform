@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Domains.Personas.Models;
 
 namespace CognitivePlatform.Api.Domains.Personas;
@@ -78,7 +78,7 @@ public class PersonaRuntime : IPersonaRuntime
             var defaultScore = new PersonaStabilityScore { PersonaId = persona.Id, Score = 1.0f };
             preferredModel   = _modelSelector.SelectModel(persona, defaultScore);
 
-            if (!string.IsNullOrWhiteSpace(preferredModel) && _capabilityRegistry is not null)
+            if (preferredModel.HasValue() && _capabilityRegistry is not null)
             {
                 var profile = _capabilityRegistry.GetByModel(preferredModel);
 
@@ -115,19 +115,19 @@ public class PersonaRuntime : IPersonaRuntime
 
         sb.AppendLine($"You are embodying {persona.Name}.");
 
-        if (!string.IsNullOrWhiteSpace(persona.ScenarioDescription))
+        if (persona.ScenarioDescription.HasValue())
             sb.AppendLine($"Scenario: {persona.ScenarioDescription}");
 
-        if (!string.IsNullOrWhiteSpace(persona.Personality.Description))
+        if (persona.Personality.Description.HasValue())
             sb.AppendLine($"Personality: {persona.Personality.Description}");
 
         if (persona.Personality.Traits.Count > 0)
             sb.AppendLine($"Traits: {string.Join(", ", persona.Personality.Traits)}");
 
-        if (!string.IsNullOrWhiteSpace(persona.RelationshipState.RelationshipType))
+        if (persona.RelationshipState.RelationshipType.HasValue())
             sb.AppendLine($"Relationship: {persona.RelationshipState.RelationshipType}");
 
-        if (!string.IsNullOrWhiteSpace(persona.EmotionalState.DominantEmotion))
+        if (persona.EmotionalState.DominantEmotion.HasValue())
             sb.AppendLine($"Emotional tone: {persona.EmotionalState.DominantEmotion}");
 
         sb.AppendLine();

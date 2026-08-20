@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Attributes;
@@ -88,9 +88,9 @@ public sealed class FeedbackActions : ISessionAware
                 Timestamp = timestamp.ToString("yyyy-MM-dd HH:mm"),
                 TimeSuffix = "UTC",
                 Status = "Open",
-                Severity = string.IsNullOrWhiteSpace(severity) ? "Medium" : severity.Trim(),
-                Tags = string.IsNullOrWhiteSpace(tags) ? "None" : tags.Trim(),
-                Context = string.IsNullOrWhiteSpace(context) ? "None" : context.Trim(),
+                Severity = severity.HasNoValue() ? "Medium" : severity.Trim(),
+                Tags = tags.HasNoValue() ? "None" : tags.Trim(),
+                Context = context.HasNoValue() ? "None" : context.Trim(),
                 TriageNotes = "None",
                 Description = description.Trim()
             };
@@ -168,18 +168,18 @@ public sealed class FeedbackActions : ISessionAware
         var reports = LoadAllBugs(_settings.FilePath);
 
         // Apply filters
-        if (!string.IsNullOrWhiteSpace(status))
+        if (status.HasValue())
         {
-            reports = reports.Where(r => r.Status.Equals(status.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            reports = reports.Where(r => r.Status.EqualsIgnoreCase(status.Trim())).ToList();
         }
-        if (!string.IsNullOrWhiteSpace(severity))
+        if (severity.HasValue())
         {
-            reports = reports.Where(r => r.Severity.Equals(severity.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            reports = reports.Where(r => r.Severity.EqualsIgnoreCase(severity.Trim())).ToList();
         }
-        if (!string.IsNullOrWhiteSpace(tag))
+        if (tag.HasValue())
         {
             var tTrim = tag.Trim();
-            reports = reports.Where(r => r.Tags.Split(',').Select(t => t.Trim()).Any(t => t.Equals(tTrim, StringComparison.OrdinalIgnoreCase))).ToList();
+            reports = reports.Where(r => r.Tags.Split(',').Select(t => t.Trim()).Any(t => t.EqualsIgnoreCase(tTrim))).ToList();
         }
 
         if (reports.Count == 0)
@@ -234,23 +234,23 @@ public sealed class FeedbackActions : ISessionAware
         lock (FileLock)
         {
             var reports = LoadAllBugs(_settings.FilePath);
-            var report = reports.FirstOrDefault(r => r.Id.Equals(id.Trim(), StringComparison.OrdinalIgnoreCase));
+            var report = reports.FirstOrDefault(r => r.Id.EqualsIgnoreCase(id.Trim()));
 
             if (report is null)
                 return $"No bug found with ID '{id}'.";
 
             var changes = new List<string>();
-            if (!string.IsNullOrWhiteSpace(status))
+            if (status.HasValue())
             {
                 report.Status = status.Trim();
                 changes.Add($"Status -> {report.Status}");
             }
-            if (!string.IsNullOrWhiteSpace(severity))
+            if (severity.HasValue())
             {
                 report.Severity = severity.Trim();
                 changes.Add($"Severity -> {report.Severity}");
             }
-            if (!string.IsNullOrWhiteSpace(notes))
+            if (notes.HasValue())
             {
                 report.TriageNotes = notes.Trim();
                 changes.Add("Triage Notes updated");
@@ -292,7 +292,7 @@ public sealed class FeedbackActions : ISessionAware
         lock (FileLock)
         {
             var reports = LoadAllBugs(_settings.FilePath);
-            var report = reports.FirstOrDefault(r => r.Id.Equals(id.Trim(), StringComparison.OrdinalIgnoreCase));
+            var report = reports.FirstOrDefault(r => r.Id.EqualsIgnoreCase(id.Trim()));
 
             if (report is null)
                 return $"No bug found with ID '{id}'.";
@@ -332,7 +332,7 @@ public sealed class FeedbackActions : ISessionAware
             content = File.ReadAllText(_settings.FilePath);
         }
 
-        if (string.IsNullOrWhiteSpace(content) || content.StartsWith("# Bug Log") && !content.Contains("### "))
+        if (content.HasNoValue() || content.StartsWith("# Bug Log") && !content.Contains("### "))
             return "There are no bugs logged to summarize.";
 
         var prompt = "The following is a list of user-reported bugs from a log file. "
@@ -375,7 +375,7 @@ public sealed class FeedbackActions : ISessionAware
             content = File.ReadAllText(_settings.FilePath);
         }
 
-        if (string.IsNullOrWhiteSpace(content) || content.StartsWith("# Bug Log") && !content.Contains("### "))
+        if (content.HasNoValue() || content.StartsWith("# Bug Log") && !content.Contains("### "))
             return "There are no bugs logged to search.";
 
         var prompt = $"Here is the bug log:\n\n{content}\n\n"
@@ -431,7 +431,7 @@ public sealed class FeedbackActions : ISessionAware
         var segments = Regex.Split(content, @"^\s*---\s*$", RegexOptions.Multiline);
         foreach (var segment in segments)
         {
-            if (string.IsNullOrWhiteSpace(segment)) continue;
+            if (segment.HasNoValue()) continue;
             if (!segment.Contains("Field Report")) continue;
 
             var lines = segment.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
@@ -488,7 +488,7 @@ public sealed class FeedbackActions : ISessionAware
                 {
                     descriptionLines.Add(line);
                 }
-                else if (!string.IsNullOrWhiteSpace(trimmed))
+                else if (trimmed.HasValue())
                 {
                     parsingDescription = true;
                     descriptionLines.Add(line);
@@ -496,7 +496,7 @@ public sealed class FeedbackActions : ISessionAware
             }
 
             report.Description = string.Join("\n", descriptionLines).Trim();
-            if (string.IsNullOrEmpty(report.Id))
+            if (report.Id.IsNullOrEmpty())
             {
                 report.Id = GenerateShortId();
                 report.Status = "Open";

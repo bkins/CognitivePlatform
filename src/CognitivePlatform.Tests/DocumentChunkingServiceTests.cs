@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.Document;
+﻿using CognitivePlatform.Api.Domains.Document;
 
 namespace CognitivePlatform.Tests;
 
@@ -100,6 +100,6 @@ public class DocumentChunkingServiceTests
         var text   = new string('b', 6000);
         var result = _service.Chunk(text);
 
-        Assert.All(result, chunk => Assert.False(string.IsNullOrWhiteSpace(chunk)));
+        Assert.All(result, chunk => Assert.False(chunk.HasNoValue()));
     }
 }

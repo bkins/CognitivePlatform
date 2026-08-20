@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Domains.PersonaEngine;
+﻿using CognitivePlatform.Api.Domains.PersonaEngine;
 using CognitivePlatform.Api.Domains.PersonaEngine.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,7 +19,7 @@ public sealed class PersonaEngineController : ControllerBase
     public async Task<ActionResult<PersonaContextResult>> Resolve([FromBody] ResolvePersonaRequest request
                                                                 , CancellationToken               ct)
     {
-        if (string.IsNullOrWhiteSpace(request?.Message))
+        if ((request?.Message).HasNoValue())
             return BadRequest("Message is required.");
 
         var result = await _engine.ResolveAsync(request.Message, ct).ConfigureAwait(false);

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry.Capabilities;
@@ -66,9 +66,7 @@ public static class GuidanceActions
         }
 
         var domainActions = allActions
-                           .Where(action => string.Equals(action.Domain?.Name ?? action.Category
-                                                        , canonical
-                                                        , StringComparison.OrdinalIgnoreCase))
+                           .Where(action => (action.Domain?.Name ?? action.Category).EqualsIgnoreCase(canonical))
                            .OrderBy(action => action.Name
                                   , StringComparer.OrdinalIgnoreCase)
                            .ToList();
@@ -226,7 +224,7 @@ public static class GuidanceActions
 
         // Partial prefix match — "task management" → "Tasks"
         return (from kvp in KnownDomainAliases
-                where normalized.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase)
+                where normalized.StartsWithIgnoreCase(kvp.Key)
                 select kvp.Value).FirstOrDefault();
 
     }

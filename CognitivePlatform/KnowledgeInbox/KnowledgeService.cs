@@ -1,4 +1,4 @@
-using CognitivePlatform.Api.Data;
+﻿using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
 
 namespace CognitivePlatform.Api.KnowledgeInbox;
@@ -43,8 +43,8 @@ public sealed class KnowledgeService : IKnowledgeService
                                                   , DateTimeOffset? toUtc   = null)
     {
         return _sources
-               .Where(source => string.IsNullOrEmpty(type)
-                             || source.Kind.ToString().Equals(type, StringComparison.OrdinalIgnoreCase))
+               .Where(source => type.IsNullOrEmpty()
+                             || source.Kind.ToString().EqualsIgnoreCase(type))
                .SelectMany(source => source.ListHeaders(fromUtc, toUtc))
                .OrderByDescending(header => header.CreatedUtc)
                .ThenBy(header => header.Id)

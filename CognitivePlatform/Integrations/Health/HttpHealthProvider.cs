@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using CognitivePlatform.Api.Integrations.Health.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,7 +36,7 @@ public sealed class HttpHealthProvider : IHealthProvider
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(_settings.PhoneBaseUrl))
+            if (_settings.PhoneBaseUrl.HasNoValue())
                 return false;
 
             try
@@ -139,7 +139,7 @@ public sealed class HttpHealthProvider : IHealthProvider
     {
         var request = new HttpRequestMessage(method, relativeUrl);
 
-        if (!string.IsNullOrWhiteSpace(_settings.SharedSecret))
+        if (_settings.SharedSecret.HasValue())
             request.Headers.TryAddWithoutValidation(CpKeyHeader, _settings.SharedSecret);
 
         return request;
