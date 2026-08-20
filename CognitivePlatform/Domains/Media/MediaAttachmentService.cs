@@ -48,7 +48,7 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
                            , CreatedAt     = DateTimeOffset.UtcNow
                          };
 
-        await _store.Save(attachment, BuildPartitionKey(ownerType, ownerId), id);
+        await _store.Save(attachment, partitionKey: null, id);
 
         _logger.LogInformation("Media attachment {Id} saved for {OwnerType}/{OwnerId}"
                              , id, ownerType, ownerId);
@@ -58,19 +58,23 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     public Task<IReadOnlyList<MediaAttachment>> GetAttachmentsAsync(string ownerType, string ownerId)
     {
-        var attachments = _store.List<MediaAttachment>(BuildPartitionKey(ownerType, ownerId));
-        return Task.FromResult(attachments);
+        var attachments = _store.List<MediaAttachment>(partitionKey: null)
+                                .Where(attachment => attachment.OwnerType == ownerType
+                                                  && attachment.OwnerId == ownerId
+                                                  && !attachment.IsDeleted)
+                                .ToList();
+        return Task.FromResult<IReadOnlyList<MediaAttachment>>(attachments);
     }
 
     public Task<MediaAttachment?> GetAttachmentAsync(string id)
     {
-        var attachment = _store.Get<MediaAttachment>(id);
+        var attachment = _store.Get<MediaAttachment>(id, partitionKey: null);
         return Task.FromResult(attachment);
     }
 
     public Task<Stream?> GetAttachmentStreamAsync(string id)
     {
-        var attachment = _store.Get<MediaAttachment>(id);
+        var attachment = _store.Get<MediaAttachment>(id, partitionKey: null);
         if (attachment is null || attachment.IsDeleted)
             return Task.FromResult<Stream?>(null);
 
@@ -87,13 +91,16 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     public Task<bool> DeleteAttachmentAsync(string id)
     {
-        var deleted = _store.SoftDelete<MediaAttachment>(id);
+        var deleted = _store.SoftDelete<MediaAttachment>(id, partitionKey: null);
         return Task.FromResult(deleted);
     }
 
     public Task<int> GetAttachmentCountAsync(string ownerType, string ownerId)
     {
-        var count = _store.List<MediaAttachment>(BuildPartitionKey(ownerType, ownerId)).Count;
+        var count = _store.List<MediaAttachment>(partitionKey: null)
+                          .Count(attachment => attachment.OwnerType == ownerType
+                                            && attachment.OwnerId == ownerId
+                                            && !attachment.IsDeleted);
         return Task.FromResult(count);
     }
 

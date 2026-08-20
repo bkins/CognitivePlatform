@@ -120,7 +120,8 @@ public sealed class JournalService : IJournalService
                                    , int?                   moodLevel      = null
                                    , IReadOnlyList<string>? mediaPaths     = null)
     {
-        var entry = _store.Get<JournalEntry>(entryId);
+        var entry = _store.Get<JournalEntry>(entryId, _workspaceContext.ActivePartitionKey)
+                 ?? _store.Get<JournalEntry>(entryId, partitionKey: null);
         if (entry is null) throw new KeyNotFoundException($"Entry with Id '{entryId}' not found.");
         if (entry.DeletedUtc is not null) throw new InvalidOperationException($"Journal entry with Id '{entryId}' has already been deleted.");
 
@@ -218,9 +219,8 @@ public sealed class JournalService : IJournalService
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("id cannot be null or empty.", nameof(id));
 
-        // Null partition key intentionally used for ID-based lookups — matches all partitions.
-        // This allows retrieval by absolute ID regardless of the current workspace.
-        return _store.Get<JournalEntry>(id, partitionKey: null);
+        return _store.Get<JournalEntry>(id, _workspaceContext.ActivePartitionKey)
+            ?? _store.Get<JournalEntry>(id, partitionKey: null);
     }
 
     public IReadOnlyList<(int Position, JournalEntryWithRevision EntryWithRevision)> GetOrderedEntries()
@@ -243,7 +243,9 @@ public sealed class JournalService : IJournalService
 
     public JournalEntryWithRevision GetById(string id)
     {
-        var entry = _store.Get<JournalEntry>(id);
+        var entry = _store.Get<JournalEntry>(id, _workspaceContext.ActivePartitionKey)
+                 ?? _store.Get<JournalEntry>(id, partitionKey: null);
+
         if (entry is null) throw new KeyNotFoundException($"JournalEntry {id} not found.");
 
         var revisions = _revisionRepository.GetRevisionsByEntryId(id);
@@ -258,14 +260,16 @@ public sealed class JournalService : IJournalService
 
     public bool Exists (Guid journalId)
     {
-        var entry = _store.Get<JournalEntry>(journalId.ToString("N"));
+        var entry = _store.Get<JournalEntry>(journalId.ToString("N"), _workspaceContext.ActivePartitionKey)
+                 ?? _store.Get<JournalEntry>(journalId.ToString("N"), partitionKey: null);
+
         return entry is not null;
     }
 
     public bool DeleteEntry(string id, string reason)
     {
-        // Null partition key for Get — allows deletion by absolute ID regardless of workspace.
-        var entry = _store.Get<JournalEntry>(id, partitionKey: null);
+        var entry = _store.Get<JournalEntry>(id, _workspaceContext.ActivePartitionKey)
+                 ?? _store.Get<JournalEntry>(id, partitionKey: null);
 
         if (entry is null) return false;
         if (entry.DeletedUtc is not null) throw new InvalidOperationException("Entry is already deleted.");

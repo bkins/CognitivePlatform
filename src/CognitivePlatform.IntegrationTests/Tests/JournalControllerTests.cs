@@ -242,24 +242,25 @@ public sealed class JournalControllerTests : IDisposable
 
         foreach (var item in entries.EnumerateArray())
         {
-            // JournalEntryWithRevision shape: { entry: { id, ... }, latestRevision: { text, ... } }
-            if (item.TryGetProperty("latestRevision", out var rev)
-                && rev.TryGetProperty("text", out var textProp)
-                && (textProp.GetString()?.Contains(uniqueMarker
-                       , StringComparison.OrdinalIgnoreCase) ?? false))
+            var hasRev = item.TryGetProperty("latestRevision", out var rev) || item.TryGetProperty("LatestRevision", out rev);
+            if (hasRev && (rev.TryGetProperty("text", out var textProp) || rev.TryGetProperty("Text", out textProp)))
             {
-                if (item.TryGetProperty("entry", out var entryProp)
-                    && entryProp.TryGetProperty("id", out var idProp))
+                var textVal = textProp.GetString();
+                if (textVal?.Contains(uniqueMarker, StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    entryId = idProp.GetString();
+                    var hasEntry = item.TryGetProperty("entry", out var entryProp) || item.TryGetProperty("Entry", out entryProp);
+                    if (hasEntry && (entryProp.TryGetProperty("id", out var idProp) || entryProp.TryGetProperty("Id", out idProp)))
+                    {
+                        entryId = idProp.GetString();
+                    }
+                    break;
                 }
-                break;
             }
         }
 
         _fixture.LogAssertion($"journal entry containing '{uniqueMarker}' appears in list");
         entryId.Should().NotBeNull(
-            $"created journal entry with marker '{uniqueMarker}' should appear in GET /api/journals");
+            $"created journal entry with marker '{uniqueMarker}' should appear in GET /api/journals (Found {entries.GetArrayLength()} total items)");
 
         // ── Get by ID ──
         _fixture.Log($"Act — GET /api/journals/{entryId}");

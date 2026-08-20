@@ -17,7 +17,7 @@ public class PersonaStore : IPersonaStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var persona = _store.Get<CanonicalPersona>(personaId.ToString()
-                                                 , partitionKey: personaId.ToString());
+                                                 , partitionKey: null);
 
         if (persona is null || persona.IsDeleted)
             return Task.FromResult<CanonicalPersona?>(null);
@@ -30,7 +30,7 @@ public class PersonaStore : IPersonaStore
         cancellationToken.ThrowIfCancellationRequested();
 
         IReadOnlyList<CanonicalPersona> personas =
-            _store.List<CanonicalPersona>()
+            _store.List<CanonicalPersona>(partitionKey: null)
                   .Where(persona => !persona.IsDeleted)
                   .OrderBy(persona => persona.Name)
                   .ToList();
@@ -45,7 +45,7 @@ public class PersonaStore : IPersonaStore
         persona.LastModifiedUtc = DateTime.UtcNow;
 
         await _store.Save(persona
-                        , partitionKey: persona.Id.ToString()
+                        , partitionKey: null
                         , id:           persona.Id.ToString());
     }
 
@@ -54,7 +54,7 @@ public class PersonaStore : IPersonaStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var existing = _store.Get<CanonicalPersona>(personaId.ToString()
-                                                  , partitionKey: personaId.ToString());
+                                                  , partitionKey: null);
 
         if (existing is null || existing.IsDeleted)
             return;
@@ -64,7 +64,7 @@ public class PersonaStore : IPersonaStore
         existing.LastModifiedUtc = DateTime.UtcNow;
 
         await _store.Save(existing
-                        , partitionKey: personaId.ToString()
+                        , partitionKey: null
                         , id:           personaId.ToString());
     }
 

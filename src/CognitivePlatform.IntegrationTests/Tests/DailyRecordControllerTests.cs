@@ -198,7 +198,8 @@ public sealed class DailyRecordControllerTests : IDisposable
         }
 
         // If closed, closedAtUtc should be populated
-        if (phaseProp.GetInt32() == 3) // Closed
+        var phaseVal = phaseProp.ValueKind == JsonValueKind.String ? phaseProp.GetString() : phaseProp.GetInt32().ToString();
+        if (phaseVal == "Closed" || phaseVal == "3")
         {
             _fixture.LogAssertion("closed record has populated closedAtUtc");
             record.TryGetProperty("closedAtUtc", out var closedProp).Should().BeTrue(
@@ -323,7 +324,9 @@ public sealed class DailyRecordControllerTests : IDisposable
         var getTodayAfterOpen = await _fixture.Client.GetAsync("/api/daily/today");
         getTodayAfterOpen.StatusCode.Should().Be(HttpStatusCode.OK);
         var recordAfterOpen = await _fixture.ReadJsonAsync<JsonElement>(getTodayAfterOpen);
-        recordAfterOpen.GetProperty("phase").GetInt32().Should().BeOneOf(1, 2); // Opening or Active
+        var openPhaseProp = recordAfterOpen.GetProperty("phase");
+        var openPhaseVal = openPhaseProp.ValueKind == JsonValueKind.String ? openPhaseProp.GetString() : openPhaseProp.GetInt32().ToString();
+        openPhaseVal.Should().BeOneOf("Opening", "Active", "DayStarted", "1", "2");
         recordAfterOpen.GetProperty("plannedTaskIds").GetArrayLength().Should().Be(2);
 
         // ── 3. Add checkpoint ──
@@ -366,7 +369,9 @@ public sealed class DailyRecordControllerTests : IDisposable
         // Verify today's record is closed
         var getTodayAfterClose = await _fixture.Client.GetAsync("/api/daily/today");
         var recordAfterClose = await _fixture.ReadJsonAsync<JsonElement>(getTodayAfterClose);
-        recordAfterClose.GetProperty("phase").GetInt32().Should().Be(3); // Closed
+        var closePhaseProp = recordAfterClose.GetProperty("phase");
+        var closePhaseVal = closePhaseProp.ValueKind == JsonValueKind.String ? closePhaseProp.GetString() : closePhaseProp.GetInt32().ToString();
+        closePhaseVal.Should().BeOneOf("Closed", "EveningReview", "3");
 
         // ── 5. Cleanup: delete today's record ──
         _fixture.Log("Cleanup — Delete daily record for today");

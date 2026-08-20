@@ -80,6 +80,74 @@ public class MockLlmClient : ILlmClient
             """;
         }
 
+        if (prompt.Contains("breakfast", StringComparison.OrdinalIgnoreCase) || prompt.Contains("scrambled eggs", StringComparison.OrdinalIgnoreCase))
+        {
+            return """
+            {
+              "actionName": "LogMeal",
+              "reason": "The user wants to log breakfast.",
+              "parameters": {
+                "meal": {
+                  "mealType": "Breakfast",
+                  "foods": [
+                    { "name": "scrambled eggs", "quantity": 2, "unit": "large" },
+                    { "name": "toast", "quantity": 1, "unit": "slice" }
+                  ]
+                }
+              }
+            }
+            """;
+        }
+
+        if (prompt.Contains("lunch", StringComparison.OrdinalIgnoreCase) || prompt.Contains("turkey sandwich", StringComparison.OrdinalIgnoreCase))
+        {
+            return """
+            {
+              "actionName": "LogMeal",
+              "reason": "The user wants to log lunch.",
+              "parameters": {
+                "meal": {
+                  "mealType": "Lunch",
+                  "foods": [
+                    { "name": "turkey sandwich", "quantity": 1, "unit": "serving" },
+                    { "name": "chips", "quantity": 1, "unit": "bag" }
+                  ]
+                }
+              }
+            }
+            """;
+        }
+
+        if (prompt.Contains("dinner", StringComparison.OrdinalIgnoreCase) || prompt.Contains("grilled salmon", StringComparison.OrdinalIgnoreCase))
+        {
+            return """
+            {
+              "actionName": "LogMeal",
+              "reason": "The user wants to log dinner.",
+              "parameters": {
+                "meal": {
+                  "mealType": "Dinner",
+                  "foods": [
+                    { "name": "grilled salmon", "quantity": 1, "unit": "fillet" },
+                    { "name": "rice", "quantity": 1, "unit": "cup" }
+                  ]
+                }
+              }
+            }
+            """;
+        }
+
+        if (prompt.Contains("what did i eat", StringComparison.OrdinalIgnoreCase) || prompt.Contains("list meals", StringComparison.OrdinalIgnoreCase))
+        {
+            return """
+            {
+              "actionName": "ListMeals",
+              "reason": "The user is asking for their logged meals.",
+              "parameters": {}
+            }
+            """;
+        }
+
         // Default chit-chat fallback response
         return """
         {

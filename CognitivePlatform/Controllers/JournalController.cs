@@ -30,29 +30,36 @@ public sealed class JournalController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<JournalEntryDto>> GetById(Guid id, CancellationToken ct)
     {
-        var entryRevision = _journalService.GetById(id.ToString("N"));
-        var tags          = entryRevision.LatestRevision.Tags is { Count: > 0 }
-                                    ? entryRevision.LatestRevision.Tags
-                                    : Array.Empty<string>();
+        try
+        {
+            var entryRevision = _journalService.GetById(id.ToString("N"));
+            var tags          = entryRevision.LatestRevision.Tags is { Count: > 0 }
+                                        ? entryRevision.LatestRevision.Tags
+                                        : Array.Empty<string>();
 
-        var attachmentCount = await _mediaService.GetAttachmentCountAsync("JournalEntry"
-                                                                         , id.ToString("N"));
+            var attachmentCount = await _mediaService.GetAttachmentCountAsync("JournalEntry"
+                                                                             , id.ToString("N"));
 
-        var journalEntry = new JournalEntryDto
-                           {
-                               Id              = entryRevision.Entry.Id.ToGuid()
-                             , Text            = entryRevision.LatestRevision.Text
-                             , CreatedAt       = entryRevision.Entry.CreatedUtc
-                             , Tags            = tags
-                             , Mood            = entryRevision.LatestRevision.Mood
-                             , MoodScore       = entryRevision.LatestRevision.MoodScore
-                             , State           = entryRevision.LatestRevision.State
-                             , IsEdited        = entryRevision.IsEdited
-                             , AttachmentCount = attachmentCount
-                             , ValenceEmoji    = EmojiNormalizationService.MapValenceEmoji(entryRevision.LatestRevision.MoodScore)
-                             , AffectEmoji     = EmojiNormalizationService.MapAffectEmoji(entryRevision.LatestRevision.Mood)
-                           };
-        return Ok(journalEntry);
+            var journalEntry = new JournalEntryDto
+                               {
+                                   Id              = entryRevision.Entry.Id.ToGuid()
+                                 , Text            = entryRevision.LatestRevision.Text
+                                 , CreatedAt       = entryRevision.Entry.CreatedUtc
+                                 , Tags            = tags
+                                 , Mood            = entryRevision.LatestRevision.Mood
+                                 , MoodScore       = entryRevision.LatestRevision.MoodScore
+                                 , State           = entryRevision.LatestRevision.State
+                                 , IsEdited        = entryRevision.IsEdited
+                                 , AttachmentCount = attachmentCount
+                                 , ValenceEmoji    = EmojiNormalizationService.MapValenceEmoji(entryRevision.LatestRevision.MoodScore)
+                                 , AffectEmoji     = EmojiNormalizationService.MapAffectEmoji(entryRevision.LatestRevision.Mood)
+                               };
+            return Ok(journalEntry);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
     
     [HttpGet]
@@ -116,10 +123,12 @@ public sealed class JournalController : ControllerBase
 
         try
         {
-            var text = request.TryGetProperty("Text", out var textProp) ? textProp.GetString() ?? string.Empty : string.Empty;
+            var text = (request.TryGetProperty("Text", out var textProp) || request.TryGetProperty("text", out textProp))
+                     ? textProp.GetString()
+                     : null;
 
             IReadOnlyList<string>? tags = null;
-            if (request.TryGetProperty("Tags", out var tagsProp) && tagsProp.ValueKind == JsonValueKind.Array)
+            if ((request.TryGetProperty("Tags", out var tagsProp) || request.TryGetProperty("tags", out tagsProp)) && tagsProp.ValueKind == JsonValueKind.Array)
             {
                 var tagList = new List<string>();
                 foreach (var element in tagsProp.EnumerateArray())
@@ -132,10 +141,10 @@ public sealed class JournalController : ControllerBase
                 tags = tagList;
             }
 
-            var mood = request.TryGetProperty("Mood", out var moodProp) ? moodProp.GetString() : null;
+            var mood = (request.TryGetProperty("Mood", out var moodProp) || request.TryGetProperty("mood", out moodProp)) ? moodProp.GetString() : null;
 
             int? moodScore = null;
-            if (request.TryGetProperty("MoodScore", out var scoreProp) && scoreProp.ValueKind == JsonValueKind.Number)
+            if ((request.TryGetProperty("MoodScore", out var scoreProp) || request.TryGetProperty("moodScore", out scoreProp)) && scoreProp.ValueKind == JsonValueKind.Number)
             {
                 moodScore = scoreProp.GetInt32();
             }

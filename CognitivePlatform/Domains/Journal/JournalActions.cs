@@ -49,8 +49,8 @@ public sealed class JournalActions
                                             }
                                , Category = "journal"
                              , IsReplayable = true)]
-    public string AddJournalEntry ([NaturalLanguageParam(    Description = "The text of the journal entry."
-                                                             , AllowEmpty = false)]
+    public async Task<string> AddJournalEntry ([NaturalLanguageParam(    Description = "The text of the journal entry."
+                                                              , AllowEmpty = false)]
                                    string text
                                    , [NaturalLanguageParam(    Description = "Optional tags for the entry (comma-separated)."
                                                                , Optional = true
@@ -89,12 +89,12 @@ public sealed class JournalActions
         var finalScore = parsed.MoodScore ?? TryParseMoodScore(moodScore);
         var mediaList  = SplitCommaSeparated(media);
 
-        var id = _journal.AddEntryAsync(text: finalText
-                                      , tags: tagList
-                                      , mood: finalMood
-                                      , moodScore: finalScore
-                                      , moodLevel: -1
-                                      , mediaPaths: mediaList);
+        var id = await _journal.AddEntryAsync(text: finalText
+                                            , tags: tagList
+                                            , mood: finalMood
+                                            , moodScore: finalScore
+                                            , moodLevel: -1
+                                            , mediaPaths: mediaList);
 
         var shortenTextBy = finalText.Length < 25
                                     ? finalText.Length

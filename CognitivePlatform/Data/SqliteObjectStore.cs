@@ -698,17 +698,32 @@ public class SqliteObjectStore : IObjectStore
         if (effectiveId?.HasNoValue() ?? true
          && idProperty is not null)
         {
-            var current = idProperty?.GetValue(value) as string;
-            
-            if (current.HasValue()) effectiveId = current;
+            var currentObj = idProperty.GetValue(value);
+            if (currentObj is string str && str.HasValue())
+            {
+                effectiveId = str;
+            }
+            else if (currentObj is Guid guid && guid != Guid.Empty)
+            {
+                effectiveId = guid.ToString();
+            }
         }
 
         if (effectiveId?.HasNoValue() ?? true)
             effectiveId = Guid.NewGuid()
                               .ToString("N");
 
-        idProperty?.SetValue(value
-                           , effectiveId);
+        if (idProperty is not null && idProperty.CanWrite)
+        {
+            if (idProperty.PropertyType == typeof(string))
+            {
+                idProperty.SetValue(value, effectiveId);
+            }
+            else if (idProperty.PropertyType == typeof(Guid) && Guid.TryParse(effectiveId, out var parsedGuid))
+            {
+                idProperty.SetValue(value, parsedGuid);
+            }
+        }
 
         return effectiveId;
     }
