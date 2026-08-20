@@ -10,6 +10,7 @@ public interface ITerminalStateService
         string                             terminalId
       , ProcessStartInfo                   startInfo
       , Func<string, bool, TerminalLine>?  classify = null
+      , TimeSpan?                          timeout  = null
       , CancellationToken                  ct       = default);
 
     void AppendLine(string terminalId, TerminalLine line);

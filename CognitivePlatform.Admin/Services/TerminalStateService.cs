@@ -36,13 +36,16 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
     public async Task<int?> RunProcessAsync( string                            terminalId
                                            , ProcessStartInfo                  startInfo
                                            , Func<string, bool, TerminalLine>? classify = null
+                                           , TimeSpan?                          timeout  = null
                                            , CancellationToken                 ct       = default)
     {
         KillExisting(terminalId);
 
-        var state   = Get(terminalId);
-        var cts     = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var process = new Process { StartInfo = startInfo };
+        var state            = Get(terminalId);
+        var effectiveTimeout = timeout ?? TimeSpan.FromMinutes(4);
+        using var timeoutCts = new CancellationTokenSource(effectiveTimeout);
+        var cts              = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var process          = new Process { StartInfo = startInfo };
 
         _contexts[terminalId] = new Context(state, process, cts);
 
@@ -79,7 +82,17 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
         }
         catch (OperationCanceledException)
         {
-            state.Append(new TerminalLine("[Aborted by user]", TerminalLineKind.Error));
+            try { process.Kill(entireProcessTree: true); }
+            catch { /* already exited */ }
+
+            if (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
+            {
+                state.Append(new TerminalLine($"[Execution timed out after {effectiveTimeout.TotalMinutes:F1} min — process terminated]", TerminalLineKind.Error));
+            }
+            else
+            {
+                state.Append(new TerminalLine("[Aborted by user]", TerminalLineKind.Error));
+            }
             StateChanged?.Invoke(terminalId);
         }
         catch (Exception ex)

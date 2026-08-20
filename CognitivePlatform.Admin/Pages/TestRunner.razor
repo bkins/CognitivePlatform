@@ -950,7 +950,7 @@
               , CreateNoWindow         = true
             };
 
-            var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine);
+            var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
             TerminalService.SetExitCode("test-android", testExitCode);
 
             var failedTests = ParseFailedTests(androidState.Snapshot(), "Android Smoke Tests");
@@ -1004,7 +1004,7 @@
               , CreateNoWindow         = true
             };
 
-            var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine);
+            var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
             TerminalService.SetExitCode("test-windows", exitCode);
 
             var failedTests = ParseFailedTests(windowsState.Snapshot(), "Windows Smoke Tests");
@@ -1051,7 +1051,7 @@
               , CreateNoWindow         = true
             };
 
-            var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine);
+            var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2));
             TerminalService.SetExitCode("test-cognitive-api", exitCode);
 
             var failedTests = ParseFailedTests(cognitiveState.Snapshot(), "Cognitive API Validation");
@@ -1157,7 +1157,7 @@
                 };
 
                 // Wait for this project's run to complete
-                var exitCode = await TerminalService.RunProcessAsync("test-unit-tests", startInfo, ClassifyLine);
+                var exitCode = await TerminalService.RunProcessAsync("test-unit-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2.5));
                 
                 if (exitCode is null)
                 {
@@ -1283,7 +1283,7 @@
               , CreateNoWindow         = true
             };
 
-            var exitCode = await TerminalService.RunProcessAsync("test-system-audit", startInfo, ClassifyLine);
+            var exitCode = await TerminalService.RunProcessAsync("test-system-audit", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2));
             TerminalService.SetExitCode("test-system-audit", exitCode);
 
             var failedTests = ParseFailedTests(auditState.Snapshot(), "System Invariant & Architecture Audit");
@@ -1347,7 +1347,7 @@
                     CreateNoWindow         = true
                 };
 
-                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo);
+                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(2));
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1379,7 +1379,7 @@
                     CreateNoWindow         = true
                 };
 
-                var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine);
+                var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2.5));
                 if (exitCode is null)
                 {
                     overallExitCode = -1;
@@ -1413,7 +1413,7 @@
                     CreateNoWindow         = true
                 };
 
-                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine);
+                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
                 if (winExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1449,7 +1449,8 @@
                     {
                         if (!isError) deviceLines.Add(text);
                         return new TerminalLine(text, isError ? TerminalLineKind.Error : TerminalLineKind.Normal);
-                    });
+                    },
+                    timeout: TimeSpan.FromSeconds(15));
 
                 var hasDevice = deviceLines.Skip(1).Any(line => !string.IsNullOrWhiteSpace(line));
                 if (hasDevice)
@@ -1466,7 +1467,7 @@
                         UseShellExecute        = false,
                         CreateNoWindow         = true
                     };
-                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine);
+                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
                     if (androidExitCode is null)
                     {
                         overallExitCode = -1;
@@ -1504,7 +1505,7 @@
                     CreateNoWindow         = true
                 };
 
-                var auditExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", auditStartInfo, ClassifyLine);
+                var auditExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", auditStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2));
                 if (auditExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1898,11 +1899,15 @@
     {
         var filename = Path.GetFileNameWithoutExtension(csprojPath);
 
-        // Exclude runner/setup/seeder projects and UI smoke projects (handled in separate phases)
+        // Exclude runner/setup/seeder projects and interactive UI test projects (handled in dedicated smoke phases)
         if (filename.Contains("DemoSetup", StringComparison.OrdinalIgnoreCase) ||
             filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase) ||
             filename.Contains("Seeder", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase))
+            filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("UI.Windows", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("ValidationPlatform.Tests.WatchList", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("ValidationPlatform.Tests.InsAndOuts", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("ValidationPlatform.Tests.LaaSmoke", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -2182,16 +2187,28 @@
             _terminalId = terminalId;
         }
 
-        private static void KillOrphanedApiProcesses()
+        public static void KillOrphanedProcesses()
         {
-            try
+            var processNames = new[]
             {
-                foreach (var proc in Process.GetProcessesByName("CognitivePlatform.Api"))
+                "CognitivePlatform.Api",
+                "LocalAIAssistant.Ui.Maui",
+                "WatchList.Ui.Maui",
+                "InsAndOuts.Ui.Maui",
+                "ValidationPlatform.Runner"
+            };
+
+            foreach (var name in processNames)
+            {
+                try
                 {
-                    try { proc.Kill(entireProcessTree: true); } catch { }
+                    foreach (var proc in Process.GetProcessesByName(name))
+                    {
+                        try { proc.Kill(entireProcessTree: true); } catch { }
+                    }
                 }
+                catch { }
             }
-            catch { }
         }
 
         public async Task StartIfNeededAsync()
@@ -2202,8 +2219,8 @@
                 return;
             }
 
-            // Ensure any orphaned/dangling CognitivePlatform.Api processes from prior aborted/failed runs are cleaned up first
-            KillOrphanedApiProcesses();
+            // Ensure any orphaned/dangling test or API processes from prior runs are cleaned up first
+            KillOrphanedProcesses();
 
             _terminalService.AppendLine(_terminalId, new TerminalLine("[Starting local API on port 5273...]", TerminalLineKind.Normal));
 
@@ -2268,8 +2285,8 @@
                 _process.Dispose();
             }
 
-            // Always call process cleanup to be absolutely sure no process remains orphaned
-            KillOrphanedApiProcesses();
+            // Always call process cleanup to be absolutely sure no test or child process remains orphaned
+            KillOrphanedProcesses();
         }
     }
 
