@@ -952,6 +952,12 @@
 
             var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine);
             TerminalService.SetExitCode("test-android", testExitCode);
+
+            var failedTests = ParseFailedTests(androidState.Snapshot(), "Android Smoke Tests");
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-android", failedTests);
+            }
         }
         finally
         {
@@ -1000,6 +1006,12 @@
 
             var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine);
             TerminalService.SetExitCode("test-windows", exitCode);
+
+            var failedTests = ParseFailedTests(windowsState.Snapshot(), "Windows Smoke Tests");
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-windows", failedTests);
+            }
         }
         finally
         {
@@ -1041,6 +1053,12 @@
 
             var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine);
             TerminalService.SetExitCode("test-cognitive-api", exitCode);
+
+            var failedTests = ParseFailedTests(cognitiveState.Snapshot(), "Cognitive API Validation");
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-cognitive-api", failedTests);
+            }
         }
         finally
         {
@@ -1159,16 +1177,21 @@
             var snapshot = unitTestsState.Snapshot();
             int totalPassed = snapshot.Count(l => l.Kind == TerminalLineKind.Pass);
             int totalFailed = snapshot.Count(l => l.Kind == TerminalLineKind.Fail);
+            var failedTests = ParseFailedTests(snapshot, "Unit Tests");
 
             TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
             TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
             TerminalService.AppendLine("test-unit-tests", new TerminalLine($"  Grand Total Across All Projects: {totalPassed} Passed, {totalFailed} Failed (Total {totalPassed + totalFailed})", totalFailed == 0 ? TerminalLineKind.PassSummary : TerminalLineKind.FailSummary));
             TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
 
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-unit-tests", failedTests);
+            }
+
             // Generate report
             try
             {
-                var failedTests = ParseFailedTests(unitTestsState.Snapshot());
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("# Test Failures Report");
                 sb.AppendLine();
@@ -1262,6 +1285,12 @@
 
             var exitCode = await TerminalService.RunProcessAsync("test-system-audit", startInfo, ClassifyLine);
             TerminalService.SetExitCode("test-system-audit", exitCode);
+
+            var failedTests = ParseFailedTests(auditState.Snapshot(), "System Invariant & Architecture Audit");
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-system-audit", failedTests);
+            }
         }
         finally
         {
@@ -1491,16 +1520,21 @@
             var snapshot = allTestsState.Snapshot();
             int totalPassed = snapshot.Count(l => l.Kind == TerminalLineKind.Pass);
             int totalFailed = snapshot.Count(l => l.Kind == TerminalLineKind.Fail);
+            var failedTests = ParseFailedTests(snapshot, "All System Tests");
 
             TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
             TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
             TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"  Grand Total Across Entire CP Universe: {totalPassed} Passed, {totalFailed} Failed (Total {totalPassed + totalFailed})", totalFailed == 0 ? TerminalLineKind.PassSummary : TerminalLineKind.FailSummary));
             TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
 
+            if (failedTests.Count > 0)
+            {
+                AppendFailureSummaryToTerminal(TerminalService, "test-all-system-tests", failedTests);
+            }
+
             // Generate report
             try
             {
-                var failedTests = ParseFailedTests(snapshot, "All System Tests");
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("# CP Universe All System Tests Report");
                 sb.AppendLine();
@@ -1924,11 +1958,19 @@
                 continue;
             }
 
+            if (trimmed.StartsWith(">>> PHASE", StringComparison.OrdinalIgnoreCase))
+            {
+                currentProject = trimmed.Substring(4).Trim();
+                currentFailedTest = null;
+                continue;
+            }
+
             // Check if line indicates a test or step failure
             bool isFailLine = line.Kind == TerminalLineKind.Fail
                            || trimmed.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase)
                            || trimmed.Contains("[FAIL]", StringComparison.OrdinalIgnoreCase)
                            || trimmed.StartsWith("FAIL:", StringComparison.OrdinalIgnoreCase)
+                           || trimmed.StartsWith("[-]", StringComparison.OrdinalIgnoreCase)
                            || trimmed.Contains("✗")
                            || trimmed.Contains("✘");
 
@@ -1943,7 +1985,19 @@
             if (isFailLine && !isSummaryLine)
             {
                 string namePart = trimmed;
-                if (namePart.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase))
+                if (namePart.StartsWith("[xUnit.net", StringComparison.OrdinalIgnoreCase))
+                {
+                    int closeBracket = namePart.IndexOf(']');
+                    if (closeBracket >= 0 && closeBracket < namePart.Length - 1)
+                    {
+                        namePart = namePart.Substring(closeBracket + 1).Trim();
+                    }
+                    if (namePart.EndsWith("[FAIL]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        namePart = namePart.Substring(0, namePart.Length - 6).Trim();
+                    }
+                }
+                else if (namePart.StartsWith("Failed ", StringComparison.OrdinalIgnoreCase))
                 {
                     namePart = namePart.Substring(7).Trim();
                 }
@@ -1955,6 +2009,10 @@
                 {
                     namePart = namePart.Substring(5).Trim();
                 }
+                else if (namePart.StartsWith("[-]", StringComparison.OrdinalIgnoreCase))
+                {
+                    namePart = namePart.Substring(3).Trim();
+                }
 
                 // Strip trailing duration like "[12 ms]"
                 int bracketIdx = namePart.LastIndexOf('[');
@@ -1963,12 +2021,22 @@
                     namePart = namePart.Substring(0, bracketIdx).Trim();
                 }
 
-                currentFailedTest = new FailedTestDetails
+                var cleanName = string.IsNullOrWhiteSpace(namePart) ? "Failed Step / Test" : namePart;
+
+                var existing = failedTests.FirstOrDefault(t => t.Project == currentProject && t.TestName == cleanName);
+                if (existing != null)
                 {
-                    Project = currentProject,
-                    TestName = string.IsNullOrWhiteSpace(namePart) ? "Failed Step / Test" : namePart
-                };
-                failedTests.Add(currentFailedTest);
+                    currentFailedTest = existing;
+                }
+                else
+                {
+                    currentFailedTest = new FailedTestDetails
+                    {
+                        Project = currentProject,
+                        TestName = cleanName
+                    };
+                    failedTests.Add(currentFailedTest);
+                }
                 continue;
             }
 
@@ -1993,7 +2061,7 @@
             }
         }
 
-        // Fallback: If no structured test failure markers were matched, but error lines or non-zero exit lines exist:
+        // Fallback: If no structured test failure markers were matched, but error lines exist:
         if (failedTests.Count == 0)
         {
             var problemLines = lines.Where(l => l.Kind == TerminalLineKind.Error || l.Kind == TerminalLineKind.Fail)
@@ -2018,6 +2086,71 @@
         }
 
         return failedTests;
+    }
+
+    private static void AppendFailureSummaryToTerminal(ITerminalStateService terminalService, string terminalId, List<FailedTestDetails> failedTests)
+    {
+        if (failedTests.Count == 0) return;
+
+        terminalService.AppendLine(terminalId, new TerminalLine(string.Empty));
+        terminalService.AppendLine(terminalId, new TerminalLine("==================================================================", TerminalLineKind.FailSummary));
+        terminalService.AppendLine(terminalId, new TerminalLine($"                FAILED TESTS SUMMARY ({failedTests.Count} FAILURE{(failedTests.Count == 1 ? "" : "S")})                ", TerminalLineKind.FailSummary));
+        terminalService.AppendLine(terminalId, new TerminalLine("==================================================================", TerminalLineKind.FailSummary));
+
+        var grouped = failedTests.GroupBy(t => t.Project);
+        foreach (var group in grouped)
+        {
+            terminalService.AppendLine(terminalId, new TerminalLine(string.Empty));
+            terminalService.AppendLine(terminalId, new TerminalLine($"📁 Project / Suite: {group.Key}", TerminalLineKind.Normal));
+            terminalService.AppendLine(terminalId, new TerminalLine("------------------------------------------------------------------", TerminalLineKind.Normal));
+
+            foreach (var test in group)
+            {
+                terminalService.AppendLine(terminalId, new TerminalLine($"❌ {test.TestName}", TerminalLineKind.Fail));
+
+                if (test.Output.Count > 0)
+                {
+                    var meaningfulLines = test.Output
+                                              .Where(l => !string.IsNullOrWhiteSpace(l.Trim()))
+                                              .Where(l => !l.Trim().StartsWith("Failed " + test.TestName, StringComparison.OrdinalIgnoreCase))
+                                              .ToList();
+
+                    if (meaningfulLines.Count > 0)
+                    {
+                        foreach (var outputLine in meaningfulLines)
+                        {
+                            var trimmed = outputLine.Trim();
+
+                            if (trimmed.StartsWith("Error Message:", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("Assert.", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("Expected", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("Moq.", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("Stack Trace:", StringComparison.OrdinalIgnoreCase) ||
+                                trimmed.StartsWith("Exception:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                terminalService.AppendLine(terminalId, new TerminalLine($"   ▶ {trimmed}", TerminalLineKind.Error));
+                            }
+                            else
+                            {
+                                terminalService.AppendLine(terminalId, new TerminalLine($"     {trimmed}", TerminalLineKind.Normal));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        terminalService.AppendLine(terminalId, new TerminalLine("     (No additional failure output captured)", TerminalLineKind.Normal));
+                    }
+                }
+                else
+                {
+                    terminalService.AppendLine(terminalId, new TerminalLine("     (No failure output captured)", TerminalLineKind.Normal));
+                }
+
+                terminalService.AppendLine(terminalId, new TerminalLine(string.Empty));
+            }
+        }
+        terminalService.AppendLine(terminalId, new TerminalLine("==================================================================", TerminalLineKind.FailSummary));
     }
 
     private static bool IsApiPortActive()
