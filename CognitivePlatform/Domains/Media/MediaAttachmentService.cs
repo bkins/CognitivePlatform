@@ -48,7 +48,7 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
                            , CreatedAt     = DateTimeOffset.UtcNow
                          };
 
-        await _store.Save(attachment, partitionKey: null, id);
+        await _store.Save(attachment, partitionKey: null, id: id);
 
         _logger.LogInformation("Media attachment {Id} saved for {OwnerType}/{OwnerId}"
                              , id, ownerType, ownerId);

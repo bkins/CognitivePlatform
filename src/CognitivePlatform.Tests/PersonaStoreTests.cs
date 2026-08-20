@@ -46,7 +46,7 @@ public class PersonaStoreTests
         await _personaStore.SaveAsync(persona);
 
         _storeMock.Verify(store => store.Save(persona
-                                            , persona.Id.ToString()
+                                            , null
                                             , persona.Id.ToString())
                         , Times.Once);
     }
@@ -60,7 +60,7 @@ public class PersonaStoreTests
     {
         var personaId = Guid.NewGuid();
 
-        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), personaId.ToString()))
+        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), null))
                   .Returns((CanonicalPersona?)null);
 
         var result = await _personaStore.GetAsync(personaId);
@@ -74,7 +74,7 @@ public class PersonaStoreTests
         var personaId = Guid.NewGuid();
         var deleted   = new CanonicalPersona { Id = personaId, IsDeleted = true };
 
-        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), personaId.ToString()))
+        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), null))
                   .Returns(deleted);
 
         var result = await _personaStore.GetAsync(personaId);
@@ -88,7 +88,7 @@ public class PersonaStoreTests
         var personaId = Guid.NewGuid();
         var persona   = new CanonicalPersona { Id = personaId, Name = "Sarah", IsDeleted = false };
 
-        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), personaId.ToString()))
+        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), null))
                   .Returns(persona);
 
         var result = await _personaStore.GetAsync(personaId);
@@ -107,14 +107,14 @@ public class PersonaStoreTests
         var personaId = Guid.NewGuid();
         var persona   = new CanonicalPersona { Id = personaId, IsDeleted = false };
 
-        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), personaId.ToString()))
+        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), null))
                   .Returns(persona);
 
         await _personaStore.SoftDeleteAsync(personaId);
 
         _storeMock.Verify(store => store.Save(
                               It.Is<CanonicalPersona>(savedPersona => savedPersona.IsDeleted && savedPersona.DeletedUtc.HasValue)
-                            , personaId.ToString()
+                            , null
                             , personaId.ToString())
                         , Times.Once);
     }
@@ -124,7 +124,7 @@ public class PersonaStoreTests
     {
         var personaId = Guid.NewGuid();
 
-        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), personaId.ToString()))
+        _storeMock.Setup(store => store.Get<CanonicalPersona>(personaId.ToString(), null))
                   .Returns((CanonicalPersona?)null);
 
         await _personaStore.SoftDeleteAsync(personaId);

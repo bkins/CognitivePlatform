@@ -15,6 +15,147 @@
 
 <MudGrid Spacing="4">
 
+    @* ── All System Tests (Full CP Universe) ───────────────────────────────── *@
+    @{
+        var allTestsState = TerminalService.Get("test-all-system-tests");
+        var allTestsLines = allTestsState.Snapshot();
+        int allTestsPassed = allTestsLines.Count(l => l.Kind == TerminalLineKind.Pass);
+        int allTestsFailed = allTestsLines.Count(l => l.Kind == TerminalLineKind.Fail);
+    }
+    <MudItem xs="12">
+        <MudPaper Elevation="3" Class="pa-4" Style="border: 1px solid #336699; background: #1a2233;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.FactCheck" Size="Size.Large" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h5" Style="font-weight: bold; color: #64b5f6;">All System Tests — Full CP Universe</MudText>
+                    <MudText Typo="Typo.caption" Style="color: #90caf9;">Runs every test across all 11 repositories: Unit, Controller Integration, E2E NL Flows, API Probes, UI Smoke, and System Invariant Audit.</MudText>
+                </div>
+                <MudSpacer />
+                @if (allTestsState.IsRunning)
+                {
+                    <MudChip T="string"
+                             Color="Color.Warning"
+                             Icon="@Icons.Material.Filled.RunCircle"
+                             Size="Size.Medium">
+                        @(allTestsState.ElapsedDisplay.Length > 0 ? allTestsState.ElapsedDisplay : "Running Universe Suite…")
+                    </MudChip>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               Size="Size.Medium"
+                               StartIcon="@Icons.Material.Filled.Stop"
+                               OnClick="@AbortAllSystemTests">
+                        Abort
+                    </MudButton>
+                }
+                else if (allTestsState.ExitCode.HasValue)
+                {
+                    @if (allTestsState.ExitCode == 0)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Success"
+                                 Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Medium">
+                            Exit 0 — All Passed
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Icon="@Icons.Material.Filled.Error"
+                                 Size="Size.Medium">
+                            Exit @allTestsState.ExitCode — Failures Found
+                        </MudChip>
+                    }
+                }
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Medium"
+                           StartIcon="@Icons.Material.Filled.PlayCircleFilled"
+                           Disabled="@allTestsState.IsRunning"
+                           OnClick="@RunAllSystemTestsAsync">
+                    Run All Tests
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ClearAll"
+                           Disabled="@allTestsState.IsRunning"
+                           OnClick="@ClearAllSystemTests">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(allTestsLines.Length == 0)"
+                           OnClick="@(() => CopyTerminalAsync("test-all-system-tests"))">
+                    Copy Log
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.ContentCopy"
+                           Disabled="@(allTestsLines.Length == 0)"
+                           OnClick="@(() => CopyFailuresSummaryAsync("test-all-system-tests"))">
+                    Copy Failures
+                </MudButton>
+            </MudStack>
+
+            @if (allTestsState.Error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-2">
+                    Failed to execute universe tests: @allTestsState.Error
+                </MudAlert>
+            }
+
+            <TerminalOutput Terminal="@allTestsState"
+                            Height="400px"
+                            Placeholder="Click 'Run All Tests' to execute the complete universe test suite across all 11 repositories…"
+                            ContainerId="all-system-tests-terminal-container"
+                            EndElementId="all-system-tests-terminal-end"
+                            OnScreenshotClicked="@ShowScreenshot" />
+
+            @if (!allTestsState.IsRunning && allTestsState.ExitCode.HasValue && (allTestsPassed + allTestsFailed) > 0)
+            {
+                <MudPaper Elevation="0"
+                          Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
+                    <span style="color:@(allTestsFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
+                        @allTestsPassed / @(allTestsPassed + allTestsFailed) passed
+                    </span>
+                    @if (allTestsFailed > 0)
+                    {
+                        <span style="color:#ff6b6b;margin-left:12px">@allTestsFailed failed</span>
+                    }
+                </MudPaper>
+
+                var failedUniverseList = ParseFailedTests(allTestsLines, "All System Tests");
+                @if (failedUniverseList.Count > 0)
+                {
+                    <MudExpansionPanels Class="mt-3">
+                        <MudExpansionPanel Title="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
+                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
+                                @foreach (var test in failedUniverseList)
+                                {
+                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
+                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
+                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
+                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
+                                            @if (test.Output.Count > 5)
+                                            {
+                                                <span>...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+            }
+        </MudPaper>
+    </MudItem>
+
     @* ── Android ──────────────────────────────────────────────────────────── *@
     @{
         var androidState = TerminalService.Get("test-android");
@@ -717,16 +858,17 @@
 
     private void OnTerminalChanged(string id)
     {
-        if (id is not ("test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests" or "test-system-audit")) return;
+        if (id is not ("test-all-system-tests" or "test-android" or "test-windows" or "test-cognitive-api" or "test-unit-tests" or "test-system-audit")) return;
         try
         {
             var containerId = id switch
             {
-                "test-android"       => "android-terminal-container",
-                "test-windows"       => "windows-terminal-container",
-                "test-cognitive-api" => "cognitive-terminal-container",
-                "test-unit-tests"    => "unit-tests-terminal-container",
-                "test-system-audit"  => "system-audit-terminal-container",
+                "test-all-system-tests" => "all-system-tests-terminal-container",
+                "test-android"          => "android-terminal-container",
+                "test-windows"          => "windows-terminal-container",
+                "test-cognitive-api"    => "cognitive-terminal-container",
+                "test-unit-tests"       => "unit-tests-terminal-container",
+                "test-system-audit"     => "system-audit-terminal-container",
                 _ => ""
             };
             _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(containerId); });
@@ -1130,6 +1272,291 @@
     private void AbortSystemAudit() => TerminalService.Abort("test-system-audit");
     private void ClearSystemAudit() => TerminalService.Clear("test-system-audit");
 
+    // ── All System Tests execution (Full CP Universe) ─────────────────────────────
+
+    private async Task RunAllSystemTestsAsync()
+    {
+        var allTestsState = TerminalService.Get("test-all-system-tests");
+        if (allTestsState.IsRunning) return;
+
+        TerminalService.Clear("test-all-system-tests");
+        TerminalService.MarkRunning("test-all-system-tests", true);
+
+        try
+        {
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine("           CP UNIVERSE — ALL SYSTEM TESTS EXECUTION               ", TerminalLineKind.PassSummary));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"Started at: {DateTime.Now:yyyy-MM-dd HH:mm:ss}"));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+            int overallExitCode = 0;
+
+            await using var api = new ApiLifecycle(TerminalService, "test-all-system-tests");
+            await api.StartIfNeededAsync();
+
+            // ── Phase 1: All Coded Unit, Integration, & Endpoint Tests ───
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine(">>> PHASE 1: Unit & Integration Coded Test Suites", TerminalLineKind.PassSummary));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+            var testProjects = DetectAllTestProjects();
+
+            foreach (var project in testProjects)
+            {
+                var projectName = Path.GetFileNameWithoutExtension(project);
+                var workingDir = Path.GetDirectoryName(project) ?? @"C:\Users\benho\source\repos";
+
+                // Build
+                var buildStartInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet",
+                    Arguments              = $"build \"{project}\"",
+                    WorkingDirectory       = workingDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo);
+                if (buildExitCode is null)
+                {
+                    overallExitCode = -1;
+                    break;
+                }
+                if (buildExitCode != 0)
+                {
+                    overallExitCode = buildExitCode.Value;
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"Build failed for {projectName}. Skipping tests.", TerminalLineKind.Error));
+                    continue;
+                }
+
+                // Run Tests
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"=== Running tests for: {projectName} ===", TerminalLineKind.Normal));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+                var dotnetArgs = $"test \"{project}\" --no-build --logger \"console;verbosity=normal\"";
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"$ dotnet {dotnetArgs}"));
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet",
+                    Arguments              = dotnetArgs,
+                    WorkingDirectory       = workingDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine);
+                if (exitCode is null)
+                {
+                    overallExitCode = -1;
+                    break;
+                }
+                if (exitCode != 0)
+                {
+                    overallExitCode = exitCode.Value;
+                }
+            }
+
+            if (overallExitCode != -1)
+            {
+                // ── Phase 2: Windows UI Smoke Tests ───────────────────────
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(">>> PHASE 2: Windows UI Smoke Tests (FlaUI / UIA3)", TerminalLineKind.PassSummary));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+                var winWorkingDir = @"C:\Users\benho\source\repos\CP\ValidationPlatform";
+                var winDotnetArgs = "run --project src/ValidationPlatform.Runner/ValidationPlatform.Runner.csproj -- laasmoke";
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"$ dotnet {winDotnetArgs}"));
+
+                var winStartInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet",
+                    Arguments              = winDotnetArgs,
+                    WorkingDirectory       = winWorkingDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine);
+                if (winExitCode is null)
+                {
+                    overallExitCode = -1;
+                }
+                else if (winExitCode != 0)
+                {
+                    overallExitCode = winExitCode.Value;
+                }
+            }
+
+            if (overallExitCode != -1)
+            {
+                // ── Phase 3: Android UI Smoke Tests (Conditional) ─────────
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(">>> PHASE 3: Android UI Smoke Tests (UIAutomator)", TerminalLineKind.PassSummary));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+                var deviceLines = new List<string>();
+                var adbStart = new ProcessStartInfo
+                {
+                    FileName               = "adb",
+                    Arguments              = "devices",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                var adbExitCode = await TerminalService.RunProcessAsync(
+                    "test-all-system-tests",
+                    adbStart,
+                    (text, isError) =>
+                    {
+                        if (!isError) deviceLines.Add(text);
+                        return new TerminalLine(text, isError ? TerminalLineKind.Error : TerminalLineKind.Normal);
+                    });
+
+                var hasDevice = deviceLines.Skip(1).Any(line => !string.IsNullOrWhiteSpace(line));
+                if (hasDevice)
+                {
+                    var scriptPath = Path.Combine(LaaRepoDir, @"Tests\LAA.SmokeTests.Android\SmokeTest-Android.ps1");
+                    var psArgs = $@"-NonInteractive -ExecutionPolicy Bypass -File ""{scriptPath}""";
+                    var testStart = new ProcessStartInfo
+                    {
+                        FileName               = PwshExe,
+                        Arguments              = psArgs,
+                        WorkingDirectory       = LaaRepoDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                        CreateNoWindow         = true
+                    };
+                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine);
+                    if (androidExitCode is null)
+                    {
+                        overallExitCode = -1;
+                    }
+                    else if (androidExitCode != 0)
+                    {
+                        overallExitCode = androidExitCode.Value;
+                    }
+                }
+                else
+                {
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine("[INFO] No Android device attached. Android UI Smoke tests skipped.", TerminalLineKind.Normal));
+                }
+            }
+
+            if (overallExitCode != -1)
+            {
+                // ── Phase 4: System Invariant & Architecture Audit ────────
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(">>> PHASE 4: System Invariant & Architecture Audit", TerminalLineKind.PassSummary));
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+                var auditWorkingDir = @"C:\Users\benho\source\Antigravity.general";
+                var auditPsArgs = "-NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\benho\\source\\Antigravity.general\\Run-SystemAudit.ps1\"";
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"$ powershell.exe {auditPsArgs}"));
+
+                var auditStartInfo = new ProcessStartInfo
+                {
+                    FileName               = "powershell.exe",
+                    Arguments              = auditPsArgs,
+                    WorkingDirectory       = auditWorkingDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                var auditExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", auditStartInfo, ClassifyLine);
+                if (auditExitCode is null)
+                {
+                    overallExitCode = -1;
+                }
+                else if (auditExitCode != 0)
+                {
+                    overallExitCode = auditExitCode.Value;
+                }
+            }
+
+            TerminalService.SetExitCode("test-all-system-tests", overallExitCode == -1 ? null : overallExitCode);
+
+            var snapshot = allTestsState.Snapshot();
+            int totalPassed = snapshot.Count(l => l.Kind == TerminalLineKind.Pass);
+            int totalFailed = snapshot.Count(l => l.Kind == TerminalLineKind.Fail);
+
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"  Grand Total Across Entire CP Universe: {totalPassed} Passed, {totalFailed} Failed (Total {totalPassed + totalFailed})", totalFailed == 0 ? TerminalLineKind.PassSummary : TerminalLineKind.FailSummary));
+            TerminalService.AppendLine("test-all-system-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
+
+            // Generate report
+            try
+            {
+                var failedTests = ParseFailedTests(snapshot, "All System Tests");
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("# CP Universe All System Tests Report");
+                sb.AppendLine();
+                sb.AppendLine($"**Generated on:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"**Total Failures:** {failedTests.Count}");
+                sb.AppendLine($"**Total Passed:** {totalPassed}");
+                sb.AppendLine();
+
+                if (failedTests.Count == 0)
+                {
+                    sb.AppendLine("🎉 All tests across the entire CP Universe passed successfully!");
+                }
+                else
+                {
+                    var grouped = failedTests.GroupBy(t => t.Project);
+                    foreach (var group in grouped)
+                    {
+                        sb.AppendLine($"## Project / Suite: {group.Key}");
+                        sb.AppendLine();
+
+                        foreach (var test in group)
+                        {
+                            sb.AppendLine($"### ❌ {test.TestName}");
+                            sb.AppendLine("```");
+                            foreach (var line in test.Output)
+                            {
+                                sb.AppendLine(line);
+                            }
+                            sb.AppendLine("```");
+                            sb.AppendLine();
+                        }
+                    }
+                }
+
+                var reportPath = @"C:\Users\benho\source\repos\CognitivePlatform\.agents\artifacts\all_system_tests_report.md";
+                var reportDir = Path.GetDirectoryName(reportPath);
+                if (reportDir != null && !Directory.Exists(reportDir))
+                {
+                    Directory.CreateDirectory(reportDir);
+                }
+                File.WriteAllText(reportPath, sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"[Failed to write all system tests report: {ex.Message}]", TerminalLineKind.Error));
+            }
+        }
+        finally
+        {
+            TerminalService.MarkRunning("test-all-system-tests", false);
+        }
+    }
+
+    private void AbortAllSystemTests() => TerminalService.Abort("test-all-system-tests");
+    private void ClearAllSystemTests() => TerminalService.Clear("test-all-system-tests");
+
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private static TerminalLine ClassifyLine(string text, bool isError)
@@ -1204,11 +1631,13 @@
         var state = TerminalService.Get(id);
         var suiteTitle = id switch
         {
-            "test-android"       => "Android Smoke Tests",
-            "test-windows"       => "Windows Smoke Tests",
-            "test-cognitive-api" => "Cognitive API Validation",
-            "test-unit-tests"    => "Unit Tests",
-            _                    => id
+            "test-all-system-tests" => "All System Tests",
+            "test-android"          => "Android Smoke Tests",
+            "test-windows"          => "Windows Smoke Tests",
+            "test-cognitive-api"    => "Cognitive API Validation",
+            "test-unit-tests"       => "Unit Tests",
+            "test-system-audit"     => "System Invariant & Architecture Audit",
+            _                       => id
         };
 
         var failedTests = ParseFailedTests(state.Snapshot(), suiteTitle);
@@ -1358,6 +1787,95 @@
 
         if (filename.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
             filename.Contains("Tests", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(csprojPath);
+            if (content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("nunit", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore read errors
+        }
+
+        return false;
+    }
+
+    private IReadOnlyList<string> DetectAllTestProjects()
+    {
+        var reposRoot = Configuration["SystemPaths:ReposRoot"] ?? @"C:\Users\benho\source\repos";
+        var roots = new[]
+        {
+            Path.Combine(reposRoot, "CognitivePlatform"),
+            Path.Combine(reposRoot, "LocalAIAssistant"),
+            Path.Combine(reposRoot, "CP.Shared.Primitives"),
+            Path.Combine(reposRoot, "CP.Client.Core"),
+            Path.Combine(reposRoot, "ConsoleUtilities"),
+            Path.Combine(reposRoot, "ConfigurationDiagnostics"),
+            Path.Combine(reposRoot, "WatchList"),
+            Path.Combine(reposRoot, "Coco.API"),
+            Path.Combine(reposRoot, "Coco.Web"),
+            Path.Combine(reposRoot, "Coco.Contracts"),
+            Path.Combine(reposRoot, "CP", "ValidationPlatform"),
+            Path.Combine(reposRoot, "CP", "CP.Workbench")
+        };
+
+        var projects = new List<string>();
+
+        foreach (var root in roots)
+        {
+            if (!Directory.Exists(root)) continue;
+
+            try
+            {
+                var files = Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
+                        file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+                    {
+                        continue;
+                    }
+
+                    if (IsAllTestProject(file))
+                    {
+                        projects.Add(file);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error scanning root {root}: {ex.Message}");
+            }
+        }
+
+        return projects.Distinct().ToList();
+    }
+
+    private static bool IsAllTestProject(string csprojPath)
+    {
+        var filename = Path.GetFileNameWithoutExtension(csprojPath);
+
+        // Exclude runner/setup/seeder projects and UI smoke projects (handled in separate phases)
+        if (filename.Contains("DemoSetup", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("Seeder", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (filename.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
+            filename.EndsWith("Test", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains(".Tests.", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

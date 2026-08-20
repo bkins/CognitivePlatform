@@ -122,18 +122,18 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task AddAttachmentAsync_SavesRecordWithPartitionKey()
     {
-        string? savedPartitionKey = null;
+        string? savedPartitionKey = "not-null";
         _fileStorageMock.Setup(fs => fs.EnsureDirectory(It.IsAny<string>()));
         _fileStorageMock.Setup(fs => fs.WriteAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
                         .Returns(Task.CompletedTask);
-        _storeMock.Setup(store => store.Save(It.IsAny<MediaAttachment>(), It.IsAny<string>(), It.IsAny<string>()))
+        _storeMock.Setup(store => store.Save(It.IsAny<MediaAttachment>(), It.IsAny<string?>(), It.IsAny<string>()))
                   .Callback((MediaAttachment attachment, string? partitionKey, string? id) => savedPartitionKey = partitionKey)
                   .ReturnsAsync("id");
 
         await using var stream = new MemoryStream();
         await _service.AddAttachmentAsync("Task", "t1", "a.txt", "text/plain", stream, 0);
 
-        Assert.Equal("Task/t1", savedPartitionKey);
+        Assert.Null(savedPartitionKey);
     }
 
     // -----------------------------------------------------------------------
@@ -148,7 +148,7 @@ public class MediaAttachmentServiceTests
                            new() { Id = "a1", OwnerType = "JournalEntry", OwnerId = "e1", FileName = "img.jpg" , ContentType = "image/jpeg", StoragePath = "/tmp/img.jpg"  }
                          , new() { Id = "a2", OwnerType = "JournalEntry", OwnerId = "e1", FileName = "doc.pdf" , ContentType = "application/pdf", StoragePath = "/tmp/doc.pdf" }
                        };
-        _storeMock.Setup(store => store.List<MediaAttachment>("JournalEntry/e1", null, null))
+        _storeMock.Setup(store => store.List<MediaAttachment>(null, null, null))
                   .Returns(expected);
 
         var result = await _service.GetAttachmentsAsync("JournalEntry", "e1");
@@ -159,7 +159,7 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task GetAttachmentsAsync_ReturnsEmpty_WhenNoneExist()
     {
-        _storeMock.Setup(store => store.List<MediaAttachment>("JournalEntry/e99", null, null))
+        _storeMock.Setup(store => store.List<MediaAttachment>(null, null, null))
                   .Returns(new List<MediaAttachment>());
 
         var result = await _service.GetAttachmentsAsync("JournalEntry", "e99");
@@ -314,7 +314,7 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task GetAttachmentCountAsync_ReturnsCountFromStore()
     {
-        _storeMock.Setup(store => store.List<MediaAttachment>("JournalEntry/e1", null, null))
+        _storeMock.Setup(store => store.List<MediaAttachment>(null, null, null))
                   .Returns(new List<MediaAttachment>
                            {
                                new() { Id = "a1", OwnerType = "JournalEntry", OwnerId = "e1", FileName = "x.jpg", ContentType = "image/jpeg", StoragePath = "/tmp/x.jpg" }
@@ -329,7 +329,7 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task GetAttachmentCountAsync_ReturnsZero_WhenNoAttachments()
     {
-        _storeMock.Setup(store => store.List<MediaAttachment>("JournalEntry/none", null, null))
+        _storeMock.Setup(store => store.List<MediaAttachment>(null, null, null))
                   .Returns(new List<MediaAttachment>());
 
         var count = await _service.GetAttachmentCountAsync("JournalEntry", "none");
