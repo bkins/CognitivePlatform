@@ -1,10 +1,10 @@
-﻿using CognitivePlatform.Api.Domains.System;
+using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Models.SystemInfo;
 
-public record StartupSummary
+public sealed record StartupSummary
 {
     public required IReadOnlyList<string> Urls                    { get; init; }
     public required SystemEnvironmentInfo EnvInfo                 { get; init; }

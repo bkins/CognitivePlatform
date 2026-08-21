@@ -31,11 +31,12 @@ public sealed class PersistentConversationTelemetrySinkTests : IDisposable
         _streamMock  = new Mock<ITelemetryStreamService>();
 
         _sink = new PersistentConversationTelemetrySink(
-            new ConsoleTelemetrySink(NullLogger<ConsoleTelemetrySink>.Instance, new TelemetryContext { SessionId = "test-session" })
+            new ConsoleTelemetrySink()
           , _objectStore
           , _streamMock.Object
           , NullLogger<PersistentConversationTelemetrySink>.Instance);
     }
+
 
     [Fact]
     public async Task Track_ConversationCompletedEvent_PersistsRecordAndPublishes()

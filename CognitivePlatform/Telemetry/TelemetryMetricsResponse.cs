@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Telemetry;
 
-public class TelemetryMetricsResponse
+public sealed class TelemetryMetricsResponse
 {
     public string   OperationName     { get; set; } = string.Empty;
     public int      Count             { get; set; }

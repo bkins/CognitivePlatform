@@ -19,19 +19,17 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// <summary>
 /// 
 /// </summary>
-public class TaskKnowledgeSource : IKnowledgeSource
+public sealed class TaskKnowledgeSource : IKnowledgeSource
 {
-    private readonly ITaskService _taskService;
     private readonly IObjectStore _objectStore;
 
     public KnowledgeKind Kind => KnowledgeKind.Task;
 
-    public TaskKnowledgeSource (ITaskService taskService
-                              , IObjectStore objectStore)
+    public TaskKnowledgeSource (IObjectStore objectStore)
     {
-        _taskService = taskService;
         _objectStore = objectStore;
     }
+
 
     public IEnumerable<KnowledgeItemDto> GetKnowledgeItems (KnowledgeQuery    query
                                                            , CancellationToken ct)

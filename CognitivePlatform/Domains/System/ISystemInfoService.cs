@@ -13,6 +13,4 @@ public interface ISystemInfoService
     RuntimeInfo GetRuntimeInfo();
 
     string? GetConfigurationValue(string key);
-
-    //public ProcessInfo GetProcessInfo();
-}
+}

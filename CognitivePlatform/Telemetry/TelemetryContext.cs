@@ -2,7 +2,7 @@ using CognitivePlatform.Api.Telemetry.Events;
 
 namespace CognitivePlatform.Api.Telemetry;
 
-public class TelemetryContext
+public sealed class TelemetryContext
 {
     public required string SessionId { get; set; }
     public          int    Sequence  { get; private set; } = 0;

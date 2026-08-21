@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.BrainDump;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -9,7 +9,7 @@ using CognitivePlatform.Api.Registry.Domains;
 namespace CognitivePlatform.Api.Domains.Search;
 
 [Domain(typeof(SemanticSearchDomain))]
-public class SemanticSearchActions
+public sealed class SemanticSearchActions
 {
     private const int    SnippetLength = 150;
     private const int    DefaultTopK   = 5;
@@ -97,7 +97,9 @@ public class SemanticSearchActions
         string query )
     {
         if (!_embeddingService.IsAvailable)
+        {
             return UnavailableMessage();
+        }
 
         try
         {
@@ -136,21 +138,29 @@ public class SemanticSearchActions
         string referenceId )
     {
         if (!_embeddingService.IsAvailable)
+        {
             return UnavailableMessage();
+        }
 
         if (domain.HasNoValue())
+        {
             return "Please specify a domain (e.g. 'journal', 'task', 'daily').";
+        }
 
         if (referenceId.HasNoValue())
+        {
             return "Please specify the ID of the item to find similar content for.";
+        }
 
         try
         {
             var source = await _vectorStore.GetByReferenceAsync(domain, referenceId);
 
             if (source is null)
+            {
                 return $"No indexed content found for {domain} entry '{ResolveReferenceLabel(domain, referenceId)}'. "
                      + "The item may not have been embedded yet — try again in a moment.";
+            }
 
             var results = await _vectorStore.SearchAsync(source.Embedding, topK: DefaultTopK + 1, domain: domain);
 
@@ -160,7 +170,9 @@ public class SemanticSearchActions
                            .ToList();
 
             if (filtered.Count == 0)
+            {
                 return $"No similar {domain} entries found for '{ResolveReferenceLabel(domain, referenceId)}'.";
+            }
 
             var sb = new StringBuilder();
             sb.AppendLine($"Items in {domain} similar to '{ResolveReferenceLabel(domain, referenceId)}':");
@@ -206,10 +218,15 @@ public class SemanticSearchActions
         string query )
     {
         if (!_embeddingService.IsAvailable)
+        {
             return UnavailableMessage();
+        }
 
         if (domain.HasNoValue())
+        {
             return "Please specify a domain (e.g. 'journal', 'task', 'daily').";
+        }
+
 
         try
         {
@@ -259,12 +276,10 @@ public class SemanticSearchActions
     private static string Snippet(string text)
         => text.Length <= SnippetLength ? text : text[..SnippetLength] + "…";
 
-    private static string ShortId(string referenceId)
-        => referenceId.Length > 8 ? referenceId[..8] + "…" : referenceId;
-
     private static string UnavailableMessage()
         => "Semantic search isn't available yet — make sure Ollama is running with the nomic-embed-text model.";
 
     private static string EmbeddingErrorMessage()
         => "Semantic search encountered an error. Make sure Ollama is running with the nomic-embed-text model.";
 }
+

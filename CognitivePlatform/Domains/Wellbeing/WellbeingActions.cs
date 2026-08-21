@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.Registry.Domains;
@@ -7,7 +7,7 @@ using CognitivePlatform.Api.Wellbeing;
 namespace CognitivePlatform.Api.Domains.Wellbeing;
 
 [Domain(typeof(WellbeingDomain))]
-public class WellbeingActions
+public sealed class WellbeingActions
 {
     private readonly IWellbeingPatternService _patternService;
 

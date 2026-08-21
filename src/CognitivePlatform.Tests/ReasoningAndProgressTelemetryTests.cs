@@ -63,8 +63,8 @@ public sealed class ReasoningAndProgressTelemetryTests
     {
         var streamMock = new Mock<ITelemetryStreamService>();
         var storeMock  = new Mock<IObjectStore>();
-        var context    = new TelemetryContext { SessionId = "test-session" };
-        var console    = new ConsoleTelemetrySink(NullLogger<ConsoleTelemetrySink>.Instance, context);
+        var console    = new ConsoleTelemetrySink();
+
 
         var sink = new PersistentConversationTelemetrySink(
             console

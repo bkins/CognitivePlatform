@@ -29,15 +29,4 @@ public interface IConversationOrchestrator
                                         , bool?             succeeded  = null
                                         , bool              recordTurn = true
                                         , CancellationToken ct         = default );
-}
-
-/// <summary>
-/// Simple Phase-1 result container.
-/// Future phases will expand this significantly.
-/// </summary>
-public class OrchestratorResult
-{
-    public string?         InterpreterDebugOutput { get; init; }
-    public ActionMetadata? SelectedAction         { get; init; }
-    public string?         ExecutionResult        { get; init; }
-}
+}

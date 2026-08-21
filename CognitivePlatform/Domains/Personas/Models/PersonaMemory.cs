@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Domains.Personas.Models;
 
-public class PersonaMemory
+public sealed class PersonaMemory
 {
     public Guid         Id                      { get; set; }
     public Guid         PersonaId               { get; set; }

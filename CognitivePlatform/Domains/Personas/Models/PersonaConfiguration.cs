@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Domains.Personas.Models;
 
-public class PersonaConfiguration
+public sealed class PersonaConfiguration
 {
     public float ImmersionLevel               { get; set; } = 0.68f;
     public float UncertaintyVisibility        { get; set; } = 0.62f;

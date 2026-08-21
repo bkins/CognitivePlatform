@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using CognitivePlatform.Api.Audit;
 using CognitivePlatform.Api.COCE;
 using CognitivePlatform.Api.Conversation;
@@ -8,7 +8,7 @@ using CognitivePlatform.Api.Telemetry.Events;
 
 namespace CognitivePlatform.Api.Execution;
 
-public class ExecutionEngine : IExecutionEngine
+public sealed class ExecutionEngine : IExecutionEngine
 {
     private readonly ITelemetrySink   _telemetry;
     private readonly TelemetryContext _telemetryContext;

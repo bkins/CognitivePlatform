@@ -1,4 +1,4 @@
-﻿using CognitivePlatform.Api.Integrations.Embeddings;
+using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Services;
 
 namespace CognitivePlatform.Api.Startup;
@@ -17,9 +17,14 @@ public static class EmbeddingServiceCollectionExtensions
 
         var embeddingBaseUrl = embeddingSection.GetValue<string>(nameof(EmbeddingSettings.OllamaBaseUrl)) ?? string.Empty;
         if (embeddingBaseUrl.HasValue())
+        {
             services.AddSingleton<IEmbeddingService, OllamaEmbeddingService>();
+        }
         else
+        {
             services.AddSingleton<IEmbeddingService, DisconnectedEmbeddingService>();
+        }
+
 
         services.AddHostedService<EmbeddingBackfillService>();
 

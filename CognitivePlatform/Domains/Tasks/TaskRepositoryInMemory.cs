@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
-public class TaskRepositoryInMemory
+public sealed class TaskRepositoryInMemory
 {
     private static readonly ConcurrentDictionary<string, TaskItem> _store = new(StringComparer.OrdinalIgnoreCase);
 
@@ -16,7 +16,11 @@ public class TaskRepositoryInMemory
 
     public TaskItem? GetById(string id)
     {
-        if (id.HasNoValue()) return null;
+        if (id.HasNoValue())
+        {
+            return null;
+        }
+
 
         return _store.TryGetValue(id, out var task)
                        ? task

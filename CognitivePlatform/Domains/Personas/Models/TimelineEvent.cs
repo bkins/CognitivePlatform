@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Domains.Personas.Models;
 
-public class TimelineEvent
+public sealed class TimelineEvent
 {
     public Guid    Id              { get; set; }
     public string  EventDate       { get; set; } = string.Empty;

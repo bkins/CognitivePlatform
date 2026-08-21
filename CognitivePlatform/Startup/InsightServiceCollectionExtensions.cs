@@ -37,14 +37,19 @@ public static class InsightServiceCollectionExtensions
         // Enforce the 72-hour repeat window for the Habit category (stress-pattern coaching
         // provider) unless the operator has explicitly configured a different window in appsettings.
         if (!insightPolicy.CategoryRepeatWindows.ContainsKey(InsightCategory.Habit))
+        {
             insightPolicy.CategoryRepeatWindows[InsightCategory.Habit] = TimeSpan.FromHours(72);
+        }
 
         // Enforce the 72-hour repeat window for the Health category (health correlation
         // provider) unless the operator has explicitly configured a different window.
         if (!insightPolicy.CategoryRepeatWindows.ContainsKey(InsightCategory.Health))
+        {
             insightPolicy.CategoryRepeatWindows[InsightCategory.Health] = TimeSpan.FromHours(72);
+        }
 
         services.AddSingleton(insightPolicy);
+
         services.AddScoped<INotificationEngine, NotificationEngine>();
 
         return services;

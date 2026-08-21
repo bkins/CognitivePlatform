@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CognitivePlatform.Api.Domains.System;
 using CognitivePlatform.Api.Models.SystemInfo;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -27,7 +27,10 @@ public sealed class StartupInvariantGuard
                       .ToUpperInvariant();
 
         if (envName != "PROD")
+        {
             return;
+        }
+
 
         var info = _system.GetEnvironment();
 

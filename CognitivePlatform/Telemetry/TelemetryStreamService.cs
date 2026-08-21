@@ -5,12 +5,6 @@ using CognitivePlatform.Api.Telemetry.Events;
 
 namespace CognitivePlatform.Api.Telemetry;
 
-public interface ITelemetryStreamService
-{
-    void Publish(TelemetryEvent telemetryEvent);
-    IAsyncEnumerable<TelemetryEvent> SubscribeAsync(CancellationToken cancellationToken);
-}
-
 public sealed class TelemetryStreamService : ITelemetryStreamService
 {
     private readonly ConcurrentDictionary<Guid, Channel<TelemetryEvent>> _subscribers = new();

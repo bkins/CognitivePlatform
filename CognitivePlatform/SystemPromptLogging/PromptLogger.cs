@@ -35,11 +35,17 @@ public sealed class PromptLogger : IPromptLogger
                   , string? provider = null
                   , string? model = null)
     {
-        if (prompt.HasNoValue()) return;
+        if (prompt.HasNoValue())
+        {
+            return;
+        }
 
         lock (_lock)
         {
-            if (_options.Enabled.Not()) return;
+            if (_options.Enabled.Not())
+            {
+                return;
+            }
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff");
             var safeDesc  = Sanitize(description);
@@ -111,7 +117,10 @@ public sealed class PromptLogger : IPromptLogger
                                                      .OrderByDescending(fileInfo => fileInfo.CreationTimeUtc)
                                                      .ToList();
 
-        if (indexFiles.Count <= _options.MaxFiles) return;
+        if (indexFiles.Count <= _options.MaxFiles)
+        {
+            return;
+        }
 
         var toDelete = indexFiles.Skip(_options.MaxFiles);
 
@@ -124,11 +133,17 @@ public sealed class PromptLogger : IPromptLogger
 
                 indexFile.Delete();
 
-                if (entry is null) continue;
+                if (entry is null)
+                {
+                    continue;
+                }
                 
                 var promptPath = Path.Combine(_promptDir, entry.PromptFile);
 
-                if (File.Exists(promptPath)) File.Delete(promptPath);
+                if (File.Exists(promptPath))
+                {
+                    File.Delete(promptPath);
+                }
             }
             catch { /* Never crash logging */}
         }
@@ -136,7 +151,10 @@ public sealed class PromptLogger : IPromptLogger
 
     private static string Sanitize(string input)
     {
-        if (input.HasNoValue()) return "prompt";
+        if (input.HasNoValue())
+        {
+            return "prompt";
+        }
 
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(input.Where(value => invalid.Contains(value).Not())
@@ -144,7 +162,10 @@ public sealed class PromptLogger : IPromptLogger
 
         cleaned = cleaned.Replace(' ', '_');
 
-        if (cleaned.Length > 40) cleaned = cleaned[..40];
+        if (cleaned.Length > 40)
+        {
+            cleaned = cleaned[..40];
+        }
 
         return cleaned;
     }

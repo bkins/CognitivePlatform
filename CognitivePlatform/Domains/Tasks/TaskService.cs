@@ -1,4 +1,4 @@
-﻿using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Integrations.Embeddings;
 using CognitivePlatform.Api.Workspace;
 using CP.Shared.Primitives.Avails.Extensions;
@@ -10,7 +10,7 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// Domain Services own meaning.
 /// KnowledgeService coordinates meaning across domains.
 /// </summary>
-public class TaskService : ITaskService
+public sealed class TaskService : ITaskService
 {
     private readonly IObjectStore          _store;
     private readonly IWorkspaceContext     _workspaceContext;
@@ -41,7 +41,9 @@ public class TaskService : ITaskService
         var now = DateTimeOffset.UtcNow;
 
         if (task.Id.HasNoValue())
+        {
             task.Id = Guid.NewGuid().ToString("N");
+        }
 
         task.CreatedAt      = now;
         task.UpdatedAt      = now;
@@ -78,7 +80,7 @@ public class TaskService : ITaskService
         return id == Guid.Empty
                        ? throw new ArgumentException("id cannot be empty.", nameof(id))
                        : _store.GetDeleted<TaskItem>(id.ToString("N")
-                                                   , partitionKey: _workspaceContext.ActivePartitionKey);
+                                                    , partitionKey: _workspaceContext.ActivePartitionKey);
     }
 
     public TaskItem? GetDeleted(string id)
@@ -112,7 +114,9 @@ public class TaskService : ITaskService
         var query = tasks.Where(taskItem => taskItem.IsDeleted.Not());
 
         if (includeCompleted.Not())
+        {
             query = query.Where(taskItem => taskItem.CompletedAt == null);
+        }
 
         return ApplyCanonicalOrder(query).ToList();
     }
@@ -131,7 +135,9 @@ public class TaskService : ITaskService
     public TaskItem? ResolveByPosition(int position)
     {
         if (position < 1)
+        {
             return null;
+        }
 
         var ordered = GetActive();
 
@@ -145,10 +151,14 @@ public class TaskService : ITaskService
         var task = Get(id);
 
         if (task == null)
+        {
             throw new KeyNotFoundException($"Task {id} not found.");
+        }
 
         if (task.CompletedAt != null)
+        {
             return task.CompletedAt;
+        }
 
         task.CompletedAt = DateTimeOffset.UtcNow;
 
@@ -175,11 +185,24 @@ public class TaskService : ITaskService
         var task = Get(id);
 
         if (task is null || task.IsDeleted)
+        {
             return null;
+        }
 
-        if (priority    is not null) task.Priority    = priority.Value;
-        if (isImportant is not null) task.IsImportant = isImportant.Value;
-        if (isUrgent    is not null) task.IsUrgent    = isUrgent.Value;
+        if (priority is not null)
+        {
+            task.Priority = priority.Value;
+        }
+
+        if (isImportant is not null)
+        {
+            task.IsImportant = isImportant.Value;
+        }
+
+        if (isUrgent is not null)
+        {
+            task.IsUrgent = isUrgent.Value;
+        }
 
         SaveInternal(task);
 
@@ -191,7 +214,9 @@ public class TaskService : ITaskService
         var existing = Get(task.Id);
 
         if (existing is null || existing.IsDeleted)
+        {
             throw new KeyNotFoundException($"Task '{task.Id}' not found.");
+        }
 
         SaveInternal(task);
 
@@ -205,7 +230,9 @@ public class TaskService : ITaskService
         var task = Get(id);
 
         if (task is null || task.IsDeleted)
+        {
             return null;
+        }
 
         task.DueDate = dueDate;
 
@@ -219,7 +246,9 @@ public class TaskService : ITaskService
         var task = Get(id);
 
         if (task == null)
+        {
             return;
+        }
 
         task.IsDeleted  = true;
         task.DeletedUtc = DateTimeOffset.UtcNow;
@@ -239,7 +268,10 @@ public class TaskService : ITaskService
         var task = Get(id);
 
         if (task == null)
+        {
             return;
+        }
+
 
         task.IsDeleted  = false;
         task.DeletedUtc = null;
@@ -260,7 +292,10 @@ public class TaskService : ITaskService
 
     private void QueueEmbedding(string domain, string referenceId, string text)
     {
-        if (!_embeddingService.IsAvailable || text.HasNoValue()) return;
+        if (!_embeddingService.IsAvailable || text.HasNoValue())
+        {
+            return;
+        }
 
         _ = Task.Run(async () =>
         {
@@ -268,7 +303,10 @@ public class TaskService : ITaskService
             {
                 var embedding = await _embeddingService.EmbedAsync(text);
 
-                if (embedding.Length == 0) return;
+                if (embedding.Length == 0)
+                {
+                    return;
+                }
 
                 await _vectorStore.SaveAsync(new VectorEntry
                                              {
@@ -378,10 +416,14 @@ public class TaskService : ITaskService
     private static Guid ParseId(string id)
     {
         if (id.HasNoValue())
+        {
             throw new ArgumentException("id cannot be null or empty.", nameof(id));
+        }
 
         if (Guid.TryParseExact(id, "N", out var guidN))
+        {
             return guidN;
+        }
 
         return Guid.Parse(id);
     }
@@ -395,3 +437,4 @@ public class TaskService : ITaskService
                   , id:           task.Id);
     }
 }
+

@@ -1,4 +1,4 @@
-﻿using CognitivePlatform.Api.Execution;
+using CognitivePlatform.Api.Execution;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry.Domains;
 
@@ -92,8 +92,11 @@ public sealed class ActionDefinitionBuilder
     public ActionMetadata Build()
     {
         if (_name.HasNoValue())
+        {
             throw new InvalidOperationException(
                 "Action name must be set via Named() before calling Build().");
+        }
+
 
         return new ActionMetadata
                {

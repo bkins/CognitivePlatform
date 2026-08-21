@@ -47,23 +47,32 @@ public sealed class CapabilityRegistry : ICapabilityRegistry
                                   || !_capabilityActions.TryAdd(actionDefinition.Name, actionDefinition);
 
             if (nameAlreadyExists)
+            {
                 throw new InvalidOperationException(
                     $"An action named '{actionDefinition.Name}' is already registered.");
+            }
         }
 
         var domainName = capability.Domain.Name;
         var summaries  = _domainSummaries.GetOrAdd(domainName, _ => new List<string>());
 
         lock (summaries)
+        {
             summaries.Add(capability.PromptSummary);
+        }
     }
 
     public string? GetDomainPromptSummary(string domainName)
     {
         if (!_domainSummaries.TryGetValue(domainName, out var summaries))
+        {
             return null;
+        }
 
         lock (summaries)
+        {
             return summaries.Count == 0 ? null : string.Join("; ", summaries);
+        }
     }
 }
+

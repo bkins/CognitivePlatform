@@ -7,7 +7,7 @@ using CognitivePlatform.Api.Registry.Domains;
 namespace CognitivePlatform.Api.Domains.System;
 
 [Domain(typeof(SystemDomain))]
-public class SystemActions
+public sealed class SystemActions
 {
     private readonly ISystemInfoService _systemInfoService;
 

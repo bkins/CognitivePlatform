@@ -1,4 +1,4 @@
-﻿namespace CognitivePlatform.Api.Registry;
+namespace CognitivePlatform.Api.Registry;
 
 public static class ParameterValidator
 {
@@ -15,7 +15,9 @@ public static class ParameterValidator
             if (rule == Required)
             {
                 if (rawValue.HasNoValue())
+                {
                     yield return $"{parameterDefinition.DisplayName} is required.";
+                }
             }
 
             if (rule.StartsWithIgnoreCase($"{MaxLength}:"))
@@ -30,14 +32,19 @@ public static class ParameterValidator
             if (rule == Integer)
             {
                 if (rawValue is not null && !int.TryParse(rawValue, out _))
+                {
                     yield return $"{parameterDefinition.DisplayName} must be a valid integer.";
+                }
             }
 
             if (rule == Date)
             {
                 if (rawValue is not null && !DateOnly.TryParse(rawValue, out _))
+                {
                     yield return $"{parameterDefinition.DisplayName} must be a valid date.";
+                }
             }
         }
     }
 }
+

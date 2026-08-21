@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Domains.Activity;
 using CognitivePlatform.Api.Domains.Journal.Interfaces;
@@ -25,7 +25,7 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// - The early-return "no data" guard only checks tasks + journal; calendar is supplementary.
 /// </summary>
 [Domain(typeof(TasksDomain))]
-public class TaskReasonerActions
+public sealed class TaskReasonerActions
 {
     private readonly ITaskService       _taskService;
     private readonly IJournalService    _journalService;

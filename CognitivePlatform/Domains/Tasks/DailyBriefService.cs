@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Insights;
 using CognitivePlatform.Api.Insights.Models;
@@ -23,7 +23,7 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// Sections 1 and 2 are always present. A task can appear in both (e.g. an Important+Urgent
 /// task due today), which is a useful signal to the user.
 /// </summary>
-public class DailyBriefService : IDailyBriefService
+public sealed class DailyBriefService : IDailyBriefService
 {
     private readonly ITaskService                _taskService;
     private readonly ICalendarProvider?          _calendar;

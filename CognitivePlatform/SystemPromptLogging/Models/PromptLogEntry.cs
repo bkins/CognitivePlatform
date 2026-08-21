@@ -8,5 +8,5 @@ public sealed class PromptLogEntry
     public string? Model       { get; init; } = string.Empty;
     public string? Provider    { get; init; } = string.Empty;
     
-    public int?    TokenCount { get; init; }
+    public int?    TokenCount  { get; init; }
 }

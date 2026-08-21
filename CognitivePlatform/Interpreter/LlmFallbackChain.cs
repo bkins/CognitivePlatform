@@ -9,7 +9,7 @@ namespace CognitivePlatform.Api.Interpreter;
 /// Defines the ordered chain of providers/models tried on a 429 or rate-limit
 /// response from the primary provider.
 /// </summary>
-public class LlmFallbackSettings
+public sealed class LlmFallbackSettings
 {
     public bool                   Enabled      { get; set; }
     public string                 FallbackNote { get; set; } = "Response generated via fallback model — primary provider rate-limited.";
@@ -20,7 +20,7 @@ public class LlmFallbackSettings
 /// A single entry in the fallback chain. When <see cref="HealthCheckUrl"/> is
 /// set the endpoint is probed before including this entry in the viable list.
 /// </summary>
-public class LlmFallbackEntry
+public sealed class LlmFallbackEntry
 {
     public string  Provider                  { get; set; } = string.Empty;
     public string  Model                     { get; set; } = string.Empty;

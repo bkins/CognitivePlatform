@@ -65,16 +65,5 @@ public static class HeavyStartupExtensions
                                    ? $"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)"
                                    : "Probe skipped");
     }
-    
-    private static async Task StartProbeAsync(LlmStartupProbe probe, List<string> models, ILogger log)
-    {
-        var swProbe = new Stopwatch();
-        swProbe.Start();
-
-        await probe.RunAsync(models, CancellationToken.None);
-
-        log.LogInformation(probe.ShouldProbeModels
-                                   ? $"Ready (Probe completed in {swProbe.Elapsed.Seconds} seconds.)"
-                                   : "Probe skipped");
-    }
 }
+

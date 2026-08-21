@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Audit;
@@ -28,7 +28,7 @@ using CognitivePlatform.Api.Domains.Secrets;
 
 namespace CognitivePlatform.Api.Orchestrator;
 
-public class ConversationOrchestrator : IConversationOrchestrator
+public sealed class ConversationOrchestrator : IConversationOrchestrator
 {
     private readonly ICapabilityRegistry      _registry;
     private readonly IInterpreter             _interpreter;   // Keyed: LlmInterpreter
@@ -164,7 +164,11 @@ public class ConversationOrchestrator : IConversationOrchestrator
                                , Input     = request.Input ?? "No input provided."
                          }));
 
-        if (request?.Input is null) throw new ArgumentNullException(nameof(request));
+        if (request?.Input is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
         
         if (request.ClientRequestId.HasValue)
         {

@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Domains.Personas.Models;
 
-public class PersonaStabilityScore
+public sealed class PersonaStabilityScore
 {
     public Guid     PersonaId              { get; set; }
     public string   ConversationId         { get; set; } = string.Empty;

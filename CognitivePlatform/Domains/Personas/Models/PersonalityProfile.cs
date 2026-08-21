@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Domains.Personas.Models;
 
-public class PersonalityProfile
+public sealed class PersonalityProfile
 {
     public string       Name          { get; set; } = string.Empty;
     public string       Description   { get; set; } = string.Empty;

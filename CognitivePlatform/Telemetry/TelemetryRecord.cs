@@ -5,7 +5,7 @@ namespace CognitivePlatform.Api.Telemetry;
 /// Partition key: <c>"telemetry"</c>.
 /// Stored per-conversation-turn so metrics can be aggregated over any window.
 /// </summary>
-public class TelemetryRecord
+public sealed class TelemetryRecord
 {
     public string   Id            { get; set; } = Guid.NewGuid().ToString("N");
     public string   EventName     { get; set; } = string.Empty;

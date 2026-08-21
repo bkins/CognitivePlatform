@@ -1,6 +1,6 @@
 namespace CognitivePlatform.Api.Registry;
 
-public class ParameterDefinition(string name, string displayName, Type type)
+public sealed class ParameterDefinition(string name, string displayName, Type type)
 {
     public string Name        { get; init; } = name;
     public string DisplayName { get; init; } = $"{displayName} ({name})";

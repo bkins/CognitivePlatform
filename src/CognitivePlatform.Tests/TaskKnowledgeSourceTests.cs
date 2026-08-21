@@ -7,14 +7,14 @@ namespace CognitivePlatform.Tests;
 
 public class TaskKnowledgeSourceTests
 {
-    private readonly Mock<ITaskService> _taskServiceMock = new();
-    private readonly Mock<IObjectStore> _storeMock       = new();
+    private readonly Mock<IObjectStore>  _storeMock = new();
     private readonly TaskKnowledgeSource _source;
 
     public TaskKnowledgeSourceTests()
     {
-        _source = new TaskKnowledgeSource(_taskServiceMock.Object, _storeMock.Object);
+        _source = new TaskKnowledgeSource(_storeMock.Object);
     }
+
 
     // ================================================================
     // STATUS MAPPING
