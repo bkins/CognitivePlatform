@@ -74,7 +74,8 @@ public class ConversationController : ControllerBase
         {
             new ConversationTurnDto { Role = "user",      Content = turn.UserMessage,      Timestamp = turn.OccurredAt }
           , new ConversationTurnDto { Role = "assistant", Content = turn.AssistantMessage, Timestamp = turn.OccurredAt }
-        });
+        })
+        .TakeLast(last);
 
         return Ok(dtos);
     }
