@@ -17,7 +17,7 @@
                    Disabled="@_loading" />
 </MudStack>
 
-@if (_loading 
+@if (_loading
   && _actions.Count == 0)
 {
     <MudProgressLinear Indeterminate="true" />
@@ -99,23 +99,23 @@ else if (_error is not null)
                         <MudText Typo="Typo.h5" Style="flex:1">@_selected.Name</MudText>
                         @if (_selected.IsFastPath)
                         {
-                            <MudChip T="string" 
-                                     Color="Color.Warning" 
-                                     Size="Size.Small" 
+                            <MudChip T="string"
+                                     Color="Color.Warning"
+                                     Size="Size.Small"
                                      Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
                         }
                         @if (_selected.IsDestructive)
                         {
-                            <MudChip T="string" 
-                                     Color="Color.Error" 
-                                     Size="Size.Small" 
+                            <MudChip T="string"
+                                     Color="Color.Error"
+                                     Size="Size.Small"
                                      Icon="@Icons.Material.Filled.Warning">Destructive</MudChip>
                         }
                         @if (_selected.AllowsClarification)
                         {
-                            <MudChip T="string" 
-                                     Color="Color.Info" 
-                                     Size="Size.Small" 
+                            <MudChip T="string"
+                                     Color="Color.Info"
+                                     Size="Size.Small"
                                      Icon="@Icons.Material.Filled.HelpOutline">Clarification</MudChip>
                         }
                     </MudStack>
@@ -221,21 +221,21 @@ else if (_error is not null)
                                 <MudText Typo="Typo.subtitle2">Result</MudText>
                                 @if (_invokeResult.Success)
                                 {
-                                    <MudChip T="string" 
-                                             Color="Color.Success" 
+                                    <MudChip T="string"
+                                             Color="Color.Success"
                                              Size="Size.Small">Success</MudChip>
                                 }
                                 else
                                 {
-                                    <MudChip T="string" 
-                                             Color="Color.Error" 
+                                    <MudChip T="string"
+                                             Color="Color.Error"
                                              Size="Size.Small">Failed</MudChip>
                                 }
                                 @if (_invokeResult.WasFastPath)
                                 {
-                                    <MudChip T="string" 
-                                             Color="Color.Warning" 
-                                             Size="Size.Small" 
+                                    <MudChip T="string"
+                                             Color="Color.Warning"
+                                             Size="Size.Small"
                                              Icon="@Icons.Material.Filled.FlashOn">FastPath</MudChip>
                                 }
                             </MudStack>
@@ -268,9 +268,11 @@ else if (_error is not null)
 @code {
     private List<ActionMetadataDto> _actions  = [];
     private ActionMetadataDto?      _selected;
-    private bool                    _loading;
-    private string?                 _error;
-    private string                  _search   = string.Empty;
+
+
+    private bool    _loading;
+    private string? _error;
+    private string  _search   = string.Empty;
 
     private string          _invokeInput  = string.Empty;
     private bool            _invoking;
@@ -339,7 +341,7 @@ else if (_error is not null)
 
     private async Task InvokeAsync()
     {
-        if (_invokeInput.HasNoValue() 
+        if (_invokeInput.HasNoValue()
          || _invoking) return;
 
         _invoking     = true;

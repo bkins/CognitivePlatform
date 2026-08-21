@@ -8,4 +8,8 @@
     <RootNamespace>CognitivePlatform.DemoSetup</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="CP.Client.Core" Version="1.1.0.47" />
+  </ItemGroup>
+
 </Project>

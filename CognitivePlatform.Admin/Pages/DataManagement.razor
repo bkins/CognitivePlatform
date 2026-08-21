@@ -184,18 +184,19 @@ else if (_error is not null)
 
 @code {
     private List<KnowledgeItemAdminDto> _items  = [];
-    private bool                        _loading;
-    private string?                     _error;
+
+    private bool    _loading;
+    private string? _error;
 
     private string  _statusFilter  = "All";
     private string  _search        = string.Empty;
     private static readonly string[] _statusFilters = ["All", "Active", "Deleted", "Completed", "Archived"];
 
-    private string  _injectTitle   = string.Empty;
-    private string? _injectSummary;
-    private string  _injectKind    = "Pending";
-    private bool    _injecting;
-    private string? _injectMessage;
+    private string   _injectTitle   = string.Empty;
+    private string?  _injectSummary;
+    private string   _injectKind    = "Pending";
+    private bool     _injecting;
+    private string?  _injectMessage;
     private Severity _injectSeverity = Severity.Success;
 
     private IEnumerable<KnowledgeItemAdminDto> FilteredItems

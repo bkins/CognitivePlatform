@@ -1322,7 +1322,6 @@
             int overallExitCode = 0;
 
             await using var api = new ApiLifecycle(TerminalService, "test-all-system-tests");
-            await api.StartIfNeededAsync();
 
             // ── Phase 1: All Coded Unit, Integration, & Endpoint Tests ───
             TerminalService.AppendLine("test-all-system-tests", new TerminalLine(">>> PHASE 1: Unit & Integration Coded Test Suites", TerminalLineKind.PassSummary));
@@ -1330,12 +1329,12 @@
 
             var testProjects = DetectAllTestProjects();
 
+            // 1. Build all test projects first while API is offline to prevent MSBuild file locks
             foreach (var project in testProjects)
             {
                 var projectName = Path.GetFileNameWithoutExtension(project);
                 var workingDir = Path.GetDirectoryName(project) ?? @"C:\Users\benho\source\repos";
 
-                // Build
                 var buildStartInfo = new ProcessStartInfo
                 {
                     FileName               = "dotnet",
@@ -1347,7 +1346,7 @@
                     CreateNoWindow         = true
                 };
 
-                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(2));
+                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(4));
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1359,35 +1358,47 @@
                     TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"Build failed for {projectName}. Skipping tests.", TerminalLineKind.Error));
                     continue;
                 }
+            }
 
-                // Run Tests
-                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
-                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"=== Running tests for: {projectName} ===", TerminalLineKind.Normal));
-                TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+            if (overallExitCode != -1)
+            {
+                // 2. Start background API instance now that all builds are complete
+                await api.StartIfNeededAsync();
 
-                var dotnetArgs = $"test \"{project}\" --no-build --logger \"console;verbosity=normal\"";
-                TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"$ dotnet {dotnetArgs}"));
-
-                var startInfo = new ProcessStartInfo
+                // 3. Execute tests across all test suites
+                foreach (var project in testProjects)
                 {
-                    FileName               = "dotnet",
-                    Arguments              = dotnetArgs,
-                    WorkingDirectory       = workingDir,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true
-                };
+                    var projectName = Path.GetFileNameWithoutExtension(project);
+                    var workingDir = Path.GetDirectoryName(project) ?? @"C:\Users\benho\source\repos";
 
-                var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2.5));
-                if (exitCode is null)
-                {
-                    overallExitCode = -1;
-                    break;
-                }
-                if (exitCode != 0)
-                {
-                    overallExitCode = exitCode.Value;
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"=== Running tests for: {projectName} ===", TerminalLineKind.Normal));
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine(string.Empty));
+
+                    var dotnetArgs = $"test \"{project}\" --no-build --logger \"console;verbosity=normal\"";
+                    TerminalService.AppendLine("test-all-system-tests", new TerminalLine($"$ dotnet {dotnetArgs}"));
+
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName               = "dotnet",
+                        Arguments              = dotnetArgs,
+                        WorkingDirectory       = workingDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                        CreateNoWindow         = true
+                    };
+
+                    var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(4));
+                    if (exitCode is null)
+                    {
+                        overallExitCode = -1;
+                        break;
+                    }
+                    if (exitCode != 0)
+                    {
+                        overallExitCode = exitCode.Value;
+                    }
                 }
             }
 
@@ -1905,6 +1916,10 @@
             filename.Contains("Seeder", StringComparison.OrdinalIgnoreCase) ||
             filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase) ||
             filename.Contains("UI.Windows", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains(".Maui", StringComparison.OrdinalIgnoreCase) ||
+            filename.Contains(".Admin", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("CognitivePlatform.Api", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("Coco.API", StringComparison.OrdinalIgnoreCase) ||
             filename.Equals("ValidationPlatform.Tests.WatchList", StringComparison.OrdinalIgnoreCase) ||
             filename.Equals("ValidationPlatform.Tests.InsAndOuts", StringComparison.OrdinalIgnoreCase) ||
             filename.Equals("ValidationPlatform.Tests.LaaSmoke", StringComparison.OrdinalIgnoreCase))

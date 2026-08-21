@@ -72,8 +72,9 @@ public sealed class DemoReset
         var convCount = 0;
 
         var allConvIds = new List<string>(manifest.ConversationIds);
-        if (manifest.SeedSessionId.HasValue())
-            allConvIds.Add(manifest.SeedSessionId);
+
+        if (manifest.SeedSessionId.HasValue()) allConvIds.Add(manifest.SeedSessionId);
+
         allConvIds.Add(_resetSession);
 
         foreach (var id in allConvIds)
