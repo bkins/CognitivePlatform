@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Startup;
 using Microsoft.Extensions.Options;
@@ -37,6 +37,7 @@ public partial class Program
 
         builder.Services.AddWorkspaceServices();
         builder.Services.AddCoreServices();
+        builder.Services.AddOpenTelemetryServices(builder.Configuration, builder.Environment);
 
         builder.Services.AddDataPersistenceLayer(builder.Environment);
 
