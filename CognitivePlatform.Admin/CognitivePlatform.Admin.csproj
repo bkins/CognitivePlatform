@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CP.Client.Core" Version="1.1.0.47" />
-    <PackageReference Include="CP.Shared.Primitives" Version="1.1.0.47" />
+    <ProjectReference Include="..\..\CP.Shared.Primitives\CP.Shared.Primitives\CP.Shared.Primitives.csproj" />
+    <ProjectReference Include="..\..\CP.Client.Core\CP.Client.Core\CP.Client.Core.csproj" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
     <!-- Markdown rendering in Journal Admin (revision text view) -->
