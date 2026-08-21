@@ -12,6 +12,10 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
     private readonly ConcurrentDictionary<string, Context> _contexts = new();
     private readonly Timer _tick;
 
+    private readonly ConcurrentDictionary<string, long> _lastNotifiedTicks = new();
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _throttleCts = new();
+    private const int ThrottleIntervalMs = 100;
+
     public event Action<string>? StateChanged;
 
     public TerminalStateService()
@@ -30,6 +34,33 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
         }
     }
 
+    private void RequestThrottledStateChanged(string terminalId)
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (!_lastNotifiedTicks.TryGetValue(terminalId, out var lastTicks) ||
+            Stopwatch.GetElapsedTime(lastTicks, now).TotalMilliseconds >= ThrottleIntervalMs)
+        {
+            _lastNotifiedTicks[terminalId] = now;
+            StateChanged?.Invoke(terminalId);
+            return;
+        }
+
+        if (!_throttleCts.ContainsKey(terminalId))
+        {
+            var cts = new CancellationTokenSource();
+            if (_throttleCts.TryAdd(terminalId, cts))
+            {
+                _ = Task.Delay(ThrottleIntervalMs, cts.Token).ContinueWith(_ =>
+                {
+                    _throttleCts.TryRemove(terminalId, out var removed);
+                    removed?.Dispose();
+                    _lastNotifiedTicks[terminalId] = Stopwatch.GetTimestamp();
+                    StateChanged?.Invoke(terminalId);
+                }, TaskScheduler.Default);
+            }
+        }
+    }
+
     public TerminalState Get(string terminalId)
         => _contexts.GetOrAdd(terminalId, _ => new Context(new TerminalState(), null, null)).State;
 
@@ -40,6 +71,15 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
                                            , CancellationToken                 ct       = default)
     {
         KillExisting(terminalId);
+
+        if (startInfo.RedirectStandardOutput && startInfo.StandardOutputEncoding is null)
+        {
+            startInfo.StandardOutputEncoding = System.Text.Encoding.UTF8;
+        }
+        if (startInfo.RedirectStandardError && startInfo.StandardErrorEncoding is null)
+        {
+            startInfo.StandardErrorEncoding = System.Text.Encoding.UTF8;
+        }
 
         var state            = Get(terminalId);
         var effectiveTimeout = timeout ?? TimeSpan.FromMinutes(4);
@@ -56,7 +96,7 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
                 ? classify(e.Data, false)
                 : new TerminalLine(e.Data, TerminalLineKind.Normal);
             state.Append(line);
-            StateChanged?.Invoke(terminalId);
+            RequestThrottledStateChanged(terminalId);
         };
 
         process.ErrorDataReceived += (_, e) =>
@@ -66,7 +106,7 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
                 ? classify(e.Data, true)
                 : new TerminalLine(e.Data, TerminalLineKind.Error);
             state.Append(line);
-            StateChanged?.Invoke(terminalId);
+            RequestThrottledStateChanged(terminalId);
         };
 
         int? exitCode = null;
@@ -106,6 +146,7 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
             process.Dispose();
             cts.Dispose();
             _contexts[terminalId] = new Context(state, null, null);
+            StateChanged?.Invoke(terminalId);
         }
 
         return exitCode;

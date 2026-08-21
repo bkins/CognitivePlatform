@@ -17,9 +17,10 @@
         @foreach (var line in _lines)
         {
             var color = LineColor(line.Kind);
+            var sanitized = SanitizeText(line.Text);
 
             <div style="color:@color;white-space:pre-wrap;line-height:1.55;">
-                @if (OnScreenshotClicked.HasDelegate && TryExtractPngPath(line.Text, out var path))
+                @if (OnScreenshotClicked.HasDelegate && TryExtractPngPath(sanitized, out var path))
                 {
                     <span>Captured failure screenshot: </span>
                     <a href="javascript:void(0)"
@@ -30,7 +31,7 @@
                 }
                 else
                 {
-                    @line.Text
+                    @((MarkupString)FormatLineHtml(sanitized, color))
                 }
             </div>
         }
@@ -111,5 +112,59 @@
 
         path = text[(idx + marker.Length)..].Trim();
         return path.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string SanitizeText(string text)
+    {
+        if (text.Contains('Γ'))
+        {
+            text = text.Replace("ΓöÇ", "─")
+                       .Replace("Γöé", "│")
+                       .Replace("Γöî", "┌")
+                       .Replace("ΓöÉ", "┐")
+                       .Replace("Γöö", "└")
+                       .Replace("Γöÿ", "┘")
+                       .Replace("Γö£", "├")
+                       .Replace("Γöñ", "┤")
+                       .Replace("Γö¼", "┬")
+                       .Replace("Γö┤", "┴")
+                       .Replace("Γö╝", "┼");
+        }
+        return text;
+    }
+
+    private static string FormatLineHtml(string text, string defaultColor)
+    {
+        var encoded = System.Net.WebUtility.HtmlEncode(text);
+
+        // Highlight box drawing divider lines
+        if (encoded.Contains('─') || encoded.Contains('═'))
+        {
+            return $"<span style=\"color:#505050\">{encoded}</span>";
+        }
+
+        // Highlight [TELE] telemetry markers
+        if (encoded.Contains("[TELE]"))
+        {
+            encoded = encoded.Replace("[TELE]", "<span style=\"color:#c586c0;font-weight:600\">[TELE]</span>");
+        }
+
+        // Highlight markdown header lines (# Header)
+        var trimmed = encoded.TrimStart();
+        if (trimmed.StartsWith("# ") || trimmed.StartsWith("## ") || trimmed.StartsWith("### "))
+        {
+            return $"<span style=\"color:#64b5f6;font-weight:bold\">{encoded}</span>";
+        }
+
+        // Format **Key**: value markdown bold patterns
+        if (encoded.Contains("**"))
+        {
+            encoded = System.Text.RegularExpressions.Regex.Replace(
+                encoded,
+                @"\*\*([^*]+)\*\*",
+                "<b style=\"color:#9cdcfe\">$1</b>");
+        }
+
+        return encoded;
     }
 }

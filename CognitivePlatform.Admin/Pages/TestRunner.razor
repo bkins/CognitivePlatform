@@ -1605,8 +1605,28 @@
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
+    private static string SanitizeTerminalText(string text)
+    {
+        if (text.Contains('Γ'))
+        {
+            text = text.Replace("ΓöÇ", "─")
+                       .Replace("Γöé", "│")
+                       .Replace("Γöî", "┌")
+                       .Replace("ΓöÉ", "┐")
+                       .Replace("Γöö", "└")
+                       .Replace("Γöÿ", "┘")
+                       .Replace("Γö£", "├")
+                       .Replace("Γöñ", "┤")
+                       .Replace("Γö¼", "┬")
+                       .Replace("Γö┤", "┴")
+                       .Replace("Γö╝", "┼");
+        }
+        return text;
+    }
+
     private static TerminalLine ClassifyLine(string text, bool isError)
     {
+        text = SanitizeTerminalText(text);
         var trimmed = text.TrimStart();
 
         if (trimmed.StartsWith("Passed ", StringComparison.OrdinalIgnoreCase)
