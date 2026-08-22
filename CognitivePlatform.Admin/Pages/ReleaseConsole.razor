@@ -796,6 +796,41 @@
 
     private void RegenerateVersion() => _version = GenerateVersion();
 
+    private string GetCurrentVersion()
+    {
+        var path = Configuration["SystemPaths:VersionJsonPath"] ?? @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
+        if (!System.IO.File.Exists(path))
+        {
+            return "1.0.0.1";
+        }
+
+        try
+        {
+            var json = System.IO.File.ReadAllText(path);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            int majorVal = root.GetProperty("Major").GetInt32();
+            int minorVal = root.GetProperty("Minor").GetInt32();
+            int patchVal = root.GetProperty("Patch").GetInt32();
+            int buildVal = root.GetProperty("Build").GetInt32();
+            return $"{majorVal}.{minorVal}.{patchVal}.{buildVal}";
+        }
+        catch
+        {
+            return "1.0.0.1";
+        }
+    }
+
+    private void EnsureVersion()
+    {
+        if (string.IsNullOrWhiteSpace(_version))
+        {
+            _version = GetCurrentVersion();
+        }
+    }
+
+    private string EffectiveVersion => string.IsNullOrWhiteSpace(_version) ? GetCurrentVersion() : _version;
+
     private static Color EnvButtonColor(string env) => env switch
     {
         "PROD" => Color.Error
@@ -816,6 +851,7 @@
     {
         TerminalService.StateChanged += OnTerminalChanged;
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
+        EnsureVersion();
         LoadArtifacts();
         LoadDeploymentState();
         LoadAuditLog();
