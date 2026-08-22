@@ -1107,7 +1107,7 @@
                 var buildStartInfo = new ProcessStartInfo
                 {
                     FileName               = "dotnet"
-                  , Arguments              = $"build \"{project}\""
+                  , Arguments              = $"build \"{project}\" --no-dependencies"
                   , WorkingDirectory       = workingDir
                   , RedirectStandardOutput = true
                   , RedirectStandardError  = true
@@ -1338,7 +1338,7 @@
                 var buildStartInfo = new ProcessStartInfo
                 {
                     FileName               = "dotnet",
-                    Arguments              = $"build \"{project}\"",
+                    Arguments              = $"build \"{project}\" --no-dependencies",
                     WorkingDirectory       = workingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true,
