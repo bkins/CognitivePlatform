@@ -17,30 +17,6 @@
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
     <MudText Typo="Typo.h4">Release Console</MudText>
     <MudSpacer />
-    @if (_rs.IsRunning)
-    {
-        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle">
-            @(_rs.ElapsedDisplay.Length > 0 ? _rs.ElapsedDisplay : "Running…")
-        </MudChip>
-        <MudButton Variant="Variant.Outlined"
-                   Color="Color.Error"
-                   Size="Size.Small"
-                   StartIcon="@Icons.Material.Filled.Stop"
-                   OnClick="@Abort">
-            Abort
-        </MudButton>
-    }
-    else if (_rs.ExitCode.HasValue)
-    {
-        @if (_rs.ExitCode == 0)
-        {
-            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">Exit 0 — OK</MudChip>
-        }
-        else
-        {
-            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error">Exit @_rs.ExitCode — Failed</MudChip>
-        }
-    }
     <MudTooltip Text="Reload artifact store, deployment state, and audit log">
         <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                        OnClick="@ReloadPanelsAsync"
@@ -646,6 +622,35 @@
 {
     <MudAlert Severity="Severity.Error" Class="mb-2">Failed to start process: @_rs.Error</MudAlert>
 }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+    <MudText Typo="Typo.subtitle1" Style="font-weight:600">Terminal Output</MudText>
+    <MudSpacer />
+    @if (_rs.IsRunning)
+    {
+        <MudChip T="string" Color="Color.Warning" Icon="@Icons.Material.Filled.RunCircle" Size="Size.Small">
+            @(_rs.ElapsedDisplay.Length > 0 ? _rs.ElapsedDisplay : "Running…")
+        </MudChip>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Stop"
+                   OnClick="@Abort">
+            Abort
+        </MudButton>
+    }
+    else if (_rs.ExitCode.HasValue)
+    {
+        @if (_rs.ExitCode == 0)
+        {
+            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small">Exit 0 — OK</MudChip>
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Error" Size="Size.Small">Exit @_rs.ExitCode — Failed</MudChip>
+        }
+    }
+</MudStack>
 
 <TerminalOutput Terminal="@_rs"
                 Height="500px"
