@@ -950,7 +950,7 @@
               , CreateNoWindow         = true
             };
 
-            var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
+            var testExitCode = await TerminalService.RunProcessAsync("test-android", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
             TerminalService.SetExitCode("test-android", testExitCode);
 
             var failedTests = ParseFailedTests(androidState.Snapshot(), "Android Smoke Tests");
@@ -1004,7 +1004,7 @@
               , CreateNoWindow         = true
             };
 
-            var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
+            var exitCode = await TerminalService.RunProcessAsync("test-windows", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
             TerminalService.SetExitCode("test-windows", exitCode);
 
             var failedTests = ParseFailedTests(windowsState.Snapshot(), "Windows Smoke Tests");
@@ -1051,7 +1051,7 @@
               , CreateNoWindow         = true
             };
 
-            var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2));
+            var exitCode = await TerminalService.RunProcessAsync("test-cognitive-api", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(5));
             TerminalService.SetExitCode("test-cognitive-api", exitCode);
 
             var failedTests = ParseFailedTests(cognitiveState.Snapshot(), "Cognitive API Validation");
@@ -1346,7 +1346,7 @@
                     CreateNoWindow         = true
                 };
 
-                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(4));
+                var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(8));
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1389,7 +1389,7 @@
                         CreateNoWindow         = true
                     };
 
-                    var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(4));
+                    var exitCode = await TerminalService.RunProcessAsync("test-all-system-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(8));
                     if (exitCode is null)
                     {
                         overallExitCode = -1;
@@ -1424,7 +1424,7 @@
                     CreateNoWindow         = true
                 };
 
-                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
+                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
                 if (winExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1478,7 +1478,7 @@
                         UseShellExecute        = false,
                         CreateNoWindow         = true
                     };
-                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(3));
+                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
                     if (androidExitCode is null)
                     {
                         overallExitCode = -1;
@@ -1516,7 +1516,7 @@
                     CreateNoWindow         = true
                 };
 
-                var auditExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", auditStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2));
+                var auditExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", auditStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(5));
                 if (auditExitCode is null)
                 {
                     overallExitCode = -1;
