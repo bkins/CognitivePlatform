@@ -958,24 +958,26 @@
     // ── Artifact directory helpers ─────────────────────────────────────────────
     // Build outputs go here; deploy scripts source from here.
 
-    private string ApiArtifactDir    => Path.Combine(ArtifactsRoot, "API",        _version);
-    private string LaaArtifactDir    => Path.Combine(ArtifactsRoot, "Laa",        _version);
-    private string LaaWinArtifactDir => Path.Combine(ArtifactsRoot, "LaaWindows", _version);
-    private string CocoArtifactDir   => Path.Combine(ArtifactsRoot, "CocoAPI",    _version);
+    private string ApiArtifactDir    => Path.Combine(ArtifactsRoot, "API",        EffectiveVersion);
+    private string LaaArtifactDir    => Path.Combine(ArtifactsRoot, "Laa",        EffectiveVersion);
+    private string LaaWinArtifactDir => Path.Combine(ArtifactsRoot, "LaaWindows", EffectiveVersion);
+    private string CocoArtifactDir   => Path.Combine(ArtifactsRoot, "CocoAPI",    EffectiveVersion);
 
     // ── Build / Deploy ─────────────────────────────────────────────────────────
 
     private async Task BuildApiAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("API", ApiArtifactDir);
     }
 
     private async Task DeployApiAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("API", _selectedEnvironment
                                           , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
@@ -984,9 +986,10 @@
 
     private async Task BuildAndDeployApiAsync()
     {
+        EnsureVersion();
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("API", ApiArtifactDir);
@@ -998,24 +1001,27 @@
 
     private async Task BuildLaaAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactsPath ""{LaaArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
     }
 
     private async Task DeployLaaAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
     }
 
     private async Task BuildAndDeployLaaAsync()
     {
+        EnsureVersion();
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactsPath ""{LaaArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version ""{EffectiveVersion}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
@@ -1025,15 +1031,17 @@
 
     private async Task BuildLaaWindowsAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{LaaWinArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
     }
 
     private async Task DeployLaaWindowsAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactPath ""{LaaWinArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
@@ -1042,9 +1050,10 @@
 
     private async Task BuildAndDeployLaaWindowsAsync()
     {
+        EnsureVersion();
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -OutputPath ""{LaaWinArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactPath ""{LaaWinArtifactDir}""" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{LaaWinArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactPath ""{LaaWinArtifactDir}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
@@ -1056,15 +1065,17 @@
 
     private async Task BuildCocoApiAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
     }
 
     private async Task DeployCocoApiAsync()
     {
+        EnsureVersion();
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
@@ -1073,9 +1084,10 @@
 
     private async Task BuildAndDeployCocoApiAsync()
     {
+        EnsureVersion();
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
@@ -1087,13 +1099,14 @@
 
     private async Task RunPipelineAsync()
     {
+        EnsureVersion();
         await RunCoreAsync(_workingDirectory
             // API
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{ApiArtifactDir}""" )
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version {_version}" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" )
             // Coco API
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version {_version} -OutputPath ""{CocoArtifactDir}""" )
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version {_version}" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" )
             // LAA Android
             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" )
