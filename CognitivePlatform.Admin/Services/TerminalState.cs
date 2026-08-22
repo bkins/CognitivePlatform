@@ -11,6 +11,7 @@ public sealed class TerminalState
     public int?      ExitCode  { get; internal set; }
     public string?   Error     { get; internal set; }
     public DateTime? StartedAt { get; internal set; }
+    public TimeSpan? Timeout   { get; internal set; }
 
     public string ElapsedDisplay
     {
@@ -18,7 +19,16 @@ public sealed class TerminalState
         {
             if (!IsRunning || !StartedAt.HasValue) return string.Empty;
             var elapsed = DateTime.UtcNow - StartedAt.Value;
-            return $"Running {(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
+            var elapsedStr = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
+            if (Timeout.HasValue && Timeout.Value > TimeSpan.Zero)
+            {
+                var timeoutVal = Timeout.Value;
+                var timeoutStr = timeoutVal.Seconds == 0
+                                     ? $"{(int)timeoutVal.TotalMinutes}m"
+                                     : $"{timeoutVal.Minutes}m {timeoutVal.Seconds}s";
+                return $"Running {elapsedStr} / {timeoutStr}";
+            }
+            return $"Running {elapsedStr}";
         }
     }
 
@@ -39,5 +49,6 @@ public sealed class TerminalState
         ExitCode  = null;
         Error     = null;
         StartedAt = null;
+        Timeout   = null;
     }
 }

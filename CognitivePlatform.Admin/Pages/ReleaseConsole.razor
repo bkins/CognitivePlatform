@@ -1650,6 +1650,9 @@
     private Task RunInGitRepoAsync(string exe, string args)
         => RunCoreAsync(_gitDirectory, ( exe, args ));
 
+    private TimeSpan ReleaseTimeout => TimeSpan.FromMinutes(
+        double.TryParse(Configuration["ReleaseConsole:TimeoutMinutes"], out var mins) && mins > 0 ? mins : 15);
+
     // ── Core execution ─────────────────────────────────────────────────────────
 
     private async Task RunCoreAsync(string workDir, params (string Exe, string Args)[] steps)
@@ -1658,7 +1661,7 @@
         if (state.IsRunning) return;
 
         TerminalService.Clear("release");
-        TerminalService.MarkRunning("release", true);
+        TerminalService.MarkRunning("release", true, ReleaseTimeout);
 
         var effectiveWorkDir = workDir;
         if ( ! string.IsNullOrWhiteSpace(effectiveWorkDir)
@@ -1694,7 +1697,8 @@
                                                                    , (text, isError) => new TerminalLine(text
                                                                                                        , isError
                                                                                                              ? TerminalLineKind.Error
-                                                                                                             : TerminalLineKind.Normal));
+                                                                                                             : TerminalLineKind.Normal)
+                                                                   , timeout: ReleaseTimeout);
 
                 if (lastExitCode is not 0) break;
 

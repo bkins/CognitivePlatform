@@ -82,7 +82,8 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
         }
 
         var state            = Get(terminalId);
-        var effectiveTimeout = timeout ?? TimeSpan.FromMinutes(4);
+        var effectiveTimeout = timeout ?? TimeSpan.FromMinutes(15);
+        state.Timeout        = effectiveTimeout;
         using var timeoutCts = new CancellationTokenSource(effectiveTimeout);
         var cts              = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
         var process          = new Process { StartInfo = startInfo };
@@ -158,11 +159,12 @@ public sealed class TerminalStateService : ITerminalStateService, IDisposable
         StateChanged?.Invoke(terminalId);
     }
 
-    public void MarkRunning(string terminalId, bool running)
+    public void MarkRunning(string terminalId, bool running, TimeSpan? timeout = null)
     {
         var state = Get(terminalId);
         state.IsRunning = running;
         state.StartedAt = running ? DateTime.UtcNow : null;
+        state.Timeout   = running ? timeout ?? state.Timeout : null;
         StateChanged?.Invoke(terminalId);
     }
 

@@ -14,7 +14,7 @@ public interface ITerminalStateService
       , CancellationToken                  ct       = default);
 
     void AppendLine(string terminalId, TerminalLine line);
-    void MarkRunning(string terminalId, bool running);
+    void MarkRunning(string terminalId, bool running, TimeSpan? timeout = null);
     void SetExitCode(string terminalId, int? exitCode);
     void SetError(string terminalId, string? error);
     void Abort(string terminalId);
