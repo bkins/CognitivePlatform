@@ -1119,6 +1119,22 @@
 
                 // Run build without custom ClassifyLine to keep MSBuild output separate from test logs
                 var buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", buildStartInfo);
+                if (buildExitCode != 0 && buildExitCode != null)
+                {
+                    await Task.Delay(1000);
+                    var retryStartInfo = new ProcessStartInfo
+                    {
+                        FileName               = "dotnet"
+                      , Arguments              = $"build \"{project}\" --no-dependencies"
+                      , WorkingDirectory       = workingDir
+                      , RedirectStandardOutput = true
+                      , RedirectStandardError  = true
+                      , UseShellExecute        = false
+                      , CreateNoWindow         = true
+                    };
+                    buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", retryStartInfo);
+                }
+
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1351,6 +1367,22 @@
                 };
 
                 var buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", buildStartInfo, timeout: TimeSpan.FromMinutes(8));
+                if (buildExitCode != 0 && buildExitCode != null)
+                {
+                    await Task.Delay(1000);
+                    var retryStartInfo = new ProcessStartInfo
+                    {
+                        FileName               = "dotnet",
+                        Arguments              = $"build \"{project}\" --no-dependencies",
+                        WorkingDirectory       = workingDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                        CreateNoWindow         = true
+                    };
+                    buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", retryStartInfo, timeout: TimeSpan.FromMinutes(8));
+                }
+
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -2237,16 +2269,28 @@
                 "ValidationPlatform.Runner"
             };
 
+            bool killedAny = false;
             foreach (var name in processNames)
             {
                 try
                 {
                     foreach (var proc in Process.GetProcessesByName(name))
                     {
-                        try { proc.Kill(entireProcessTree: true); } catch { }
+                        try
+                        {
+                            proc.Kill(entireProcessTree: true);
+                            proc.WaitForExit(3000);
+                            killedAny = true;
+                        }
+                        catch { }
                     }
                 }
                 catch { }
+            }
+
+            if (killedAny)
+            {
+                Thread.Sleep(1000);
             }
         }
 
