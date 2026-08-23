@@ -1094,6 +1094,8 @@
             await using var api = new ApiLifecycle(TerminalService, "test-unit-tests");
             bool apiStarted = false;
 
+            ApiLifecycle.KillOrphanedProcesses();
+
             foreach (var project in testProjects)
             {
                 var projectName = Path.GetFileNameWithoutExtension(project);
@@ -1107,7 +1109,7 @@
                 var buildStartInfo = new ProcessStartInfo
                 {
                     FileName               = "dotnet"
-                  , Arguments              = $"build \"{project}\" --no-dependencies"
+                  , Arguments              = $"build \"{project}\""
                   , WorkingDirectory       = workingDir
                   , RedirectStandardOutput = true
                   , RedirectStandardError  = true
@@ -1329,6 +1331,8 @@
 
             var testProjects = DetectAllTestProjects();
 
+            ApiLifecycle.KillOrphanedProcesses();
+
             // 1. Build all test projects first while API is offline to prevent MSBuild file locks
             foreach (var project in testProjects)
             {
@@ -1338,7 +1342,7 @@
                 var buildStartInfo = new ProcessStartInfo
                 {
                     FileName               = "dotnet",
-                    Arguments              = $"build \"{project}\" --no-dependencies",
+                    Arguments              = $"build \"{project}\"",
                     WorkingDirectory       = workingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true,
