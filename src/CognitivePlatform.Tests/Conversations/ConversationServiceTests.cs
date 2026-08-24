@@ -161,8 +161,8 @@ public class ConversationServiceTests
         var conversationId1 = Guid.NewGuid();
         var conversationId2 = Guid.NewGuid();
 
-        var record1 = new ConversationRecord { Id = conversationId1, Title = "Sprint Planning", RecordedAtUtc = DateTimeOffset.UtcNow.AddHours(-2) };
-        var record2 = new ConversationRecord { Id = conversationId2, Title = "Budget Review", RecordedAtUtc = DateTimeOffset.UtcNow.AddHours(-1) };
+        var record1 = new ConversationRecord { Id = conversationId1, Title = "Sprint Planning", RecordedAtUtc = DateTime.UtcNow.AddHours(-2) };
+        var record2 = new ConversationRecord { Id = conversationId2, Title = "Budget Review", RecordedAtUtc = DateTime.UtcNow.AddHours(-1) };
 
         _storeMock.Setup(s => s.ListAsync<ConversationRecord>(null, null, null, default))
                   .ReturnsAsync(new List<ConversationRecord> { record1, record2 });
