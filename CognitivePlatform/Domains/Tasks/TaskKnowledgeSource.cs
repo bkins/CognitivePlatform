@@ -45,9 +45,9 @@ public sealed class TaskKnowledgeSource : IKnowledgeSource
              && task.Id != query.Id.Value.ToString("N"))
                 continue;
 
-            IEnumerable tags = task.Tags is { Count: > 0 }
-                                       ? task.Tags
-                                       : Array.Empty<string>();
+            IEnumerable<string> tags = task.Tags is { Count: > 0 }
+                                               ? task.Tags.Cast<string>()
+                                               : Array.Empty<string>();
             var item = new KnowledgeItemDto
                        {
                                Id             = Guid.Parse(task.Id)
