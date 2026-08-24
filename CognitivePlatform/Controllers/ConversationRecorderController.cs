@@ -126,4 +126,27 @@ public class ConversationRecorderController : ControllerBase
         var participants = await _conversationService.GetParticipantsAsync(id, cancellationToken);
         return Ok(participants);
     }
+
+    [HttpGet("{id:guid}/details")]
+    public async Task<ActionResult<ConversationDetails>> GetConversationDetails( [FromRoute] Guid id
+                                                                                , CancellationToken cancellationToken )
+    {
+        var details = await _conversationService.GetConversationDetailsAsync(id, cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        return Ok(details);
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<List<ConversationRecord>>> SearchConversations( [FromQuery] string? query
+                                                                                  , [FromQuery] string? participant
+                                                                                  , [FromQuery] DateTimeOffset? fromDate
+                                                                                  , [FromQuery] DateTimeOffset? toDate
+                                                                                  , CancellationToken cancellationToken )
+    {
+        var recordings = await _conversationService.SearchConversationsAsync(query, participant, fromDate, toDate, cancellationToken);
+        return Ok(recordings);
+    }
 }

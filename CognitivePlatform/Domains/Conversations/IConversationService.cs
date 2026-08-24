@@ -10,4 +10,6 @@ public interface IConversationService
     Task<Transcript> DiarizeTranscriptAsync( Guid conversationId, Stream audioStream, CancellationToken cancellationToken = default );
     Task<Transcript?> MapParticipantsAsync( Guid conversationId, Dictionary<string, string> speakerMap, CancellationToken cancellationToken = default );
     Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<ConversationDetails?> GetConversationDetailsAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<List<ConversationRecord>> SearchConversationsAsync( string? query = null, string? participantName = null, DateTimeOffset? fromDate = null, DateTimeOffset? toDate = null, CancellationToken cancellationToken = default );
 }

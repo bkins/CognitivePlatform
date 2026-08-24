@@ -130,4 +130,69 @@ public class ConversationServiceTests
         Assert.Equal("Speaker 2", result.Segments[1].SpeakerId); // Raw SpeakerId preserved
         _storeMock.Verify(s => s.Save(initialTranscript, null, $"transcript_{conversationId}"), Times.Once);
     }
+
+    [Fact]
+    public async Task GetConversationDetailsAsync_ReturnsCompleteAggregate_WhenRecordExists()
+    {
+        var conversationId = Guid.NewGuid();
+        var record       = new ConversationRecord { Id = conversationId, Title = "Architecture Meeting" };
+        var transcript   = new Transcript { ConversationId = conversationId, Segments = new List<TranscriptSegment> { new() { Text = "Discussing API" } } };
+        var participants = new List<ConversationParticipant> { new() { ConversationId = conversationId, SpeakerId = "Speaker 1", DisplayName = "Ben" } };
+
+        _storeMock.Setup(s => s.GetAsync<ConversationRecord>(conversationId.ToString(), null, default))
+                  .ReturnsAsync(record);
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync(transcript);
+        _storeMock.Setup(s => s.ListAsync<ConversationParticipant>(null, null, null, default))
+                  .ReturnsAsync(participants);
+
+        var details = await _service.GetConversationDetailsAsync(conversationId);
+
+        Assert.NotNull(details);
+        Assert.Equal(record, details.Record);
+        Assert.Equal(transcript, details.Transcript);
+        Assert.Single(details.Participants);
+        Assert.Equal("Ben", details.Participants[0].DisplayName);
+    }
+
+    [Fact]
+    public async Task SearchConversationsAsync_FiltersByQueryAndParticipant_Correctly()
+    {
+        var conversationId1 = Guid.NewGuid();
+        var conversationId2 = Guid.NewGuid();
+
+        var record1 = new ConversationRecord { Id = conversationId1, Title = "Sprint Planning", RecordedAtUtc = DateTimeOffset.UtcNow.AddHours(-2) };
+        var record2 = new ConversationRecord { Id = conversationId2, Title = "Budget Review", RecordedAtUtc = DateTimeOffset.UtcNow.AddHours(-1) };
+
+        _storeMock.Setup(s => s.ListAsync<ConversationRecord>(null, null, null, default))
+                  .ReturnsAsync(new List<ConversationRecord> { record1, record2 });
+
+        var transcript1 = new Transcript
+        {
+            ConversationId = conversationId1
+          , Segments       = new List<TranscriptSegment> { new() { Text = "We need to plan sprint tasks", SpeakerLabel = "Ben" } }
+        };
+        var transcript2 = new Transcript
+        {
+            ConversationId = conversationId2
+          , Segments       = new List<TranscriptSegment> { new() { Text = "Reviewing expenses", SpeakerLabel = "Sarah" } }
+        };
+
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId1}", null, default)).ReturnsAsync(transcript1);
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId2}", null, default)).ReturnsAsync(transcript2);
+
+        var participants1 = new List<ConversationParticipant> { new() { ConversationId = conversationId1, SpeakerId = "Speaker 1", DisplayName = "Ben" } };
+        var participants2 = new List<ConversationParticipant> { new() { ConversationId = conversationId2, SpeakerId = "Speaker 1", DisplayName = "Sarah" } };
+
+        _storeMock.Setup(s => s.ListAsync<ConversationParticipant>(null, null, null, default))
+                  .ReturnsAsync(new List<ConversationParticipant> { participants1[0], participants2[0] });
+
+        var queryResults = await _service.SearchConversationsAsync(query: "sprint");
+        Assert.Single(queryResults);
+        Assert.Equal(conversationId1, queryResults[0].Id);
+
+        var participantResults = await _service.SearchConversationsAsync(participantName: "Sarah");
+        Assert.Single(participantResults);
+        Assert.Equal(conversationId2, participantResults[0].Id);
+    }
 }

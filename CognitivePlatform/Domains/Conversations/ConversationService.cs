@@ -173,4 +173,76 @@ public class ConversationService : IConversationService
         return items.Where(participant => participant.ConversationId == conversationId)
                     .ToList();
     }
+
+    public async Task<ConversationDetails?> GetConversationDetailsAsync( Guid conversationId, CancellationToken cancellationToken = default )
+    {
+        var record = await GetRecordingAsync(conversationId, cancellationToken);
+        if (record == null)
+        {
+            return null;
+        }
+
+        var transcript   = await GetTranscriptAsync(conversationId, cancellationToken);
+        var participants = await GetParticipantsAsync(conversationId, cancellationToken);
+
+        return new ConversationDetails
+               {
+                   Record       = record
+                 , Transcript   = transcript
+                 , Participants = participants
+               };
+    }
+
+    public async Task<List<ConversationRecord>> SearchConversationsAsync( string? query = null
+                                                                        , string? participantName = null
+                                                                        , DateTimeOffset? fromDate = null
+                                                                        , DateTimeOffset? toDate = null
+                                                                        , CancellationToken cancellationToken = default )
+    {
+        var recordings = await ListRecordingsAsync(cancellationToken);
+
+        if (fromDate.HasValue)
+        {
+            recordings = recordings.Where(record => record.RecordedAtUtc >= fromDate.Value).ToList();
+        }
+
+        if (toDate.HasValue)
+        {
+            recordings = recordings.Where(record => record.RecordedAtUtc <= toDate.Value).ToList();
+        }
+
+        if (query.HasNoValue() && participantName.HasNoValue())
+        {
+            return recordings;
+        }
+
+        var matchingRecordings = new List<ConversationRecord>();
+
+        foreach (var record in recordings)
+        {
+            var transcript   = await GetTranscriptAsync(record.Id, cancellationToken);
+            var participants = await GetParticipantsAsync(record.Id, cancellationToken);
+
+            var matchesParticipant = participantName.HasNoValue()
+                                  || participants.Any(participant => participant.DisplayName.ContainsIgnoreCase(participantName!))
+                                  || (transcript?.Segments.Any(segment => segment.SpeakerLabel.ContainsIgnoreCase(participantName!)) ?? false);
+
+            if (!matchesParticipant)
+            {
+                continue;
+            }
+
+            var matchesQuery = query.HasNoValue()
+                            || (record.Title.HasValue() && record.Title.ContainsIgnoreCase(query!))
+                            || participants.Any(participant => participant.DisplayName.ContainsIgnoreCase(query!))
+                            || (transcript?.Segments.Any(segment => segment.Text.ContainsIgnoreCase(query!)) ?? false);
+
+            if (matchesQuery)
+            {
+                matchingRecordings.Add(record);
+            }
+        }
+
+        return matchingRecordings;
+    }
 }
