@@ -22,7 +22,7 @@ public sealed class KnowledgeItemDto
     public KnowledgeStatus Status { get; set; }
 
     // Organization
-    public IEnumerable Tags { get; init; } = Array.Empty<string>();
+    public IEnumerable<string> Tags { get; init; } = Array.Empty<string>();
 
     public bool IsEdited { get; set; }
     
