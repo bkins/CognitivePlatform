@@ -1135,6 +1135,22 @@
                     buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", retryStartInfo);
                 }
 
+                if (buildExitCode != 0 && buildExitCode != null)
+                {
+                    await Task.Delay(1000);
+                    var retry2StartInfo = new ProcessStartInfo
+                    {
+                        FileName               = "dotnet"
+                      , Arguments              = $"build \"{project}\" /p:BuildProjectReferences=false"
+                      , WorkingDirectory       = workingDir
+                      , RedirectStandardOutput = true
+                      , RedirectStandardError  = true
+                      , UseShellExecute        = false
+                      , CreateNoWindow         = true
+                    };
+                    buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", retry2StartInfo);
+                }
+
                 if (buildExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1349,7 +1365,24 @@
 
             ApiLifecycle.KillOrphanedProcesses();
 
-            // 1. Build all test projects first while API is offline to prevent MSBuild file locks
+            // 1. Build CognitivePlatform.Api first to satisfy integration test project references
+            var apiProjPath = @"C:\Users\benho\source\repos\CognitivePlatform\CognitivePlatform\CognitivePlatform.Api.csproj";
+            if (File.Exists(apiProjPath))
+            {
+                var apiBuildStartInfo = new ProcessStartInfo
+                {
+                    FileName               = "dotnet",
+                    Arguments              = $"build \"{apiProjPath}\"",
+                    WorkingDirectory       = Path.GetDirectoryName(apiProjPath) ?? @"C:\Users\benho\source\repos",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+                await TerminalService.RunProcessAsync("test-all-system-tests", apiBuildStartInfo, timeout: TimeSpan.FromMinutes(8));
+            }
+
+            // 2. Build all test projects while API is offline to prevent MSBuild file locks
             foreach (var project in testProjects)
             {
                 var projectName = Path.GetFileNameWithoutExtension(project);
@@ -1381,6 +1414,22 @@
                         CreateNoWindow         = true
                     };
                     buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", retryStartInfo, timeout: TimeSpan.FromMinutes(8));
+                }
+
+                if (buildExitCode != 0 && buildExitCode != null)
+                {
+                    await Task.Delay(1000);
+                    var retry2StartInfo = new ProcessStartInfo
+                    {
+                        FileName               = "dotnet",
+                        Arguments              = $"build \"{project}\" /p:BuildProjectReferences=false",
+                        WorkingDirectory       = workingDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError  = true,
+                        UseShellExecute        = false,
+                        CreateNoWindow         = true
+                    };
+                    buildExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", retry2StartInfo, timeout: TimeSpan.FromMinutes(8));
                 }
 
                 if (buildExitCode is null)
