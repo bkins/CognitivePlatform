@@ -8,5 +8,6 @@ public interface IConversationService
     Task<bool> DeleteRecordingAsync( Guid id, CancellationToken cancellationToken = default );
     Task<Transcript> ProcessTranscriptionAsync( Guid conversationId, Stream audioStream, string mimeType = "audio/wav", CancellationToken cancellationToken = default );
     Task<Transcript> DiarizeTranscriptAsync( Guid conversationId, Stream audioStream, CancellationToken cancellationToken = default );
-    Task<Transcript?> GetTranscriptAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<Transcript?> MapParticipantsAsync( Guid conversationId, Dictionary<string, string> speakerMap, CancellationToken cancellationToken = default );
+    Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default );
 }

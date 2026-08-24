@@ -97,4 +97,37 @@ public class ConversationServiceTests
         Assert.True(result.IsDiarized);
         _storeMock.Verify(s => s.Save(diarizedTranscript, null, $"transcript_{conversationId}"), Times.Once);
     }
+
+    [Fact]
+    public async Task MapParticipantsAsync_UpdatesSpeakerLabels_AndPersistsParticipants()
+    {
+        var conversationId = Guid.NewGuid();
+        var initialTranscript = new Transcript
+        {
+            ConversationId = conversationId
+          , Segments       = new List<TranscriptSegment>
+            {
+                new() { SpeakerId = "Speaker 1", SpeakerLabel = "Speaker 1", Text = "Hello" },
+                new() { SpeakerId = "Speaker 2", SpeakerLabel = "Speaker 2", Text = "Hi there" }
+            }
+        };
+
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync(initialTranscript);
+
+        var speakerMap = new Dictionary<string, string>
+        {
+            ["Speaker 1"] = "Ben"
+          , ["Speaker 2"] = "Sarah"
+        };
+
+        var result = await _service.MapParticipantsAsync(conversationId, speakerMap);
+
+        Assert.NotNull(result);
+        Assert.Equal("Ben", result.Segments[0].SpeakerLabel);
+        Assert.Equal("Speaker 1", result.Segments[0].SpeakerId); // Raw SpeakerId preserved
+        Assert.Equal("Sarah", result.Segments[1].SpeakerLabel);
+        Assert.Equal("Speaker 2", result.Segments[1].SpeakerId); // Raw SpeakerId preserved
+        _storeMock.Verify(s => s.Save(initialTranscript, null, $"transcript_{conversationId}"), Times.Once);
+    }
 }

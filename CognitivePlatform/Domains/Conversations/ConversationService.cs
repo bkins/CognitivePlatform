@@ -128,4 +128,49 @@ public class ConversationService : IConversationService
         }
         return transcript;
     }
+
+    public async Task<Transcript?> MapParticipantsAsync( Guid conversationId
+                                                       , Dictionary<string, string> speakerMap
+                                                       , CancellationToken cancellationToken = default )
+    {
+        var transcript = await GetTranscriptAsync(conversationId, cancellationToken);
+        if (transcript == null)
+        {
+            return null;
+        }
+
+        foreach (var segment in transcript.Segments)
+        {
+            if (segment.SpeakerId.HasValue() && speakerMap.TryGetValue(segment.SpeakerId!, out var mappedName) && mappedName.HasValue())
+            {
+                segment.SpeakerLabel = mappedName.Trim();
+            }
+            else if (segment.SpeakerLabel.HasValue() && speakerMap.TryGetValue(segment.SpeakerLabel, out var mappedByLabel) && mappedByLabel.HasValue())
+            {
+                segment.SpeakerLabel = mappedByLabel.Trim();
+            }
+        }
+
+        await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{conversationId}");
+
+        foreach (var (speakerId, displayName) in speakerMap)
+        {
+            var participant = new ConversationParticipant
+            {
+                ConversationId = conversationId
+              , SpeakerId      = speakerId
+              , DisplayName    = displayName
+            };
+            await _objectStore.Save(participant, partitionKey: null, id: $"participant_{conversationId}_{speakerId}");
+        }
+
+        return transcript;
+    }
+
+    public async Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default )
+    {
+        var items = await _objectStore.ListAsync<ConversationParticipant>(partitionKey: null, fromUtc: null, toUtc: null, cancellationToken: cancellationToken);
+        return items.Where(participant => participant.ConversationId == conversationId)
+                    .ToList();
+    }
 }

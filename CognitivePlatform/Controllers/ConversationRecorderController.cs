@@ -105,4 +105,25 @@ public class ConversationRecorderController : ControllerBase
         }
         return Ok(transcript);
     }
+
+    [HttpPost("{id:guid}/participants")]
+    public async Task<ActionResult<Transcript>> MapParticipants( [FromRoute] Guid id
+                                                                , [FromBody] Dictionary<string, string> speakerMap
+                                                                , CancellationToken cancellationToken )
+    {
+        var transcript = await _conversationService.MapParticipantsAsync(id, speakerMap, cancellationToken);
+        if (transcript is null)
+        {
+            return NotFound();
+        }
+        return Ok(transcript);
+    }
+
+    [HttpGet("{id:guid}/participants")]
+    public async Task<ActionResult<List<ConversationParticipant>>> GetParticipants( [FromRoute] Guid id
+                                                                                    , CancellationToken cancellationToken )
+    {
+        var participants = await _conversationService.GetParticipantsAsync(id, cancellationToken);
+        return Ok(participants);
+    }
 }
