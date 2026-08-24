@@ -49,6 +49,7 @@ public partial class Program
         builder.Services.AddDailyRecordServices();
         builder.Services.AddKnowledgeInboxServices();
         builder.Services.AddIdentityServices();
+        builder.Services.AddConversationServices();
 
         builder.Services.AddPersonaServices(builder.Configuration);
         builder.Services.AddPersonalityServices();
