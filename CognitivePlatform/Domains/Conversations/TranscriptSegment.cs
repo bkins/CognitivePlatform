@@ -6,6 +6,7 @@ public class TranscriptSegment
     public TimeSpan Start      { get; set; }
     public TimeSpan End        { get; set; }
     public string   Text       { get; set; } = string.Empty;
-    public string?  SpeakerId  { get; set; }
-    public double?  Confidence { get; set; }
+    public string?  SpeakerId    { get; set; }
+    public string   SpeakerLabel { get; set; } = "Speaker 1";
+    public double?  Confidence   { get; set; }
 }

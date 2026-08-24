@@ -8,16 +8,19 @@ namespace CognitivePlatform.Tests.Conversations;
 
 public class ConversationServiceTests
 {
-    private readonly Mock<IObjectStore>           _storeMock;
-    private readonly Mock<ITranscriptionService>  _transcriptionMock;
-    private readonly ConversationService         _service;
+    private readonly Mock<IObjectStore>              _storeMock;
+    private readonly Mock<ITranscriptionService>     _transcriptionMock;
+    private readonly Mock<ISpeakerDiarizationService> _diarizationMock;
+    private readonly ConversationService            _service;
 
     public ConversationServiceTests()
     {
         _storeMock          = new Mock<IObjectStore>();
         _transcriptionMock  = new Mock<ITranscriptionService>();
+        _diarizationMock    = new Mock<ISpeakerDiarizationService>();
         _service            = new ConversationService( _storeMock.Object
                                                        , _transcriptionMock.Object
+                                                       , _diarizationMock.Object
                                                        , NullLogger<ConversationService>.Instance );
     }
 
@@ -72,5 +75,26 @@ public class ConversationServiceTests
         Assert.Equal(TranscriptionStatus.Completed, result.Status);
         Assert.Equal(TranscriptionStatus.Completed, record.Status);
         _storeMock.Verify(s => s.Save(expectedTranscript, null, $"transcript_{conversationId}"), Times.Once);
+    }
+
+    [Fact]
+    public async Task DiarizeTranscriptAsync_InvokesDiarizationServiceAndPersists()
+    {
+        var conversationId = Guid.NewGuid();
+        var initialTranscript = new Transcript { ConversationId = conversationId, IsDiarized = false };
+        var diarizedTranscript = new Transcript { ConversationId = conversationId, IsDiarized = true };
+        using var audioStream = ConversationAudioGenerator.GenerateSyntheticWavStream(5.0);
+
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync(initialTranscript);
+
+        _diarizationMock.Setup(d => d.DiarizeTranscriptAsync(initialTranscript, audioStream, default))
+                        .ReturnsAsync(diarizedTranscript);
+
+        var result = await _service.DiarizeTranscriptAsync(conversationId, audioStream);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsDiarized);
+        _storeMock.Verify(s => s.Save(diarizedTranscript, null, $"transcript_{conversationId}"), Times.Once);
     }
 }

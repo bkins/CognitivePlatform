@@ -6,16 +6,19 @@ namespace CognitivePlatform.Api.Domains.Conversations;
 
 public class ConversationService : IConversationService
 {
-    private readonly IObjectStore           _objectStore;
-    private readonly ITranscriptionService  _transcriptionService;
+    private readonly IObjectStore                 _objectStore;
+    private readonly ITranscriptionService        _transcriptionService;
+    private readonly ISpeakerDiarizationService   _diarizationService;
     private readonly ILogger<ConversationService> _logger;
 
     public ConversationService( IObjectStore objectStore
                               , ITranscriptionService transcriptionService
+                              , ISpeakerDiarizationService diarizationService
                               , ILogger<ConversationService> logger )
     {
         _objectStore          = objectStore;
         _transcriptionService = transcriptionService;
+        _diarizationService   = diarizationService;
         _logger               = logger;
     }
 
@@ -94,6 +97,26 @@ public class ConversationService : IConversationService
         }
 
         return transcript;
+    }
+
+    public async Task<Transcript> DiarizeTranscriptAsync( Guid conversationId
+                                                        , Stream audioStream
+                                                        , CancellationToken cancellationToken = default )
+    {
+        var transcript = await GetTranscriptAsync(conversationId, cancellationToken);
+        if (transcript == null)
+        {
+            return new Transcript
+            {
+                ConversationId = conversationId
+              , Status         = TranscriptionStatus.Failed
+              , ErrorMessage   = "Transcript not found for diarization."
+            };
+        }
+
+        var diarized = await _diarizationService.DiarizeTranscriptAsync(transcript, audioStream, cancellationToken);
+        await _objectStore.Save(diarized, partitionKey: null, id: $"transcript_{conversationId}");
+        return diarized;
     }
 
     public async Task<Transcript?> GetTranscriptAsync( Guid conversationId, CancellationToken cancellationToken = default )

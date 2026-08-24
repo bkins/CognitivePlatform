@@ -76,6 +76,24 @@ public class ConversationRecorderController : ControllerBase
         return Ok(transcript);
     }
 
+    [HttpPost("{id:guid}/diarize")]
+    public async Task<ActionResult<Transcript>> DiarizeRecording( [FromRoute] Guid id
+                                                                  , CancellationToken cancellationToken )
+    {
+        Stream audioStream = MemoryStream.Null;
+        if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+        {
+            audioStream = Request.Form.Files[0].OpenReadStream();
+        }
+        else if (Request.Body != null && Request.Body.CanRead)
+        {
+            audioStream = Request.Body;
+        }
+
+        var transcript = await _conversationService.DiarizeTranscriptAsync(id, audioStream, cancellationToken);
+        return Ok(transcript);
+    }
+
     [HttpGet("{id:guid}/transcript")]
     public async Task<ActionResult<Transcript>> GetTranscript( [FromRoute] Guid id
                                                              , CancellationToken cancellationToken )

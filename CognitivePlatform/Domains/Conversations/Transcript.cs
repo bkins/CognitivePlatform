@@ -8,6 +8,8 @@ public class Transcript
     public List<TranscriptSegment>  Segments       { get; set; } = new();
     public DateTime                CreatedAtUtc   { get; set; } = DateTime.UtcNow;
     public DateTime?               ProcessedAtUtc { get; set; }
+    public bool                    IsDiarized     { get; set; }
+    public DateTime?               DiarizedAtUtc  { get; set; }
     public string?                 ErrorMessage   { get; set; }
     public bool                    IsDeleted      { get; set; }
     public DateTime?               DeletedUtc     { get; set; }
