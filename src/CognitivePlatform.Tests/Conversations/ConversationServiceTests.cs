@@ -187,11 +187,11 @@ public class ConversationServiceTests
         _storeMock.Setup(s => s.ListAsync<ConversationParticipant>(null, null, null, default))
                   .ReturnsAsync(new List<ConversationParticipant> { participants1[0], participants2[0] });
 
-        var queryResults = await _service.SearchConversationsAsync(query: "sprint");
+        var queryResults = await _service.SearchConversationsAsync(query: "sprint", participantName: null, fromDate: null, toDate: null);
         Assert.Single(queryResults);
         Assert.Equal(conversationId1, queryResults[0].Id);
 
-        var participantResults = await _service.SearchConversationsAsync(participantName: "Sarah");
+        var participantResults = await _service.SearchConversationsAsync(query: null, participantName: "Sarah", fromDate: null, toDate: null);
         Assert.Single(participantResults);
         Assert.Equal(conversationId2, participantResults[0].Id);
     }
