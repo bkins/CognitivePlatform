@@ -80,21 +80,27 @@ public class ConversationService : IConversationService
                                                           , CancellationToken cancellationToken = default )
     {
         var record = await GetRecordingAsync(conversationId, cancellationToken);
-        if (record != null)
+        if (record == null)
+        {
+            record = new ConversationRecord
+            {
+                Id            = conversationId
+              , RecordedAtUtc = DateTime.UtcNow
+              , Status        = TranscriptionStatus.Processing
+            };
+        }
+        else
         {
             record.Status = TranscriptionStatus.Processing;
-            await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
         }
+        await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
 
         var transcript = await _transcriptionService.TranscribeAudioAsync(conversationId, audioStream, mimeType, cancellationToken);
 
         await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{conversationId}");
 
-        if (record != null)
-        {
-            record.Status = transcript.Status;
-            await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
-        }
+        record.Status = transcript.Status;
+        await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
 
         return transcript;
     }
@@ -176,14 +182,21 @@ public class ConversationService : IConversationService
 
     public async Task<ConversationDetails?> GetConversationDetailsAsync( Guid conversationId, CancellationToken cancellationToken = default )
     {
-        var record = await GetRecordingAsync(conversationId, cancellationToken);
-        if (record == null)
+        var record       = await GetRecordingAsync(conversationId, cancellationToken);
+        var transcript   = await GetTranscriptAsync(conversationId, cancellationToken);
+        var participants = await GetParticipantsAsync(conversationId, cancellationToken);
+
+        if (record == null && transcript == null && (participants == null || participants.Count == 0))
         {
             return null;
         }
 
-        var transcript   = await GetTranscriptAsync(conversationId, cancellationToken);
-        var participants = await GetParticipantsAsync(conversationId, cancellationToken);
+        record ??= new ConversationRecord
+        {
+            Id            = conversationId
+          , RecordedAtUtc = transcript?.CreatedAtUtc ?? DateTime.UtcNow
+          , Status        = transcript?.Status ?? TranscriptionStatus.Completed
+        };
 
         return new ConversationDetails
                {

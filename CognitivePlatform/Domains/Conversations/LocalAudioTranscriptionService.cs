@@ -17,7 +17,7 @@ public class LocalAudioTranscriptionService : ITranscriptionService
                                                         , string mimeType = "audio/wav"
                                                         , CancellationToken cancellationToken = default )
     {
-        if (audioStream == null || audioStream.Length == 0)
+        if (audioStream == null || (audioStream.CanSeek && audioStream.Length == 0))
         {
             return new Transcript
             {
