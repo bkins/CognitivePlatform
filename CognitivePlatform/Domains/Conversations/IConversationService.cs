@@ -13,4 +13,6 @@ public interface IConversationService
     Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default );
     Task<ConversationDetails?> GetConversationDetailsAsync( Guid conversationId, CancellationToken cancellationToken = default );
     Task<List<ConversationRecord>> SearchConversationsAsync( string? query = null, string? participantName = null, DateTimeOffset? fromDate = null, DateTimeOffset? toDate = null, CancellationToken cancellationToken = default );
+    Task<bool> SaveAudioAsync( Guid conversationId, Stream audioStream, string mimeType = "audio/wav", CancellationToken cancellationToken = default );
+    Task<(Stream? Stream, string ContentType)> GetAudioAsync( Guid conversationId, CancellationToken cancellationToken = default );
 }

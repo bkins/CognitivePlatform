@@ -195,4 +195,21 @@ public class ConversationServiceTests
         Assert.Single(participantResults);
         Assert.Equal(conversationId2, participantResults[0].Id);
     }
+
+    [Fact]
+    public async Task SaveAudioAsync_PersistsWavFileToDisk_AndUpdatesRecord()
+    {
+        var conversationId = Guid.NewGuid();
+        using var audioStream = ConversationAudioGenerator.GenerateSyntheticWavStream(3.0);
+
+        var result = await _service.SaveAudioAsync(conversationId, audioStream, "audio/wav");
+
+        Assert.True(result);
+        _storeMock.Verify(s => s.Save(It.Is<ConversationRecord>(r => r.Id == conversationId && !string.IsNullOrEmpty(r.AudioFilePath)), null, conversationId.ToString()), Times.Once);
+
+        var (stream, contentType) = await _service.GetAudioAsync(conversationId);
+        Assert.NotNull(stream);
+        Assert.Equal("audio/wav", contentType);
+        stream.Dispose();
+    }
 }

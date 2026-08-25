@@ -1,5 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CognitivePlatform.Api.Data;
 using CP.Shared.Primitives.Avails.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CognitivePlatform.Api.Domains.Conversations;
@@ -10,16 +17,33 @@ public class ConversationService : IConversationService
     private readonly ITranscriptionService        _transcriptionService;
     private readonly ISpeakerDiarizationService   _diarizationService;
     private readonly ILogger<ConversationService> _logger;
+    private readonly string                       _recordingsDirectory;
 
-    public ConversationService( IObjectStore objectStore
-                              , ITranscriptionService transcriptionService
-                              , ISpeakerDiarizationService diarizationService
-                              , ILogger<ConversationService> logger )
+    public ConversationService( IObjectStore                 objectStore
+                              , ITranscriptionService        transcriptionService
+                              , ISpeakerDiarizationService   diarizationService
+                              , ILogger<ConversationService> logger
+                              , IHostEnvironment?            hostEnv = null )
     {
         _objectStore          = objectStore;
         _transcriptionService = transcriptionService;
         _diarizationService   = diarizationService;
         _logger               = logger;
+
+        var envName = hostEnv?.EnvironmentName ?? "Development";
+        if (OperatingSystem.IsWindows() && Directory.Exists(@"C:\CP\Data"))
+        {
+            _recordingsDirectory = Path.Combine(@"C:\CP\Data", envName, "Recordings");
+        }
+        else
+        {
+            _recordingsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", envName, "Recordings");
+        }
+
+        if (!Directory.Exists(_recordingsDirectory))
+        {
+            Directory.CreateDirectory(_recordingsDirectory);
+        }
     }
 
     public async Task<ConversationRecord> CreateRecordingAsync( ConversationRecord record, CancellationToken cancellationToken = default )
@@ -71,7 +95,77 @@ public class ConversationService : IConversationService
             await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{id}");
         }
 
+        var filePath = Path.Combine(_recordingsDirectory, $"recording_{id}.wav");
+        if (File.Exists(filePath))
+        {
+            try
+            {
+                File.Delete(filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete audio file {FilePath}", filePath);
+            }
+        }
+
         return true;
+    }
+
+    public async Task<bool> SaveAudioAsync( Guid conversationId
+                                          , Stream audioStream
+                                          , string mimeType = "audio/wav"
+                                          , CancellationToken cancellationToken = default )
+    {
+        if (audioStream == null || (audioStream.CanSeek && audioStream.Length == 0))
+        {
+            return false;
+        }
+
+        using var memoryStream = new MemoryStream();
+        await audioStream.CopyToAsync(memoryStream, cancellationToken);
+        var audioBytes = memoryStream.ToArray();
+        if (audioBytes.Length == 0)
+        {
+            return false;
+        }
+
+        var record = await GetRecordingAsync(conversationId, cancellationToken);
+        if (record == null)
+        {
+            record = new ConversationRecord
+            {
+                Id            = conversationId
+              , RecordedAtUtc = DateTime.UtcNow
+              , Status        = TranscriptionStatus.NotProcessed
+            };
+        }
+
+        var filePath = Path.Combine(_recordingsDirectory, $"recording_{conversationId}.wav");
+        await File.WriteAllBytesAsync(filePath, audioBytes, cancellationToken);
+
+        record.AudioFilePath = filePath;
+        record.FileSizeBytes = audioBytes.Length;
+        record.MimeType      = mimeType.HasValue() ? mimeType : "audio/wav";
+
+        await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
+        return true;
+    }
+
+    public async Task<(Stream? Stream, string ContentType)> GetAudioAsync( Guid conversationId
+                                                                         , CancellationToken cancellationToken = default )
+    {
+        var record = await GetRecordingAsync(conversationId, cancellationToken);
+        var filePath = record?.AudioFilePath.HasValue() == true
+            ? record!.AudioFilePath
+            : Path.Combine(_recordingsDirectory, $"recording_{conversationId}.wav");
+
+        if (File.Exists(filePath))
+        {
+            var fileStream = File.OpenRead(filePath);
+            return (fileStream, record?.MimeType.HasValue() == true ? record.MimeType : "audio/wav");
+        }
+
+        return (null, "audio/wav");
     }
 
     public async Task<Transcript> ProcessTranscriptionAsync( Guid conversationId
@@ -79,6 +173,19 @@ public class ConversationService : IConversationService
                                                           , string mimeType = "audio/wav"
                                                           , CancellationToken cancellationToken = default )
     {
+        using var memoryStream = new MemoryStream();
+        if (audioStream != null)
+        {
+            await audioStream.CopyToAsync(memoryStream, cancellationToken);
+        }
+        var audioBytes = memoryStream.ToArray();
+
+        if (audioBytes.Length > 0)
+        {
+            using var saveStream = new MemoryStream(audioBytes);
+            await SaveAudioAsync(conversationId, saveStream, mimeType, cancellationToken);
+        }
+
         var record = await GetRecordingAsync(conversationId, cancellationToken);
         if (record == null)
         {
@@ -95,7 +202,8 @@ public class ConversationService : IConversationService
         }
         await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
 
-        var transcript = await _transcriptionService.TranscribeAudioAsync(conversationId, audioStream, mimeType, cancellationToken);
+        using var transcribeStream = new MemoryStream(audioBytes);
+        var transcript = await _transcriptionService.TranscribeAudioAsync(conversationId, transcribeStream, mimeType, cancellationToken);
 
         await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{conversationId}");
 
@@ -122,6 +230,7 @@ public class ConversationService : IConversationService
 
         var diarized = await _diarizationService.DiarizeTranscriptAsync(transcript, audioStream, cancellationToken);
         await _objectStore.Save(diarized, partitionKey: null, id: $"transcript_{conversationId}");
+
         return diarized;
     }
 
@@ -147,27 +256,24 @@ public class ConversationService : IConversationService
 
         foreach (var segment in transcript.Segments)
         {
-            if (segment.SpeakerId.HasValue() && speakerMap.TryGetValue(segment.SpeakerId!, out var mappedName) && mappedName.HasValue())
+            if (segment.SpeakerLabel.HasValue() && speakerMap.TryGetValue(segment.SpeakerLabel, out var mappedName))
             {
-                segment.SpeakerLabel = mappedName.Trim();
-            }
-            else if (segment.SpeakerLabel.HasValue() && speakerMap.TryGetValue(segment.SpeakerLabel, out var mappedByLabel) && mappedByLabel.HasValue())
-            {
-                segment.SpeakerLabel = mappedByLabel.Trim();
+                segment.SpeakerName = mappedName;
             }
         }
 
         await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{conversationId}");
 
-        foreach (var (speakerId, displayName) in speakerMap)
+        foreach (var (speakerLabel, displayName) in speakerMap)
         {
             var participant = new ConversationParticipant
             {
-                ConversationId = conversationId
-              , SpeakerId      = speakerId
+                Id             = Guid.NewGuid()
+              , ConversationId = conversationId
+              , SpeakerLabel   = speakerLabel
               , DisplayName    = displayName
             };
-            await _objectStore.Save(participant, partitionKey: null, id: $"participant_{conversationId}_{speakerId}");
+            await _objectStore.Save(participant, partitionKey: null, id: $"participant_{conversationId}_{speakerLabel}");
         }
 
         return transcript;
@@ -176,34 +282,40 @@ public class ConversationService : IConversationService
     public async Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default )
     {
         var items = await _objectStore.ListAsync<ConversationParticipant>(partitionKey: null, fromUtc: null, toUtc: null, cancellationToken: cancellationToken);
-        return items.Where(participant => participant.ConversationId == conversationId)
+        return items.Where(item => item.ConversationId == conversationId && !item.IsDeleted)
                     .ToList();
     }
 
     public async Task<ConversationDetails?> GetConversationDetailsAsync( Guid conversationId, CancellationToken cancellationToken = default )
     {
-        var record       = await GetRecordingAsync(conversationId, cancellationToken);
+        var record = await GetRecordingAsync(conversationId, cancellationToken);
+        if (record == null)
+        {
+            var existingTranscript = await GetTranscriptAsync(conversationId, cancellationToken);
+            if (existingTranscript == null)
+            {
+                return null;
+            }
+
+            record = new ConversationRecord
+            {
+                Id            = conversationId
+              , Title         = "Untitled Conversation"
+              , Status        = existingTranscript.Status
+              , RecordedAtUtc = existingTranscript.ProcessedAtUtc
+            };
+            await _objectStore.Save(record, partitionKey: null, id: conversationId.ToString());
+        }
+
         var transcript   = await GetTranscriptAsync(conversationId, cancellationToken);
         var participants = await GetParticipantsAsync(conversationId, cancellationToken);
 
-        if (record == null && transcript == null && (participants == null || participants.Count == 0))
-        {
-            return null;
-        }
-
-        record ??= new ConversationRecord
-        {
-            Id            = conversationId
-          , RecordedAtUtc = transcript?.CreatedAtUtc ?? DateTime.UtcNow
-          , Status        = transcript?.Status ?? TranscriptionStatus.Completed
-        };
-
         return new ConversationDetails
-               {
-                   Record       = record
-                 , Transcript   = transcript
-                 , Participants = participants
-               };
+        {
+            Record       = record
+          , Transcript   = transcript
+          , Participants = participants
+        };
     }
 
     public async Task<List<ConversationRecord>> SearchConversationsAsync( string? query = null
@@ -212,50 +324,54 @@ public class ConversationService : IConversationService
                                                                         , DateTimeOffset? toDate = null
                                                                         , CancellationToken cancellationToken = default )
     {
-        var recordings = await ListRecordingsAsync(cancellationToken);
+        var records = await ListRecordingsAsync(cancellationToken);
 
         if (fromDate.HasValue)
         {
-            recordings = recordings.Where(record => record.RecordedAtUtc >= fromDate.Value).ToList();
+            records = records.Where(r => r.RecordedAtUtc >= fromDate.Value.UtcDateTime).ToList();
         }
 
         if (toDate.HasValue)
         {
-            recordings = recordings.Where(record => record.RecordedAtUtc <= toDate.Value).ToList();
+            records = records.Where(r => r.RecordedAtUtc <= toDate.Value.UtcDateTime).ToList();
         }
 
         if (query.HasNoValue() && participantName.HasNoValue())
         {
-            return recordings;
+            return records;
         }
 
-        var matchingRecordings = new List<ConversationRecord>();
+        var matchingIds = new HashSet<Guid>();
 
-        foreach (var record in recordings)
+        foreach (var record in records)
         {
-            var transcript   = await GetTranscriptAsync(record.Id, cancellationToken);
-            var participants = await GetParticipantsAsync(record.Id, cancellationToken);
+            if (query.HasValue() && record.Title.Contains(query!, StringComparison.OrdinalIgnoreCase))
+            {
+                matchingIds.Add(record.Id);
+                continue;
+            }
 
-            var matchesParticipant = participantName.HasNoValue()
-                                  || participants.Any(participant => participant.DisplayName.ContainsIgnoreCase(participantName!))
-                                  || (transcript?.Segments.Any(segment => segment.SpeakerLabel.ContainsIgnoreCase(participantName!)) ?? false);
-
-            if (!matchesParticipant)
+            var details = await GetConversationDetailsAsync(record.Id, cancellationToken);
+            if (details == null)
             {
                 continue;
             }
 
-            var matchesQuery = query.HasNoValue()
-                            || (record.Title.HasValue() && record.Title.ContainsIgnoreCase(query!))
-                            || participants.Any(participant => participant.DisplayName.ContainsIgnoreCase(query!))
-                            || (transcript?.Segments.Any(segment => segment.Text.ContainsIgnoreCase(query!)) ?? false);
-
-            if (matchesQuery)
+            if (participantName.HasValue() && details.Participants.Any(p => p.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
             {
-                matchingRecordings.Add(record);
+                matchingIds.Add(record.Id);
+                continue;
+            }
+
+            if (query.HasValue() && details.Transcript != null)
+            {
+                if (details.Transcript.Segments.Any(s => s.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || s.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase)))
+                {
+                    matchingIds.Add(record.Id);
+                }
             }
         }
 
-        return matchingRecordings;
+        return records.Where(r => matchingIds.Contains(r.Id)).ToList();
     }
 }

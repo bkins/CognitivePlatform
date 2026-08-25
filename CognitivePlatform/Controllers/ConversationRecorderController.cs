@@ -139,14 +139,60 @@ public class ConversationRecorderController : ControllerBase
         return Ok(details);
     }
 
-    [HttpGet("search")]
-    public async Task<ActionResult<List<ConversationRecord>>> SearchConversations( [FromQuery] string? query
-                                                                                  , [FromQuery] string? participant
-                                                                                  , [FromQuery] DateTimeOffset? fromDate
-                                                                                  , [FromQuery] DateTimeOffset? toDate
-                                                                                  , CancellationToken cancellationToken )
+    [HttpPost("{id:guid}/audio")]
+    public async Task<IActionResult> UploadAudio( [FromRoute] Guid id
+                                                , CancellationToken cancellationToken )
     {
-        var recordings = await _conversationService.SearchConversationsAsync(query, participant, fromDate, toDate, cancellationToken);
-        return Ok(recordings);
+        Stream audioStream;
+        string mimeType = "audio/wav";
+
+        if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+        {
+            var file = Request.Form.Files[0];
+            audioStream = file.OpenReadStream();
+            mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "audio/wav" : file.ContentType;
+        }
+        else if (Request.Body != null && Request.Body.CanRead)
+        {
+            audioStream = Request.Body;
+            if (!string.IsNullOrWhiteSpace(Request.ContentType))
+            {
+                mimeType = Request.ContentType;
+            }
+        }
+        else
+        {
+            return BadRequest("Audio content must be provided as a form file upload or raw binary stream.");
+        }
+
+        var saved = await _conversationService.SaveAudioAsync(id, audioStream, mimeType, cancellationToken);
+        if (!saved)
+        {
+            return BadRequest("Failed to save audio file stream.");
+        }
+        return Ok(new { conversationId = id, status = "Saved" });
+    }
+
+    [HttpGet("{id:guid}/audio")]
+    public async Task<IActionResult> GetAudio( [FromRoute] Guid id
+                                             , CancellationToken cancellationToken )
+    {
+        var (stream, contentType) = await _conversationService.GetAudioAsync(id, cancellationToken);
+        if (stream is null)
+        {
+            return NotFound();
+        }
+        return File(stream, contentType, enableRangeProcessing: true);
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<List<ConversationRecord>>> SearchRecordings( [FromQuery] string? q
+                                                                              , [FromQuery] string? participant
+                                                                              , [FromQuery] DateTimeOffset? from
+                                                                              , [FromQuery] DateTimeOffset? to
+                                                                              , CancellationToken cancellationToken )
+    {
+        var results = await _conversationService.SearchConversationsAsync(q, participant, from, to, cancellationToken);
+        return Ok(results);
     }
 }
