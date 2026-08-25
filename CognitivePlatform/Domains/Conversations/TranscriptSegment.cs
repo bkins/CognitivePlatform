@@ -8,5 +8,6 @@ public class TranscriptSegment
     public string   Text       { get; set; } = string.Empty;
     public string?  SpeakerId    { get; set; }
     public string   SpeakerLabel { get; set; } = "Speaker 1";
+    public string?  SpeakerName  { get; set; }
     public double?  Confidence   { get; set; }
 }

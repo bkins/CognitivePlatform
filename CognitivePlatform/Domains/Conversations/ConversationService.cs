@@ -302,7 +302,7 @@ public class ConversationService : IConversationService
                 Id            = conversationId
               , Title         = "Untitled Conversation"
               , Status        = existingTranscript.Status
-              , RecordedAtUtc = existingTranscript.ProcessedAtUtc
+              , RecordedAtUtc = existingTranscript.ProcessedAtUtc ?? DateTime.UtcNow
             };
             await _objectStore.Save(record, partitionKey: null, id: conversationId.ToString());
         }
@@ -357,7 +357,7 @@ public class ConversationService : IConversationService
                 continue;
             }
 
-            if (participantName.HasValue() && details.Participants.Any(p => p.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
+            if (participantName.HasValue() && details.Participants.Any(p => p.DisplayName != null && p.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
             {
                 matchingIds.Add(record.Id);
                 continue;
@@ -365,7 +365,7 @@ public class ConversationService : IConversationService
 
             if (query.HasValue() && details.Transcript != null)
             {
-                if (details.Transcript.Segments.Any(s => s.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || s.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase)))
+                if (details.Transcript.Segments.Any(s => s.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || (s.SpeakerName != null && s.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase))))
                 {
                     matchingIds.Add(record.Id);
                 }
