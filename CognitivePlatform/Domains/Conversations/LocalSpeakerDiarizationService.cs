@@ -24,7 +24,7 @@ public class LocalSpeakerDiarizationService : ISpeakerDiarizationService
         try
         {
             byte[]? audioBytes = null;
-            if (audioStream != null && audioStream.CanRead && audioStream.Length > 0)
+            if (audioStream != null && audioStream.CanRead && (!audioStream.CanSeek || audioStream.Length > 0))
             {
                 using var memoryStream = new MemoryStream();
                 await audioStream.CopyToAsync(memoryStream, cancellationToken);
