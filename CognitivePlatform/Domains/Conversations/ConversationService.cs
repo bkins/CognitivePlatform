@@ -141,10 +141,33 @@ public class ConversationService : IConversationService
         }
 
         var filePath = Path.Combine(_recordingsDirectory, $"recording_{conversationId}.wav");
-        await File.WriteAllBytesAsync(filePath, audioBytes, cancellationToken);
+        var tempPath = Path.Combine(_recordingsDirectory, $"temp_{Guid.NewGuid()}.tmp");
+
+        try
+        {
+            await File.WriteAllBytesAsync(tempPath, audioBytes, cancellationToken);
+            File.Move(tempPath, filePath, overwrite: true);
+        }
+        catch (IOException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SaveAudioAsync IOException] {ex.Message}");
+            if (!File.Exists(filePath))
+            {
+                throw;
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                try { File.Delete(tempPath); } catch { }
+            }
+        }
+
+        var fileLength = File.Exists(filePath) ? new FileInfo(filePath).Length : audioBytes.Length;
 
         record.AudioFilePath = filePath;
-        record.FileSizeBytes = audioBytes.Length;
+        record.FileSizeBytes = fileLength;
         record.MimeType      = mimeType.HasValue() ? mimeType : "audio/wav";
 
         await _objectStore.Save(record, partitionKey: null, id: record.Id.ToString());
@@ -161,7 +184,7 @@ public class ConversationService : IConversationService
 
         if (File.Exists(filePath))
         {
-            var fileStream = File.OpenRead(filePath);
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             return (fileStream, record?.MimeType.HasValue() == true ? record.MimeType : "audio/wav");
         }
 
@@ -180,10 +203,19 @@ public class ConversationService : IConversationService
         }
         var audioBytes = memoryStream.ToArray();
 
+        var filePath = Path.Combine(_recordingsDirectory, $"recording_{conversationId}.wav");
+
         if (audioBytes.Length > 0)
         {
-            using var saveStream = new MemoryStream(audioBytes);
-            await SaveAudioAsync(conversationId, saveStream, mimeType, cancellationToken);
+            if (!File.Exists(filePath) || new FileInfo(filePath).Length != audioBytes.Length)
+            {
+                using var saveStream = new MemoryStream(audioBytes);
+                await SaveAudioAsync(conversationId, saveStream, mimeType, cancellationToken);
+            }
+        }
+        else if (File.Exists(filePath))
+        {
+            audioBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
         }
 
         var record = await GetRecordingAsync(conversationId, cancellationToken);
