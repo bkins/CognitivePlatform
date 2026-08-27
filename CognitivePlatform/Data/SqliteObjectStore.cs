@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Data.Sqlite;
 
@@ -28,6 +29,7 @@ public class SqliteObjectStore : IObjectStore
                                             {
                                                 WriteIndented        = false
                                               , PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                                              , Converters           = { new JsonStringEnumConverter() }
                                             };
 
         EnsureSchema();

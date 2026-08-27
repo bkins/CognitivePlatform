@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Text.Json.Serialization;
 
 namespace CognitivePlatform.Api.KnowledgeInbox;
 
@@ -31,6 +32,7 @@ public sealed class KnowledgeItemDto
     public int? Urgency    { get; init; }
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum KnowledgeKind
 {
     Journal
@@ -39,6 +41,7 @@ public enum KnowledgeKind
   , Pending // queued offline — kind not yet assigned by API
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum KnowledgeStatus
 {
     Active
