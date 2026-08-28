@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.Conversations;
+using CognitivePlatform.Api.Domains.Conversations.Copilot;
 using CognitivePlatform.Api.Domains.Personas.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +10,13 @@ namespace CognitivePlatform.Api.Controllers;
 public class ConversationRecorderController : ControllerBase
 {
     private readonly IConversationService _conversationService;
+    private readonly ICopilotService      _copilotService;
 
-    public ConversationRecorderController(IConversationService conversationService)
+    public ConversationRecorderController( IConversationService conversationService
+                                         , ICopilotService      copilotService )
     {
         _conversationService = conversationService;
+        _copilotService      = copilotService;
     }
 
     [HttpPost]
@@ -252,5 +256,69 @@ public class ConversationRecorderController : ControllerBase
     {
         var results = await _conversationService.QueryMemoriesAsync(q ?? string.Empty, cancellationToken);
         return Ok(results);
+    }
+
+    [HttpPost("{id:guid}/copilot/slice")]
+    public async Task<ActionResult<CopilotSliceResult>> ProcessCopilotSlice( [FromRoute] Guid id
+                                                                           , [FromQuery] int sliceIndex
+                                                                           , [FromQuery] double offsetSeconds
+                                                                           , [FromQuery] double durationSeconds
+                                                                           , [FromQuery] string? contextWindowText
+                                                                           , CancellationToken cancellationToken )
+    {
+        Stream audioStream;
+        string mimeType = "audio/wav";
+
+        if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+        {
+            var file = Request.Form.Files[0];
+            audioStream = file.OpenReadStream();
+            mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "audio/wav" : file.ContentType;
+        }
+        else if (Request.Body != null && Request.Body.CanRead)
+        {
+            audioStream = Request.Body;
+            if (!string.IsNullOrWhiteSpace(Request.ContentType))
+            {
+                mimeType = Request.ContentType;
+            }
+        }
+        else
+        {
+            return BadRequest("Audio content must be provided as a form file upload or raw binary stream.");
+        }
+
+        var request = new CopilotSliceRequest
+                      {
+                          SliceIndex        = sliceIndex
+                        , OffsetSeconds     = offsetSeconds
+                        , DurationSeconds   = durationSeconds
+                        , ContextWindowText = contextWindowText
+                        , MimeType          = mimeType
+                      };
+
+        var result = await _copilotService.ProcessSliceAsync(id, audioStream, request, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/copilot/insights")]
+    public async Task<ActionResult<List<CopilotInsight>>> GetCopilotInsights( [FromRoute] Guid id
+                                                                            , CancellationToken cancellationToken )
+    {
+        var insights = await _copilotService.GetInsightsAsync(id, cancellationToken);
+        return Ok(insights);
+    }
+
+    [HttpPost("{id:guid}/copilot/insights/{insightId:guid}/dismiss")]
+    public async Task<ActionResult> DismissCopilotInsight( [FromRoute] Guid id
+                                                         , [FromRoute] Guid insightId
+                                                         , CancellationToken cancellationToken )
+    {
+        var dismissed = await _copilotService.DismissInsightAsync(id, insightId, cancellationToken);
+        if (!dismissed)
+        {
+            return NotFound();
+        }
+        return Ok(new { conversationId = id, insightId = insightId, status = "Dismissed" });
     }
 }
