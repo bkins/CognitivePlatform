@@ -231,4 +231,103 @@ public class CopilotServiceTests
         Assert.Equal(2, result.Count);
         Assert.Equal("Insight 1", result[0].Headline);
     }
+
+    [Fact]
+    public async Task ProcessLiveStreamChunkAsync_WithAudioChunk_ProducesLiveSegmentAndTalkTime()
+    {
+        var conversationId = Guid.NewGuid();
+        using var stream = new MemoryStream(new byte[100]);
+        var request = new LiveStreamChunkRequest
+                      {
+                          ChunkIndex      = 0
+                        , OffsetSeconds   = 0.0
+                        , DurationSeconds = 2.5
+                      };
+
+        var transcript = new Transcript
+                         {
+                             ConversationId = conversationId
+                           , Status         = TranscriptionStatus.Completed
+                           , Segments       = new List<TranscriptSegment>
+                                              {
+                                                  new() { Text = "Hello team, let's start the review." }
+                                              }
+                         };
+
+        _transcriptionServiceMock
+            .Setup(ts => ts.TranscribeAudioAsync(conversationId, It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transcript);
+
+        _objectStoreMock
+            .Setup(os => os.GetAsync<Dictionary<string, double>>($"copilot_talktime_{conversationId}", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, double>());
+
+        var result = await _service.ProcessLiveStreamChunkAsync(conversationId, stream, request);
+
+        Assert.NotNull(result);
+        Assert.Equal(conversationId, result.ConversationId);
+        Assert.Equal(0, result.ChunkIndex);
+        Assert.NotNull(result.Segment);
+        Assert.Equal("Hello team, let's start the review.", result.Segment.Text);
+        Assert.Equal("Speaker 1", result.Segment.SpeakerLabel);
+        Assert.True(result.SpeakerTalkTime.ContainsKey("Speaker 1"));
+        Assert.Equal(100.0, result.SpeakerTalkTime["Speaker 1"]);
+    }
+
+    [Fact]
+    public async Task ProcessLiveStreamChunkAsync_WithInstantQuestion_ProducesRecallInsight()
+    {
+        var conversationId = Guid.NewGuid();
+        using var stream = new MemoryStream(new byte[100]);
+        var request = new LiveStreamChunkRequest
+                      {
+                          ChunkIndex      = 1
+                        , OffsetSeconds   = 2.5
+                        , DurationSeconds = 2.5
+                      };
+
+        var transcript = new Transcript
+                         {
+                             ConversationId = conversationId
+                           , Status         = TranscriptionStatus.Completed
+                           , Segments       = new List<TranscriptSegment>
+                                              {
+                                                  new() { Text = "What was Sarah's dog's name?" }
+                                              }
+                         };
+
+        var candidateMemories = new List<ConversationMemoryCandidate>
+                                {
+                                    new()
+                                    {
+                                        Id       = Guid.NewGuid()
+                                      , Category = "Fact"
+                                      , Content  = "Sarah's dog is named Milo, a golden retriever."
+                                    }
+                                };
+
+        _transcriptionServiceMock
+            .Setup(ts => ts.TranscribeAudioAsync(conversationId, It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transcript);
+
+        _conversationServiceMock
+            .Setup(cs => cs.QueryMemoriesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(candidateMemories);
+
+        _objectStoreMock
+            .Setup(os => os.GetAsync<List<CopilotInsight>>($"copilot_insights_{conversationId}", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<CopilotInsight>());
+
+        _objectStoreMock
+            .Setup(os => os.GetAsync<Dictionary<string, double>>($"copilot_talktime_{conversationId}", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, double>());
+
+        var result = await _service.ProcessLiveStreamChunkAsync(conversationId, stream, request);
+
+        Assert.NotNull(result);
+        Assert.True(result.HasActionableInsight);
+        Assert.Single(result.Insights);
+        Assert.Equal(CopilotInsightType.RecallHint, result.Insights[0].InsightType);
+        Assert.Equal("Sarah's dog is named Milo, a golden retriever.", result.Insights[0].Detail);
+    }
 }

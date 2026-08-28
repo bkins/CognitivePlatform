@@ -301,6 +301,41 @@ public class ConversationRecorderController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id:guid}/copilot/stream-chunk")]
+    public async Task<ActionResult<LiveStreamChunkResult>> ProcessCopilotStreamChunk( [FromRoute] Guid id
+                                                                                    , [FromQuery] int chunkIndex = 0
+                                                                                    , [FromQuery] double offsetSeconds = 0.0
+                                                                                    , [FromQuery] double durationSeconds = 2.5
+                                                                                    , [FromQuery] string priorContext = ""
+                                                                                    , CancellationToken cancellationToken = default )
+    {
+        Stream audioStream;
+        if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+        {
+            var file = Request.Form.Files[0];
+            audioStream = file.OpenReadStream();
+        }
+        else if (Request.Body != null && Request.Body.CanRead)
+        {
+            audioStream = Request.Body;
+        }
+        else
+        {
+            return BadRequest("Audio content must be provided as a form file upload or raw binary stream.");
+        }
+
+        var request = new LiveStreamChunkRequest
+                      {
+                          ChunkIndex      = chunkIndex
+                        , OffsetSeconds   = offsetSeconds
+                        , DurationSeconds = durationSeconds
+                        , PriorContext    = priorContext
+                      };
+
+        var result = await _copilotService.ProcessLiveStreamChunkAsync(id, audioStream, request, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{id:guid}/copilot/insights")]
     public async Task<ActionResult<List<CopilotInsight>>> GetCopilotInsights( [FromRoute] Guid id
                                                                             , CancellationToken cancellationToken )

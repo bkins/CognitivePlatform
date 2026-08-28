@@ -188,6 +188,155 @@ public class CopilotService : ICopilotService
         }
     }
 
+    public async Task<LiveStreamChunkResult> ProcessLiveStreamChunkAsync( Guid conversationId
+                                                                         , Stream audioChunkStream
+                                                                         , LiveStreamChunkRequest request
+                                                                         , CancellationToken cancellationToken = default )
+    {
+        var result = new LiveStreamChunkResult
+                     {
+                         ConversationId = conversationId
+                       , ChunkIndex     = request.ChunkIndex
+                       , ProcessedAtUtc = DateTime.UtcNow
+                     };
+
+        if (audioChunkStream == null || (audioChunkStream.CanSeek && audioChunkStream.Length == 0))
+        {
+            return result;
+        }
+
+        try
+        {
+            var transcript = await _transcriptionService.TranscribeAudioAsync(
+                conversationId:    conversationId,
+                audioStream:       audioChunkStream,
+                mimeType:          "audio/wav",
+                cancellationToken: cancellationToken);
+
+            var chunkText = transcript?.Segments != null && transcript.Segments.Count > 0
+                ? string.Join(" ", transcript.Segments.Select(segment => segment.Text)).Trim()
+                : string.Empty;
+
+            if (chunkText.HasNoValue())
+            {
+                return result;
+            }
+
+            // Estimate Speaker turn attribution
+            var speakerLabel = (request.ChunkIndex / 2) % 2 == 0 ? "Speaker 1" : "Speaker 2";
+
+            var segment = new TranscriptSegment
+                          {
+                              Id           = Guid.NewGuid()
+                            , Start        = TimeSpan.FromSeconds(request.OffsetSeconds)
+                            , End          = TimeSpan.FromSeconds(request.OffsetSeconds + request.DurationSeconds)
+                            , Text         = chunkText
+                            , SpeakerId    = speakerLabel
+                            , SpeakerLabel = speakerLabel
+                          };
+            result.Segment = segment;
+            result.IsFinal = chunkText.EndsWith('.') || chunkText.EndsWith('?') || chunkText.EndsWith('!');
+
+            // Maintain running speaker talk-time duration
+            var talkTime = await _objectStore.GetAsync<Dictionary<string, double>>($"copilot_talktime_{conversationId}", partitionKey: null, cancellationToken: cancellationToken)
+                           ?? new Dictionary<string, double>();
+
+            if (!talkTime.ContainsKey(speakerLabel))
+            {
+                talkTime[speakerLabel] = 0;
+            }
+            talkTime[speakerLabel] += request.DurationSeconds > 0 ? request.DurationSeconds : 2.5;
+            await _objectStore.Save(talkTime, partitionKey: null, id: $"copilot_talktime_{conversationId}");
+
+            var totalTime = talkTime.Values.Sum();
+            if (totalTime > 0)
+            {
+                foreach (var pair in talkTime)
+                {
+                    result.SpeakerTalkTime[pair.Key] = Math.Round((pair.Value / totalTime) * 100.0, 1);
+                }
+            }
+
+            // Fast Sentence-Boundary Trigger Evaluation
+            var detectedInsights = new List<CopilotInsight>();
+
+            // 1. Question Trigger
+            var questionMatch = QuestionRegex.Match(chunkText);
+            if (questionMatch.Success)
+            {
+                var querySubject = questionMatch.Groups[2].Value.Trim().TrimEnd('?', '.');
+                if (querySubject.HasValue() && querySubject.Length >= 3)
+                {
+                    var memoryMatches = await _conversationService.QueryMemoriesAsync(querySubject, cancellationToken);
+                    if (memoryMatches != null && memoryMatches.Count > 0)
+                    {
+                        var topMemory = memoryMatches.First();
+                        detectedInsights.Add(new CopilotInsight
+                        {
+                            Id                 = Guid.NewGuid()
+                          , ConversationId     = conversationId
+                          , TimestampUtc       = DateTime.UtcNow
+                          , AudioOffsetSeconds = request.OffsetSeconds
+                          , InsightType        = CopilotInsightType.RecallHint
+                          , Headline           = $"Memory Recall: {querySubject}"
+                          , Detail             = topMemory.Content
+                          , RelevanceScore     = 0.95f
+                          , ProvenanceChain    = $"Memory:{topMemory.Id}|Category:{topMemory.Category}"
+                        });
+                    }
+                }
+            }
+
+            // 2. Commitment Trigger
+            var commitmentMatch = CommitmentRegex.Match(chunkText);
+            if (commitmentMatch.Success)
+            {
+                var commitmentText = commitmentMatch.Value.Trim();
+                detectedInsights.Add(new CopilotInsight
+                {
+                    Id                 = Guid.NewGuid()
+                  , ConversationId     = conversationId
+                  , TimestampUtc       = DateTime.UtcNow
+                  , AudioOffsetSeconds = request.OffsetSeconds
+                  , InsightType        = CopilotInsightType.CommitmentNotice
+                  , Headline           = "Commitment Detected"
+                  , Detail             = commitmentText
+                  , RelevanceScore     = 0.90f
+                  , ProvenanceChain    = $"Offset:{request.OffsetSeconds}s|Chunk:{request.ChunkIndex}"
+                });
+            }
+
+            if (detectedInsights.Count > 0)
+            {
+                var existingInsights = await GetInsightsAsync(conversationId, cancellationToken);
+                var newInsights = new List<CopilotInsight>();
+
+                foreach (var insight in detectedInsights)
+                {
+                    if (!existingInsights.Any(existing => existing.Headline.Equals(insight.Headline, StringComparison.OrdinalIgnoreCase)
+                                                       && existing.Detail.Equals(insight.Detail, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        existingInsights.Add(insight);
+                        newInsights.Add(insight);
+                    }
+                }
+
+                if (newInsights.Count > 0)
+                {
+                    await _objectStore.Save(existingInsights, partitionKey: null, id: $"copilot_insights_{conversationId}");
+                    result.Insights = newInsights;
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process live stream chunk for conversation {ConversationId}", conversationId);
+            return result;
+        }
+    }
+
     public async Task<List<CopilotInsight>> GetInsightsAsync( Guid conversationId
                                                            , CancellationToken cancellationToken = default )
     {

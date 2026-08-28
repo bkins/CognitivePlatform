@@ -13,6 +13,11 @@ public interface ICopilotService
                                               , CopilotSliceRequest request
                                               , CancellationToken cancellationToken = default );
 
+    Task<LiveStreamChunkResult> ProcessLiveStreamChunkAsync( Guid conversationId
+                                                           , Stream audioChunkStream
+                                                           , LiveStreamChunkRequest request
+                                                           , CancellationToken cancellationToken = default );
+
     Task<List<CopilotInsight>> GetInsightsAsync( Guid conversationId
                                                , CancellationToken cancellationToken = default );
 
