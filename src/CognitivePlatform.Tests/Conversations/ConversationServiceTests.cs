@@ -11,6 +11,7 @@ public class ConversationServiceTests
     private readonly Mock<IObjectStore>              _storeMock;
     private readonly Mock<ITranscriptionService>     _transcriptionMock;
     private readonly Mock<ISpeakerDiarizationService> _diarizationMock;
+    private readonly Mock<IConversationAnalyzer>     _analyzerMock;
     private readonly ConversationService            _service;
 
     public ConversationServiceTests()
@@ -18,9 +19,11 @@ public class ConversationServiceTests
         _storeMock          = new Mock<IObjectStore>();
         _transcriptionMock  = new Mock<ITranscriptionService>();
         _diarizationMock    = new Mock<ISpeakerDiarizationService>();
+        _analyzerMock       = new Mock<IConversationAnalyzer>();
         _service            = new ConversationService( _storeMock.Object
                                                        , _transcriptionMock.Object
                                                        , _diarizationMock.Object
+                                                       , _analyzerMock.Object
                                                        , NullLogger<ConversationService>.Instance );
     }
 
@@ -66,7 +69,7 @@ public class ConversationServiceTests
         _storeMock.Setup(s => s.GetAsync<ConversationRecord>(conversationId.ToString(), null, default))
                   .ReturnsAsync(record);
 
-        _transcriptionMock.Setup(t => t.TranscribeAudioAsync(conversationId, audioStream, "audio/wav", default))
+        _transcriptionMock.Setup(t => t.TranscribeAudioAsync(conversationId, It.IsAny<Stream>(), "audio/wav", default))
                           .ReturnsAsync(expectedTranscript);
 
         var result = await _service.ProcessTranscriptionAsync(conversationId, audioStream);
@@ -212,4 +215,96 @@ public class ConversationServiceTests
         Assert.Equal("audio/wav", contentType);
         stream.Dispose();
     }
+
+    [Fact]
+    public async Task AnalyzeConversationAsync_RunsAnalyzerAndSavesResult_WhenTranscriptExists()
+    {
+        var conversationId = Guid.NewGuid();
+        var record         = new ConversationRecord { Id = conversationId, Title = "Design Review" };
+        var transcript     = new Transcript
+        {
+            ConversationId = conversationId,
+            Segments       = new List<TranscriptSegment> { new() { Text = "Let's review the API." } }
+        };
+        var expectedAnalysis = new ConversationAnalysis
+        {
+            ConversationId = conversationId,
+            Summary        = "Reviewed API design.",
+            Status         = AnalysisStatus.Completed
+        };
+
+        _storeMock.Setup(s => s.GetAsync<ConversationRecord>(conversationId.ToString(), null, default))
+                  .ReturnsAsync(record);
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync(transcript);
+        _storeMock.Setup(s => s.ListAsync<ConversationParticipant>(null, null, null, default))
+                  .ReturnsAsync(new List<ConversationParticipant>());
+        _storeMock.Setup(s => s.GetAsync<ConversationAnalysis>($"analysis_{conversationId}", null, default))
+                  .ReturnsAsync((ConversationAnalysis?)null);
+
+        _analyzerMock.Setup(a => a.AnalyzeAsync(It.IsAny<ConversationDetails>(), default))
+                     .ReturnsAsync(expectedAnalysis);
+
+        var result = await _service.AnalyzeConversationAsync(conversationId);
+
+        Assert.NotNull(result);
+        Assert.Equal(AnalysisStatus.Completed, result.Status);
+        Assert.Equal("Reviewed API design.", result.Summary);
+        _storeMock.Verify(s => s.Save(expectedAnalysis, null, $"analysis_{conversationId}"), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnalyzeConversationAsync_ReturnsFailed_WhenTranscriptMissing()
+    {
+        var conversationId = Guid.NewGuid();
+        var record         = new ConversationRecord { Id = conversationId, Title = "No Audio" };
+
+        _storeMock.Setup(s => s.GetAsync<ConversationRecord>(conversationId.ToString(), null, default))
+                  .ReturnsAsync(record);
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync((Transcript?)null);
+
+        var result = await _service.AnalyzeConversationAsync(conversationId);
+
+        Assert.NotNull(result);
+        Assert.Equal(AnalysisStatus.Failed, result.Status);
+        Assert.Contains("No transcript available", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetAnalysisAsync_ReturnsNull_WhenSoftDeleted()
+    {
+        var conversationId = Guid.NewGuid();
+        var analysis       = new ConversationAnalysis { ConversationId = conversationId, IsDeleted = true };
+
+        _storeMock.Setup(s => s.GetAsync<ConversationAnalysis>($"analysis_{conversationId}", null, default))
+                  .ReturnsAsync(analysis);
+
+        var result = await _service.GetAnalysisAsync(conversationId);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task DeleteRecordingAsync_SoftDeletesAnalysis_WhenPresent()
+    {
+        var conversationId = Guid.NewGuid();
+        var record         = new ConversationRecord { Id = conversationId };
+        var transcript     = new Transcript { ConversationId = conversationId };
+        var analysis       = new ConversationAnalysis { ConversationId = conversationId, Status = AnalysisStatus.Completed };
+
+        _storeMock.Setup(s => s.GetAsync<ConversationRecord>(conversationId.ToString(), null, default))
+                  .ReturnsAsync(record);
+        _storeMock.Setup(s => s.GetAsync<Transcript>($"transcript_{conversationId}", null, default))
+                  .ReturnsAsync(transcript);
+        _storeMock.Setup(s => s.GetAsync<ConversationAnalysis>($"analysis_{conversationId}", null, default))
+                  .ReturnsAsync(analysis);
+
+        var result = await _service.DeleteRecordingAsync(conversationId);
+
+        Assert.True(result);
+        Assert.True(analysis.IsDeleted);
+        _storeMock.Verify(s => s.Save(analysis, null, $"analysis_{conversationId}"), Times.Once);
+    }
 }
+

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using CognitivePlatform.Api.Data;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -16,18 +17,21 @@ public class ConversationService : IConversationService
     private readonly IObjectStore                 _objectStore;
     private readonly ITranscriptionService        _transcriptionService;
     private readonly ISpeakerDiarizationService   _diarizationService;
+    private readonly IConversationAnalyzer        _conversationAnalyzer;
     private readonly ILogger<ConversationService> _logger;
     private readonly string                       _recordingsDirectory;
 
     public ConversationService( IObjectStore                 objectStore
                               , ITranscriptionService        transcriptionService
                               , ISpeakerDiarizationService   diarizationService
+                              , IConversationAnalyzer        conversationAnalyzer
                               , ILogger<ConversationService> logger
                               , IHostEnvironment?            hostEnv = null )
     {
         _objectStore          = objectStore;
         _transcriptionService = transcriptionService;
         _diarizationService   = diarizationService;
+        _conversationAnalyzer = conversationAnalyzer;
         _logger               = logger;
 
         var envName = hostEnv?.EnvironmentName ?? "Development";
@@ -70,7 +74,8 @@ public class ConversationService : IConversationService
     public async Task<List<ConversationRecord>> ListRecordingsAsync( CancellationToken cancellationToken = default )
     {
         var items = await _objectStore.ListAsync<ConversationRecord>(partitionKey: null, fromUtc: null, toUtc: null, cancellationToken: cancellationToken);
-        return items.Where(record => !record.IsDeleted)
+        return (items ?? Enumerable.Empty<ConversationRecord>())
+                    .Where(record => !record.IsDeleted)
                     .OrderByDescending(record => record.RecordedAtUtc)
                     .ToList();
     }
@@ -93,6 +98,14 @@ public class ConversationService : IConversationService
             transcript.IsDeleted = true;
             transcript.DeletedUtc = DateTime.UtcNow;
             await _objectStore.Save(transcript, partitionKey: null, id: $"transcript_{id}");
+        }
+
+        var analysis = await GetAnalysisAsync(id, cancellationToken);
+        if (analysis != null)
+        {
+            analysis.IsDeleted = true;
+            analysis.DeletedUtc = DateTime.UtcNow;
+            await _objectStore.Save(analysis, partitionKey: null, id: $"analysis_{id}");
         }
 
         var filePath = Path.Combine(_recordingsDirectory, $"recording_{id}.wav");
@@ -150,8 +163,8 @@ public class ConversationService : IConversationService
         }
         catch (IOException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SaveAudioAsync IOException] {ex.Message}");
-            if (!File.Exists(filePath))
+            Debug.WriteLine($"[SaveAudioAsync IOException] {ex.Message}");
+            if ( ! File.Exists(filePath))
             {
                 throw;
             }
@@ -290,7 +303,13 @@ public class ConversationService : IConversationService
         {
             if (segment.SpeakerLabel.HasValue() && speakerMap.TryGetValue(segment.SpeakerLabel, out var mappedName))
             {
-                segment.SpeakerName = mappedName;
+                segment.SpeakerName  = mappedName;
+                segment.SpeakerLabel = mappedName;
+            }
+            else if (segment.SpeakerId.HasValue() && speakerMap.TryGetValue(segment.SpeakerId!, out var mappedNameById))
+            {
+                segment.SpeakerName  = mappedNameById;
+                segment.SpeakerLabel = mappedNameById;
             }
         }
 
@@ -314,7 +333,8 @@ public class ConversationService : IConversationService
     public async Task<List<ConversationParticipant>> GetParticipantsAsync( Guid conversationId, CancellationToken cancellationToken = default )
     {
         var items = await _objectStore.ListAsync<ConversationParticipant>(partitionKey: null, fromUtc: null, toUtc: null, cancellationToken: cancellationToken);
-        return items.Where(item => item.ConversationId == conversationId && !item.IsDeleted)
+        return (items ?? Enumerable.Empty<ConversationParticipant>())
+                    .Where(item => item.ConversationId == conversationId && !item.IsDeleted)
                     .ToList();
     }
 
@@ -341,12 +361,14 @@ public class ConversationService : IConversationService
 
         var transcript   = await GetTranscriptAsync(conversationId, cancellationToken);
         var participants = await GetParticipantsAsync(conversationId, cancellationToken);
+        var analysis     = await GetAnalysisAsync(conversationId, cancellationToken);
 
         return new ConversationDetails
         {
             Record       = record
           , Transcript   = transcript
           , Participants = participants
+          , Analysis     = analysis
         };
     }
 
@@ -405,5 +427,46 @@ public class ConversationService : IConversationService
         }
 
         return records.Where(r => matchingIds.Contains(r.Id)).ToList();
+    }
+
+    public async Task<ConversationAnalysis> AnalyzeConversationAsync( Guid conversationId
+                                                                    , CancellationToken cancellationToken = default )
+    {
+        var details = await GetConversationDetailsAsync(conversationId, cancellationToken);
+        if (details == null)
+        {
+            return new ConversationAnalysis
+            {
+                ConversationId = conversationId
+              , Status         = AnalysisStatus.Failed
+              , ErrorMessage   = "Conversation not found."
+            };
+        }
+
+        if (details.Transcript == null || details.Transcript.Segments.Count == 0)
+        {
+            return new ConversationAnalysis
+            {
+                ConversationId = conversationId
+              , Status         = AnalysisStatus.Failed
+              , ErrorMessage   = "No transcript available for analysis."
+            };
+        }
+
+        var analysis = await _conversationAnalyzer.AnalyzeAsync(details, cancellationToken);
+        await _objectStore.Save(analysis, partitionKey: null, id: $"analysis_{conversationId}");
+
+        return analysis;
+    }
+
+    public async Task<ConversationAnalysis?> GetAnalysisAsync( Guid conversationId
+                                                             , CancellationToken cancellationToken = default )
+    {
+        var analysis = await _objectStore.GetAsync<ConversationAnalysis>($"analysis_{conversationId}", partitionKey: null, cancellationToken: cancellationToken);
+        if (analysis != null && analysis.IsDeleted)
+        {
+            return null;
+        }
+        return analysis;
     }
 }

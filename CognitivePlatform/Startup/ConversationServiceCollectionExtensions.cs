@@ -8,6 +8,7 @@ public static class ConversationServiceCollectionExtensions
     {
         services.AddSingleton<ITranscriptionService, LocalAudioTranscriptionService>();
         services.AddSingleton<ISpeakerDiarizationService, LocalSpeakerDiarizationService>();
+        services.AddSingleton<IConversationAnalyzer, LlmConversationAnalyzer>();
         services.AddSingleton<IConversationService, ConversationService>();
         return services;
     }

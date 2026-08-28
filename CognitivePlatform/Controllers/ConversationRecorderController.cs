@@ -195,4 +195,24 @@ public class ConversationRecorderController : ControllerBase
         var results = await _conversationService.SearchConversationsAsync(q, participant, from, to, cancellationToken);
         return Ok(results);
     }
+
+    [HttpPost("{id:guid}/analyze")]
+    public async Task<ActionResult<ConversationAnalysis>> AnalyzeConversation( [FromRoute] Guid id
+                                                                             , CancellationToken cancellationToken )
+    {
+        var analysis = await _conversationService.AnalyzeConversationAsync(id, cancellationToken);
+        return Ok(analysis);
+    }
+
+    [HttpGet("{id:guid}/analysis")]
+    public async Task<ActionResult<ConversationAnalysis>> GetAnalysis( [FromRoute] Guid id
+                                                                     , CancellationToken cancellationToken )
+    {
+        var analysis = await _conversationService.GetAnalysisAsync(id, cancellationToken);
+        if (analysis is null)
+        {
+            return NotFound();
+        }
+        return Ok(analysis);
+    }
 }
