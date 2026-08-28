@@ -382,12 +382,12 @@ public class ConversationService : IConversationService
 
         if (fromDate.HasValue)
         {
-            records = records.Where(r => r.RecordedAtUtc >= fromDate.Value.UtcDateTime).ToList();
+            records = records.Where(recordItem => recordItem.RecordedAtUtc >= fromDate.Value.UtcDateTime).ToList();
         }
 
         if (toDate.HasValue)
         {
-            records = records.Where(r => r.RecordedAtUtc <= toDate.Value.UtcDateTime).ToList();
+            records = records.Where(recordItem => recordItem.RecordedAtUtc <= toDate.Value.UtcDateTime).ToList();
         }
 
         if (query.HasNoValue() && participantName.HasNoValue())
@@ -411,7 +411,7 @@ public class ConversationService : IConversationService
                 continue;
             }
 
-            if (participantName.HasValue() && details.Participants.Any(p => p.DisplayName != null && p.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
+            if (participantName.HasValue() && details.Participants.Any(participant => participant.DisplayName != null && participant.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
             {
                 matchingIds.Add(record.Id);
                 continue;
@@ -419,14 +419,14 @@ public class ConversationService : IConversationService
 
             if (query.HasValue() && details.Transcript != null)
             {
-                if (details.Transcript.Segments.Any(s => s.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || (s.SpeakerName != null && s.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase))))
+                if (details.Transcript.Segments.Any(segment => segment.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || (segment.SpeakerName != null && segment.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase))))
                 {
                     matchingIds.Add(record.Id);
                 }
             }
         }
 
-        return records.Where(r => matchingIds.Contains(r.Id)).ToList();
+        return records.Where(recordItem => matchingIds.Contains(recordItem.Id)).ToList();
     }
 
     public async Task<ConversationAnalysis> AnalyzeConversationAsync( Guid conversationId

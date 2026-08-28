@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CognitivePlatform.Api.Interpreter;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace CognitivePlatform.Api.Domains.Conversations;
@@ -198,10 +199,10 @@ public class LlmConversationAnalyzer : IConversationAnalyzer
 
             return new AnalysisDerivedItem
             {
-                Id                        = Guid.NewGuid()
-              , ConversationId            = conversationId
-              , Type                      = itemType
-              , Content                   = raw.Content ?? string.Empty
+                Id                         = Guid.NewGuid()
+              , ConversationId             = conversationId
+              , Type                       = itemType
+              , Content                    = raw.Content ?? string.Empty
               , SourceTranscriptSegmentIds = segmentIds
             };
         }).ToList();
@@ -209,34 +210,14 @@ public class LlmConversationAnalyzer : IConversationAnalyzer
 
     private static string ExtractJson( string content )
     {
-        if (string.IsNullOrWhiteSpace(content))
+        if (content.HasNoValue())
         {
             return "{}";
         }
 
         var trimmed = content.Trim();
-
-        // Strip markdown code fences if the LLM wrapped the JSON
-        if (trimmed.StartsWith("```"))
-        {
-            var firstNewline = trimmed.IndexOf('\n');
-            if (firstNewline >= 0)
-            {
-                trimmed = trimmed[(firstNewline + 1)..];
-            }
-
-            var lastFence = trimmed.LastIndexOf("```");
-            if (lastFence >= 0)
-            {
-                trimmed = trimmed[..lastFence];
-            }
-
-            trimmed = trimmed.Trim();
-        }
-
-        // Find the outermost JSON object
-        var start = trimmed.IndexOf('{');
-        var end   = trimmed.LastIndexOf('}');
+        var start   = trimmed.IndexOf('{');
+        var end     = trimmed.LastIndexOf('}');
         if (start >= 0 && end > start)
         {
             return trimmed[start..(end + 1)];
