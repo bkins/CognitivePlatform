@@ -52,7 +52,7 @@ public class LocalSpeakerDiarizationService : ISpeakerDiarizationService
         }
     }
 
-    private static int DetermineSpeakerIndex(TranscriptSegment segment, byte[]? audioBytes, int segmentIndex)
+    private static int DetermineSpeakerIndex(TranscriptSegment segment, byte[]? audioBytes, int segmentIndex, int maxSpeakers = 4)
     {
         if (audioBytes == null || audioBytes.Length < 44)
         {
@@ -65,11 +65,12 @@ public class LocalSpeakerDiarizationService : ISpeakerDiarizationService
         var startOffset = 44 + (int)(segment.Start.TotalSeconds * bytesPerSecond);
         if (startOffset + 100 < audioBytes.Length)
         {
-            // Sample sample value at segment start
+            // Sample amplitude and energy cluster at segment start
             var sample = BitConverter.ToInt16(audioBytes, startOffset);
-            if (sample > 5000 || sample < -5000)
+            if (sample > 3000 || sample < -3000)
             {
-                return (Math.Abs(sample) % 2) + 1;
+                var cluster = (Math.Abs(sample) / 4000) % maxSpeakers;
+                return cluster + 1;
             }
         }
 
