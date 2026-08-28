@@ -1,3 +1,4 @@
+using CognitivePlatform.Api.Domains.Conversations;
 using CognitivePlatform.Api.Domains.Journal;
 using CognitivePlatform.Api.Domains.Meals;
 using CognitivePlatform.Api.Domains.Tasks;
@@ -19,6 +20,7 @@ public static class KnowledgeInboxServiceCollectionExtensions
         services.AddSingleton<IKnowledgeSource, JournalKnowledgeSource>();
         services.AddSingleton<IKnowledgeSource, TaskKnowledgeSource>();
         services.AddSingleton<IKnowledgeSource, MealKnowledgeSource>();
+        services.AddSingleton<IKnowledgeSource, ConversationKnowledgeSource>();
 
         // Phase 4.6: Domain Expert Knowledge Mode
         services.AddSingleton<IKnowledgeIngestionService, KnowledgeIngestionService>();

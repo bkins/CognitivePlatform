@@ -9,7 +9,9 @@ public static class ConversationServiceCollectionExtensions
         services.AddSingleton<ITranscriptionService, LocalAudioTranscriptionService>();
         services.AddSingleton<ISpeakerDiarizationService, LocalSpeakerDiarizationService>();
         services.AddSingleton<IConversationAnalyzer, LlmConversationAnalyzer>();
+        services.AddSingleton<IConversationMemoryExtractor, LlmConversationMemoryExtractor>();
         services.AddSingleton<IConversationService, ConversationService>();
+        services.AddTransient<ConversationActions>();
         return services;
     }
 }

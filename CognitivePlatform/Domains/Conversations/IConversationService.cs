@@ -1,3 +1,5 @@
+using CognitivePlatform.Api.Domains.Personas.Models;
+
 namespace CognitivePlatform.Api.Domains.Conversations;
 
 public interface IConversationService
@@ -17,4 +19,8 @@ public interface IConversationService
     Task<(Stream? Stream, string ContentType)> GetAudioAsync( Guid conversationId, CancellationToken cancellationToken = default );
     Task<ConversationAnalysis> AnalyzeConversationAsync( Guid conversationId, CancellationToken cancellationToken = default );
     Task<ConversationAnalysis?> GetAnalysisAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<List<ConversationMemoryCandidate>> ExtractMemoriesAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<List<ConversationMemoryCandidate>> GetMemoriesAsync( Guid conversationId, CancellationToken cancellationToken = default );
+    Task<PersonaMemory?> ConfirmMemoryAsync( Guid conversationId, Guid candidateMemoryId, CancellationToken cancellationToken = default );
+    Task<List<ConversationMemoryCandidate>> QueryMemoriesAsync( string query, CancellationToken cancellationToken = default );
 }

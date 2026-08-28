@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.Conversations;
+using CognitivePlatform.Api.Domains.Personas.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -214,5 +215,42 @@ public class ConversationRecorderController : ControllerBase
             return NotFound();
         }
         return Ok(analysis);
+    }
+
+    [HttpPost("{id:guid}/memories/extract")]
+    public async Task<ActionResult<List<ConversationMemoryCandidate>>> ExtractMemories( [FromRoute] Guid id
+                                                                                      , CancellationToken cancellationToken )
+    {
+        var memories = await _conversationService.ExtractMemoriesAsync(id, cancellationToken);
+        return Ok(memories);
+    }
+
+    [HttpGet("{id:guid}/memories")]
+    public async Task<ActionResult<List<ConversationMemoryCandidate>>> GetMemories( [FromRoute] Guid id
+                                                                                  , CancellationToken cancellationToken )
+    {
+        var memories = await _conversationService.GetMemoriesAsync(id, cancellationToken);
+        return Ok(memories);
+    }
+
+    [HttpPost("{id:guid}/memories/{memoryId:guid}/confirm")]
+    public async Task<ActionResult<PersonaMemory>> ConfirmMemory( [FromRoute] Guid id
+                                                                , [FromRoute] Guid memoryId
+                                                                , CancellationToken cancellationToken )
+    {
+        var confirmed = await _conversationService.ConfirmMemoryAsync(id, memoryId, cancellationToken);
+        if (confirmed is null)
+        {
+            return NotFound();
+        }
+        return Ok(confirmed);
+    }
+
+    [HttpGet("memories/query")]
+    public async Task<ActionResult<List<ConversationMemoryCandidate>>> QueryMemories( [FromQuery] string? q
+                                                                                    , CancellationToken cancellationToken )
+    {
+        var results = await _conversationService.QueryMemoriesAsync(q ?? string.Empty, cancellationToken);
+        return Ok(results);
     }
 }

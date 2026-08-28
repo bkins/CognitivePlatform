@@ -6,6 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using CognitivePlatform.Api.Data;
+using CognitivePlatform.Api.Domains.Knowledge;
+using CognitivePlatform.Api.Domains.Personas.Models;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,21 +20,27 @@ public class ConversationService : IConversationService
     private readonly ITranscriptionService        _transcriptionService;
     private readonly ISpeakerDiarizationService   _diarizationService;
     private readonly IConversationAnalyzer        _conversationAnalyzer;
+    private readonly IConversationMemoryExtractor? _memoryExtractor;
+    private readonly IKnowledgeIngestionService?   _knowledgeIngestionService;
     private readonly ILogger<ConversationService> _logger;
     private readonly string                       _recordingsDirectory;
 
-    public ConversationService( IObjectStore                 objectStore
-                              , ITranscriptionService        transcriptionService
-                              , ISpeakerDiarizationService   diarizationService
-                              , IConversationAnalyzer        conversationAnalyzer
-                              , ILogger<ConversationService> logger
-                              , IHostEnvironment?            hostEnv = null )
+    public ConversationService( IObjectStore                     objectStore
+                              , ITranscriptionService            transcriptionService
+                              , ISpeakerDiarizationService       diarizationService
+                              , IConversationAnalyzer            conversationAnalyzer
+                              , ILogger<ConversationService>     logger
+                              , IConversationMemoryExtractor?    memoryExtractor           = null
+                              , IKnowledgeIngestionService?       knowledgeIngestionService = null
+                              , IHostEnvironment?                hostEnv                   = null )
     {
-        _objectStore          = objectStore;
-        _transcriptionService = transcriptionService;
-        _diarizationService   = diarizationService;
-        _conversationAnalyzer = conversationAnalyzer;
-        _logger               = logger;
+        _objectStore               = objectStore;
+        _transcriptionService      = transcriptionService;
+        _diarizationService        = diarizationService;
+        _conversationAnalyzer      = conversationAnalyzer;
+        _memoryExtractor           = memoryExtractor;
+        _knowledgeIngestionService = knowledgeIngestionService;
+        _logger                    = logger;
 
         var envName = hostEnv?.EnvironmentName ?? "Development";
         if (OperatingSystem.IsWindows() && Directory.Exists(@"C:\CP\Data"))
@@ -106,6 +114,17 @@ public class ConversationService : IConversationService
             analysis.IsDeleted = true;
             analysis.DeletedUtc = DateTime.UtcNow;
             await _objectStore.Save(analysis, partitionKey: null, id: $"analysis_{id}");
+        }
+
+        var candidateMemories = await GetMemoriesAsync(id, cancellationToken);
+        if (candidateMemories.Count > 0)
+        {
+            foreach (var memory in candidateMemories)
+            {
+                memory.IsDeleted = true;
+                memory.DeletedUtc = DateTime.UtcNow;
+            }
+            await _objectStore.Save(candidateMemories, partitionKey: null, id: $"memories_{id}");
         }
 
         var filePath = Path.Combine(_recordingsDirectory, $"recording_{id}.wav");
@@ -468,5 +487,123 @@ public class ConversationService : IConversationService
             return null;
         }
         return analysis;
+    }
+
+    public async Task<List<ConversationMemoryCandidate>> ExtractMemoriesAsync( Guid conversationId
+                                                                            , CancellationToken cancellationToken = default )
+    {
+        var details = await GetConversationDetailsAsync(conversationId, cancellationToken);
+        if (details == null || details.Transcript == null || details.Transcript.Segments.Count == 0)
+        {
+            return new List<ConversationMemoryCandidate>();
+        }
+
+        var memories = _memoryExtractor != null
+            ? await _memoryExtractor.ExtractMemoriesAsync(details, cancellationToken)
+            : new List<ConversationMemoryCandidate>();
+
+        await _objectStore.Save(memories, partitionKey: null, id: $"memories_{conversationId}");
+
+        if (_knowledgeIngestionService != null && details.Analysis != null && details.Analysis.Summary.HasValue())
+        {
+            try
+            {
+                var tags = details.Analysis.Topics != null && details.Analysis.Topics.Count > 0
+                    ? details.Analysis.Topics.Select(topic => topic.Content).ToList()
+                    : new List<string>();
+
+                await _knowledgeIngestionService.IngestDocumentAsync(
+                    domainName: "Conversations",
+                    title:      details.Record.Title,
+                    content:    details.Analysis.Summary,
+                    source:     $"conversation_{conversationId}",
+                    tags:       tags,
+                    ct:         cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to ingest conversation into knowledge domain for {ConversationId}", conversationId);
+            }
+        }
+
+        return memories;
+    }
+
+    public async Task<List<ConversationMemoryCandidate>> GetMemoriesAsync( Guid conversationId
+                                                                        , CancellationToken cancellationToken = default )
+    {
+        var memories = await _objectStore.GetAsync<List<ConversationMemoryCandidate>>($"memories_{conversationId}", partitionKey: null, cancellationToken: cancellationToken);
+        if (memories == null)
+        {
+            return new List<ConversationMemoryCandidate>();
+        }
+
+        return memories.Where(memory => !memory.IsDeleted).ToList();
+    }
+
+    public async Task<PersonaMemory?> ConfirmMemoryAsync( Guid conversationId
+                                                        , Guid candidateMemoryId
+                                                        , CancellationToken cancellationToken = default )
+    {
+        var memories = await GetMemoriesAsync(conversationId, cancellationToken);
+        var candidate = memories.FirstOrDefault(memory => memory.Id == candidateMemoryId);
+        if (candidate == null)
+        {
+            return null;
+        }
+
+        candidate.State = MemoryState.Canonical;
+        await _objectStore.Save(memories, partitionKey: null, id: $"memories_{conversationId}");
+
+        var segmentIdsList = candidate.SourceTranscriptSegmentIds != null
+            ? string.Join(",", candidate.SourceTranscriptSegmentIds)
+            : string.Empty;
+
+        var personaMemory = new PersonaMemory
+        {
+            Id              = Guid.NewGuid()
+          , PersonaId       = Guid.Empty
+          , Content         = candidate.Content
+          , Type            = MemoryType.Historical
+          , Confidence      = (float)candidate.Confidence
+          , EmotionalWeight = 0.5f
+          , UserAsserted    = true
+          , AIInferred      = true
+          , State           = MemoryState.Canonical
+          , Source          = MemorySource.ConversationRecollection
+          , InferenceChain  = $"Conversation:{conversationId}|Category:{candidate.Category}|Segments:[{segmentIdsList}]|Speaker:{candidate.Speaker ?? "Unknown"}"
+          , CreatedUtc      = DateTime.UtcNow
+          , LastModifiedUtc = DateTime.UtcNow
+        };
+
+        await _objectStore.Save(personaMemory, partitionKey: null, id: $"persona_memory_{personaMemory.Id}");
+        return personaMemory;
+    }
+
+    public async Task<List<ConversationMemoryCandidate>> QueryMemoriesAsync( string query
+                                                                          , CancellationToken cancellationToken = default )
+    {
+        var records = await ListRecordingsAsync(cancellationToken);
+        var results = new List<ConversationMemoryCandidate>();
+
+        foreach (var record in records)
+        {
+            var memories = await GetMemoriesAsync(record.Id, cancellationToken);
+            if (query.HasNoValue())
+            {
+                results.AddRange(memories);
+                continue;
+            }
+
+            var matches = memories.Where(memory =>
+                memory.Content.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || memory.Category.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || (memory.Speaker != null && memory.Speaker.Contains(query, StringComparison.OrdinalIgnoreCase))
+            );
+
+            results.AddRange(matches);
+        }
+
+        return results;
     }
 }
