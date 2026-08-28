@@ -19,7 +19,7 @@
     <MudText Typo="Typo.h4">Data Management</MudText>
     <MudSpacer />
     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                   Title="Refresh"
+                   title="Refresh"
                    OnClick="@LoadAsync"
                    Disabled="@_loading" />
 </MudStack>
@@ -120,13 +120,13 @@ else if (_error is not null)
                         <MudIconButton Icon="@Icons.Material.Filled.RestoreFromTrash"
                                        Color="Color.Success"
                                        Size="Size.Small"
-                                       Title="Restore"
+                                       title="Restore"
                                        OnClick="@(() => RestoreAsync(context.Item))" />
                     }
                     <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
                                    Color="Color.Error"
                                    Size="Size.Small"
-                                   Title="Hard Delete (permanent)"
+                                   title="Hard Delete (permanent)"
                                    OnClick="@(() => ConfirmHardDeleteAsync(context.Item))" />
                 </MudStack>
             </CellTemplate>

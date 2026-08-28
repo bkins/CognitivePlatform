@@ -256,7 +256,7 @@
 <MudExpansionPanels MultiExpansion="true" Class="mb-4">
 
     @* ── Artifact Store ── *@
-    <MudExpansionPanel @bind-IsExpanded="_artifactsExpanded"
+    <MudExpansionPanel @bind-Expanded="_artifactsExpanded"
                        Text="Artifact Store"
                        Icon="@Icons.Material.Filled.Inventory2">
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -347,7 +347,7 @@
     </MudExpansionPanel>
 
     @* ── Deployment State ── *@
-    <MudExpansionPanel @bind-IsExpanded="_stateExpanded"
+    <MudExpansionPanel @bind-Expanded="_stateExpanded"
                        Text="Deployment State"
                        Icon="@Icons.Material.Filled.Dashboard">
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
@@ -407,7 +407,7 @@
     </MudExpansionPanel>
 
     @* ── Audit Log ── *@
-    <MudExpansionPanel @bind-IsExpanded="_auditExpanded"
+    <MudExpansionPanel @bind-Expanded="_auditExpanded"
                        Text="Audit Log (last 30)"
                        Icon="@Icons.Material.Filled.History">
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">

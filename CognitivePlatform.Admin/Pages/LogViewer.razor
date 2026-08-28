@@ -17,7 +17,7 @@
         </MudText>
     }
     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                   Title="Refresh now"
+                   title="Refresh now"
                    OnClick="@RefreshAsync"
                    Disabled="@_loading" />
 </MudStack>
@@ -26,7 +26,7 @@
 @if (_adminErrors.Count > 0)
 {
     <MudExpansionPanels Class="mb-4" MultiExpansion="false">
-        <MudExpansionPanel IsExpanded="true"
+        <MudExpansionPanel Expanded="true"
                            Icon="@Icons.Material.Filled.BugReport">
             <TitleContent>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">

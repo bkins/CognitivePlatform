@@ -60,16 +60,17 @@ public class LocalSpeakerDiarizationService : ISpeakerDiarizationService
             return (segmentIndex % 2) + 1;
         }
 
-        // Sample audio pitch at segment start timestamp (16kHz 16-bit mono = 32000 bytes/sec)
+        // Sample audio pitch at segment start timestamp (16kHz 16-bit mono = 32000 bytes/sec, 2-byte aligned)
         var bytesPerSecond = 32000;
-        var startOffset = 44 + (int)(segment.Start.TotalSeconds * bytesPerSecond);
+        var rawOffset = (int)(segment.Start.TotalSeconds * bytesPerSecond);
+        var startOffset = 44 + (rawOffset & ~1);
         if (startOffset + 100 < audioBytes.Length)
         {
             // Sample amplitude and energy cluster at segment start
             var sample = BitConverter.ToInt16(audioBytes, startOffset);
             if (sample > 3000 || sample < -3000)
             {
-                var cluster = (Math.Abs(sample) / 4000) % maxSpeakers;
+                var cluster = (Math.Abs((int)sample) / 4000) % maxSpeakers;
                 return cluster + 1;
             }
         }

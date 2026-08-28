@@ -23,7 +23,7 @@
         New Entry
     </MudButton>
     <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                   Title="Reload entries"
+                   title="Reload entries"
                    OnClick="@LoadEntriesAsync"
                    Disabled="@_loadingEntries" />
 </MudStack>
@@ -215,14 +215,14 @@ else if (_entriesError is not null)
                                                            : Icons.Material.Filled.Visibility)"
                                                    Size="Size.Small"
                                                    Color="Color.Primary"
-                                                   Title="View full text"
+                                                   title="View full text"
                                                    OnClick="@(() => SelectRevision(
                                                                   context.Item == _selectedRevision
                                                                   ? null : context.Item))" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                                    Size="Size.Small"
                                                    Color="Color.Secondary"
-                                                   Title="Edit Revision"
+                                                   title="Edit Revision"
                                                    OnClick="@(() => OpenEditRevisionDialog(context.Item))" />
                                 </MudStack>
                             </CellTemplate>

@@ -75,7 +75,7 @@
             @if (evalLines.Length > 0 || evalState.IsRunning)
             {
                 <MudExpansionPanels Class="mt-3" Elevation="0">
-                    <MudExpansionPanel Text="Evaluator Output" IsExpanded="@evalState.IsRunning">
+                    <MudExpansionPanel Text="Evaluator Output" Expanded="@evalState.IsRunning">
                         <TerminalOutput Terminal="@evalState"
                                         Height="350px"
                                         ContainerId="eval-terminal" />
