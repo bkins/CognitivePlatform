@@ -152,8 +152,8 @@ public class OrchestratorInsightIntegrationTests
                                            , It.IsAny<CancellationToken>()))
             .ReturnsAsync(output);
 
-    private static ActionMetadata SimpleAction(string name = "DoSomething") =>
-        new() { Name = name, Category = "General" };
+    private static ActionMetadata SimpleAction(string name = "DoSomething", bool isReplayable = false) =>
+        new() { Name = name, Category = "General", IsReplayable = isReplayable };
 
     private static Insight Insight(string deduplicationKey,
                                    string message = "follow-on suggestion") =>
@@ -319,7 +319,7 @@ public class OrchestratorInsightIntegrationTests
     [Fact]
     public async Task FastPath_RecordsTurn_WithFastPathStamp()
     {
-        var action = SimpleAction("FastDo");
+        var action = SimpleAction("FastDo", isReplayable: true);
 
         // Set up FastPath to resolve.
         _fastPathMock
@@ -378,7 +378,7 @@ public class OrchestratorInsightIntegrationTests
     [Fact]
     public async Task FastPath_EngineEmitsInsights_MessageIsWoven_AndWeaveIsCalled()
     {
-        var action = SimpleAction("FastDo");
+        var action = SimpleAction("FastDo", isReplayable: true);
 
         _fastPathMock
             .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
@@ -420,9 +420,48 @@ public class OrchestratorInsightIntegrationTests
     }
 
     [Fact]
+    public async Task FastPath_NonReplayableAction_SkipsInsightEngine_AndReturnsRawMessage()
+    {
+        var action = SimpleAction("FastReadOnly");
+
+        _fastPathMock
+            .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
+                                                 , out It.Ref<ActionMetadata?>.IsAny
+                                                 , out It.Ref<Dictionary<string, string>?>.IsAny))
+            .Returns((string _
+                    , out ActionMetadata? meta
+                    , out Dictionary<string, string>? parameters) =>
+            {
+                meta       = action;
+                parameters = new Dictionary<string, string>();
+                return true;
+            });
+
+        StubExecutionReturns("fastpath raw output");
+
+        var emitted = Insight("journal.no-entry-today", "You haven't journaled today.");
+        StubEngineEmits(emitted);
+
+        var orchestrator = BuildOrchestrator();
+        var response     = await orchestrator.ConverseAsync(Request("list tasks"));
+
+        Assert.Equal("fastpath raw output", response.Message);
+        Assert.Empty(response.Insights);
+
+        _engineMock.Verify(engine => engine.GenerateInsightsAsync(It.IsAny<ConversationContext>()
+                                                                , It.IsAny<CancellationToken>())
+                          , Times.Never);
+        _routerMock.Verify(router => router.WeaveAsync(It.IsAny<ConversationContext>()
+                                                     , It.IsAny<string>()
+                                                     , It.IsAny<IReadOnlyList<Insight>>()
+                                                     , It.IsAny<CancellationToken>())
+                         , Times.Never);
+    }
+
+    [Fact]
     public async Task FastPath_EngineEmitsZero_WeaveIsSkipped_RawMessageReturned()
     {
-        var action = SimpleAction("FastDo");
+        var action = SimpleAction("FastDo", isReplayable: true);
 
         _fastPathMock
             .Setup(resolver => resolver.TryResolve(It.IsAny<string>()
