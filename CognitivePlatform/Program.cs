@@ -84,7 +84,7 @@ public partial class Program
         var options = new ConfigurationDumpOptions
                       {
                               Mode                = ConfigurationDumpMode.Tree
-                            , MaskSensitiveValues = false
+                            , MaskSensitiveValues = true
                             , SortAlphabetically  = true
                       };
 
