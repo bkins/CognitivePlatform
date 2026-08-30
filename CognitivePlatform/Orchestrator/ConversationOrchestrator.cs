@@ -60,7 +60,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
     private readonly ITaskComplexityClassifier      _complexityClassifier;
     private readonly IInterpreterTrainingStore?     _trainingStore;
     private readonly IKnowledgeIngestionService?    _knowledgeIngestionService;
-    private readonly ISecretVaultService?           _secretsVault;
+    private readonly ISecretVaultService            _secretsVault;
 
     private readonly bool _isDebug  = false;
 
@@ -130,7 +130,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         _stabilityTracker                = stabilityTracker;
         _emotionalTopologyTracker        = emotionalTopologyTracker;
         _knowledgeIngestionService       = knowledgeIngestionService;
-        _secretsVault                    = secretsVault;
+        _secretsVault                    = secretsVault ?? UnavailableSecretVaultService.Instance;
 
 #if DEBUG
         _isDebug = true;
@@ -261,8 +261,12 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
 
             try
             {
-                var fastInsights = actionMeta.Name.EqualsIgnoreCase("ReportBug")
-                                || actionMeta.Name.EqualsIgnoreCase("ReportIdea")
+                var skipInsightWeave = !actionMeta.IsReplayable
+                                     || actionMeta.Category.EqualsIgnoreCase("secrets")
+                                     || actionMeta.Name.EqualsIgnoreCase("ReportBug")
+                                     || actionMeta.Name.EqualsIgnoreCase("ReportIdea");
+
+                var fastInsights = skipInsightWeave
                                    ? (IReadOnlyList<Insight>)Array.Empty<Insight>()
                                    : await SafeGenerateInsightsAsync(context, ct);
 
@@ -2035,32 +2039,56 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         if (action.Category.EqualsIgnoreCase("secrets") 
          || action.Name.EqualsAnyIgnoreCase("SaveSecret", "GetSecret", "ListSecrets", "DeleteSecret"))
         {
-            if (_secretsVault is not null)
+            if (!_secretsVault.IsInitialized())
             {
-                if (!_secretsVault.IsInitialized())
-                {
-                    errorResponse = new ConverseResponse
-                                    {
-                                        Success              = false
-                                      , IsVaultSetupRequired = true
-                                      , Message              = "The Secrets Vault has not been set up yet. Please set a secure PIN to initialize your vault."
-                                    };
-                    return false;
-                }
-                
-                if (!_secretsVault.IsUnlocked())
-                {
-                    errorResponse = new ConverseResponse
-                                    {
-                                        Success               = false
-                                      , IsVaultUnlockRequired = true
-                                      , Message               = "Secrets vault is locked. Please enter your PIN or use biometrics to unlock."
-                                    };
-                    return false;
-                }
+                errorResponse = new ConverseResponse
+                                {
+                                    Success              = false
+                                  , IsVaultSetupRequired = true
+                                  , Message              = "The Secrets Vault has not been set up yet. Please set a secure PIN to initialize your vault."
+                                };
+                return false;
+            }
+            
+            if (!_secretsVault.IsUnlocked())
+            {
+                errorResponse = new ConverseResponse
+                                {
+                                    Success               = false
+                                  , IsVaultUnlockRequired = true
+                                  , Message               = "Secrets vault is locked. Please enter your PIN or use biometrics to unlock."
+                                };
+                return false;
             }
         }
 
         return true;
+    }
+
+    private sealed class UnavailableSecretVaultService : ISecretVaultService
+    {
+        public static readonly UnavailableSecretVaultService Instance = new();
+
+        private UnavailableSecretVaultService()
+        {
+        }
+
+        public bool IsInitialized() => false;
+
+        public bool IsUnlocked() => false;
+
+        public Task<bool> SetupAsync(string pin) => Task.FromResult(false);
+
+        public Task<bool> UnlockAsync(string pin) => Task.FromResult(false);
+
+        public void Lock()
+        {
+        }
+
+        public Task<(string EncryptedPayload, string Nonce, string AuthTag)> EncryptAsync(string plaintext)
+            => throw new InvalidOperationException("Secrets vault service is not available.");
+
+        public Task<string> DecryptAsync(string encryptedPayload, string nonce, string authTag)
+            => throw new InvalidOperationException("Secrets vault service is not available.");
     }
 }

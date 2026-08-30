@@ -94,6 +94,12 @@ public sealed class FastPathResolver : IFastPathResolver
             return TryResolvePrefix(input, out action, out parameters);
 
         // ------------------------------------------------------------
+        // MODE 1.3: SECRETS FAST PATHS
+        // ------------------------------------------------------------
+        if (TryResolveSecrets(input, out action, out parameters))
+            return true;
+
+        // ------------------------------------------------------------
         // MODE 2: TASK-SPECIFIC FAST PATHS
         // Evaluated before the generic path so task intent patterns
         // are not accidentally swallowed by journal signals.
@@ -2160,6 +2166,62 @@ public sealed class FastPathResolver : IFastPathResolver
                                    .Select(match => match.Value)
                                    .Distinct()
                                    .ToList();
+    }
+
+    // ================================================================
+    // MODE 1.3: SECRETS FAST PATHS
+    // "save secret 'title' is 'value'", "get secret 'title'"
+    // ================================================================
+
+    private static readonly Regex SaveSecretRegex =
+        new(@"^(?:save|store)\s+(?:secret|sensitive\s+credential)\s+[""'](?<title>.+?)[""']\s+(?:is|as|with\s+value)\s+[""'](?<value>.+?)[""'](?:\s+under\s+category\s+[""']?(?<category>.+?)[""']?)?$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex GetSecretRegex =
+        new(@"^(?:get|retrieve|show)\s+secret\s+[""'](?<title>.+?)[""']$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private bool TryResolveSecrets( string                           input
+                                  , out ActionMetadata?             action
+                                  , out Dictionary<string, string>? parameters )
+    {
+        action     = null;
+        parameters = null;
+
+        var saveMatch = SaveSecretRegex.Match(input);
+        if (saveMatch.Success)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "SaveSecret");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         {
+                             ["title"]       = saveMatch.Groups["title"].Value.Trim()
+                           , ["secretValue"] = saveMatch.Groups["value"].Value.Trim()
+                         };
+
+            var category = saveMatch.Groups["category"].Value.Trim();
+            if (category.HasValue())
+            {
+                parameters["category"] = category;
+            }
+
+            return true;
+        }
+
+        var getMatch = GetSecretRegex.Match(input);
+        if (getMatch.Success)
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "GetSecret");
+            if (action is null) return false;
+
+            parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                         { ["titleOrId"] = getMatch.Groups["title"].Value.Trim() };
+
+            return true;
+        }
+
+        return false;
     }
 
     // ================================================================

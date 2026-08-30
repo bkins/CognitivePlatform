@@ -58,6 +58,8 @@ public class FastPathResolverTests
             , MakeAction("ListMeals")
             , MakeAction("GetNutritionSummary")
             , MakeAction("DeleteMeal")
+            , MakeAction("SaveSecret")
+            , MakeAction("GetSecret")
         };
 
         _registryMock.Setup(registry => registry.Actions).Returns(actions);
@@ -204,6 +206,44 @@ public class FastPathResolverTests
         Assert.Equal("UpdateTaskDueDate", action!.Name);
         Assert.Equal("2",                 parameters!["taskReference"]);
         Assert.Equal("Friday",            parameters["dueDateText"]);
+    }
+
+    // ================================================================
+    // MODE 1.3: SECRETS FAST PATHS
+    // ================================================================
+
+    [Fact]
+    public void TryResolve_ResolvesToSaveSecret_ForQuotedSaveSecretPhrase()
+    {
+        var resolved = _resolver.TryResolve("save secret \"Bank PIN\" is \"9876\"", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SaveSecret", action!.Name);
+        Assert.Equal("Bank PIN",   parameters!["title"]);
+        Assert.Equal("9876",       parameters["secretValue"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToGetSecret_ForQuotedGetSecretPhrase()
+    {
+        var resolved = _resolver.TryResolve("get secret \"Bank PIN\"", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("GetSecret", action!.Name);
+        Assert.Equal("Bank PIN",  parameters!["titleOrId"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesSecretsFastPath_WithRealActionRegistry()
+    {
+        var resolver = new FastPathResolver(new ActionRegistry(), _dailyParserMock.Object);
+
+        var resolved = resolver.TryResolve("save secret \"Bank PIN cb96fb2c21e243ce849b8cbd3bd06f98\" is \"9876\"", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("SaveSecret",                                  action!.Name);
+        Assert.Equal("Bank PIN cb96fb2c21e243ce849b8cbd3bd06f98",   parameters!["title"]);
+        Assert.Equal("9876",                                        parameters["secretValue"]);
     }
 
     // ================================================================

@@ -37,6 +37,8 @@ public sealed class SecretsControllerTests : IDisposable
     [Fact]
     public async Task Setup_Unlock_Lock_Lifecycle_RoundTrip()
     {
+        await _fixture.ResetSecretsVaultForInMemoryTestsAsync();
+
         _fixture.Log("Act — POST /api/secrets/setup with new PIN");
         var pinPayload = new VaultPinRequest("123456");
         var setupResponse = await _fixture.Client.PostAsJsonAsync("/api/secrets/setup", pinPayload);

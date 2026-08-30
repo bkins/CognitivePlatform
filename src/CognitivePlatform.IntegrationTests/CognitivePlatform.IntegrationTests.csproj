@@ -9,7 +9,6 @@
 
     <ItemGroup>
         <PackageReference Include="coverlet.collector" Version="6.0.4" />
-        <PackageReference Include="CP.Shared.Primitives" Version="1.1.0.47" />
         <PackageReference Include="FluentAssertions" Version="6.12.0" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -24,6 +23,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\CognitivePlatform\CognitivePlatform.Api.csproj" />
+        <ProjectReference Include="..\..\..\CP.Shared.Primitives\CP.Shared.Primitives\CP.Shared.Primitives.csproj" />
     </ItemGroup>
 
 </Project>

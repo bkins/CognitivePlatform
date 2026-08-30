@@ -17,8 +17,19 @@ public static class CalendarServiceCollectionExtensions
         // for the split, so it's been removed. Only one registration remains below.
         var googleCalendarSection = $"GoogleCalendar:{environmentName}";
         services.Configure<GoogleCalendarSettings>(configuration.GetSection(googleCalendarSection));
-        services.AddHttpClient(googleCalendarSection);
-        services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
+        services.AddHttpClient("GoogleCalendar");
+
+        var llmProvider = configuration["LlmClient:Provider"];
+        if (environmentName.EqualsIgnoreCase("Testing")
+         && llmProvider.EqualsIgnoreCase("Mock"))
+        {
+            services.AddSingleton<ICalendarProvider, DisconnectedCalendarProvider>();
+        }
+        else
+        {
+            services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
+        }
+
         services.AddTransient<CalendarActions>();
 
         return services;

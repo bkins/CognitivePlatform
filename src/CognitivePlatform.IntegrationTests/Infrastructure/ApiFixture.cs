@@ -12,6 +12,7 @@ namespace CognitivePlatform.IntegrationTests.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Domains.Secrets;
 
 public sealed class CognitivePlatformTestApp : WebApplicationFactory<Program>
 {
@@ -72,10 +73,25 @@ public sealed class ApiFixture : IDisposable
     {
         _output = output;
 
-        if (ExternalBaseUrl.HasNoValue())
+        if (string.IsNullOrWhiteSpace(ExternalBaseUrl))
         {
-            _factory = new CognitivePlatformTestApp();
-            Client = _factory.CreateClient();
+            var originalAspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var originalDotnetEnvironment     = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     "Testing");
+
+            try
+            {
+                _factory = new CognitivePlatformTestApp();
+                Client   = _factory.CreateClient();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", originalAspNetCoreEnvironment);
+                Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     originalDotnetEnvironment);
+            }
+
             Client.Timeout = TimeSpan.FromSeconds(30);
         }
         else
@@ -205,4 +221,21 @@ public sealed class ApiFixture : IDisposable
         => IsVerbose && output is not null
                ? new VerboseLoggingHandler(output)
                : null;
+
+    public Task ResetSecretsVaultForInMemoryTestsAsync()
+    {
+        if (_factory is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<CognitivePlatform.Api.Data.IObjectStore>();
+        foreach (var secret in store.List<SecretEntry>())
+        {
+            store.SoftDelete<SecretEntry>(secret.Id);
+        }
+
+        return Task.CompletedTask;
+    }
 }
