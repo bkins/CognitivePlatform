@@ -42,6 +42,9 @@ public sealed class CognitivePlatformTestApp : WebApplicationFactory<Program>
 /// </summary>
 public sealed class ApiFixture : IDisposable
 {
+    private static readonly object InMemoryFactoryLock = new();
+    private static readonly Lazy<CognitivePlatformTestApp> SharedInMemoryFactory = new(CreateInMemoryFactory);
+
     public static readonly string? ExternalBaseUrl =
         Environment.GetEnvironmentVariable("API_BASE_URL");
 
@@ -75,23 +78,8 @@ public sealed class ApiFixture : IDisposable
 
         if (string.IsNullOrWhiteSpace(ExternalBaseUrl))
         {
-            var originalAspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            var originalDotnetEnvironment     = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-
-            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
-            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     "Testing");
-
-            try
-            {
-                _factory = new CognitivePlatformTestApp();
-                Client   = _factory.CreateClient();
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", originalAspNetCoreEnvironment);
-                Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     originalDotnetEnvironment);
-            }
-
+            _factory       = SharedInMemoryFactory.Value;
+            Client         = _factory.CreateClient();
             Client.Timeout = TimeSpan.FromSeconds(30);
         }
         else
@@ -204,7 +192,6 @@ public sealed class ApiFixture : IDisposable
     public void Dispose()
     {
         Client.Dispose();
-        _factory?.Dispose();
     }
 
     /// <summary>
@@ -221,6 +208,30 @@ public sealed class ApiFixture : IDisposable
         => IsVerbose && output is not null
                ? new VerboseLoggingHandler(output)
                : null;
+
+    private static CognitivePlatformTestApp CreateInMemoryFactory()
+    {
+        lock (InMemoryFactoryLock)
+        {
+            var originalAspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var originalDotnetEnvironment     = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     "Testing");
+
+            try
+            {
+                var factory = new CognitivePlatformTestApp();
+                _ = factory.Services;
+                return factory;
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", originalAspNetCoreEnvironment);
+                Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT",     originalDotnetEnvironment);
+            }
+        }
+    }
 
     public Task ResetSecretsVaultForInMemoryTestsAsync()
     {
