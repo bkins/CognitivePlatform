@@ -1509,7 +1509,7 @@
                     CreateNoWindow         = true
                 };
 
-                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
+                var winExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", winStartInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(20));
                 if (winExitCode is null)
                 {
                     overallExitCode = -1;
@@ -1563,7 +1563,7 @@
                         UseShellExecute        = false,
                         CreateNoWindow         = true
                     };
-                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(10));
+                    var androidExitCode = await TerminalService.RunProcessAsync("test-all-system-tests", testStart, ClassifyLine, timeout: TimeSpan.FromMinutes(20));
                     if (androidExitCode is null)
                     {
                         overallExitCode = -1;
