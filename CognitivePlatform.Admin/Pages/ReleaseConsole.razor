@@ -8,6 +8,7 @@
 @inject ITerminalStateService TerminalService
 @inject IJSRuntime            Js
 @inject IPowerShellResolver    PowerShellResolver
+@inject IWebHostEnvironment   HostEnvironment
 
 <PageTitle>Release Console — CP Admin</PageTitle>
 
@@ -706,7 +707,7 @@
 
     // ── Configured paths ─────────────────────────────────────────────────────────
 
-    private string ScriptsDir           => Configuration["SystemPaths:ReleaseConsoleScriptsDir"] ?? @"C:\Users\benho\source\repos\ReleaseConsole\ReleaseConsole\Scripts";
+    private string ScriptsDir           => Configuration["SystemPaths:ReleaseConsoleScriptsDir"] ?? Path.Combine(HostEnvironment.ContentRootPath, "Scripts");
     private string CpRepoRoot           => Configuration["SystemPaths:CognitivePlatformRepo"] ?? @"C:\Users\benho\source\repos\CognitivePlatform";
     private string StagingApiDir        => Configuration["SystemPaths:StagingApiDir"] ?? @"C:\CP\Deploy\Api";
     private string StagingLaaDir        => Configuration["SystemPaths:StagingLaaDir"] ?? @"C:\CP\Deploy\Laa";

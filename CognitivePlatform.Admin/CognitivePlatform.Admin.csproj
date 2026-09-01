@@ -22,4 +22,11 @@
     <Using Include="CP.Shared.Primitives.Avails.Extensions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Scripts\**\*.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
