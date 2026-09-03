@@ -102,8 +102,8 @@ try {
         New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
     }
 
-    # MAUI Resizetizer requires a 3-part ApplicationDisplayVersion, but Android
-    # app info displays versionName and can show the full release version.
+    # MAUI Resizetizer requires a 3-part ApplicationDisplayVersion. LAA maps
+    # AndroidFullVersionName into the Android manifest versionName at build time.
     $versionParts = $Version.Split('.')
     if ($versionParts.Count -ge 4) {
         $displayVersion = ($versionParts[0..2]) -join '.'
@@ -124,7 +124,7 @@ try {
         -f net9.0-android `
         /p:ApplicationLabel="$appLabel" `
         /p:ApplicationDisplayVersion="$displayVersion" `
-        /p:_AndroidVersionName="$Version" `
+        /p:AndroidFullVersionName="$Version" `
         /p:ApplicationVersion=$appVersion `
         /p:ApiEnvironmentName="$Environment" `
         /p:ApplicationId="$appId" `
