@@ -6,7 +6,7 @@ Builds the Local AI Assistant MAUI application for ONE specific environment.
 This script builds the MAUI Android application for the specified environment
 and version. It produces a single signed APK artifact for that environment only.
 
-This script is invoked by ReleaseConsoles BuildCommand.
+This script is invoked by the CP Admin Release page.
 It does not generate versions, enforce promotion rules, or manage artifacts.
 
 IMPORTANT: This script builds ONLY the specified environment, not all environments.
@@ -16,7 +16,7 @@ Target environment. Valid values: Dev, QA
 NOTE: Prod is NOT allowed - Prod artifacts come from promotion only.
 
 .PARAMETER Version
-Version string provided by ReleaseConsole (e.g. 1.0.20260201.123045).
+Version string provided by CP Admin release tooling (e.g. 1.0.20260201.123045).
 
 .EXAMPLE
 .\Laa-Build.ps1 -Environment Dev -Version 1.0.20260201.123045
@@ -47,17 +47,23 @@ function Log {
     Write-Host "[BUILD][$Environment] $Message"
 }
 
+$manifestPath          = "C:\Users\benho\source\repos\LocalAIAssistant\Platforms\Android\AndroidManifest.xml"
+$originalManifestBytes = $null
+
 try {
     Write-Host "Building LocalAIAssistant for [$Environment], version [$Version]" -ForegroundColor Cyan
 
     # Project paths
     $mauiProject = "C:\Users\benho\source\repos\LocalAIAssistant\LocalAIAssistant.Ui.Maui.csproj"
-    $manifestPath = "C:\Users\benho\source\repos\LocalAIAssistant\Platforms\Android\AndroidManifest.xml"
 
     # $artifactsPath = "C:\CP\Artifacts\Laa\$Version\$Environment"
     
     if (-not (Test-Path $mauiProject)) {
         throw "MAUI project not found: $mauiProject"
+    }
+
+    if (-not (Test-Path $manifestPath)) {
+        throw "Android manifest not found: $manifestPath"
     }
 
     # Configure based on SINGLE environment
@@ -91,8 +97,10 @@ try {
     Log "Cleaning project..."
     dotnet clean $mauiProject | Out-Null
 
-    # Update AndroidManifest.xml
-    Log "Updating Android manifest..."
+    # Temporarily stamp the source manifest for MAUI packaging, then restore it
+    # in finally so environment builds do not leave the repo dirty.
+    Log "Temporarily stamping Android manifest label..."
+    $originalManifestBytes = [System.IO.File]::ReadAllBytes($manifestPath)
     [xml]$manifest = Get-Content $manifestPath
     $manifest.manifest.application.SetAttribute("android:label", $appLabel)
     $manifest.Save($manifestPath)
@@ -174,4 +182,15 @@ try {
 catch {
     Write-Host "Build failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
+}
+finally {
+    if ($null -ne $originalManifestBytes) {
+        try {
+            [System.IO.File]::WriteAllBytes($manifestPath, $originalManifestBytes)
+            Log "Restored Android manifest after build."
+        }
+        catch {
+            Write-Warning "Failed to restore Android manifest: $($_.Exception.Message)"
+        }
+    }
 }
