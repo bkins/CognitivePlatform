@@ -6,7 +6,7 @@ Builds the Local AI Assistant MAUI application for ONE specific environment.
 This script builds the MAUI Android application for the specified environment
 and version. It produces a single signed APK artifact for that environment only.
 
-This script is invoked by the CP Admin Release page.
+This script is invoked by the CP Admin Release Management page.
 It does not generate versions, enforce promotion rules, or manage artifacts.
 
 IMPORTANT: This script builds ONLY the specified environment, not all environments.

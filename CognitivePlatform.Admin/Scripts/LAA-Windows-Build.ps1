@@ -7,7 +7,7 @@ This script builds the MAUI Windows application (unpackaged, self-contained fold
 for the specified environment and version. The output is a publishable folder of
 binaries that LAA-Windows-Deploy.ps1 can copy to the final deploy location.
 
-This script is invoked by ReleaseConsole's BuildCommand.
+This script is invoked by the CP Admin Release Management page.
 It does not generate versions, enforce promotion rules, or manage artifacts.
 
 IMPORTANT: This script builds ONLY the specified environment, not all environments.
@@ -16,7 +16,7 @@ IMPORTANT: This script builds ONLY the specified environment, not all environmen
 Target environment. Valid values: Dev, QA, Prod.
 
 .PARAMETER Version
-Version string provided by ReleaseConsole (e.g. 1.0.20260201.123045).
+Version string provided by CP Admin release tooling (e.g. 1.0.20260201.123045).
 
 .PARAMETER OutputPath
 Directory where the published binaries are written.

@@ -25,7 +25,7 @@ internal static class AdminDateFormat
     internal static string Long(DateTimeOffset? dt)
         => dt.HasValue ? Long(dt.Value) : "—";
 
-    // DateTime overloads — assumes UTC storage (ReleaseConsole audit log / metadata.json)
+    // DateTime overloads assume UTC storage in release metadata and audit logs.
     internal static string Short(DateTime dt)
         => Short(new DateTimeOffset(dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime()
                                   , TimeSpan.Zero));

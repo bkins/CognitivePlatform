@@ -10,13 +10,13 @@
 @inject IPowerShellResolver    PowerShellResolver
 @inject IWebHostEnvironment   HostEnvironment
 
-<PageTitle>Release Console — CP Admin</PageTitle>
+<PageTitle>Release Management — CP Admin</PageTitle>
 
 @{
     var _rs = TerminalService.Get("release");
 }
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-    <MudText Typo="Typo.h4">Release Console</MudText>
+    <MudText Typo="Typo.h4">Release Management</MudText>
     <MudSpacer />
     <MudTooltip Text="Reload artifact store, deployment state, and audit log">
         <MudIconButton Icon="@Icons.Material.Filled.Refresh"
@@ -336,7 +336,7 @@
                                 else
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        Deploy via ReleaseConsole
+                                        Deploy via Release Management
                                     </MudText>
                                 }
                             </CellTemplate>
@@ -361,14 +361,14 @@
                            OnClick="@LoadDeploymentState" />
         </MudStack>
         <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-            Updated automatically after each Deploy action in this console.
+            Updated automatically after each Deploy action in Release Management.
             Entries from previous deployments made via the old standalone ReleaseConsole app are preserved.
         </MudAlert>
 
         @if (!File.Exists(DeploymentStatePath))
         {
             <MudAlert Severity="Severity.Info" Dense="true">
-                No deployment state file found — run a deployment from ReleaseConsole to create it.
+                No deployment state file found — run a deployment from Release Management to create it.
             </MudAlert>
         }
         else if (_deployments.Count == 0)
@@ -424,7 +424,7 @@
         @if (!File.Exists(AuditLogPath))
         {
             <MudAlert Severity="Severity.Info" Dense="true">
-                No audit log found — run a build or deployment from ReleaseConsole to create it.
+                No audit log found — run a build or deployment from Release Management to create it.
             </MudAlert>
         }
         else if (_auditEntries.Count == 0)

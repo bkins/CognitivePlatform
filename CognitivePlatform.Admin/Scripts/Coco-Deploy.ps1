@@ -10,7 +10,7 @@ and configures environment-specific settings.
 Target environment: DEV, QA, or PROD
 
 .PARAMETER SourcePath
-Path to the extracted artifact (provided by ReleaseConsole)
+Path to the extracted artifact (provided by CP Admin release tooling)
 
 .PARAMETER Version
 Version being deployed (for logging)
