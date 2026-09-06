@@ -186,4 +186,17 @@ public class MediaActionsTests
         Assert.Contains("journal entry #3", result);
         Assert.DoesNotContain(entryId, result);
     }
+
+    [Fact]
+    public async Task ListAttachments_HidesOwnerId_WhenOwnerCannotBeResolved()
+    {
+        const string ownerId = "7b5e4d53-2dc8-4c32-a5df-6d8fea6f8b9e";
+        _serviceMock.Setup(service => service.GetAttachmentsAsync("JournalEntry", ownerId))
+                    .ReturnsAsync(new List<MediaAttachment>());
+
+        var result = await _actions.ListAttachments("JournalEntry", ownerId);
+
+        Assert.Contains("requested JournalEntry item", result);
+        Assert.DoesNotContain(ownerId, result);
+    }
 }

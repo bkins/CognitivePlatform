@@ -50,8 +50,7 @@ public sealed class MediaActions
             }
         }
 
-        // Fallback
-        return $"{ownerType} {ownerId}";
+        return $"the requested {ownerType} item";
     }
 
     [NaturalLanguageAction(

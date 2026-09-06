@@ -41,12 +41,13 @@ public class SemanticSearchActionsTests
     [Fact]
     public async Task SemanticSearch_ReturnsFormattedResults_WhenResultsExist()
     {
+        const string referenceId = "7b5e4d53-2dc8-4c32-a5df-6d8fea6f8b9e";
         var embedding = new float[] { 1f, 0f };
         var entry     = new VectorEntry
                         {
-                            Id          = "journal:abc"
+                            Id          = $"journal:{referenceId}"
                           , Domain      = "journal"
-                          , ReferenceId = "abc"
+                          , ReferenceId = referenceId
                           , Text        = "Feeling burned out from work lately."
                           , Embedding   = embedding
                         };
@@ -60,7 +61,8 @@ public class SemanticSearchActionsTests
         var result = await _actions.SemanticSearch("burnout");
 
         Assert.Contains("[journal]",                           result);
-        Assert.Contains("abc",                                 result);
+        Assert.Contains("the requested journal item",          result);
+        Assert.DoesNotContain(referenceId,                       result);
         Assert.Contains("0.92",                               result);
         Assert.Contains("Feeling burned out from work lately", result);
     }
@@ -186,7 +188,7 @@ public class SemanticSearchActionsTests
         var result = await _actions.FindSimilar("journal", "missing-id");
 
         Assert.Contains("No indexed content found", result);
-        Assert.Contains("missing-id",               result);
+        Assert.DoesNotContain("missing-id",         result);
     }
 
     // ================================================================

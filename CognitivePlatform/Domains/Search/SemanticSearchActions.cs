@@ -73,7 +73,7 @@ public sealed class SemanticSearchActions
             }
         }
 
-        return referenceId;
+        return $"the requested {domain} item";
     }
 
     // -----------------------------------------------------------------------
@@ -158,7 +158,7 @@ public sealed class SemanticSearchActions
 
             if (source is null)
             {
-                return $"No indexed content found for {domain} entry '{ResolveReferenceLabel(domain, referenceId)}'. "
+                return $"No indexed content found for {ResolveReferenceLabel(domain, referenceId)}. "
                      + "The item may not have been embedded yet — try again in a moment.";
             }
 
