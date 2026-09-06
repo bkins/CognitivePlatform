@@ -29,6 +29,14 @@ builder.Services.AddTransient<IPowerShellParameterReader, PowerShellParameterRea
 builder.Services.AddTransient<ToolScriptService>();
 builder.Services.AddTransient<IToolScriptRunner, ToolScriptRunner>();
 
+builder.Services.AddSingleton(new BacklogStoryOptions(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+{
+    ["Cognitive Platform"] = @"C:\Users\benho\source\Application Documentation\The CP Universe\Documentation\BACKLOG.original.md"
+  , ["WatchList"]           = @"C:\Users\benho\source\Application Documentation\Watchlist\BACKLOG.original.md"
+}));
+builder.Services.AddSingleton<IBacklogBoardCompiler, NodeBacklogBoardCompiler>();
+builder.Services.AddSingleton<BacklogStoryService>();
+
 // Admin-app error log — singleton ring buffer, visible in the Log Viewer.
 // Must be created before the logging provider so both share the same instance.
 var adminErrorLog = new AdminErrorLog();
@@ -101,6 +109,18 @@ app.MapGet("/api/backlog-board", () =>
     return File.Exists(boardPath)
         ? Results.File(boardPath, "text/html")
         : Results.NotFound("UnifiedBacklogBoard.html not found.");
+});
+
+app.MapPost("/api/backlog-stories", async (
+    AddBacklogStoryRequest request
+  , BacklogStoryService    storyService
+  , CancellationToken      cancellationToken) =>
+{
+    var result = await storyService.AddStoryAsync(request, cancellationToken);
+
+    return result.IsSuccess
+        ? Results.Ok(result)
+        : Results.BadRequest(result);
 });
 
 app.Run();
