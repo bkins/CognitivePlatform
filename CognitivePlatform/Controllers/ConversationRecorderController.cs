@@ -1,6 +1,7 @@
 using CognitivePlatform.Api.Domains.Conversations;
 using CognitivePlatform.Api.Domains.Conversations.Copilot;
 using CognitivePlatform.Api.Domains.Personas.Models;
+using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Api.Controllers;
@@ -155,14 +156,14 @@ public class ConversationRecorderController : ControllerBase
         {
             var file = Request.Form.Files[0];
             audioStream = file.OpenReadStream();
-            mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "audio/wav" : file.ContentType;
+            mimeType = file.ContentType.HasValue() ? file.ContentType! : "audio/wav";
         }
         else if (Request.Body != null && Request.Body.CanRead)
         {
             audioStream = Request.Body;
-            if (!string.IsNullOrWhiteSpace(Request.ContentType))
+            if (Request.ContentType.HasValue())
             {
-                mimeType = Request.ContentType;
+                mimeType = Request.ContentType!;
             }
         }
         else
@@ -273,14 +274,14 @@ public class ConversationRecorderController : ControllerBase
         {
             var file = Request.Form.Files[0];
             audioStream = file.OpenReadStream();
-            mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "audio/wav" : file.ContentType;
+            mimeType = file.ContentType.HasValue() ? file.ContentType! : "audio/wav";
         }
         else if (Request.Body != null && Request.Body.CanRead)
         {
             audioStream = Request.Body;
-            if (!string.IsNullOrWhiteSpace(Request.ContentType))
+            if (Request.ContentType.HasValue())
             {
-                mimeType = Request.ContentType;
+                mimeType = Request.ContentType!;
             }
         }
         else
