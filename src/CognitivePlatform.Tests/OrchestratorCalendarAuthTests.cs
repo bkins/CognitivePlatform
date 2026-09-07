@@ -1,5 +1,6 @@
 using Moq;
 using CognitivePlatform.Api.Avails;
+using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Contracts;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Data;
@@ -123,5 +124,19 @@ public class OrchestratorCalendarAuthTests
         Assert.False(context.Metadata.ContainsKey("requires_auth"));
         Assert.False(context.Metadata.ContainsKey("auth_provider"));
         Assert.False(context.Metadata.ContainsKey("auth_url"));
+    }
+
+    [Fact]
+    public async Task FinalizeAsync_ReportsUsableFallbackModel_WhenNoModelWasSelectedForTheTurn()
+    {
+        _modelCatalog.Add(new LlmModelInfo("gemini-3.1-pro-preview", false, "quota exhausted", true, true));
+        _modelCatalog.Add(new LlmModelInfo("gemini-2.5-flash", true, null, true, true));
+        var orchestrator = BuildOrchestrator();
+        var request = new ConverseRequest { SessionId = SessionId, Input = "test" };
+        var response = new ConverseResponse { Message = "complete" };
+
+        var result = await orchestrator.FinalizeAsync(request, response, new System.Diagnostics.Stopwatch(), TurnPath.Interpreter);
+
+        Assert.Equal("gemini-2.5-flash", result.Model);
     }
 }

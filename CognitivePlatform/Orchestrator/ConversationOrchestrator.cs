@@ -1161,10 +1161,13 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
                 response.Model = request.Model;
             if (response.Model.HasNoValue())
             {
+                var runtimeModel = _modelCatalog.AvailableModels
+                                                .FirstOrDefault(model => model.IsUsable)
+                                                ?.Name;
                 var providerEnum = Enum.TryParse<CognitivePlatform.Api.Interpreter.LlmProvider>(response.Provider, true, out var parsedProv)
                                    ? parsedProv
                                    : CognitivePlatform.Api.Interpreter.LlmProvider.Groq;
-                response.Model = _providerDefaults.For(providerEnum);
+                response.Model = runtimeModel ?? _providerDefaults.For(providerEnum);
             }
 
             if (response.ReasoningContent.HasNoValue() || response.ReasoningContent.StartsWithIgnoreCase("Standard Completion"))
