@@ -11,16 +11,19 @@ public sealed class AdminSystemController : AdminControllerBase
     private readonly SqliteObjectStore   _store;
     private readonly IWebHostEnvironment _hostEnvironment;
     private readonly IGroqUsageTracker   _usageTracker;
+    private readonly CognitivePlatform.Api.Avails.RuntimeLlmModelState _runtimeModelState;
 
     public AdminSystemController( IConfiguration      configuration
                                 , SqliteObjectStore   store
                                 , IWebHostEnvironment hostEnvironment
-                                , IGroqUsageTracker   usageTracker )
+                                , IGroqUsageTracker   usageTracker
+                                , CognitivePlatform.Api.Avails.RuntimeLlmModelState runtimeModelState )
             : base(configuration)
     {
         _store           = store;
         _hostEnvironment = hostEnvironment;
-        _usageTracker    = usageTracker;
+        _usageTracker       = usageTracker;
+        _runtimeModelState  = runtimeModelState;
     }
 
     /// <summary>
@@ -42,13 +45,16 @@ public sealed class AdminSystemController : AdminControllerBase
 
         var healthUrl  = _configuration["HealthConnect:PhoneBaseUrl"] ?? string.Empty;
         var fileSyncUrl = _configuration["FileSync:GatewayBaseUrl"]   ?? string.Empty;
+        var llmModel = _runtimeModelState.EffectiveModel.HasValue()
+            ? _runtimeModelState.EffectiveModel
+            : _configuration["LlmClient:DefaultModel"] ?? string.Empty;
 
         return Ok(new
                   {
                           EnvironmentName = envName
                         , DatabasePath    = dbPath
                         , LlmProvider     = _configuration["LlmClient:Provider"]     ?? string.Empty
-                        , LlmModel        = _configuration["LlmClient:DefaultModel"] ?? string.Empty
+                        , LlmModel        = llmModel
                         , GroqUsage       = new
                                            {
                                                    usage.HasData

@@ -16,18 +16,21 @@ public sealed class LlmStartupProbe
     private readonly LlmModelCatalog          _catalog;
     private readonly ILogger<LlmStartupProbe> _log;
     private readonly LlmClientSettings?       _settings;
+    private readonly RuntimeLlmModelState      _runtimeModelState;
 
     public bool ShouldProbeModels { get; set; } = false;
 
     public LlmStartupProbe( ILlmClient               llm
                           , LlmModelCatalog          catalog
                           , IConfiguration           config
-                          , ILogger<LlmStartupProbe> log )
+                          , ILogger<LlmStartupProbe> log
+                          , RuntimeLlmModelState      runtimeModelState )
     {
         _llm      = llm;
         _catalog  = catalog;
         _log      = log;
         _settings = config.GetSection("LlmClient").Get<LlmClientSettings>();
+        _runtimeModelState = runtimeModelState;
 
         var shouldProbeConfig = config["ShouldProbe"];
         if (bool.TryParse(shouldProbeConfig
@@ -53,6 +56,8 @@ public sealed class LlmStartupProbe
     public async Task RunAsync( string            candidateModel
                               , CancellationToken ct )
     {
+        _runtimeModelState.SetConfiguredModel(candidateModel);
+
         if (ShouldProbeModels) await ProbeModels(candidateModel, ct);
     }
 
@@ -100,6 +105,11 @@ public sealed class LlmStartupProbe
 
         _catalog.Add(result);
 
+        if (probe.IsUsable)
+        {
+            _runtimeModelState.SetEffectiveModel(candidateModel);
+        }
+
         LogSummary(result);
 
         if (probe.IsUsable.Not())
@@ -131,6 +141,8 @@ public sealed class LlmStartupProbe
                     LogSummary(altResult);
 
                     if (!altProbe.IsUsable) continue;
+
+                    _runtimeModelState.SetEffectiveModel(altModel);
 
                     _log.LogInformation("  ✔ Successfully found working alternative model {Model} for provider."
                                       , altModel);

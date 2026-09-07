@@ -21,6 +21,7 @@ public static class HeavyStartupExtensions
         using var scope = app.Services.CreateScope();
 
         var probe = scope.ServiceProvider.GetRequiredService<LlmStartupProbe>();
+        var runtimeModelState = scope.ServiceProvider.GetRequiredService<RuntimeLlmModelState>();
 
         var settings = scope.ServiceProvider
                             .GetRequiredService<IOptions<LlmClientSettings>>()
@@ -45,7 +46,7 @@ public static class HeavyStartupExtensions
                             , EnvInfo                 = envInfo
                             , VerInfo                 = verInfo
                             , SysInfo                 = sysInfo
-                            , DefaultModel            = model
+                            , DefaultModel            = runtimeModelState.EffectiveModel
                             , Provider                = provider.ToString()
                             , GoogleCalendarConnected = googleCalendarIsConnected
                       };
@@ -66,4 +67,3 @@ public static class HeavyStartupExtensions
                                    : "Probe skipped");
     }
 }
-

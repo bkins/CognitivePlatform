@@ -94,6 +94,7 @@ public static class LlmServiceCollectionExtensions
         services.AddSingleton<ILlmRouter, LlmRouter>();
 
         services.AddSingleton<LlmModelCatalog>();
+        services.AddSingleton<RuntimeLlmModelState>();
         services.AddSingleton<LlmStartupProbe>();
 
         return services;

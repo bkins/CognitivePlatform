@@ -14,6 +14,7 @@ public class LlmStartupProbeTests
     private readonly Mock<ILlmClient>               _llmMock     = new();
     private readonly Mock<ILogger<LlmStartupProbe>> _loggerMock  = new();
     private readonly LlmModelCatalog                _catalog     = new();
+    private readonly RuntimeLlmModelState           _runtimeModelState = new();
 
     [Fact]
     public void Constructor_SetsShouldProbeModelsToTrue_WhenConfigIsTrue()
@@ -25,7 +26,7 @@ public class LlmStartupProbeTests
             })
             .Build();
 
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
         Assert.True(probe.ShouldProbeModels);
     }
@@ -40,7 +41,7 @@ public class LlmStartupProbeTests
             })
             .Build();
 
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
         Assert.False(probe.ShouldProbeModels);
     }
@@ -52,7 +53,7 @@ public class LlmStartupProbeTests
             .AddInMemoryCollection(new Dictionary<string, string?>())
             .Build();
 
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
 #if DEBUG
         Assert.True(probe.ShouldProbeModels);
@@ -70,7 +71,7 @@ public class LlmStartupProbeTests
                 { "ShouldProbe", "true" }
             })
             .Build();
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
         var rawJsonError = """
                            HTTP 429: [{
                              "error": {
@@ -104,7 +105,7 @@ public class LlmStartupProbeTests
                 { "ShouldProbe", "true" }
             })
             .Build();
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
         _llmMock.Setup(llm => llm.ProbeAsync("gemini-3.1-pro-preview", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new LlmModelProbeResult("gemini-3.1-pro-preview", false, Error: "Connection timed out"));
@@ -132,7 +133,7 @@ public class LlmStartupProbeTests
               , { "LlmClient:SortedAllowedModels:0", "gemini-2.5-flash" }
             })
             .Build();
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
         _llmMock.Setup(llm => llm.ProbeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((string model, CancellationToken _) => new LlmModelProbeResult(model, false, Error: "HTTP 429: Quota exceeded"));
@@ -145,6 +146,8 @@ public class LlmStartupProbeTests
         var models = _catalog.AvailableModels;
         Assert.Contains(models, model => model.Name == "gemini-3.1-pro-preview" && !model.IsUsable);
         Assert.Contains(models, model => model.Name == "gemini-2.5-flash" && model.IsUsable);
+        Assert.Equal("gemini-3.1-pro-preview", _runtimeModelState.ConfiguredModel);
+        Assert.Equal("gemini-2.5-flash", _runtimeModelState.EffectiveModel);
     }
 
     [Fact]
@@ -158,7 +161,7 @@ public class LlmStartupProbeTests
               , { "LlmClient:SortedAllowedModels:0", "gemini-2.5-flash" }
             })
             .Build();
-        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object);
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
 
         _llmMock.Setup(llm => llm.ProbeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((string model, CancellationToken _) => new LlmModelProbeResult(model, false, Error: "HTTP 429: Quota exceeded"));
