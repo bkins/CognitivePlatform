@@ -29,14 +29,6 @@ builder.Services.AddTransient<IPowerShellParameterReader, PowerShellParameterRea
 builder.Services.AddTransient<ToolScriptService>();
 builder.Services.AddTransient<IToolScriptRunner, ToolScriptRunner>();
 
-builder.Services.AddSingleton(new BacklogStoryOptions(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-{
-    ["Cognitive Platform"] = @"C:\Users\benho\source\Application Documentation\The CP Universe\Documentation\BACKLOG.original.md"
-  , ["WatchList"]           = @"C:\Users\benho\source\Application Documentation\Watchlist\BACKLOG.original.md"
-}));
-builder.Services.AddSingleton<IBacklogBoardCompiler, NodeBacklogBoardCompiler>();
-builder.Services.AddSingleton<BacklogStoryService>();
-
 // Admin-app error log — singleton ring buffer, visible in the Log Viewer.
 // Must be created before the logging provider so both share the same instance.
 var adminErrorLog = new AdminErrorLog();
@@ -80,6 +72,11 @@ builder.Services
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
+       .AddHttpClient<IAdminBacklogClient, AdminBacklogClient>(client => client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
+
+builder.Services
        .AddHttpClient<IAdminTrainingClient, AdminTrainingClient>(client => client.BaseAddress = new Uri(PlaceholderBase))
        .AddHttpMessageHandler<AdminSecretHandler>()
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
@@ -99,28 +96,11 @@ if (app.Environment.IsDevelopment().Not())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.MapStaticAssets();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
-app.MapGet("/api/backlog-board", () =>
-{
-    var boardPath = @"C:\Users\benho\source\Application Documentation\UnifiedBacklogBoard.html";
-    return File.Exists(boardPath)
-        ? Results.File(boardPath, "text/html")
-        : Results.NotFound("UnifiedBacklogBoard.html not found.");
-});
-
-app.MapPost("/api/backlog-stories", async (
-    AddBacklogStoryRequest request
-  , BacklogStoryService    storyService
-  , CancellationToken      cancellationToken) =>
-{
-    var result = await storyService.AddStoryAsync(request, cancellationToken);
-
-    return result.IsSuccess
-        ? Results.Ok(result)
-        : Results.BadRequest(result);
-});
+app.MapGet("/backlog", () => Results.Redirect("/backlog-updated", permanent: true));
 
 app.Run();

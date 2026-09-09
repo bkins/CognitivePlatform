@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\CP.Shared.Primitives\CP.Shared.Primitives\CP.Shared.Primitives.csproj" />
     <ProjectReference Include="..\..\CP.Client.Core\CP.Client.Core\CP.Client.Core.csproj" />
+    <ProjectReference Include="..\CognitivePlatform\CognitivePlatform.Api.csproj" />
     <!-- Verify this is the latest stable MudBlazor version for .NET 10 -->
     <PackageReference Include="MudBlazor"            Version="8.3.0"  />
     <!-- Markdown rendering in Journal Admin (revision text view) -->

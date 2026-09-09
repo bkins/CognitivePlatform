@@ -40,6 +40,7 @@ public partial class Program
         builder.Services.AddOpenTelemetryServices(builder.Configuration, builder.Environment);
 
         builder.Services.AddDataPersistenceLayer(builder.Environment);
+        builder.Services.AddBacklogServices(builder.Configuration);
 
         builder.Services.AddJournalServices();
         builder.Services.AddTaskServices();

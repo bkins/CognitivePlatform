@@ -1,0 +1,716 @@
+@page "/backlog-updated"
+@inject IAdminBacklogClient BacklogClient
+@inject IJSRuntime Js
+@using CognitivePlatform.Admin.CpAdminClients
+@using CognitivePlatform.Api.Domains.Backlog
+
+<PageTitle>Backlog Board — Updated</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudStack Spacing="0">
+        <MudText Typo="Typo.h5">Backlog Board — Updated</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Database-backed operational board for Cognitive Platform.</MudText>
+    </MudStack>
+    <MudSpacer />
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Inventory2" Disabled="@_loading" OnClick="LoadArchivedStoriesAsync">Archived</MudButton>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Inbox" Disabled="@_loading" OnClick="LoadIntakeAsync">Intake</MudButton>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" Disabled="@_saving" OnClick="ExportMarkdownAsync">Export Markdown</MudButton>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" Disabled="@_loading" OnClick="RefreshAsync">Refresh</MudButton>
+</MudStack>
+
+@if (_message is not null)
+{
+    <MudAlert Severity="@_messageSeverity" Class="mb-3">@_message</MudAlert>
+}
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-3" />
+}
+else if (_board is null)
+{
+    <MudAlert Severity="Severity.Error">The updated board could not be loaded.</MudAlert>
+}
+else
+{
+    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+        <MudExpansionPanel Text="Add story">
+            <MudGrid>
+                <MudItem xs="12" md="6"><MudTextField @bind-Value="_newTitle" Label="Title" Required="true" /></MudItem>
+                <MudItem xs="12" md="2"><MudNumericField @bind-Value="_newPriority" Label="Priority" Min="1" Max="99" /></MudItem>
+                <MudItem xs="12" md="4"><MudSelect T="string" Label="Project" @bind-Value="_newProjectKey">@foreach (var project in _board.Projects.Where(project => !project.IsArchived)) { <MudSelectItem Value="@project.Key">@project.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" md="4"><MudSelect T="string" Label="Area" @bind-Value="_newAreaKey">@foreach (var area in _board.Areas.Where(area => !area.IsArchived)) { <MudSelectItem Value="@area.Key">@area.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" md="4"><MudSelect T="string" Label="Stream (optional)" @bind-Value="_newStreamKey" Clearable="true">@foreach (var stream in _board.Streams.Where(stream => !stream.IsArchived)) { <MudSelectItem Value="@stream.Key">@stream.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" md="4"><MudSelect T="string" Label="Type" @bind-Value="_newItemTypeKey">@foreach (var itemType in _board.ItemTypes.Where(itemType => !itemType.IsArchived)) { <MudSelectItem Value="@itemType.Key">@itemType.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" md="4"><MudSelect T="string" Label="Column" @bind-Value="_newColumnKey">@foreach (var column in _board.Columns.Where(column => !column.IsArchived)) { <MudSelectItem Value="@column.Key">@column.Name</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_newDescription" Label="Description" Lines="3" Required="true" /></MudItem>
+                <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="_release" Label="Release" /></MudItem>
+                <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="_owner" Label="Owner" /></MudItem>
+                <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="_estimate" Label="Estimate" /></MudItem>
+                <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="_dependency" Label="Dependency" /></MudItem>
+                <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="_customerImpact" Label="Customer impact" /></MudItem>
+                @foreach (var definition in _board.PropertyDefinitions.Where(definition => !definition.IsArchived && !DefaultPropertyKeys.Contains(definition.Key)).OrderBy(definition => definition.Name))
+                {
+                    <MudItem xs="12" sm="6" md="4"><MudTextField T="string" Label="@definition.Name" Value="@GetCustomPropertyValue(definition.Key)" ValueChanged="@((string value) => SetCustomPropertyValue(definition.Key, value))" /></MudItem>
+                }
+                <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@_saving" OnClick="CreateStoryAsync">Add story</MudButton></MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="Add board definition">
+            <MudGrid>
+                <MudItem xs="12" md="3"><MudSelect T="string" Label="Definition" @bind-Value="_referenceType"><MudSelectItem Value="@("project")">Project</MudSelectItem><MudSelectItem Value="@("area")">Area</MudSelectItem><MudSelectItem Value="@("stream")">Stream</MudSelectItem><MudSelectItem Value="@("column")">Column</MudSelectItem><MudSelectItem Value="@("type")">Item type</MudSelectItem><MudSelectItem Value="@("property")">Property</MudSelectItem></MudSelect></MudItem>
+                <MudItem xs="12" md="3"><MudTextField @bind-Value="_referenceKey" Label="Key" HelperText="Lowercase, hyphen-separated" /></MudItem>
+                <MudItem xs="12" md="4"><MudTextField @bind-Value="_referenceName" Label="Display name" /></MudItem>
+                <MudItem xs="12" md="2"><MudButton Variant="Variant.Outlined" Disabled="@_saving" OnClick="CreateReferenceAsync">Add definition</MudButton></MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+        <MudExpansionPanel Text="Update or archive board definition">
+            <MudGrid>
+                <MudItem xs="12" md="3"><MudSelect T="string" Label="Definition" @bind-Value="_editReferenceType"><MudSelectItem Value="@("project")">Project</MudSelectItem><MudSelectItem Value="@("area")">Area</MudSelectItem><MudSelectItem Value="@("stream")">Stream</MudSelectItem><MudSelectItem Value="@("column")">Column</MudSelectItem><MudSelectItem Value="@("type")">Item type</MudSelectItem><MudSelectItem Value="@("property")">Property</MudSelectItem></MudSelect></MudItem>
+                <MudItem xs="12" md="3"><MudSelect T="string" Label="Existing entry" Value="@_editReferenceKey" ValueChanged="SelectReferenceForEdit">@foreach (var reference in GetReferences(_editReferenceType)) { <MudSelectItem Value="@reference.Key">@reference.Name (@reference.Key)</MudSelectItem> }</MudSelect></MudItem>
+                <MudItem xs="12" md="3"><MudTextField @bind-Value="_editReferenceName" Label="Display name" /></MudItem>
+                <MudItem xs="6" md="1"><MudNumericField @bind-Value="_editReferenceSortOrder" Label="Order" Min="1" /></MudItem>
+                <MudItem xs="6" md="1"><MudCheckBox @bind-Value="_editReferenceArchived" Label="Archive" /></MudItem>
+                <MudItem xs="12" md="1"><MudButton Variant="Variant.Outlined" Disabled="@_saving" OnClick="UpdateReferenceAsync">Save</MudButton></MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">Drag a card to another column or between cards to change its board position. Priority remains an explicit story field.</MudText>
+    <MudPaper Outlined="true" Class="pa-3 mb-3">
+        <MudGrid>
+            <MudItem xs="12" md="4"><MudTextField @bind-Value="_searchText" Label="Search stories" Immediate="true" Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" /></MudItem>
+            <MudItem xs="6" md="2"><MudSelect T="string" Label="Project" @bind-Value="_filterProjectKey" Clearable="true">@foreach (var project in _board.Projects.Where(project => !project.IsArchived)) { <MudSelectItem Value="@project.Key">@project.Name</MudSelectItem> }</MudSelect></MudItem>
+            <MudItem xs="6" md="2"><MudSelect T="string" Label="Area" @bind-Value="_filterAreaKey" Clearable="true">@foreach (var area in _board.Areas.Where(area => !area.IsArchived)) { <MudSelectItem Value="@area.Key">@area.Name</MudSelectItem> }</MudSelect></MudItem>
+            <MudItem xs="6" md="2"><MudSelect T="string" Label="Stream" @bind-Value="_filterStreamKey" Clearable="true">@foreach (var stream in _board.Streams.Where(stream => !stream.IsArchived)) { <MudSelectItem Value="@stream.Key">@stream.Name</MudSelectItem> }</MudSelect></MudItem>
+            <MudItem xs="6" md="2"><MudSelect T="string" Label="Type" @bind-Value="_filterItemTypeKey" Clearable="true">@foreach (var itemType in _board.ItemTypes.Where(itemType => !itemType.IsArchived)) { <MudSelectItem Value="@itemType.Key">@itemType.Name</MudSelectItem> }</MudSelect></MudItem>
+            <MudItem xs="6" md="2"><MudSelect T="string" Label="Column" @bind-Value="_filterColumnKey" Clearable="true">@foreach (var column in _board.Columns.Where(column => !column.IsArchived)) { <MudSelectItem Value="@column.Key">@column.Name</MudSelectItem> }</MudSelect></MudItem>
+            <MudItem xs="6" md="3"><MudSelect T="string" Label="Sort" @bind-Value="_sortMode"><MudSelectItem Value="@("board")">Board order</MudSelectItem><MudSelectItem Value="@("priority")">Priority: high first</MudSelectItem><MudSelectItem Value="@("priority-desc")">Priority: low first</MudSelectItem><MudSelectItem Value="@("title")">Title A–Z</MudSelectItem></MudSelect></MudItem>
+            <MudItem xs="12" md="7" Class="d-flex align-center"><MudText Typo="Typo.caption">@VisibleStories.Count of @_board.Stories.Count stories shown. @(CanReorder ? "Drag enabled." : "Clear filters and choose Board order to enable drag.")</MudText></MudItem>
+            <MudItem xs="12" md="2"><MudButton Variant="Variant.Text" OnClick="ClearFilters">Clear filters</MudButton></MudItem>
+        </MudGrid>
+    </MudPaper>
+    <MudDropContainer T="BacklogStoryDto"
+                      Items="@VisibleStories"
+                      ItemsSelector="@((story, columnKey) => story.ColumnKey == columnKey)"
+                      ItemDisabled="@((BacklogStoryDto _) => !CanReorder)"
+                      ItemDropped="OnStoryDroppedAsync"
+                      ApplyDropClassesOnDragStarted="true"
+                      CanDropClass="border-primary"
+                      Class="mud-width-full">
+        <ChildContent>
+            <MudGrid Spacing="2">
+                @foreach (var column in _board.Columns.Where(column => !column.IsArchived))
+                {
+                    var storyCount = VisibleStories.Count(story => story.ColumnKey == column.Key);
+                    var isCollapsed = IsColumnCollapsed(column.Key);
+                    <MudItem xs="12" sm="6" lg="3">
+                        <MudPaper Outlined="true" Class="pa-2" Style="@GetColumnStyle(isCollapsed)">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                                <MudText Typo="Typo.subtitle1">@column.Name</MudText>
+                                <MudSpacer />
+                                <MudChip T="string" Size="Size.Small">@storyCount</MudChip>
+                                @if (string.Equals(column.Key, "done", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <MudIconButton Icon="@(isCollapsed ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ExpandLess)"
+                                                   aria-label="@(isCollapsed ? "Show completed stories" : "Collapse completed stories")"
+                                                   Size="Size.Small"
+                                                   OnClick="ToggleDoneColumn" />
+                                }
+                            </MudStack>
+                            @if (!isCollapsed)
+                            {
+                                <MudDropZone T="BacklogStoryDto" Identifier="@column.Key" AllowReorder="true" Style="min-height:190px">
+                                    <ItemRenderer Context="story">
+                                        <MudPaper Elevation="1" Class="pa-2 mb-2">
+                                            <MudStack Spacing="0">
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@story.DisplayId · P@(story.Priority) · @story.ItemTypeKey</MudText>
+                                                <MudText Typo="Typo.subtitle2">@story.Title</MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">@story.ProjectKey / @story.AreaKey @(story.StreamKey is null ? string.Empty : $" / {story.StreamKey}")</MudText>
+                                            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="@(() => BeginEdit(story))" @onpointerdown:stopPropagation="true">Edit</MudButton>
+                                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => LoadHistoryAsync(story))" @onpointerdown:stopPropagation="true">History</MudButton>
+                                            @if (string.Equals(story.ColumnKey, "done", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Warning" OnClick="@(() => ArchiveStoryAsync(story))" @onpointerdown:stopPropagation="true">Archive</MudButton>
+                                            }
+                                            </MudStack>
+                                        </MudPaper>
+                                    </ItemRenderer>
+                                </MudDropZone>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </ChildContent>
+    </MudDropContainer>
+
+    <div id="backlog-operator-details">
+    @if (_editingStory is not null)
+    {
+        <MudExpansionPanels MultiExpansion="true" Class="mt-4">
+            <MudExpansionPanel Text="Edit story" Expanded="true">
+                <MudGrid>
+                    <MudItem xs="12" md="8"><MudTextField @bind-Value="_editTitle" Label="Title" Required="true" /></MudItem>
+                    <MudItem xs="12" md="4"><MudNumericField @bind-Value="_editPriority" Label="Priority" Min="1" Max="99" /></MudItem>
+                    <MudItem xs="12" md="4"><MudSelect T="string" Label="Project" @bind-Value="_editProjectKey">@foreach (var project in _board.Projects.Where(project => !project.IsArchived)) { <MudSelectItem Value="@project.Key">@project.Name</MudSelectItem> }</MudSelect></MudItem>
+                    <MudItem xs="12" md="4"><MudSelect T="string" Label="Area" @bind-Value="_editAreaKey">@foreach (var area in _board.Areas.Where(area => !area.IsArchived)) { <MudSelectItem Value="@area.Key">@area.Name</MudSelectItem> }</MudSelect></MudItem>
+                    <MudItem xs="12" md="4"><MudSelect T="string" Label="Stream (optional)" @bind-Value="_editStreamKey" Clearable="true">@foreach (var stream in _board.Streams.Where(stream => !stream.IsArchived)) { <MudSelectItem Value="@stream.Key">@stream.Name</MudSelectItem> }</MudSelect></MudItem>
+                    <MudItem xs="12" md="4"><MudSelect T="string" Label="Type" @bind-Value="_editItemTypeKey">@foreach (var itemType in _board.ItemTypes.Where(itemType => !itemType.IsArchived)) { <MudSelectItem Value="@itemType.Key">@itemType.Name</MudSelectItem> }</MudSelect></MudItem>
+                    <MudItem xs="12"><MudTextField @bind-Value="_editDescription" Label="Description" Lines="3" Required="true" /></MudItem>
+                    @foreach (var definition in _board.PropertyDefinitions.Where(definition => !definition.IsArchived).OrderBy(definition => definition.Name))
+                    {
+                        <MudItem xs="12" sm="6" md="4"><MudTextField T="string" Label="@definition.Name" Value="@GetEditPropertyValue(definition.Key)" ValueChanged="@((string value) => SetEditPropertyValue(definition.Key, value))" /></MudItem>
+                    }
+                    <MudItem xs="12">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@_saving" OnClick="SaveEditAsync">Save changes</MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="@_saving" OnClick="CancelEdit">Cancel</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+
+    @if (_intake is not null)
+    {
+        <MudPaper Outlined="true" Class="pa-3 mt-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h6">Intake queue</MudText><MudSpacer /><MudButton Variant="Variant.Text" OnClick="CloseIntake">Close</MudButton>
+            </MudStack>
+            @if (_intake.Count == 0)
+            {
+                <MudText Typo="Typo.body2">No submitted intake items.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true"><thead><tr><th>Kind</th><th>Description</th><th>Source</th><th>State</th><th>Submitted</th></tr></thead><tbody>
+                @foreach (var item in _intake)
+                {
+                    <tr><td>@item.Kind</td><td>@item.Description</td><td>@item.Source</td><td>@item.State</td><td>@item.SubmittedAtUtc.LocalDateTime.ToString("g")</td></tr>
+                }
+                </tbody></MudSimpleTable>
+            }
+        </MudPaper>
+    }
+
+    @if (_history is not null)
+    {
+        <MudPaper Outlined="true" Class="pa-3 mt-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center"><MudText Typo="Typo.h6">History — @_historyStoryDisplayId</MudText><MudSpacer /><MudButton Variant="Variant.Text" OnClick="CloseHistory">Close</MudButton></MudStack>
+            <MudSimpleTable Dense="true"><thead><tr><th>When</th><th>Action</th><th>Actor</th></tr></thead><tbody>
+            @foreach (var entry in _history)
+            {
+                <tr><td>@entry.OccurredAtUtc.LocalDateTime.ToString("g")</td><td>@entry.Action</td><td>@entry.Actor</td></tr>
+            }
+            </tbody></MudSimpleTable>
+        </MudPaper>
+    }
+
+    @if (_archivedStories is not null)
+    {
+        <MudPaper Outlined="true" Class="pa-3 mt-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center"><MudText Typo="Typo.h6">Archived stories</MudText><MudSpacer /><MudChip T="string" Size="Size.Small">@_archivedStories.Count</MudChip><MudButton Variant="Variant.Text" OnClick="CloseArchivedStories">Close</MudButton></MudStack>
+            @if (_archivedStories.Count == 0)
+            {
+                <MudText Typo="Typo.body2">No archived stories.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true"><thead><tr><th>ID</th><th>Title</th><th>Project</th><th>Area</th><th></th></tr></thead><tbody>
+                @foreach (var story in _archivedStories)
+                {
+                    <tr><td>@story.DisplayId</td><td>@story.Title</td><td>@story.ProjectKey</td><td>@story.AreaKey</td><td><MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" Disabled="@_saving" OnClick="@(() => UnarchiveStoryAsync(story))">Unarchive</MudButton></td></tr>
+                }
+                </tbody></MudSimpleTable>
+            }
+        </MudPaper>
+    }
+    </div>
+}
+
+@code {
+    private BacklogBoardDto? _board;
+    private string?          _message;
+    private Severity         _messageSeverity;
+    private bool             _loading;
+    private bool             _saving;
+    private string           _newTitle = string.Empty;
+    private string           _newDescription = string.Empty;
+    private int              _newPriority = 50;
+    private string           _newProjectKey = string.Empty;
+    private string           _newAreaKey = string.Empty;
+    private string?          _newStreamKey;
+    private string           _newItemTypeKey = string.Empty;
+    private string           _newColumnKey = string.Empty;
+    private string           _release = string.Empty;
+    private string           _owner = string.Empty;
+    private string           _estimate = string.Empty;
+    private string           _dependency = string.Empty;
+    private string           _customerImpact = string.Empty;
+    private readonly Dictionary<string, string> _customProperties = new(StringComparer.OrdinalIgnoreCase);
+    private BacklogStoryDto? _editingStory;
+    private string _editTitle = string.Empty;
+    private string _editDescription = string.Empty;
+    private int _editPriority;
+    private string _editProjectKey = string.Empty;
+    private string _editAreaKey = string.Empty;
+    private string? _editStreamKey;
+    private string _editItemTypeKey = string.Empty;
+    private readonly Dictionary<string, string> _editProperties = new(StringComparer.OrdinalIgnoreCase);
+    private string           _referenceType = "project";
+    private string           _referenceKey = string.Empty;
+    private string           _referenceName = string.Empty;
+    private string           _editReferenceType = "stream";
+    private string           _editReferenceKey = string.Empty;
+    private string           _editReferenceName = string.Empty;
+    private int              _editReferenceSortOrder = 1;
+    private bool             _editReferenceArchived;
+    private IReadOnlyList<BacklogIntakeDto>? _intake;
+    private IReadOnlyList<BacklogAuditEventDto>? _history;
+    private string _historyStoryDisplayId = string.Empty;
+    private IReadOnlyList<BacklogStoryDto>? _archivedStories;
+    private bool _scrollToOperatorDetails;
+    private bool _isDoneColumnCollapsed = true;
+    private string? _searchText;
+    private string? _filterProjectKey;
+    private string? _filterAreaKey;
+    private string? _filterStreamKey;
+    private string? _filterItemTypeKey;
+    private string? _filterColumnKey;
+    private string _sortMode = "board";
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Js.InvokeVoidAsync("backlogBoard.enableDragAutoScroll");
+
+        if (_scrollToOperatorDetails)
+        {
+            _scrollToOperatorDetails = false;
+            await Js.InvokeVoidAsync("backlogBoard.scrollToElement", "backlog-operator-details");
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _message = null;
+
+        try
+        {
+            _board = await BacklogClient.GetBoardAsync();
+            SetDefaultsFromBoard();
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not load the updated board: {exception.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateStoryAsync()
+    {
+        if (_board is null || string.IsNullOrWhiteSpace(_newTitle) || string.IsNullOrWhiteSpace(_newDescription))
+        {
+            SetMessage(Severity.Warning, "A title and description are required.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await BacklogClient.CreateStoryAsync(new CreateBacklogStoryRequest(
+                _newProjectKey
+              , _newAreaKey
+              , _newItemTypeKey
+              , _newColumnKey
+              , _newTitle
+              , _newDescription
+              , _newPriority
+              , string.IsNullOrWhiteSpace(_newStreamKey) ? null : _newStreamKey
+              , GetNewProperties()));
+            _newTitle = string.Empty;
+            _newDescription = string.Empty;
+            _release = _owner = _estimate = _dependency = _customerImpact = string.Empty;
+            _newStreamKey = null;
+            _customProperties.Clear();
+            await RefreshAsync();
+            SetMessage(Severity.Success, "Story added to the updated board.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not add story: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task CreateReferenceAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_referenceKey) || string.IsNullOrWhiteSpace(_referenceName))
+        {
+            SetMessage(Severity.Warning, "A key and display name are required.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var nextSortOrder = GetReferenceCount(_referenceType) + 1;
+            await BacklogClient.CreateReferenceAsync(_referenceType, new CreateBacklogReferenceRequest(_referenceKey, _referenceName, nextSortOrder));
+            _referenceKey = string.Empty;
+            _referenceName = string.Empty;
+            await RefreshAsync();
+            SetMessage(Severity.Success, $"{_referenceType} added to the updated board.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not add definition: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task UpdateReferenceAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editReferenceKey) || string.IsNullOrWhiteSpace(_editReferenceName))
+        {
+            SetMessage(Severity.Warning, "Choose an existing definition and give it a display name.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await BacklogClient.UpdateReferenceAsync(_editReferenceType, _editReferenceKey,
+                new UpdateBacklogReferenceRequest(_editReferenceName, _editReferenceSortOrder, _editReferenceArchived));
+            await RefreshAsync();
+            SetMessage(Severity.Success, $"{_editReferenceType} definition updated.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not update definition: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task OnStoryDroppedAsync(MudItemDropInfo<BacklogStoryDto> dropInfo)
+    {
+        if (_board is null || dropInfo.Item is null) return;
+
+        _saving = true;
+        try
+        {
+            var storyToMove = dropInfo.Item;
+            var destinationStories = VisibleStories.Where(story => story.ColumnKey == dropInfo.DropzoneIdentifier && story.Id != storyToMove.Id)
+                                                 .OrderBy(story => story.Rank)
+                                                 .ToList();
+            var destinationIndex = Math.Clamp(dropInfo.IndexInZone, 0, destinationStories.Count);
+            var beforeStoryId = destinationIndex > 0 ? destinationStories[destinationIndex - 1].Id.ToString() : null;
+            var afterStoryId = destinationIndex < destinationStories.Count ? destinationStories[destinationIndex].Id.ToString() : null;
+            await BacklogClient.MoveStoryAsync(storyToMove.Id, new MoveBacklogStoryRequest(dropInfo.DropzoneIdentifier, beforeStoryId, afterStoryId, storyToMove.Revision));
+            await RefreshAsync();
+            SetMessage(Severity.Success, "Story position updated.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not move story: {exception.Message}");
+            await RefreshAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ExportMarkdownAsync()
+    {
+        _saving = true;
+        try
+        {
+            var markdown = await BacklogClient.ExportMarkdownAsync();
+            await using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(markdown));
+            await Js.InvokeVoidAsync("backlogBoard.downloadMarkdown", "backlog-export.md", new DotNetStreamReference(stream));
+            SetMessage(Severity.Success, "Markdown export downloaded. The database remains the system of record.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not export Markdown: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task LoadIntakeAsync()
+    {
+        _loading = true;
+        try { _intake = await BacklogClient.GetIntakeAsync(); }
+        catch (Exception exception) { SetMessage(Severity.Error, $"Could not load intake: {exception.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private void CloseIntake() => _intake = null;
+
+    private async Task LoadHistoryAsync(BacklogStoryDto story)
+    {
+        _loading = true;
+        try { _history = await BacklogClient.GetHistoryAsync(story.Id); _historyStoryDisplayId = story.DisplayId; _scrollToOperatorDetails = true; }
+        catch (Exception exception) { SetMessage(Severity.Error, $"Could not load history: {exception.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private void CloseHistory() => _history = null;
+
+    private async Task ArchiveStoryAsync(BacklogStoryDto story)
+    {
+        _saving = true;
+        try
+        {
+            await BacklogClient.ArchiveStoryAsync(story.Id, new ArchiveBacklogStoryRequest(story.Revision));
+            await RefreshAsync();
+            SetMessage(Severity.Success, $"{story.DisplayId} archived. It remains available in Archived stories.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not archive story: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task LoadArchivedStoriesAsync()
+    {
+        _loading = true;
+        try { _archivedStories = await BacklogClient.GetArchivedStoriesAsync(); _scrollToOperatorDetails = true; }
+        catch (Exception exception) { SetMessage(Severity.Error, $"Could not load archived stories: {exception.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private async Task UnarchiveStoryAsync(BacklogStoryDto story)
+    {
+        _saving = true;
+        try
+        {
+            await BacklogClient.UnarchiveStoryAsync(story.Id);
+            await RefreshAsync();
+            _archivedStories = await BacklogClient.GetArchivedStoriesAsync();
+            SetMessage(Severity.Success, $"{story.DisplayId} restored to Done.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not unarchive story: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void CloseArchivedStories() => _archivedStories = null;
+
+    private bool IsColumnCollapsed(string columnKey) =>
+        string.Equals(columnKey, "done", StringComparison.OrdinalIgnoreCase) && _isDoneColumnCollapsed;
+
+    private static string GetColumnStyle(bool isCollapsed) => isCollapsed ? "min-height:auto" : "min-height:240px";
+
+    private void ToggleDoneColumn() => _isDoneColumnCollapsed = !_isDoneColumnCollapsed;
+
+    private IReadOnlyList<BacklogStoryDto> VisibleStories
+    {
+        get
+        {
+            if (_board is null) return Array.Empty<BacklogStoryDto>();
+            var stories = _board.Stories.Where(MatchesFilters);
+            return _sortMode switch
+            {
+                "priority"      => stories.OrderBy(story => story.Priority).ThenBy(story => story.Title).ToList(),
+                "priority-desc" => stories.OrderByDescending(story => story.Priority).ThenBy(story => story.Title).ToList(),
+                "title"         => stories.OrderBy(story => story.Title).ToList(),
+                _                => stories.OrderBy(story => story.ColumnKey).ThenBy(story => story.Rank).ThenBy(story => story.DisplayId).ToList()
+            };
+        }
+    }
+
+    private bool CanReorder => string.IsNullOrWhiteSpace(_searchText)
+                               && string.IsNullOrWhiteSpace(_filterProjectKey)
+                               && string.IsNullOrWhiteSpace(_filterAreaKey)
+                               && string.IsNullOrWhiteSpace(_filterStreamKey)
+                               && string.IsNullOrWhiteSpace(_filterItemTypeKey)
+                               && string.IsNullOrWhiteSpace(_filterColumnKey)
+                               && _sortMode == "board";
+
+    private bool MatchesFilters(BacklogStoryDto story)
+    {
+        if (!string.IsNullOrWhiteSpace(_filterProjectKey) && !string.Equals(story.ProjectKey, _filterProjectKey, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(_filterAreaKey) && !string.Equals(story.AreaKey, _filterAreaKey, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(_filterStreamKey) && !string.Equals(story.StreamKey, _filterStreamKey, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(_filterItemTypeKey) && !string.Equals(story.ItemTypeKey, _filterItemTypeKey, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(_filterColumnKey) && !string.Equals(story.ColumnKey, _filterColumnKey, StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.IsNullOrWhiteSpace(_searchText)) return true;
+        var search = _searchText.Trim();
+        return story.DisplayId.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || story.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || story.Description.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || story.ProjectKey.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || story.AreaKey.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || story.ItemTypeKey.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || (story.StreamKey?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+               || story.Properties.Any(property => property.Key.Contains(search, StringComparison.OrdinalIgnoreCase) || property.Value.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = _filterProjectKey = _filterAreaKey = _filterStreamKey = _filterItemTypeKey = _filterColumnKey = null;
+        _sortMode = "board";
+    }
+
+    private void BeginEdit(BacklogStoryDto story)
+    {
+        _editingStory = story;
+        _editTitle = story.Title;
+        _editDescription = story.Description;
+        _editPriority = story.Priority;
+        _editProjectKey = story.ProjectKey;
+        _editAreaKey = story.AreaKey;
+        _editStreamKey = story.StreamKey;
+        _editItemTypeKey = story.ItemTypeKey;
+        _editProperties.Clear();
+        foreach (var property in story.Properties)
+            _editProperties[property.Key] = property.Value;
+        _scrollToOperatorDetails = true;
+    }
+
+    private void CancelEdit() => _editingStory = null;
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingStory is null || string.IsNullOrWhiteSpace(_editTitle) || string.IsNullOrWhiteSpace(_editDescription))
+        {
+            SetMessage(Severity.Warning, "A title and description are required.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await BacklogClient.UpdateStoryAsync(_editingStory.Id, new UpdateBacklogStoryRequest(
+                _editTitle, _editDescription, _editProjectKey, _editAreaKey, _editItemTypeKey, _editPriority,
+                string.IsNullOrWhiteSpace(_editStreamKey) ? null : _editStreamKey,
+                new Dictionary<string, string>(_editProperties, StringComparer.OrdinalIgnoreCase), _editingStory.Revision));
+            _editingStory = null;
+            await RefreshAsync();
+            SetMessage(Severity.Success, "Story changes saved.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not save story: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private IReadOnlyDictionary<string, string> GetNewProperties()
+    {
+        var properties = new Dictionary<string, string>(_customProperties, StringComparer.OrdinalIgnoreCase)
+               {
+                   ["release"] = _release
+                 , ["owner"] = _owner
+                 , ["estimate"] = _estimate
+                 , ["dependency"] = _dependency
+                 , ["customer-impact"] = _customerImpact
+               };
+        return properties;
+    }
+
+    private string GetCustomPropertyValue(string key) =>
+        _customProperties.TryGetValue(key, out var value) ? value : string.Empty;
+
+    private void SetCustomPropertyValue(string key, string value) => _customProperties[key] = value;
+
+    private string GetEditPropertyValue(string key) =>
+        _editProperties.TryGetValue(key, out var value) ? value : string.Empty;
+
+    private void SetEditPropertyValue(string key, string value) => _editProperties[key] = value;
+
+    private void SetDefaultsFromBoard()
+    {
+        if (_board is null) return;
+        _newProjectKey = GetDefaultKey(_newProjectKey, _board.Projects);
+        _newAreaKey = GetDefaultKey(_newAreaKey, _board.Areas);
+        _newItemTypeKey = GetDefaultKey(_newItemTypeKey, _board.ItemTypes);
+        _newColumnKey = GetDefaultKey(_newColumnKey, _board.Columns);
+    }
+
+    private int GetReferenceCount(string referenceType)
+    {
+        return referenceType switch
+        {
+            "project"  => _board?.Projects.Count ?? 0
+          , "area"     => _board?.Areas.Count ?? 0
+          , "stream"   => _board?.Streams.Count ?? 0
+          , "column"   => _board?.Columns.Count ?? 0
+          , "type"     => _board?.ItemTypes.Count ?? 0
+          , "property" => _board?.PropertyDefinitions.Count ?? 0
+          , _           => 0
+        };
+    }
+
+    private IReadOnlyList<BacklogReferenceDto> GetReferences(string referenceType) => referenceType switch
+    {
+        "project"  => _board?.Projects ?? Array.Empty<BacklogReferenceDto>(),
+        "area"     => _board?.Areas ?? Array.Empty<BacklogReferenceDto>(),
+        "stream"   => _board?.Streams ?? Array.Empty<BacklogReferenceDto>(),
+        "column"   => _board?.Columns ?? Array.Empty<BacklogReferenceDto>(),
+        "type"     => _board?.ItemTypes ?? Array.Empty<BacklogReferenceDto>(),
+        "property" => _board?.PropertyDefinitions ?? Array.Empty<BacklogReferenceDto>(),
+        _           => Array.Empty<BacklogReferenceDto>()
+    };
+
+    private void SelectReferenceForEdit(string key)
+    {
+        _editReferenceKey = key;
+        var reference = GetReferences(_editReferenceType).FirstOrDefault(item => item.Key == key);
+        if (reference is null) return;
+        _editReferenceName = reference.Name;
+        _editReferenceSortOrder = reference.SortOrder;
+        _editReferenceArchived = reference.IsArchived;
+    }
+
+    private static string GetDefaultKey(string currentKey, IReadOnlyList<BacklogReferenceDto> references)
+    {
+        return references.Any(reference => reference.Key == currentKey && !reference.IsArchived)
+            ? currentKey
+            : references.FirstOrDefault(reference => !reference.IsArchived)?.Key ?? string.Empty;
+    }
+
+    private void SetMessage(Severity severity, string message)
+    {
+        _messageSeverity = severity;
+        _message = message;
+    }
+
+    private static readonly HashSet<string> DefaultPropertyKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "release", "owner", "estimate", "dependency", "customer-impact"
+    };
+}
