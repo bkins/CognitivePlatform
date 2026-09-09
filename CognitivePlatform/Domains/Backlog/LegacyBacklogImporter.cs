@@ -1,3 +1,4 @@
+using CP.Shared.Primitives.Avails.Extensions;
 using System.Text.RegularExpressions;
 
 namespace CognitivePlatform.Api.Domains.Backlog;
@@ -37,11 +38,11 @@ public sealed class LegacyBacklogImporter
 
             if (!line.StartsWith('|') || line.Contains("---")) continue;
             var cells = line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
-            if (cells.Length < 4 || cells[0].Equals("ID", StringComparison.OrdinalIgnoreCase)) continue;
+            if (cells.Length < 4 || cells[0].EqualsIgnoreCase("ID")) continue;
             sourceRows++;
 
             var displayId = cells[0].Replace("~~", string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(displayId) || knownIds.Contains(displayId)) { skipped++; continue; }
+            if (displayId.HasNoValue() || knownIds.Contains(displayId)) { skipped++; continue; }
             // Legacy tables are not consistently pipe-escaped.  The schema
             // guarantees the ID first and the Area/Status pair last, so retain
             // every intervening fragment as the description.
@@ -117,6 +118,6 @@ public sealed class LegacyBacklogImporter
     private static string ToKey(string value)
     {
         var key = Regex.Replace(value.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
-        return string.IsNullOrWhiteSpace(key) ? "unassigned" : key;
+        return key.HasNoValue() ? "unassigned" : key;
     }
 }

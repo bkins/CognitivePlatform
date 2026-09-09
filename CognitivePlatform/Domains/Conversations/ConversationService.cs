@@ -418,7 +418,7 @@ public class ConversationService : IConversationService
 
         foreach (var record in records)
         {
-            if (query.HasValue() && record.Title.Contains(query!, StringComparison.OrdinalIgnoreCase))
+            if (query.HasValue() && record.Title.ContainsIgnoreCase(query))
             {
                 matchingIds.Add(record.Id);
                 continue;
@@ -430,7 +430,7 @@ public class ConversationService : IConversationService
                 continue;
             }
 
-            if (participantName.HasValue() && details.Participants.Any(participant => participant.DisplayName != null && participant.DisplayName.Contains(participantName!, StringComparison.OrdinalIgnoreCase)))
+            if (participantName.HasValue() && details.Participants.Any(participant => participant.DisplayName.ContainsIgnoreCase(participantName)))
             {
                 matchingIds.Add(record.Id);
                 continue;
@@ -438,7 +438,7 @@ public class ConversationService : IConversationService
 
             if (query.HasValue() && details.Transcript != null)
             {
-                if (details.Transcript.Segments.Any(segment => segment.Text.Contains(query!, StringComparison.OrdinalIgnoreCase) || (segment.SpeakerName != null && segment.SpeakerName.Contains(query!, StringComparison.OrdinalIgnoreCase))))
+                if (details.Transcript.Segments.Any(segment => segment.Text.ContainsIgnoreCase(query) || segment.SpeakerName.ContainsIgnoreCase(query)))
                 {
                     matchingIds.Add(record.Id);
                 }
@@ -596,9 +596,9 @@ public class ConversationService : IConversationService
             }
 
             var matches = memories.Where(memory =>
-                memory.Content.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || memory.Category.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || (memory.Speaker != null && memory.Speaker.Contains(query, StringComparison.OrdinalIgnoreCase))
+                memory.Content.ContainsIgnoreCase(query)
+                || memory.Category.ContainsIgnoreCase(query)
+                || memory.Speaker.ContainsIgnoreCase(query)
             );
 
             results.AddRange(matches);

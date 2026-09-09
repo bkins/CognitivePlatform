@@ -5,6 +5,7 @@ using System.Threading;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Conversations;
 
@@ -85,7 +86,7 @@ public sealed class ConversationKnowledgeSource : IKnowledgeSource
 
     private static string? DeriveSummary( ConversationAnalysis? analysis, Transcript? transcript )
     {
-        if (analysis != null && !string.IsNullOrWhiteSpace(analysis.Summary))
+        if (analysis != null && analysis.Summary.HasValue())
         {
             return analysis.Summary.Length <= 180
                 ? analysis.Summary

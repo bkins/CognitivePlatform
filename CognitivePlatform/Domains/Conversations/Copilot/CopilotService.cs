@@ -130,9 +130,9 @@ public class CopilotService : ICopilotService
             {
                 foreach (var participant in participants)
                 {
-                    if (participant.DisplayName.HasValue() && sliceText.Contains(participant.DisplayName, StringComparison.OrdinalIgnoreCase))
+                    if (participant.DisplayName.HasValue() && sliceText.ContainsIgnoreCase(participant.DisplayName))
                     {
-                        var participantMemories = await _conversationService.QueryMemoriesAsync(participant.DisplayName, cancellationToken);
+                        var participantMemories = await _conversationService.QueryMemoriesAsync(participant.DisplayName!, cancellationToken);
                         if (participantMemories != null && participantMemories.Count > 0)
                         {
                             var topParticipantMemory = participantMemories.First();
@@ -164,8 +164,8 @@ public class CopilotService : ICopilotService
                 foreach (var insight in detectedInsights)
                 {
                     // Deduplicate against existing insights in this conversation
-                    if (!existingInsights.Any(existing => existing.Headline.Equals(insight.Headline, StringComparison.OrdinalIgnoreCase)
-                                                       && existing.Detail.Equals(insight.Detail, StringComparison.OrdinalIgnoreCase)))
+                    if (!existingInsights.Any(existing => existing.Headline.EqualsIgnoreCase(insight.Headline)
+                                                       && existing.Detail.EqualsIgnoreCase(insight.Detail)))
                     {
                         existingInsights.Add(insight);
                         newInsights.Add(insight);
@@ -313,8 +313,8 @@ public class CopilotService : ICopilotService
 
                 foreach (var insight in detectedInsights)
                 {
-                    if (!existingInsights.Any(existing => existing.Headline.Equals(insight.Headline, StringComparison.OrdinalIgnoreCase)
-                                                       && existing.Detail.Equals(insight.Detail, StringComparison.OrdinalIgnoreCase)))
+                    if (!existingInsights.Any(existing => existing.Headline.EqualsIgnoreCase(insight.Headline)
+                                                       && existing.Detail.EqualsIgnoreCase(insight.Detail)))
                     {
                         existingInsights.Add(insight);
                         newInsights.Add(insight);
