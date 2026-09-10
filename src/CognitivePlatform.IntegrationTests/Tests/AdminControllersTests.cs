@@ -45,6 +45,7 @@ public sealed class AdminControllersTests : IDisposable
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("AddJournalEntry");
         body.Should().Contain("AddTask");
+        body.Should().Contain("SummarizeRecentJournalEntries");
     }
 
     [Fact]

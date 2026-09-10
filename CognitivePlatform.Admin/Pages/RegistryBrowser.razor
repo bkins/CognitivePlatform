@@ -39,6 +39,24 @@ else if (_error is not null)
                       DebounceInterval="200"
                       Class="mb-3" />
 
+        <MudSelect T="string" @bind-Value="_categoryFilter" Label="Category" Dense="true" Class="mb-2">
+            <MudSelectItem Value="@AllCategories">All categories</MudSelectItem>
+            @foreach (var category in Categories)
+            {
+                <MudSelectItem Value="@category">@category</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="string" @bind-Value="_safetyFilter" Label="Safety" Dense="true" Class="mb-2">
+            <MudSelectItem Value="@AllSafety">All safety states</MudSelectItem>
+            <MudSelectItem Value="@ConfirmationRequired">Confirmation required</MudSelectItem>
+        </MudSelect>
+
+        <MudCheckBox @bind-Value="_fastPathOnly"
+                     Label="FastPath only"
+                     Dense="true"
+                     Class="mb-3" />
+
         @* Scrolls independently so selecting an item near the bottom of the list *@
         @* doesn't force the user to scroll back up to see the right-panel details. *@
         <div style="overflow-y:auto;max-height:calc(100vh - 220px);">
@@ -109,7 +127,7 @@ else if (_error is not null)
                             <MudChip T="string"
                                      Color="Color.Error"
                                      Size="Size.Small"
-                                     Icon="@Icons.Material.Filled.Warning">Destructive</MudChip>
+                                     Icon="@Icons.Material.Filled.Warning">Confirmation required</MudChip>
                         }
                         @if (_selected.AllowsClarification)
                         {
@@ -122,6 +140,12 @@ else if (_error is not null)
 
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">@_selected.Category</MudText>
                     <MudText Typo="Typo.body1" Class="mb-4">@_selected.Description</MudText>
+                    @if (_selected.IsDestructive)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                            Confirmation is required before the execution engine can run this action.
+                        </MudAlert>
+                    }
 
                     @* Examples — click the arrow to load an example into Test Invoke *@
                     @if (_selected.Examples is { Length: > 0 })
@@ -266,6 +290,10 @@ else if (_error is not null)
 </MudGrid>
 
 @code {
+    private const string AllCategories          = "__all_categories";
+    private const string AllSafety              = "__all_safety";
+    private const string ConfirmationRequired   = "confirmation_required";
+
     private List<ActionMetadataDto> _actions  = [];
     private ActionMetadataDto?      _selected;
 
@@ -273,16 +301,22 @@ else if (_error is not null)
     private bool    _loading;
     private string? _error;
     private string  _search   = string.Empty;
+    private string  _categoryFilter = AllCategories;
+    private string  _safetyFilter   = AllSafety;
+    private bool    _fastPathOnly;
 
     private string          _invokeInput  = string.Empty;
     private bool            _invoking;
     private ConverseResultDto? _invokeResult;
 
+    private IEnumerable<string> Categories => _actions.Select(action => action.Category)
+                                                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                                                    .OrderBy(category => category, StringComparer.OrdinalIgnoreCase);
+
     private IEnumerable<IGrouping<string, ActionMetadataDto>> GroupedActions =>
-        _actions.Where(action => string.IsNullOrWhiteSpace(_search)
-                              || action.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
-                              || action.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
-                              || action.Category.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        _actions.Where(MatchesFilters)
+                .OrderBy(action => action.Category, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(action => action.Name, StringComparer.OrdinalIgnoreCase)
                 .GroupBy(action => action.Category);
 
     protected override void OnInitialized()
@@ -338,6 +372,23 @@ else if (_error is not null)
     }
 
     private void UseExample(string example) => _invokeInput = example;
+
+    private bool MatchesFilters(ActionMetadataDto action)
+    {
+        var matchesSearch = string.IsNullOrWhiteSpace(_search)
+                         || action.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || action.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                         || action.Category.Contains(_search, StringComparison.OrdinalIgnoreCase);
+        var matchesCategory = _categoryFilter == AllCategories
+                           || action.Category.Equals(_categoryFilter, StringComparison.OrdinalIgnoreCase);
+        var matchesSafety = _safetyFilter == AllSafety
+                         || (_safetyFilter == ConfirmationRequired && action.IsDestructive);
+
+        return matchesSearch
+            && matchesCategory
+            && matchesSafety
+            && (!_fastPathOnly || action.IsFastPath);
+    }
 
     private async Task InvokeAsync()
     {

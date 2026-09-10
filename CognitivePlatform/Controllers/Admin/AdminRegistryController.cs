@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Registry;
+using CognitivePlatform.Api.Registry.Capabilities;
 using CP.Shared.Primitives.Avails.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,13 +8,13 @@ namespace CognitivePlatform.Api.Controllers.Admin;
 [Route("api/admin/registry")]
 public sealed class AdminRegistryController : AdminControllerBase
 {
-    private readonly IActionRegistry _registry;
+    private readonly ICapabilityRegistry _capabilityRegistry;
 
     public AdminRegistryController( IConfiguration  configuration
-                                  , IActionRegistry  registry)
+                                  , ICapabilityRegistry capabilityRegistry)
         : base(configuration)
     {
-        _registry = registry;
+        _capabilityRegistry = capabilityRegistry;
     }
 
     /// <summary>
@@ -26,7 +27,7 @@ public sealed class AdminRegistryController : AdminControllerBase
     {
         if (IsAdminAuthorized().Not()) return Unauthorized401();
 
-        var actions = _registry.Actions
+        var actions = _capabilityRegistry.GetAll()
                                .Select(action => new
                                        {
                                                action.Name
