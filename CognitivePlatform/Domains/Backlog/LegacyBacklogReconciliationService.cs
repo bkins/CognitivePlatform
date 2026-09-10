@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Api.Domains.Backlog;
 
@@ -33,12 +34,12 @@ public sealed class LegacyBacklogReconciliationService
             if (!sourceById.TryGetValue(legacyId, out var legacy)) continue;
 
             var resolvedStreamKey = ResolveStreamKey(legacy.StreamName, board.Streams);
-            var streamDiffers = !string.Equals(resolvedStreamKey, story.StreamKey, StringComparison.OrdinalIgnoreCase);
+            var streamDiffers = !resolvedStreamKey.EqualsIgnoreCase(story.StreamKey);
             var titleDiffers = !string.Equals(legacy.Title, story.Title, StringComparison.Ordinal);
             var descriptionDiffers = !string.Equals(legacy.Description, story.Description, StringComparison.Ordinal);
             if (legacy.Priority == story.Priority
                 && !streamDiffers
-                && string.Equals(legacy.ColumnKey, story.ColumnKey, StringComparison.OrdinalIgnoreCase)
+                && legacy.ColumnKey.EqualsIgnoreCase(story.ColumnKey)
                 && !titleDiffers
                 && !descriptionDiffers) continue;
 
@@ -155,13 +156,14 @@ public sealed class LegacyBacklogReconciliationService
                                                             , CancellationToken                 cancellationToken)
     {
         var existingKey = ResolveStreamKey(streamName, board.Streams);
-        if (existingKey is not null || string.IsNullOrWhiteSpace(streamName)) return existingKey;
-        if (createdStreamKeys.TryGetValue(streamName, out var createdKey)) return createdKey;
+        if (existingKey is not null || streamName.HasNoValue()) return existingKey;
+        var resolvedStreamName = streamName!;
+        if (createdStreamKeys.TryGetValue(resolvedStreamName, out var createdKey)) return createdKey;
 
-        var key = ToKey(streamName);
+        var key = ToKey(resolvedStreamName);
         var nextSortOrder = board.Streams.Count == 0 ? 10 : board.Streams.Max(stream => stream.SortOrder) + 10;
-        await _service.CreateReferenceAsync("stream", new CreateBacklogReferenceRequest(key, streamName, nextSortOrder, actor ?? "legacy-reconciliation"), cancellationToken);
-        createdStreamKeys[streamName] = key;
+        await _service.CreateReferenceAsync("stream", new CreateBacklogReferenceRequest(key, resolvedStreamName, nextSortOrder, actor ?? "legacy-reconciliation"), cancellationToken);
+        createdStreamKeys[resolvedStreamName] = key;
         return key;
     }
 
@@ -180,9 +182,9 @@ public sealed class LegacyBacklogReconciliationService
         {
             if (!line.StartsWith('|') || line.Contains("---")) continue;
             var cells = line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
-            if (cells.Length < 4 || cells[0].Equals("ID", StringComparison.OrdinalIgnoreCase)) continue;
+            if (cells.Length < 4 || cells[0].EqualsIgnoreCase("ID")) continue;
             var displayId = cells[0].Replace("~~", string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(displayId) || rows.ContainsKey(displayId)) continue;
+            if (displayId.HasNoValue() || rows.ContainsKey(displayId)) continue;
             var description = string.Join(" | ", cells[1..^2]);
             var (title, detail) = SplitTitle(description);
             var status = cells[^1];
@@ -226,17 +228,18 @@ public sealed class LegacyBacklogReconciliationService
 
     private static string? ResolveStreamKey(string? streamName, IReadOnlyList<BacklogReferenceDto> streams)
     {
-        if (string.IsNullOrWhiteSpace(streamName)) return null;
-        var normalizedKey = ToKey(streamName);
-        return streams.FirstOrDefault(stream => string.Equals(stream.Name, streamName, StringComparison.OrdinalIgnoreCase)
-                                              || string.Equals(stream.Key, normalizedKey, StringComparison.OrdinalIgnoreCase)
-                                              || stream.Name.StartsWith($"{streamName} —", StringComparison.OrdinalIgnoreCase))?.Key;
+        if (streamName.HasNoValue()) return null;
+        var resolvedStreamName = streamName!;
+        var normalizedKey = ToKey(resolvedStreamName);
+        return streams.FirstOrDefault(stream => stream.Name.EqualsIgnoreCase(resolvedStreamName)
+                                              || stream.Key.EqualsIgnoreCase(normalizedKey)
+                                              || stream.Name.StartsWithIgnoreCase($"{resolvedStreamName} —"))?.Key;
     }
 
     private static string ToKey(string value)
     {
         var key = Regex.Replace(value.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
-        return string.IsNullOrWhiteSpace(key) ? "legacy-stream" : key;
+        return key.HasNoValue() ? "legacy-stream" : key;
     }
 
     private sealed record LegacySource(string Fingerprint, IReadOnlyList<LegacyRow> Rows);

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 using Xunit.Abstractions;
+using CP.Shared.Primitives.Avails.Extensions;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
@@ -76,7 +77,7 @@ public sealed class ApiFixture : IDisposable
     {
         _output = output;
 
-        if (string.IsNullOrWhiteSpace(ExternalBaseUrl))
+        if (ExternalBaseUrl.HasNoValue())
         {
             _factory       = SharedInMemoryFactory.Value;
             Client         = _factory.CreateClient();

@@ -408,10 +408,8 @@ public static class EvalResultParser
                     continue;
 
                 // Strip the literal " UTC" suffix produced by the eval runner before parsing.
-                var dateStr = line[(colonIndex + 1)..].Trim()
-                                                      .Replace(" UTC"
-                                                             , string.Empty
-                                                             , StringComparison.OrdinalIgnoreCase);
+                var dateStr = line[(colonIndex + 1)..].Trim();
+                if (dateStr.EndsWithIgnoreCase(" UTC")) dateStr = dateStr[..^4];
 
                 if (DateTime.TryParseExact(dateStr
                                          , "yyyy-MM-dd HH:mm:ss"

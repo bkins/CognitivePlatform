@@ -445,7 +445,7 @@ public sealed class FastPathResolver : IFastPathResolver
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddTask");
             if (action is null) return false;
 
-            input      = input.Replace("task:", "shortDescription:", StringComparison.OrdinalIgnoreCase);
+            input      = input.ReplaceIgnoreCase("task:", "shortDescription:");
             parameters = ParseToDictionary(input);
 
             // "DueDate:" is a natural alias users write in the block, but the action

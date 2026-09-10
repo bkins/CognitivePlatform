@@ -66,11 +66,11 @@ public class PersonaModelSelector : IPersonaModelSelector
     private static string AdaptStrictRestrictions(string prompt)
     {
         var adapted = prompt
-            .Replace("romantic",       "nostalgic",      StringComparison.OrdinalIgnoreCase)
-            .Replace("love",           "deep affection", StringComparison.OrdinalIgnoreCase)
-            .Replace("intimate",       "heartfelt",      StringComparison.OrdinalIgnoreCase)
-            .Replace("passion",        "longing",        StringComparison.OrdinalIgnoreCase)
-            .Replace("desire",         "yearning",       StringComparison.OrdinalIgnoreCase);
+            .ReplaceIgnoreCase("romantic", "nostalgic")
+            .ReplaceIgnoreCase("love", "deep affection")
+            .ReplaceIgnoreCase("intimate", "heartfelt")
+            .ReplaceIgnoreCase("passion", "longing")
+            .ReplaceIgnoreCase("desire", "yearning");
 
         return AppendContinuityInstruction(adapted);
     }

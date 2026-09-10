@@ -5,6 +5,7 @@ using CognitivePlatform.Api.Domains.Personas.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
+using CP.Shared.Primitives.Avails.Extensions;
 
 namespace CognitivePlatform.Tests.Conversations;
 
@@ -217,7 +218,7 @@ public class ConversationServiceTests
         var result = await _service.SaveAudioAsync(conversationId, audioStream, "audio/wav");
 
         Assert.True(result);
-        _storeMock.Verify(s => s.Save(It.Is<ConversationRecord>(r => r.Id == conversationId && !string.IsNullOrEmpty(r.AudioFilePath)), null, conversationId.ToString()), Times.Once);
+        _storeMock.Verify(store => store.Save(It.Is<ConversationRecord>(record => record.Id == conversationId && record.AudioFilePath.HasValue()), null, conversationId.ToString()), Times.Once);
 
         var (stream, contentType) = await _service.GetAudioAsync(conversationId);
         Assert.NotNull(stream);
@@ -425,4 +426,3 @@ public class ConversationServiceTests
         Assert.Equal("Migrate to SQLite.", sqliteResults[0].Content);
     }
 }
-

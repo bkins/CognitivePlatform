@@ -129,7 +129,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
     
     private static string? ExtractDirectiveSegment(string line, string directive)
     {
-        var start = line.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+        var start = line.IndexOfIgnoreCase(directive);
         if (start < 0)
             return null;
 
@@ -142,7 +142,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
             if (other.EqualsIgnoreCase(directive))
                 continue;
 
-            var idx = line.IndexOf(other, start, StringComparison.OrdinalIgnoreCase);
+        var idx = line.IndexOfIgnoreCase(other, start);
             if (idx >= 0 && idx < end)
                 end = idx;
         }
@@ -152,7 +152,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
 
     private static string RemoveDirectiveContent(string line, string directive)
     {
-        var start = line.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+        var start = line.IndexOfIgnoreCase(directive);
         if (start < 0) return line;
 
         var contentStart = start + directive.Length;
@@ -162,7 +162,7 @@ public sealed class JournalCommandParser : IJournalCommandParser
         {
             if (other.EqualsIgnoreCase(directive)) continue;
 
-            var idx = line.IndexOf(other, contentStart, StringComparison.OrdinalIgnoreCase);
+        var idx = line.IndexOfIgnoreCase(other, contentStart);
             if (idx >= 0 && idx < end) end = idx;
         }
 

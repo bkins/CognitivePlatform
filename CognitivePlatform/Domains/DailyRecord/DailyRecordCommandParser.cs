@@ -223,7 +223,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 
         foreach (var directive in allDirectives)
         {
-            var idx = text.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+            var idx = text.IndexOfIgnoreCase(directive);
 
             if (idx >= 0 && idx < firstDirectiveIdx)
                 firstDirectiveIdx = idx;
@@ -245,7 +245,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
             foreach (var directive in allDirectives)
             {
                 // Start at index 1 to skip the directive that begins at position 0.
-                var idx = directivePart.IndexOf(directive, 1, StringComparison.OrdinalIgnoreCase);
+                var idx = directivePart.IndexOfIgnoreCase(directive, 1);
 
                 if (idx > 0 && idx < nextBoundary)
                     nextBoundary = idx;
@@ -275,7 +275,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
 
     private static string? ExtractDirectiveSegment(string line, string directive)
     {
-        var start = line.IndexOf(directive, StringComparison.OrdinalIgnoreCase);
+        var start = line.IndexOfIgnoreCase(directive);
         if (start < 0) return null;
 
         start += directive.Length;
@@ -285,7 +285,7 @@ public sealed class DailyRecordCommandParser : IDailyRecordCommandParser
         {
             if (other.EqualsIgnoreCase(directive)) continue;
 
-            var idx = line.IndexOf(other, start, StringComparison.OrdinalIgnoreCase);
+            var idx = line.IndexOfIgnoreCase(other, start);
             if (idx >= 0 && idx < end) end = idx;
         }
 
