@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Domains.Identity;
+using CognitivePlatform.Api.Domains.MemoryReview;
 
 namespace CognitivePlatform.Api.Startup;
 
@@ -11,6 +12,7 @@ public static class IdentityServiceCollectionExtensions
     {
         services.AddSingleton<IIdentityService, IdentityService>();
         services.AddSingleton<IIdentityAnalysisService, IdentityAnalysisService>();
+        services.AddScoped<IMemoryReviewService, MemoryReviewService>();
         services.AddTransient<IdentityActions>();
 
         return services;
