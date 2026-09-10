@@ -1,0 +1,63 @@
+@page "/action-history"
+@inject IAdminActionHistoryClient ActionHistoryClient
+
+<PageTitle>Action History — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Action History</MudText>
+    <MudSpacer />
+    <MudSelect T="string" @bind-Value="_outcome" Label="Outcome" Dense="true" Style="min-width:180px">
+        <MudSelectItem Value="@AllOutcomes">All outcomes</MudSelectItem>
+        <MudSelectItem Value="@SuccessOutcome">Success</MudSelectItem>
+        <MudSelectItem Value="@FailureOutcome">Failure</MudSelectItem>
+    </MudSelect>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="@LoadAsync" Disabled="@_loading" />
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_entries.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No matching action history is available.</MudAlert>
+}
+else
+{
+    <MudTable Items="_entries" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>When</MudTh><MudTh>Action</MudTh><MudTh>Outcome</MudTh><MudTh>Details</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.OccurredUtc.ToLocalTime().ToString("g")</MudTd>
+            <MudTd>@context.ActionName</MudTd>
+            <MudTd><MudChip T="string" Color="@(context.Outcome == "Success" ? Color.Success : Color.Error)" Size="Size.Small">@context.Outcome</MudChip></MudTd>
+            <MudTd>@(context.ExecutionSummary ?? context.ParameterSummary ?? "No additional detail")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private const string AllOutcomes = "all";
+    private const string SuccessOutcome = "Success";
+    private const string FailureOutcome = "Failure";
+    private List<ActionHistoryItemDto> _entries = [];
+    private string _outcome = AllOutcomes;
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _entries = [..await ActionHistoryClient.GetHistoryAsync(_outcome == AllOutcomes ? null : _outcome)]; }
+        catch (Exception exception) { _error = $"Unable to load action history: {exception.Message}"; }
+        finally { _loading = false; }
+    }
+}
