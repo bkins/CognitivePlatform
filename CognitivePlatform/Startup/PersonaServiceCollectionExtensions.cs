@@ -38,6 +38,7 @@ public static class PersonaServiceCollectionExtensions
     {
         services.AddScoped<IMemoryReconstructionEngine, MemoryReconstructionEngine>();
         services.AddSingleton<IMemoryConfirmationQueue, MemoryConfirmationQueue>();
+        services.AddScoped<IPendingMemoryConfirmationService, PendingMemoryConfirmationService>();
 
         return services;
     }

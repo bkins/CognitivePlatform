@@ -51,6 +51,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
     private readonly IPersonaSessionManager?        _personaSessionManager;
     private readonly IMemoryReconstructionEngine?   _memoryReconstructionEngine;
     private readonly IMemoryConfirmationQueue?      _memoryConfirmationQueue;
+    private readonly IPendingMemoryConfirmationService? _pendingMemoryConfirmationService;
     private readonly IPersonaService?               _personaServiceForReconstruction;
     private readonly IPersonaStore?                 _personaStoreForReconstruction;
     private readonly IPersonaStabilityTracker?      _stabilityTracker;
@@ -92,6 +93,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
                                    , IPersonaSessionManager?                                        personaSessionManager          = null
                                    , IMemoryReconstructionEngine?                                   memoryReconstructionEngine     = null
                                    , IMemoryConfirmationQueue?                                      memoryConfirmationQueue        = null
+                                   , IPendingMemoryConfirmationService?                              pendingMemoryConfirmationService = null
                                    , IPersonaService?                                               personaServiceForReconstruction = null
                                    , IPersonaStore?                                                 personaStoreForReconstruction   = null
                                    , IPersonaStabilityTracker?                                      stabilityTracker               = null
@@ -125,6 +127,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         _personaSessionManager           = personaSessionManager;
         _memoryReconstructionEngine      = memoryReconstructionEngine;
         _memoryConfirmationQueue         = memoryConfirmationQueue;
+        _pendingMemoryConfirmationService = pendingMemoryConfirmationService;
         _personaServiceForReconstruction = personaServiceForReconstruction;
         _personaStoreForReconstruction   = personaStoreForReconstruction;
         _stabilityTracker                = stabilityTracker;
@@ -1809,6 +1812,9 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
                               .ConfigureAwait(false);
 
                     _memoryConfirmationQueue.Enqueue(context.SessionId, scoredFragment);
+                    if (_pendingMemoryConfirmationService is not null)
+                        await _pendingMemoryConfirmationService.EnqueueAsync(context.SessionId, scoredFragment, ct)
+                                                              .ConfigureAwait(false);
                 }
             }
 

@@ -19,6 +19,7 @@ public class PersonaActions
     private readonly IPersonaSessionManager    _sessionManager;
     private readonly IPersonaStore             _personaStore;
     private readonly IMemoryConfirmationQueue  _confirmationQueue;
+    private readonly IPendingMemoryConfirmationService? _pendingConfirmationService;
     private readonly IAlternateTimelineService? _timelineService;
     private readonly IMemorySnapshotService?   _snapshotService;
 
@@ -26,6 +27,7 @@ public class PersonaActions
                          , IPersonaSessionManager     sessionManager
                          , IPersonaStore              personaStore
                          , IMemoryConfirmationQueue   confirmationQueue
+                         , IPendingMemoryConfirmationService? pendingConfirmationService = null
                          , IAlternateTimelineService? timelineService = null
                          , IMemorySnapshotService?    snapshotService = null )
     {
@@ -33,6 +35,7 @@ public class PersonaActions
         _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
         _personaStore      = personaStore      ?? throw new ArgumentNullException(nameof(personaStore));
         _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
+        _pendingConfirmationService = pendingConfirmationService;
         _timelineService   = timelineService;
         _snapshotService   = snapshotService;
     }
@@ -210,6 +213,8 @@ public class PersonaActions
             return "No pending memories to confirm.";
 
         await _personaStore.ConfirmMemoryAsync(memory.Id, memory.PersonaId);
+        if (_pendingConfirmationService is not null)
+            await _pendingConfirmationService.ResolveAsync(memory.Id, "confirmed");
 
         var preview = memory.Content.Length > 60
                           ? $"{memory.Content[..60]}..."

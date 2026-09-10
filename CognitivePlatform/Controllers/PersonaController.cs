@@ -12,6 +12,7 @@ public sealed class PersonaController : ControllerBase
     private readonly IPersonaStore               _store;
     private readonly IPersonaSessionManager      _sessionManager;
     private readonly IMemoryConfirmationQueue    _confirmationQueue;
+    private readonly IPendingMemoryConfirmationService? _pendingConfirmationService;
     private readonly IPersonaStabilityTracker?   _stabilityTracker;
     private readonly IAlternateTimelineService?  _timelineService;
     private readonly IEmotionalTopologyTracker?  _topologyTracker;
@@ -21,6 +22,7 @@ public sealed class PersonaController : ControllerBase
                             , IPersonaStore               store
                             , IPersonaSessionManager      sessionManager
                             , IMemoryConfirmationQueue    confirmationQueue
+                            , IPendingMemoryConfirmationService? pendingConfirmationService = null
                             , IPersonaStabilityTracker?   stabilityTracker = null
                             , IAlternateTimelineService?  timelineService  = null
                             , IEmotionalTopologyTracker?  topologyTracker  = null
@@ -30,6 +32,7 @@ public sealed class PersonaController : ControllerBase
         _store             = store             ?? throw new ArgumentNullException(nameof(store));
         _sessionManager    = sessionManager    ?? throw new ArgumentNullException(nameof(sessionManager));
         _confirmationQueue = confirmationQueue ?? throw new ArgumentNullException(nameof(confirmationQueue));
+        _pendingConfirmationService = pendingConfirmationService;
         _stabilityTracker  = stabilityTracker;
         _timelineService   = timelineService;
         _topologyTracker   = topologyTracker;
@@ -190,6 +193,15 @@ public sealed class PersonaController : ControllerBase
 
         var score = _stabilityTracker.GetScore(conversationId, id);
         return Ok(score);
+    }
+
+    [HttpGet("memory/pending-summary")]
+    public async Task<ActionResult<PendingMemoryConfirmationSummary>> GetPendingMemorySummary(CancellationToken ct)
+    {
+        if (_pendingConfirmationService is null)
+            return StatusCode(503, "Pending memory confirmation service is not available.");
+
+        return Ok(await _pendingConfirmationService.GetSummaryAsync(ct));
     }
 
     [HttpGet("{id:guid}/memory/pending")]
