@@ -8,6 +8,7 @@
 @inject ITerminalStateService TerminalService
 @inject IJSRuntime            Js
 @inject IPowerShellResolver    PowerShellResolver
+@inject IReleaseVersionService ReleaseVersionService
 @inject IWebHostEnvironment   HostEnvironment
 
 <PageTitle>Release Management — CP Admin</PageTitle>
@@ -758,79 +759,14 @@
       , _      => _selectedEnvironment
     };
 
-    private static readonly object _versionLock = new();
-
-    private string GenerateVersion()
-    {
-        lock (_versionLock)
-        {
-            var path = Configuration["SystemPaths:VersionJsonPath"] ?? @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
-            if (!File.Exists(path))
-            {
-                return "1.0.0.1";
-            }
-
-            try
-            {
-                var json = File.ReadAllText(path);
-                using var doc = JsonDocument.Parse(json);
-
-                var root     = doc.RootElement;
-                var majorVal = root.GetProperty("Major").GetInt32();
-                var minorVal = root.GetProperty("Minor").GetInt32();
-                var patchVal = root.GetProperty("Patch").GetInt32();
-                var buildVal = root.GetProperty("Build").GetInt32();
-
-                buildVal++;
-
-                // Write back updated build number
-                var updatedJson = $"{{\n  \"Major\": {majorVal},\n  \"Minor\": {minorVal},\n  \"Patch\": {patchVal},\n  \"Build\": {buildVal}\n}}";
-                File.WriteAllText(path, updatedJson);
-
-                return $"{majorVal}.{minorVal}.{patchVal}.{buildVal}";
-            }
-            catch
-            {
-                return "1.0.0.1";
-            }
-        }
-    }
-
-    private void RegenerateVersion() => _version = GenerateVersion();
-
-    private string GetCurrentVersion()
-    {
-        var path = Configuration["SystemPaths:VersionJsonPath"] ?? @"C:\Users\benho\source\repos\CP\CP.Workbench\version.json";
-        if (File.Exists(path).Not())
-        {
-            return "1.0.0.1";
-        }
-
-        try
-        {
-            var json = File.ReadAllText(path);
-            using var doc = JsonDocument.Parse(json);
-
-            var root     = doc.RootElement;
-            var majorVal = root.GetProperty("Major").GetInt32();
-            var minorVal = root.GetProperty("Minor").GetInt32();
-            var patchVal = root.GetProperty("Patch").GetInt32();
-            var buildVal = root.GetProperty("Build").GetInt32();
-
-            return $"{majorVal}.{minorVal}.{patchVal}.{buildVal}";
-        }
-        catch
-        {
-            return "1.0.0.1";
-        }
-    }
+    private void RegenerateVersion() => _version = ReleaseVersionService.IncrementBuild();
 
     private void EnsureVersion()
     {
-        if (_version.HasNoValue()) _version = GetCurrentVersion();
+        if (_version.HasNoValue()) _version = ReleaseVersionService.GetCurrentVersion();
     }
 
-    private string EffectiveVersion => string.IsNullOrWhiteSpace(_version) ? GetCurrentVersion() : _version;
+    private string EffectiveVersion => string.IsNullOrWhiteSpace(_version) ? ReleaseVersionService.GetCurrentVersion() : _version;
 
     private static Color EnvButtonColor(string env) => env switch
     {
@@ -852,7 +788,7 @@
     {
         TerminalService.StateChanged += OnTerminalChanged;
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
-        EnsureVersion();
+        _version = ReleaseVersionService.IncrementBuild();
         LoadArtifacts();
         LoadDeploymentState();
         LoadAuditLog();
