@@ -16,6 +16,23 @@ public sealed class SqliteBacklogBoardServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetBoardAsync_RepairsTheLegacyPlannedColumnLabel()
+    {
+        await CreateService().GetBoardAsync();
+        await using (var connection = new SqliteConnection($"Data Source={_databasePath};Mode=ReadWrite;Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE BacklogReferences SET Name = 'Planned' WHERE ReferenceType = 'column' AND Key = 'planned';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var board = await CreateService().GetBoardAsync();
+
+        Assert.Contains(board.Columns, column => column.Key == "planned" && column.Name == "Ready");
+    }
+
+    [Fact]
     public async Task CreateStoryAsync_StoresTypedPropertiesAndAuditEvent()
     {
         var service = CreateService();
