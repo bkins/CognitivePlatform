@@ -123,6 +123,14 @@ else if (_error is not null)
                                        title="Restore"
                                        OnClick="@(() => RestoreAsync(context.Item))" />
                     }
+                    @if (context.Item.Status != "Deleted")
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       title="Edit title and summary"
+                                       OnClick="@(() => EditAsync(context.Item))" />
+                    }
                     <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
                                    Color="Color.Error"
                                    Size="Size.Small"
@@ -283,6 +291,17 @@ else if (_error is not null)
             await LoadAsync();
         else
             _error = $"Restore failed for '{item.Title}'.";
+    }
+
+    private async Task EditAsync(KnowledgeItemAdminDto item)
+    {
+        var parameters = new DialogParameters<EditKnowledgeDialog>
+                         {
+                             { dialog => dialog.Item, item }
+                         };
+        var dialog = await DialogService.ShowAsync<EditKnowledgeDialog>("Edit Knowledge Item", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadAsync();
     }
 
     private async Task InjectAsync()

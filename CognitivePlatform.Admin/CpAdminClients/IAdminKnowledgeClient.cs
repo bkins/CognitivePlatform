@@ -11,5 +11,7 @@ public interface IAdminKnowledgeClient
 
     Task<bool> RestoreAsync(string id, CancellationToken ct = default);
 
+    Task<bool> UpdateAsync(string id, UpdateKnowledgeRequest request, CancellationToken ct = default);
+
     Task<string?> InjectAsync(InjectKnowledgeRequest request, CancellationToken ct = default);
 }

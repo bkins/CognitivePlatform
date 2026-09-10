@@ -33,6 +33,12 @@ public sealed class AdminKnowledgeClient : IAdminKnowledgeClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<bool> UpdateAsync(string id, UpdateKnowledgeRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/admin/knowledge/{Uri.EscapeDataString(id)}", request, ct);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<string?> InjectAsync(InjectKnowledgeRequest request, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync("api/admin/knowledge", request, ct);

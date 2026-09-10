@@ -65,6 +65,34 @@ public sealed class AdminKnowledgeController : AdminControllerBase
         return restored ? Ok() : NotFound();
     }
 
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateKnowledgeRequest request)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+        if (request.Title.HasNoValue()) return BadRequest("Title is required.");
+
+        var existing = _store.Get<KnowledgeItemDto>(id);
+        if (existing == null) return NotFound();
+
+        var updated = new KnowledgeItemDto
+                      {
+                          Id             = existing.Id
+                        , Kind           = existing.Kind
+                        , Title          = request.Title.Trim()
+                        , Summary        = request.Summary?.Trim()
+                        , Status         = existing.Status
+                        , CreatedAt      = existing.CreatedAt
+                        , LastModifiedAt = DateTimeOffset.UtcNow
+                        , Tags           = existing.Tags
+                        , IsEdited       = true
+                        , Importance     = existing.Importance
+                        , Urgency        = existing.Urgency
+                      };
+        await _store.Save(updated, id: updated.IdString);
+
+        return Ok(new { updated.IdString, Kind = updated.Kind.ToString(), updated.Title, updated.Summary, Status = updated.Status.ToString(), updated.CreatedAt, updated.LastModifiedAt });
+    }
+
     /// <summary>Directly injects a new knowledge item — developer escape hatch.</summary>
     [HttpPost]
     public async Task<IActionResult> Inject([FromBody] InjectKnowledgeRequest request)
@@ -99,4 +127,10 @@ public sealed record InjectKnowledgeRequest
     public string  Title   { get; init; } = string.Empty;
     public string? Summary { get; init; }
     public string  Kind    { get; init; } = "Pending";
+}
+
+public sealed record UpdateKnowledgeRequest
+{
+    public string  Title   { get; init; } = string.Empty;
+    public string? Summary { get; init; }
 }

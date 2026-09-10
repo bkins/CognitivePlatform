@@ -19,3 +19,10 @@ public sealed record InjectKnowledgeRequest
     public string? Summary { get; init; }
     public string  Kind    { get; init; } = "Pending";
 }
+
+/// <summary>Request body for PUT /api/admin/knowledge/{id}.</summary>
+public sealed record UpdateKnowledgeRequest
+{
+    public string  Title   { get; init; } = string.Empty;
+    public string? Summary { get; init; }
+}

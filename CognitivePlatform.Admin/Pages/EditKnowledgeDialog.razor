@@ -1,0 +1,31 @@
+@inject IAdminKnowledgeClient KnowledgeClient
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_title" Label="Title" Required="true" FullWidth="true" />
+        <MudTextField @bind-Value="_summary" Label="Summary" Lines="4" FullWidth="true" Class="mt-3" />
+        @if (_error is not null) { <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_saving || string.IsNullOrWhiteSpace(_title))" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public KnowledgeItemAdminDto Item { get; set; } = default!;
+    private string _title = string.Empty;
+    private string? _summary;
+    private string? _error;
+    private bool _saving;
+    protected override void OnInitialized() { _title = Item.Title; _summary = Item.Summary; }
+    private void Cancel() => Dialog.Cancel();
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = null;
+        var saved = await KnowledgeClient.UpdateAsync(Item.IdString, new UpdateKnowledgeRequest { Title = _title, Summary = _summary });
+        if (saved) Dialog.Close(DialogResult.Ok(true)); else _error = "Could not save the knowledge item.";
+        _saving = false;
+    }
+}
