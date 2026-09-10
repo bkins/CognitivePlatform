@@ -30,6 +30,7 @@ public static class CoreServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
+        services.AddSingleton<ITrustTraceStore, ObjectStoreTrustTraceStore>();
         services.AddSingleton<IActionRegistry, ActionRegistry>();
         services.AddSingleton<ICapabilityRegistry, CapabilityRegistry>();
         services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();

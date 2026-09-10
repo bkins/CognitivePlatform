@@ -62,6 +62,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
     private readonly IInterpreterTrainingStore?     _trainingStore;
     private readonly IKnowledgeIngestionService?    _knowledgeIngestionService;
     private readonly ISecretVaultService            _secretsVault;
+    private readonly ITrustTraceStore?              _trustTraceStore;
 
     private readonly bool _isDebug  = false;
 
@@ -100,7 +101,8 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
                                    , IEmotionalTopologyTracker?                                     emotionalTopologyTracker       = null
                                    , IInterpreterTrainingStore?                                     trainingStore                  = null
                                    , IKnowledgeIngestionService?                                    knowledgeIngestionService      = null
-                                   , ISecretVaultService?                                           secretsVault                   = null )
+                                   , ISecretVaultService?                                           secretsVault                   = null
+                                   , ITrustTraceStore?                                             trustTraceStore                = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -134,6 +136,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         _emotionalTopologyTracker        = emotionalTopologyTracker;
         _knowledgeIngestionService       = knowledgeIngestionService;
         _secretsVault                    = secretsVault ?? UnavailableSecretVaultService.Instance;
+        _trustTraceStore                 = trustTraceStore;
 
 #if DEBUG
         _isDebug = true;
@@ -1192,6 +1195,20 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         }
 
         response.TransparencyItems = TurnTransparencySummary.Build(response, path, actionName);
+        if (_trustTraceStore is not null)
+        {
+            try
+            {
+                response.TrustTraceId = await _trustTraceStore.RecordAsync(actionName ?? string.Empty
+                                                                            , response.Success
+                                                                            , response.TransparencyItems
+                                                                            , ct);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Transparency persistence is an observability aid, never a reason to fail a user turn.
+            }
+        }
 
         // ENH-08: append the turn to the session's bounded history.
         // The Interpreter+execute path records inline (around the engine call) so it can

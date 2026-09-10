@@ -1,0 +1,66 @@
+@page "/trust-traces"
+@inject IAdminTrustTraceClient TrustTraceClient
+
+<PageTitle>Trust Traces — CP Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Trust Traces</MudText>
+    <MudSpacer />
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="@LoadAsync" Disabled="@_loading" />
+</MudStack>
+
+<MudText Typo="Typo.body2" Class="mb-4">Read-only, redacted decision records. They never include prompts, parameters, session identifiers, or raw diagnostics.</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_traces.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No trust traces are available yet.</MudAlert>
+}
+else
+{
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var trace in _traces)
+        {
+            <MudExpansionPanel Text="@TraceTitle(trace)" Icon="@(trace.Success ? Icons.Material.Filled.Verified : Icons.Material.Filled.ErrorOutline)">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.caption">Reference: @trace.Id</MudText>
+                    @foreach (var item in trace.Items)
+                    {
+                        <MudText Typo="Typo.body2"><b>@item.Label:</b> @item.Detail</MudText>
+                    }
+                </MudStack>
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+}
+
+@code {
+    private List<TrustTraceDto> _traces = [];
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _traces = [..await TrustTraceClient.GetRecentAsync()]; }
+        catch (Exception exception) { _error = $"Unable to load trust traces: {exception.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private static string TraceTitle(TrustTraceDto trace)
+    {
+        var action = trace.ActionName ?? "No action selected";
+        var outcome = trace.Success ? "completed" : "did not complete";
+        return $"{trace.OccurredUtc.ToLocalTime():g} — {action} {outcome}";
+    }
+}

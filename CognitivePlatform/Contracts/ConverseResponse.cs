@@ -51,4 +51,7 @@ public class ConverseResponse
     /// Raw parameters, user content, diagnostics, and chain-of-thought are excluded.
     /// </summary>
     public IReadOnlyList<TransparencyItem> TransparencyItems { get; set; } = Array.Empty<TransparencyItem>();
+
+    /// <summary>Opaque reference to the redacted operator trust trace for this turn.</summary>
+    public string? TrustTraceId { get; set; }
 }

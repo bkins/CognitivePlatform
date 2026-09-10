@@ -63,6 +63,11 @@ builder.Services
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
 
 builder.Services
+       .AddHttpClient<IAdminTrustTraceClient, AdminTrustTraceClient>(client => client.BaseAddress = new Uri(PlaceholderBase))
+       .AddHttpMessageHandler<AdminSecretHandler>()
+       .AddHttpMessageHandler<EnvironmentRoutingHandler>();
+
+builder.Services
        .AddHttpClient<IAdminKnowledgeClient, AdminKnowledgeClient>(client => client.BaseAddress = new Uri(PlaceholderBase))
        .AddHttpMessageHandler<AdminSecretHandler>()
        .AddHttpMessageHandler<EnvironmentRoutingHandler>();
