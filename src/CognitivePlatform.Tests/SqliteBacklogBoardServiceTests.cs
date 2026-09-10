@@ -8,6 +8,14 @@ public sealed class SqliteBacklogBoardServiceTests : IDisposable
     private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"backlog-{Guid.NewGuid():N}.db");
 
     [Fact]
+    public async Task GetBoardAsync_SeedsReadyAsTheExecutionColumn()
+    {
+        var board = await CreateService().GetBoardAsync();
+
+        Assert.Contains(board.Columns, column => column.Key == "planned" && column.Name == "Ready");
+    }
+
+    [Fact]
     public async Task CreateStoryAsync_StoresTypedPropertiesAndAuditEvent()
     {
         var service = CreateService();
