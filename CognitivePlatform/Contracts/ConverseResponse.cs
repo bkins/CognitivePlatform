@@ -45,4 +45,10 @@ public class ConverseResponse
     /// Non-null value per ENH-54 specifications.
     /// </summary>
     public string ReasoningContent { get; set; } = "Standard Completion (Direct response generation; no Chain-of-Thought reasoning emitted)";
+
+    /// <summary>
+    /// Display-safe facts for the unified user-facing "Why" affordance.
+    /// Raw parameters, user content, diagnostics, and chain-of-thought are excluded.
+    /// </summary>
+    public IReadOnlyList<TransparencyItem> TransparencyItems { get; set; } = Array.Empty<TransparencyItem>();
 }

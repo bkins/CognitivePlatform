@@ -1191,6 +1191,8 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
             response.PendingMemoryCount = _memoryConfirmationQueue.Count(request.SessionId);
         }
 
+        response.TransparencyItems = TurnTransparencySummary.Build(response, path, actionName);
+
         // ENH-08: append the turn to the session's bounded history.
         // The Interpreter+execute path records inline (around the engine call) so it can
         // capture the un-woven message before the engine fires; it passes recordTurn:false
