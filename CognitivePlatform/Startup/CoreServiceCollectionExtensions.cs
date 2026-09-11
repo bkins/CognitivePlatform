@@ -1,4 +1,5 @@
 using CognitivePlatform.Api.Audit;
+using CognitivePlatform.Api.Automation;
 using CognitivePlatform.Api.COCE;
 using CognitivePlatform.Api.Conversation;
 using CognitivePlatform.Api.Execution;
@@ -33,6 +34,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IAuditLog, ObjectStoreAuditLog>();
         services.AddSingleton<ITrustTraceStore, ObjectStoreTrustTraceStore>();
         services.AddSingleton<ICapabilityMaturityService, CapabilityMaturityService>();
+        services.AddSingleton<IEngineeringWorkspaceProvisioner, GitWorktreeWorkspaceProvisioner>();
+        services.AddSingleton<IEngineeringPipelineService, EngineeringPipelineService>();
         services.AddSingleton<IActionRegistry, ActionRegistry>();
         services.AddSingleton<ICapabilityRegistry, CapabilityRegistry>();
         services.AddScoped<IConversationOrchestrator, ConversationOrchestrator>();
