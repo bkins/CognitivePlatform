@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CognitivePlatform.Api.Startup;
+using CognitivePlatform.Api.Governance;
 using Microsoft.Extensions.Options;
 using System.Text;
 using CognitivePlatform.Api.SystemInfo;
@@ -35,6 +36,7 @@ public partial class Program
 
 // ---------- SERVICE REGISTRATION ----------
 
+        builder.Services.Configure<GovernanceSettings>(builder.Configuration.GetSection("Governance"));
         builder.Services.AddWorkspaceServices();
         builder.Services.AddCoreServices();
         builder.Services.AddOpenTelemetryServices(builder.Configuration, builder.Environment);
