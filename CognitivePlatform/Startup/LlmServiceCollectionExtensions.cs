@@ -111,6 +111,7 @@ public static class LlmServiceCollectionExtensions
         // ENH-19 Phase B: rule-based task-complexity classifier. Drives the
         // tier preference the orchestrator forwards to the router.
         services.AddSingleton<ITaskComplexityClassifier, TaskComplexityClassifier>();
+        services.AddSingleton<IExecutionProfileSelector, ExecutionProfileSelector>();
 
         services.AddKeyedScoped<IInterpreter>(KeyedServices.LlmInterpreter
                                              , (sp, _) => new LlmInterpreter(sp.GetRequiredService<ICapabilityRegistry>()

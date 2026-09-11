@@ -59,6 +59,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
     private readonly IConversationTurnStore         _turnStore;
     private readonly IConversationMetadataStore     _metadataStore;
     private readonly ITaskComplexityClassifier      _complexityClassifier;
+    private readonly IExecutionProfileSelector      _executionProfileSelector;
     private readonly IInterpreterTrainingStore?     _trainingStore;
     private readonly IKnowledgeIngestionService?    _knowledgeIngestionService;
     private readonly ISecretVaultService            _secretsVault;
@@ -102,7 +103,8 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
                                    , IInterpreterTrainingStore?                                     trainingStore                  = null
                                    , IKnowledgeIngestionService?                                    knowledgeIngestionService      = null
                                    , ISecretVaultService?                                           secretsVault                   = null
-                                   , ITrustTraceStore?                                             trustTraceStore                = null )
+                                   , ITrustTraceStore?                                             trustTraceStore                = null
+                                   , IExecutionProfileSelector?                                     executionProfileSelector       = null )
     {
         _registry         = registry         ?? throw new ArgumentNullException(nameof(registry));
         _interpreter      = interpreter      ?? throw new ArgumentNullException(nameof(interpreter));
@@ -123,6 +125,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         _turnStore             = turnStore            ?? throw new ArgumentNullException(nameof(turnStore));
         _metadataStore         = metadataStore        ?? throw new ArgumentNullException(nameof(metadataStore));
         _complexityClassifier  = complexityClassifier ?? throw new ArgumentNullException(nameof(complexityClassifier));
+        _executionProfileSelector = executionProfileSelector ?? new ExecutionProfileSelector();
         _trainingStore                   = trainingStore;
         _personaEngine                   = personaEngine;
         _personaRuntime                  = personaRuntime;
@@ -635,7 +638,10 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         // can pick a model tier appropriate for the work. FastPath turns have
         // already returned above, so classification here is the only path that
         // pays the router-tier signal.
-        var complexity     = _complexityClassifier.Classify(request.Input);
+        var profile        = _executionProfileSelector.SelectProfile(request.Input);
+        var complexity     = SelectComplexity(_complexityClassifier.Classify(request.Input), profile.PreferredComplexity);
+        context.Metadata["execution_profile"] = profile.Kind.ToString();
+        context.Metadata["requires_strict_confirmation"] = profile.EnforceStrictConfirmation.ToString();
         var interpretation = await _interpreter.InterpretWithContext(request.Input, context, complexity);
 
         var actionName = interpretation.ActionName;
@@ -1555,7 +1561,10 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         await ProcessMemoryReconstructionAsync(request.Input, context, ct);
 
 //slow here
-        var streamComplexity = _complexityClassifier.Classify(request.Input);
+        var streamProfile    = _executionProfileSelector.SelectProfile(request.Input);
+        var streamComplexity = SelectComplexity(_complexityClassifier.Classify(request.Input), streamProfile.PreferredComplexity);
+        context.Metadata["execution_profile"] = streamProfile.Kind.ToString();
+        context.Metadata["requires_strict_confirmation"] = streamProfile.EnforceStrictConfirmation.ToString();
         var interpretation   = await _interpreter.InterpretWithContext(request.Input, context, streamComplexity);
 
         // 🚫 If an action was selected, DO NOT stream
@@ -2091,6 +2100,11 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         }
 
         return true;
+    }
+
+    private static TaskComplexity SelectComplexity(TaskComplexity classifiedComplexity, TaskComplexity profileComplexity)
+    {
+        return classifiedComplexity >= profileComplexity ? classifiedComplexity : profileComplexity;
     }
 
     private sealed class UnavailableSecretVaultService : ISecretVaultService
