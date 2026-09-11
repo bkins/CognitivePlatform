@@ -112,6 +112,43 @@ public sealed class SqliteBacklogBoardServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PreviewBulkArchiveAsync_IncludesOnlyDoneStoriesWithAnOldAuditedCompletion()
+    {
+        var service = CreateService();
+        var completed = await service.CreateStoryAsync(new CreateBacklogStoryRequest("cognitive-platform", "unassigned", "story", "backlog", "Completed", "Ready to archive", 50, null, null));
+        var active = await service.CreateStoryAsync(new CreateBacklogStoryRequest("cognitive-platform", "unassigned", "story", "backlog", "Active", "Must remain active", 50, null, null));
+        var moved = await service.MoveStoryAsync(completed.Id, new MoveBacklogStoryRequest("done", null, null, completed.Revision));
+        await SetCompletionTimestampAsync(moved.Id, DateTimeOffset.UtcNow.AddDays(-31));
+
+        var preview = await service.PreviewBulkArchiveAsync(new BulkArchivePreviewRequest(30));
+
+        var candidate = Assert.Single(preview.Candidates);
+        Assert.Equal(moved.Id, candidate.StoryId);
+        Assert.DoesNotContain(preview.Candidates, story => story.StoryId == active.Id);
+    }
+
+    [Fact]
+    public async Task ArchiveCompletedStoriesAsync_ExactPreviewSelectionAndConfirmation_ArchivesReversibly()
+    {
+        var service = CreateService();
+        var completed = await service.CreateStoryAsync(new CreateBacklogStoryRequest("cognitive-platform", "unassigned", "story", "backlog", "Completed", "Ready to archive", 50, null, null));
+        var moved = await service.MoveStoryAsync(completed.Id, new MoveBacklogStoryRequest("done", null, null, completed.Revision));
+        await SetCompletionTimestampAsync(moved.Id, DateTimeOffset.UtcNow.AddDays(-31));
+        var preview = await service.PreviewBulkArchiveAsync(new BulkArchivePreviewRequest(30));
+
+        var result = await service.ArchiveCompletedStoriesAsync(new BulkArchiveExecuteRequest(
+            30
+          , preview.Candidates.Select(candidate => new BulkArchiveSelection(candidate.StoryId, candidate.ExpectedRevision)).ToList()
+          , preview.ConfirmationText));
+
+        Assert.Equal(moved.Id, Assert.Single(result.ArchivedStories).Id);
+        Assert.Equal(moved.Id, Assert.Single(await service.GetArchivedStoriesAsync()).Id);
+        Assert.Equal("bulk-archived", (await service.GetHistoryAsync(moved.Id)).First().Action);
+        await service.UnarchiveStoryAsync(moved.Id);
+        Assert.Equal(moved.Id, Assert.Single((await service.GetBoardAsync()).Stories).Id);
+    }
+
+    [Fact]
     public async Task MoveStoryAsync_PlacesStoryBeforeSpecifiedNeighbor()
     {
         var service = CreateService();
@@ -505,6 +542,17 @@ public sealed class SqliteBacklogBoardServiceTests : IDisposable
     private SqliteBacklogBoardService CreateService()
     {
         return new SqliteBacklogBoardService($"Data Source={_databasePath};Mode=ReadWriteCreate;Cache=Shared;Pooling=False");
+    }
+
+    private async Task SetCompletionTimestampAsync(Guid storyId, DateTimeOffset timestamp)
+    {
+        await using var connection = new SqliteConnection($"Data Source={_databasePath};Mode=ReadWrite;Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE BacklogAuditEvents SET OccurredAtUtc = $timestamp WHERE EntityType = 'story' AND EntityId = $storyId AND Action = 'moved';";
+        command.Parameters.AddWithValue("$timestamp", timestamp.ToString("O"));
+        command.Parameters.AddWithValue("$storyId", storyId.ToString());
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task<string> WriteLegacySourceAsync(string contents)

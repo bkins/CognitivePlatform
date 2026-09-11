@@ -50,6 +50,22 @@ public sealed class AdminBacklogClient : IAdminBacklogClient
                ?? throw new InvalidOperationException("The Backlog API returned no archived story.");
     }
 
+    public async Task<BulkArchivePreview> PreviewBulkArchiveAsync(BulkArchivePreviewRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/admin/backlog/stories/bulk-archive/preview", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<BulkArchivePreview>(cancellationToken)
+               ?? throw new InvalidOperationException("The Backlog API returned no bulk archive preview.");
+    }
+
+    public async Task<BulkArchiveResult> ArchiveCompletedStoriesAsync(BulkArchiveExecuteRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/admin/backlog/stories/bulk-archive", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<BulkArchiveResult>(cancellationToken)
+               ?? throw new InvalidOperationException("The Backlog API returned no bulk archive result.");
+    }
+
     public async Task<BacklogStoryDto> UnarchiveStoryAsync(Guid storyId, CancellationToken cancellationToken = default)
     {
         var response = await _http.PostAsync($"api/admin/backlog/stories/{storyId}/unarchive", null, cancellationToken);

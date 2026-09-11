@@ -9,6 +9,8 @@ public interface IAdminBacklogClient
     Task<BacklogStoryDto> UpdateStoryAsync(Guid storyId, UpdateBacklogStoryRequest request, CancellationToken cancellationToken = default);
     Task<BacklogStoryDto> MoveStoryAsync(Guid storyId, MoveBacklogStoryRequest request, CancellationToken cancellationToken = default);
     Task<BacklogStoryDto> ArchiveStoryAsync(Guid storyId, ArchiveBacklogStoryRequest request, CancellationToken cancellationToken = default);
+    Task<BulkArchivePreview> PreviewBulkArchiveAsync(BulkArchivePreviewRequest request, CancellationToken cancellationToken = default);
+    Task<BulkArchiveResult> ArchiveCompletedStoriesAsync(BulkArchiveExecuteRequest request, CancellationToken cancellationToken = default);
     Task<BacklogStoryDto> UnarchiveStoryAsync(Guid storyId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BacklogStoryDto>> GetArchivedStoriesAsync(CancellationToken cancellationToken = default);
     Task<BacklogReferenceDto> CreateReferenceAsync(string referenceType, CreateBacklogReferenceRequest request, CancellationToken cancellationToken = default);

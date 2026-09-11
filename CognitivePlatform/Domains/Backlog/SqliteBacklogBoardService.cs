@@ -111,6 +111,52 @@ public sealed class SqliteBacklogBoardService : IBacklogBoardService
         return existing;
     }
 
+    public async Task<BulkArchivePreview> PreviewBulkArchiveAsync(BulkArchivePreviewRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBulkArchiveAge(request.OlderThanDays);
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = await OpenAsync(cancellationToken);
+        var cutoffUtc = DateTimeOffset.UtcNow.AddDays(-request.OlderThanDays);
+        var candidates = await GetBulkArchiveCandidatesAsync(connection, cutoffUtc, cancellationToken);
+        return new BulkArchivePreview(request.OlderThanDays, cutoffUtc, GetBulkArchiveConfirmationText(candidates.Count), candidates);
+    }
+
+    public async Task<BulkArchiveResult> ArchiveCompletedStoriesAsync(BulkArchiveExecuteRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateBulkArchiveAge(request.OlderThanDays);
+        if (request.Selections is null || request.Selections.Count == 0)
+            throw new BacklogValidationException("At least one previewed Done story must be selected for bulk archive.");
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var cutoffUtc = DateTimeOffset.UtcNow.AddDays(-request.OlderThanDays);
+        var candidates = await GetBulkArchiveCandidatesAsync(connection, cutoffUtc, cancellationToken);
+        var expectedConfirmation = GetBulkArchiveConfirmationText(candidates.Count);
+        if (request.Confirmation.HasNoValue() || request.Confirmation.Trim().Equals(expectedConfirmation, StringComparison.OrdinalIgnoreCase).Not())
+            throw new BacklogValidationException($"Type '{expectedConfirmation}' to confirm the exact bulk archive preview.");
+        if (request.Selections.Count != candidates.Count || request.Selections.Select(selection => selection.StoryId).Distinct().Count() != request.Selections.Count)
+            throw new BacklogConflictException("The selected stories no longer exactly match the current bulk archive preview. Preview again before archiving.");
+
+        var candidatesById = candidates.ToDictionary(candidate => candidate.StoryId);
+        var archivedStories = new List<BacklogStoryDto>();
+        foreach (var selection in request.Selections)
+        {
+            if (candidatesById.TryGetValue(selection.StoryId, out var candidate).Not() || candidate is null || candidate.ExpectedRevision != selection.ExpectedRevision)
+                throw new BacklogConflictException("A selected story changed or is no longer eligible. Preview again before archiving.");
+            var story = await GetStoryAsync(connection, selection.StoryId, cancellationToken)
+                        ?? throw new BacklogConflictException("A selected story is no longer active.");
+            EnsureRevision(story, selection.ExpectedRevision);
+            if (story.ColumnKey.EqualsIgnoreCase("done").Not())
+                throw new BacklogConflictException("Only stories still in Done may be bulk archived.");
+            await SetStoryArchivedAsync(connection, story.Id, true, cancellationToken);
+            await WriteAuditAsync(connection, "story", story.Id.ToString(), "bulk-archived", request.Actor, story, story, cancellationToken);
+            archivedStories.Add(story);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new BulkArchiveResult(archivedStories);
+    }
+
     public async Task<BacklogStoryDto> UnarchiveStoryAsync(Guid storyId, string? actor = null, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
@@ -452,6 +498,35 @@ public sealed class SqliteBacklogBoardService : IBacklogBoardService
     private Task<BacklogStoryDto?> GetStoryAsync(SqliteConnection connection, Guid id, CancellationToken cancellationToken) => GetStoryAsync(connection, id, includeArchived: false, cancellationToken);
     private static async Task SetStoryArchivedAsync(SqliteConnection connection, Guid id, bool isArchived, CancellationToken cancellationToken) { await using var command = connection.CreateCommand(); command.CommandText = "UPDATE BacklogStories SET IsArchived = $isArchived WHERE Id = $id;"; command.Parameters.AddWithValue("$isArchived", isArchived ? 1 : 0); command.Parameters.AddWithValue("$id", id.ToString()); await command.ExecuteNonQueryAsync(cancellationToken); }
     private static async Task<bool> IsStoryArchivedAsync(SqliteConnection connection, Guid id, CancellationToken cancellationToken) { await using var command = connection.CreateCommand(); command.CommandText = "SELECT IsArchived FROM BacklogStories WHERE Id = $id;"; command.Parameters.AddWithValue("$id", id.ToString()); return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 1; }
+    private static void ValidateBulkArchiveAge(int olderThanDays) { if (olderThanDays < 30 || olderThanDays > 3650) throw new BacklogValidationException("Bulk archive age must be between 30 and 3650 days."); }
+    private static string GetBulkArchiveConfirmationText(int candidateCount) => $"ARCHIVE {candidateCount} DONE STORIES";
+    private static async Task<List<BulkArchiveCandidate>> GetBulkArchiveCandidatesAsync(SqliteConnection connection, DateTimeOffset cutoffUtc, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH CompletionEvents AS (
+                SELECT EntityId, MAX(OccurredAtUtc) AS CompletedAtUtc
+                FROM BacklogAuditEvents
+                WHERE EntityType = 'story'
+                  AND Action IN ('created', 'moved')
+                  AND json_extract(AfterJson, '$.ColumnKey') = 'done'
+                GROUP BY EntityId
+            )
+            SELECT story.Id, story.DisplayId, story.Title, story.Revision, completion.CompletedAtUtc
+            FROM BacklogStories story
+            INNER JOIN CompletionEvents completion ON completion.EntityId = story.Id
+            WHERE story.IsArchived = 0
+              AND story.ColumnKey = 'done'
+              AND completion.CompletedAtUtc <= $cutoffUtc
+            ORDER BY completion.CompletedAtUtc, story.DisplayId;
+            """;
+        command.Parameters.AddWithValue("$cutoffUtc", cutoffUtc.ToString("O"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var candidates = new List<BulkArchiveCandidate>();
+        while (await reader.ReadAsync(cancellationToken))
+            candidates.Add(new BulkArchiveCandidate(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetInt64(3), DateTimeOffset.Parse(reader.GetString(4))));
+        return candidates;
+    }
     private static async Task InsertStoryAsync(SqliteConnection connection, BacklogStoryDto story, CancellationToken cancellationToken) { await using var command = connection.CreateCommand(); command.CommandText = "INSERT INTO BacklogStories (Id, DisplayId, Title, Description, ProjectKey, AreaKey, StreamKey, ItemTypeKey, ColumnKey, Rank, Priority, Revision, PropertiesJson, IsArchived) VALUES ($id, $displayId, $title, $description, $project, $area, $stream, $type, $column, $rank, $priority, $revision, $properties, 0);"; AddStoryParameters(command, story); await command.ExecuteNonQueryAsync(cancellationToken); }
     private static async Task UpdateStoryAsync(SqliteConnection connection, BacklogStoryDto story, CancellationToken cancellationToken) { await using var command = connection.CreateCommand(); command.CommandText = "UPDATE BacklogStories SET Title = $title, Description = $description, ProjectKey = $project, AreaKey = $area, StreamKey = $stream, ItemTypeKey = $type, ColumnKey = $column, Rank = $rank, Priority = $priority, Revision = $revision, PropertiesJson = $properties WHERE Id = $id;"; AddStoryParameters(command, story); await command.ExecuteNonQueryAsync(cancellationToken); }
     private static void AddStoryParameters(SqliteCommand command, BacklogStoryDto story) { command.Parameters.AddWithValue("$id", story.Id.ToString()); command.Parameters.AddWithValue("$displayId", story.DisplayId); command.Parameters.AddWithValue("$title", story.Title); command.Parameters.AddWithValue("$description", story.Description); command.Parameters.AddWithValue("$project", story.ProjectKey); command.Parameters.AddWithValue("$area", story.AreaKey); command.Parameters.AddWithValue("$stream", (object?)story.StreamKey ?? DBNull.Value); command.Parameters.AddWithValue("$type", story.ItemTypeKey); command.Parameters.AddWithValue("$column", story.ColumnKey); command.Parameters.AddWithValue("$rank", story.Rank); command.Parameters.AddWithValue("$priority", story.Priority); command.Parameters.AddWithValue("$revision", story.Revision); command.Parameters.AddWithValue("$properties", JsonSerializer.Serialize(story.Properties)); }

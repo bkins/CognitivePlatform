@@ -51,6 +51,20 @@ public sealed class AdminBacklogController : AdminControllerBase
         return await ExecuteAsync(() => _service.ArchiveStoryAsync(storyId, request with { Actor = "cp-admin" }, cancellationToken));
     }
 
+    [HttpPost("stories/bulk-archive/preview")]
+    public async Task<IActionResult> PreviewBulkArchive(BulkArchivePreviewRequest request, CancellationToken cancellationToken)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+        return await ExecuteAsync(() => _service.PreviewBulkArchiveAsync(request, cancellationToken));
+    }
+
+    [HttpPost("stories/bulk-archive")]
+    public async Task<IActionResult> ArchiveCompletedStories(BulkArchiveExecuteRequest request, CancellationToken cancellationToken)
+    {
+        if (IsAdminAuthorized().Not()) return Unauthorized401();
+        return await ExecuteAsync(() => _service.ArchiveCompletedStoriesAsync(request with { Actor = "cp-admin" }, cancellationToken));
+    }
+
     [HttpPost("stories/{storyId:guid}/unarchive")]
     public async Task<IActionResult> UnarchiveStory(Guid storyId, CancellationToken cancellationToken)
     {
@@ -118,6 +132,20 @@ public sealed class AdminBacklogController : AdminControllerBase
     private async Task<IActionResult> ExecuteAsync(Func<Task<BacklogReferenceDto>> action)
     {
         try { return Ok(await action()); }
+        catch (BacklogValidationException exception) { return BadRequest(new { error = exception.Message }); }
+    }
+
+    private async Task<IActionResult> ExecuteAsync(Func<Task<BulkArchivePreview>> action)
+    {
+        try { return Ok(await action()); }
+        catch (BacklogConflictException exception) { return Conflict(new { error = exception.Message }); }
+        catch (BacklogValidationException exception) { return BadRequest(new { error = exception.Message }); }
+    }
+
+    private async Task<IActionResult> ExecuteAsync(Func<Task<BulkArchiveResult>> action)
+    {
+        try { return Ok(await action()); }
+        catch (BacklogConflictException exception) { return Conflict(new { error = exception.Message }); }
         catch (BacklogValidationException exception) { return BadRequest(new { error = exception.Message }); }
     }
 }

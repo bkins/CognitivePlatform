@@ -12,6 +12,7 @@
         <MudText Typo="Typo.caption" Color="Color.Secondary">Database-backed operational board for Cognitive Platform.</MudText>
     </MudStack>
     <MudSpacer />
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Inventory2" Disabled="@_loading" OnClick="PreviewBulkArchiveAsync">Bulk archive</MudButton>
     <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Inventory2" Disabled="@_loading" OnClick="LoadArchivedStoriesAsync">Archived</MudButton>
     <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Inbox" Disabled="@_loading" OnClick="LoadIntakeAsync">Intake</MudButton>
     <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" Disabled="@_saving" OnClick="ExportMarkdownAsync">Export Markdown</MudButton>
@@ -225,6 +226,30 @@ else
             }
         </MudPaper>
     }
+
+    @if (_bulkArchivePreview is not null)
+    {
+        <MudPaper Outlined="true" Class="pa-3 mt-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center"><MudText Typo="Typo.h6">Bulk archive preview</MudText><MudSpacer /><MudChip T="string" Size="Size.Small">@_bulkArchivePreview.Candidates.Count eligible</MudChip><MudButton Variant="Variant.Text" OnClick="CloseBulkArchivePreview">Close</MudButton></MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-2"><MudNumericField @bind-Value="_bulkArchiveOlderThanDays" Label="Minimum age (days)" Min="30" Max="3650" Style="max-width:180px" /><MudButton Variant="Variant.Outlined" Disabled="@_saving" OnClick="PreviewBulkArchiveAsync">Refresh preview</MudButton></MudStack>
+            <MudText Typo="Typo.body2" Class="mt-2">Only Done stories with an audited completion at least @_bulkArchivePreview.OlderThanDays days old are eligible. This is reversible through Archived stories.</MudText>
+            @if (_bulkArchivePreview.Candidates.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">No eligible stories were found.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Class="mt-2"><thead><tr><th>ID</th><th>Title</th><th>Completed</th></tr></thead><tbody>
+                @foreach (var candidate in _bulkArchivePreview.Candidates)
+                {
+                    <tr><td>@candidate.DisplayId</td><td>@candidate.Title</td><td>@candidate.CompletedAtUtc.LocalDateTime.ToString("g")</td></tr>
+                }
+                </tbody></MudSimpleTable>
+                <MudTextField @bind-Value="_bulkArchiveConfirmation" Label="Confirmation" HelperText="Type the preview confirmation exactly to archive this unchanged list." Class="mt-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" Disabled="@_saving" OnClick="ArchivePreviewedStoriesAsync">Archive @_bulkArchivePreview.Candidates.Count completed stories</MudButton>
+            }
+        </MudPaper>
+    }
     </div>
 }
 
@@ -269,6 +294,9 @@ else
     private IReadOnlyList<BacklogAuditEventDto>? _history;
     private string _historyStoryDisplayId = string.Empty;
     private IReadOnlyList<BacklogStoryDto>? _archivedStories;
+    private BulkArchivePreview? _bulkArchivePreview;
+    private int _bulkArchiveOlderThanDays = 90;
+    private string _bulkArchiveConfirmation = string.Empty;
     private bool _scrollToOperatorDetails;
     private bool _isDoneColumnCollapsed = true;
     private string? _searchText;
@@ -502,6 +530,58 @@ else
         try { _archivedStories = await BacklogClient.GetArchivedStoriesAsync(); _scrollToOperatorDetails = true; }
         catch (Exception exception) { SetMessage(Severity.Error, $"Could not load archived stories: {exception.Message}"); }
         finally { _loading = false; }
+    }
+
+    private async Task PreviewBulkArchiveAsync()
+    {
+        _saving = true;
+        try
+        {
+            _bulkArchivePreview = await BacklogClient.PreviewBulkArchiveAsync(new BulkArchivePreviewRequest(_bulkArchiveOlderThanDays));
+            _bulkArchiveConfirmation = string.Empty;
+            _scrollToOperatorDetails = true;
+            SetMessage(Severity.Info, $"Previewed {_bulkArchivePreview.Candidates.Count} Done stories completed at least {_bulkArchivePreview.OlderThanDays} days ago.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not preview bulk archive: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ArchivePreviewedStoriesAsync()
+    {
+        if (_bulkArchivePreview is null) return;
+
+        _saving = true;
+        try
+        {
+            var selections = _bulkArchivePreview.Candidates
+                                                .Select(candidate => new BulkArchiveSelection(candidate.StoryId, candidate.ExpectedRevision))
+                                                .ToList();
+            var result = await BacklogClient.ArchiveCompletedStoriesAsync(new BulkArchiveExecuteRequest(_bulkArchivePreview.OlderThanDays, selections, _bulkArchiveConfirmation));
+            _bulkArchivePreview = null;
+            _bulkArchiveConfirmation = string.Empty;
+            await RefreshAsync();
+            SetMessage(Severity.Success, $"Archived {result.ArchivedStories.Count} completed stories. They remain recoverable in Archived stories.");
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Severity.Error, $"Could not bulk archive stories: {exception.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void CloseBulkArchivePreview()
+    {
+        _bulkArchivePreview = null;
+        _bulkArchiveConfirmation = string.Empty;
     }
 
     private async Task UnarchiveStoryAsync(BacklogStoryDto story)
