@@ -56,6 +56,12 @@ public class LlmClientSettings
     /// </summary>
     public double Timeout { get; set; } = 2000;
 
+    /// <summary>
+    /// Maximum duration, in seconds, for one startup model-readiness probe.
+    /// This bounds startup diagnostics independently of normal request timeout.
+    /// </summary>
+    public int ProbeTimeoutSeconds { get; set; } = 10;
+
     // ----------------------------------------------------------------
     // Groq settings
     // ----------------------------------------------------------------

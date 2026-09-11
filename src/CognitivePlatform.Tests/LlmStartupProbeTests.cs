@@ -63,6 +63,47 @@ public class LlmStartupProbeTests
     }
 
     [Fact]
+    public void Constructor_UsesConfiguredPerModelProbeTimeout()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "LlmClient:ProbeTimeoutSeconds", "12" }
+            })
+            .Build();
+
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
+
+        Assert.Equal(TimeSpan.FromSeconds(12), probe.PerModelProbeTimeout);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenProbeExceedsTimeout_RecordsUnusableModel()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "ShouldProbe", "true" }
+              , { "LlmClient:ProbeTimeoutSeconds", "1" }
+            })
+            .Build();
+        var probe = new LlmStartupProbe(_llmMock.Object, _catalog, config, _loggerMock.Object, _runtimeModelState);
+
+        _llmMock.Setup(llm => llm.ProbeAsync("slow-model", It.IsAny<CancellationToken>()))
+                .Returns(async (string ignoredModel, CancellationToken cancellationToken) =>
+                         {
+                             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                             return new LlmModelProbeResult("slow-model", true);
+                         });
+
+        await probe.RunAsync("slow-model", CancellationToken.None);
+
+        var result = Assert.Single(_catalog.AvailableModels);
+        Assert.False(result.IsUsable);
+        Assert.Equal("Startup probe timed out after 1 seconds.", result.FailureReason);
+    }
+
+    [Fact]
     public async Task RunAsync_WithJsonError_LogsCleanedMessage()
     {
         var config = new ConfigurationBuilder()

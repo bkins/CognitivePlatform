@@ -2,6 +2,7 @@
 using System.Text.Json;
 using CognitivePlatform.Api.Avails.Models;
 using CognitivePlatform.Api.Interpreter;
+using CognitivePlatform.Api.Models;
 using Microsoft.Extensions.Configuration;
 using CP.Shared.Primitives.Avails.Extensions;
 
@@ -19,6 +20,7 @@ public sealed class LlmStartupProbe
     private readonly RuntimeLlmModelState      _runtimeModelState;
 
     public bool ShouldProbeModels { get; set; } = false;
+    public TimeSpan PerModelProbeTimeout { get; }
 
     public LlmStartupProbe( ILlmClient               llm
                           , LlmModelCatalog          catalog
@@ -31,6 +33,7 @@ public sealed class LlmStartupProbe
         _log      = log;
         _settings = config.GetSection("LlmClient").Get<LlmClientSettings>();
         _runtimeModelState = runtimeModelState;
+        PerModelProbeTimeout = TimeSpan.FromSeconds(Math.Clamp(_settings?.ProbeTimeoutSeconds ?? 10, 1, 60));
 
         var shouldProbeConfig = config["ShouldProbe"];
         if (bool.TryParse(shouldProbeConfig
@@ -61,6 +64,21 @@ public sealed class LlmStartupProbe
         if (ShouldProbeModels) await ProbeModels(candidateModel, ct);
     }
 
+    private async Task<LlmModelProbeResult> ProbeModelAsync(string model, CancellationToken ct)
+    {
+        using var probeTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        probeTimeout.CancelAfter(PerModelProbeTimeout);
+
+        try
+        {
+            return await _llm.ProbeAsync(model, probeTimeout.Token);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested.Not())
+        {
+            return new LlmModelProbeResult(model, false, $"Startup probe timed out after {PerModelProbeTimeout.TotalSeconds:0} seconds.");
+        }
+    }
+
     private async Task ProbeModels( IEnumerable<string> candidateModels
                                   , CancellationToken   ct )
     {
@@ -72,8 +90,7 @@ public sealed class LlmStartupProbe
         foreach (var model in candidateModels)
         {
             _log.LogInformation($"Probing {model}...");
-            var probe = await _llm.ProbeAsync(model
-                                            , ct);
+            var probe = await ProbeModelAsync(model, ct);
 
             results.Add(new LlmModelInfo(model
                                        , probe.IsUsable
@@ -94,8 +111,7 @@ public sealed class LlmStartupProbe
         _log.LogInformation("Starting Llm Startup Probe...");
 
         _log.LogInformation($"Probing {candidateModel}...");
-        var probe = await _llm.ProbeAsync(candidateModel
-                                        , ct);
+        var probe = await ProbeModelAsync(candidateModel, ct);
 
         var result = new LlmModelInfo(candidateModel
                                     , probe.IsUsable
@@ -124,8 +140,7 @@ public sealed class LlmStartupProbe
                 {
                     _log.LogInformation("Probing alternative {Model}..."
                                       , altModel);
-                    var altProbe = await _llm.ProbeAsync(altModel
-                                                       , ct);
+                    var altProbe = await ProbeModelAsync(altModel, ct);
                     if (altProbe is null)
                     {
                         continue;
