@@ -1,0 +1,77 @@
+@page "/settings"
+@inject EnvironmentService EnvService
+@inject IJSRuntime         Js
+
+<PageTitle>Settings — CP Admin</PageTitle>
+
+<MudStack Spacing="3" Style="max-width:720px">
+    <MudText Typo="Typo.h4">Settings</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        These preferences belong to this Admin browser only. They do not modify Cognitive Platform server configuration.
+    </MudText>
+
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudStack Spacing="2">
+            <MudText Typo="Typo.h6">Default API target</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Select the environment CP Admin should use when this browser opens.
+            </MudText>
+            <MudSelect T="string" Label="Environment" @bind-Value="_selectedEnvironment">
+                <MudSelectItem Value="@("DEV")">Development</MudSelectItem>
+                <MudSelectItem Value="@("QA")">Quality assurance</MudSelectItem>
+                <MudSelectItem Value="@("PROD")">Production</MudSelectItem>
+            </MudSelect>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Current endpoint: @EndpointFor(_selectedEnvironment)
+            </MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync">Save</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    <MudAlert Severity="Severity.Info">
+        Server endpoints, paths, provider keys, and admin secrets are intentionally not editable here. Manage those through the deployment configuration and secret store.
+    </MudAlert>
+</MudStack>
+
+@code {
+    private const string EnvironmentPreferenceKey = "cp-admin.default-environment";
+    private string _selectedEnvironment = "DEV";
+
+    protected override void OnInitialized()
+    {
+        _selectedEnvironment = EnvService.Current;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var savedEnvironment = await Js.InvokeAsync<string?>("localStorage.getItem", EnvironmentPreferenceKey);
+        if (savedEnvironment is not ("DEV" or "QA" or "PROD")) return;
+
+        _selectedEnvironment = savedEnvironment;
+        EnvService.Switch(savedEnvironment);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        EnvService.Switch(_selectedEnvironment);
+        await Js.InvokeVoidAsync("localStorage.setItem", EnvironmentPreferenceKey, _selectedEnvironment);
+    }
+
+    private void Cancel()
+    {
+        _selectedEnvironment = EnvService.Current;
+    }
+
+    private string EndpointFor(string environment) => environment switch
+    {
+        "QA"   => EnvService.QaUrl
+      , "PROD" => EnvService.ProdUrl
+      , _      => EnvService.DevUrl
+    };
+}
