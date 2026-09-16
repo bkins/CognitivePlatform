@@ -72,7 +72,9 @@ public sealed class HistoricalJournalWriter : IHistoricalJournalWriter
     {
         if (!Guid.TryParse(request.EntryId, out _)) throw new ArgumentException("Entry ID must be a GUID.", nameof(request));
         if (!Guid.TryParse(request.RevisionId, out _)) throw new ArgumentException("Revision ID must be a GUID.", nameof(request));
-        if (string.IsNullOrWhiteSpace(request.PartitionKey)) throw new ArgumentException("Partition key is required.", nameof(request));
+        // Null is CP's explicit Personal storage partition; an omitted/blank named partition remains invalid.
+        if (request.PartitionKey is not null && string.IsNullOrWhiteSpace(request.PartitionKey))
+            throw new ArgumentException("Partition key is required.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Text)) throw new ArgumentException("Normalized journal text is required.", nameof(request));
     }
 }

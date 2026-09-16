@@ -49,7 +49,7 @@ public sealed class TtrEmbeddingReindexServiceTests : IDisposable
                        };
         await _store.Save(batch, id: batch.Id);
         await _store.Save(item, id: item.Id);
-        await _store.SaveHistorical(revision, revision.CreatedUtc, batch.TargetPartition, revision.RevisionId);
+        await _store.SaveHistorical(revision, revision.CreatedUtc, null, revision.RevisionId);
         var embeddings = new Mock<IEmbeddingService>();
         embeddings.SetupGet(service => service.IsAvailable).Returns(true);
         embeddings.Setup(service => service.EmbedAsync("historical text", It.IsAny<CancellationToken>()))

@@ -1,5 +1,6 @@
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Integrations.Embeddings;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Domains.Journal.Import.Ttr;
 
@@ -36,7 +37,7 @@ public sealed class TtrEmbeddingReindexService
         {
             try
             {
-                var revision = _store.Get<JournalRevision>(item.RevisionId, batch.TargetPartition)
+                var revision = _store.Get<JournalRevision>(item.RevisionId, WorkspaceKeys.ToPartitionKey(batch.TargetPartition))
                             ?? throw new InvalidOperationException($"Imported revision {item.RevisionId} is missing.");
                 var vector = await _embeddingService.EmbedAsync(revision.Text, cancellationToken);
                 if (vector.Length == 0) throw new InvalidOperationException("Embedding provider returned an empty vector.");

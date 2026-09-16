@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Media;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Domains.Journal.Import.Ttr;
 
@@ -89,7 +90,7 @@ public sealed class TtrImportExecutor
                                                                        EntryId      = entry.EntryId
                                                                      , RevisionId   = entry.RevisionId
                                                                      , CreatedUtc   = entry.CreatedUtc
-                                                                     , PartitionKey = plan.TargetPartition
+                                                                     , PartitionKey = WorkspaceKeys.ToPartitionKey(plan.TargetPartition)
                                                                      , Text          = entry.NormalizedText
                                                                      , Tags          = entry.Tags
                                                                      , Mood          = entry.Mood
@@ -120,10 +121,11 @@ public sealed class TtrImportExecutor
 
     private async Task<bool> VerifyAsync(TtrImportPlan plan, CancellationToken cancellationToken)
     {
+        var partitionKey = WorkspaceKeys.ToPartitionKey(plan.TargetPartition);
         foreach (var entry in plan.Entries.Where(item => item.Disposition == "Ready"))
         {
-            var savedEntry    = _store.Get<JournalEntry>(entry.EntryId, plan.TargetPartition);
-            var savedRevision = _store.Get<JournalRevision>(entry.RevisionId, plan.TargetPartition);
+            var savedEntry    = _store.Get<JournalEntry>(entry.EntryId, partitionKey);
+            var savedRevision = _store.Get<JournalRevision>(entry.RevisionId, partitionKey);
             if (savedEntry?.CreatedUtc != entry.CreatedUtc
              || savedRevision?.EntryId != entry.EntryId
              || savedRevision.CreatedUtc != entry.CreatedUtc

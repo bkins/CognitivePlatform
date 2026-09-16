@@ -5,7 +5,7 @@ public sealed class HistoricalJournalWriteRequest
     public string                EntryId      { get; init; } = string.Empty;
     public string                RevisionId   { get; init; } = string.Empty;
     public DateTimeOffset        CreatedUtc   { get; init; }
-    public string                PartitionKey { get; init; } = string.Empty;
+    public string?               PartitionKey { get; init; } = string.Empty;
     public string                Text         { get; init; } = string.Empty;
     public IReadOnlyList<string> Tags         { get; init; } = [];
     public string?               Mood         { get; init; }

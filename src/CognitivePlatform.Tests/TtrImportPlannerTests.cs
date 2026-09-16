@@ -128,12 +128,14 @@ public sealed class TtrImportPlannerTests : IDisposable
         Assert.Equal(5, first.ToByteArray()[7] >> 4);
     }
 
-    [Fact]
-    public async Task ExecuteAsync_ValidPlan_ImportsHistoricalDataAndRerunCreatesNoDuplicates()
+    [Theory]
+    [InlineData("personal", null)]
+    [InlineData("work", "work")]
+    public async Task ExecuteAsync_ValidPlan_ImportsHistoricalDataAndRerunCreatesNoDuplicates(string targetWorkspace, string? storagePartition)
     {
         var sourceHash = await ComputeSha256Async(_databasePath);
         var planner    = new TtrImportPlanner(new TtrContentNormalizer());
-        var request    = CreateRequest(sourceHash);
+        var request    = CreateRequest(sourceHash, targetWorkspace);
         var plan       = await planner.PlanAsync(request);
         var manifest   = Path.Combine(_root, "backup-manifest.sha256");
         await File.WriteAllTextAsync(manifest, "synthetic-backup");
@@ -164,11 +166,14 @@ public sealed class TtrImportPlannerTests : IDisposable
 
         Assert.Equal(2, first.ImportedCount);
         Assert.Equal(2, replay.AlreadyImportedCount);
-        Assert.Equal(2, store.List<JournalEntry>("personal").Count);
-        Assert.Equal(2, store.List<JournalRevision>("personal").Count);
+        Assert.True(first.VerificationPassed);
+        Assert.True(replay.VerificationPassed);
+        Assert.Equal(2, store.List<JournalEntry>(storagePartition).Count);
+        Assert.Equal(2, store.List<JournalRevision>(storagePartition).Count);
+        Assert.Empty(store.List<JournalEntry>("personal"));
         Assert.Equal(2, store.List<MediaAttachment>().Count);
-        Assert.All(store.List<JournalRevision>("personal"), revision => Assert.Equal(JournalEntryState.Committed, revision.State));
-        Assert.Single(store.List<JournalEntry>("personal", new DateTimeOffset(2021, 1, 2, 11, 0, 0, TimeSpan.Zero), new DateTimeOffset(2021, 1, 2, 12, 0, 0, TimeSpan.Zero)));
+        Assert.All(store.List<JournalRevision>(storagePartition), revision => Assert.Equal(JournalEntryState.Committed, revision.State));
+        Assert.Single(store.List<JournalEntry>(storagePartition, new DateTimeOffset(2021, 1, 2, 11, 0, 0, TimeSpan.Zero), new DateTimeOffset(2021, 1, 2, 12, 0, 0, TimeSpan.Zero)));
     }
 
     [Fact]
@@ -225,7 +230,7 @@ public sealed class TtrImportPlannerTests : IDisposable
         Assert.Equal(1, resumed.AlreadyImportedCount);
         Assert.Equal(0, resumed.FailedCount);
         Assert.True(resumed.VerificationPassed);
-        Assert.Equal(2, store.List<JournalEntry>("personal").Count);
+        Assert.Equal(2, store.List<JournalEntry>(null).Count);
         Assert.Equal(2, store.List<MediaAttachment>().Count);
     }
 
@@ -234,7 +239,7 @@ public sealed class TtrImportPlannerTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    private TtrImportPlanRequest CreateRequest(string expectedHash)
+    private TtrImportPlanRequest CreateRequest(string expectedHash, string targetWorkspace = "personal")
     {
         return new TtrImportPlanRequest
                {
@@ -243,7 +248,7 @@ public sealed class TtrImportPlannerTests : IDisposable
                  , ExpectedDatabaseSha256  = expectedHash
                  , LogicalSourceInstance   = "fixture"
                  , SourceTimeZoneId        = "America/Los_Angeles"
-                 , TargetPartition         = "personal"
+                 , TargetPartition         = targetWorkspace
                };
     }
 

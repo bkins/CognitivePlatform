@@ -72,6 +72,29 @@ public sealed class TtrHistoricalWriteContractTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_ExplicitPersonalStoragePartition_PreservesHistoricalVisibilityAndReplay()
+    {
+        var writer = new HistoricalJournalWriter(_store, _store);
+        var request = new HistoricalJournalWriteRequest
+                      {
+                          EntryId      = Guid.NewGuid().ToString()
+                        , RevisionId   = Guid.NewGuid().ToString()
+                        , CreatedUtc   = new DateTimeOffset(2021, 1, 2, 11, 4, 5, TimeSpan.Zero)
+                        , PartitionKey = null
+                        , Text         = "# Personal history"
+                      };
+
+        var first = await writer.CreateAsync(request);
+        var replay = await writer.CreateAsync(request);
+
+        Assert.False(first.AlreadyExists);
+        Assert.True(replay.AlreadyExists);
+        Assert.Single(_store.List<JournalEntry>(null, request.CreatedUtc.AddMinutes(-1), request.CreatedUtc.AddMinutes(1)));
+        Assert.Single(_store.List<JournalRevision>(null));
+        Assert.Empty(_store.List<JournalEntry>("personal"));
+    }
+
+    [Fact]
     public async Task AddImportedAttachmentAsync_UsesDeterministicIdTimestampAndCollisionSafePath()
     {
         var fileStorage = new Mock<IMediaFileStorage>();
