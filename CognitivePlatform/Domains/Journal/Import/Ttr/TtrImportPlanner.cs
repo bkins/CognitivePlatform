@@ -122,8 +122,8 @@ public sealed partial class TtrImportPlanner
                         {
                             SourceEntryId           = sourceEntryId
                           , OriginalJournalId       = originalJournalId
-                          , EntryId                 = TtrDeterministicIdentity.CreateEntryId(request.LogicalSourceInstance, sourceEntryId).ToString()
-                          , RevisionId              = TtrDeterministicIdentity.CreateInitialRevisionId(request.LogicalSourceInstance, sourceEntryId).ToString()
+                          , EntryId                 = TtrDeterministicIdentity.CreateEntryId(request.LogicalSourceInstance, sourceEntryId).ToString("N")
+                          , RevisionId              = TtrDeterministicIdentity.CreateInitialRevisionId(request.LogicalSourceInstance, sourceEntryId).ToString("N")
                           , CreatedUtc              = createdUtc
                           , NormalizedText          = normalized.Markdown
                           , SourceContentSha256     = ComputeSha256(Encoding.UTF8.GetBytes(sourceContent))

@@ -7,6 +7,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using CognitivePlatform.Api.Controllers;
+using CognitivePlatform.Api.Domains.Journal.Interfaces;
+using CognitivePlatform.Api.Integrations.Embeddings;
+using CognitivePlatform.Api.Models;
+using CognitivePlatform.Api.Workspace;
+using Microsoft.AspNetCore.Mvc;
 
 namespace CognitivePlatform.Tests;
 
@@ -174,6 +180,33 @@ public sealed class TtrImportPlannerTests : IDisposable
         Assert.Equal(2, store.List<MediaAttachment>().Count);
         Assert.All(store.List<JournalRevision>(storagePartition), revision => Assert.Equal(JournalEntryState.Committed, revision.State));
         Assert.Single(store.List<JournalEntry>(storagePartition, new DateTimeOffset(2021, 1, 2, 11, 0, 0, TimeSpan.Zero), new DateTimeOffset(2021, 1, 2, 12, 0, 0, TimeSpan.Zero)));
+
+        var workspace = new Mock<IWorkspaceContext>();
+        workspace.SetupGet(context => context.ActivePartitionKey).Returns(storagePartition);
+        var revisions = new JournalRevisionRepository(store, workspace.Object);
+        var journalService = new JournalService(store
+                                              , revisions
+                                              , Mock.Of<IJournalDraftRepository>()
+                                              , NullLogger<JournalService>.Instance
+                                              , workspace.Object
+                                              , Mock.Of<IEmbeddingService>()
+                                              , Mock.Of<IVectorStore>());
+        var journalController = new JournalController(journalService, revisions, mediaService);
+        var mediaController = new MediaController(mediaService);
+        foreach (var entry in plan.Entries)
+        {
+            var detail = await journalController.GetById(Guid.Parse(entry.EntryId), CancellationToken.None);
+            var dto = Assert.IsType<JournalEntryDto>(Assert.IsType<OkObjectResult>(detail.Result).Value);
+            Assert.Equal(entry.NormalizedText, dto.Text);
+            Assert.Equal(entry.CreatedUtc, dto.CreatedAt);
+            Assert.Equal(entry.Tags, dto.Tags);
+            Assert.Equal(plan.Media.Count(media => media.SourceEntryId == entry.SourceEntryId), dto.AttachmentCount);
+
+            var history = journalController.GetRevisions(Guid.Parse(entry.EntryId));
+            Assert.Single(Assert.IsAssignableFrom<IEnumerable<JournalRevisionDto>>(Assert.IsType<OkObjectResult>(history.Result).Value));
+            var attachments = await mediaController.List("JournalEntry", Guid.Parse(entry.EntryId));
+            Assert.Equal(dto.AttachmentCount, Assert.IsAssignableFrom<IReadOnlyList<MediaAttachmentDto>>(Assert.IsType<OkObjectResult>(attachments.Result).Value).Count);
+        }
     }
 
     [Fact]
