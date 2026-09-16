@@ -54,9 +54,14 @@ public class ConversationController : ControllerBase
         Response.Headers.Append("Cache-Control",     "no-cache");
         Response.Headers.Append("X-Accel-Buffering", "no");
 
+        var jsonStrings = Request.Headers[ConversationStreamFrame.HeaderName].ToString()
+                                  .Equals(ConversationStreamFrame.JsonStringFormat, StringComparison.Ordinal);
+        if (jsonStrings)
+            Response.Headers[ConversationStreamFrame.HeaderName] = ConversationStreamFrame.JsonStringFormat;
+
         await foreach (var chunk in _orchestrator.StreamAsync(request, ct))
         {
-            await Response.WriteAsync($"data: {chunk}\n\n", ct);
+            await Response.WriteAsync(ConversationStreamFrame.Encode(chunk, jsonStrings), ct);
             await Response.Body.FlushAsync(ct);
         }
 

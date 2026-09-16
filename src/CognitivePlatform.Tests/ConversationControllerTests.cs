@@ -10,6 +10,49 @@ namespace CognitivePlatform.Tests;
 
 public class ConversationControllerTests
 {
+    [Fact]
+    public async Task StreamConverse_NegotiatedChunks_PreservesMultilineAndTokenBoundaries()
+    {
+        var chunks = new[] { "Results for 'joe':\r\n\r\n[journal] entry #1\n  A memory.", "\n", " next", "", "\"quoted\" \\ text 😀" };
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        context.Request.Headers["X-CP-Stream-Format"] = "json-string-v1";
+        context.Response.Body = new MemoryStream();
+        _sut.ControllerContext = new ControllerContext { HttpContext = context };
+        _orchestratorMock.Setup(orchestrator => orchestrator.StreamAsync(It.IsAny<ConverseRequest>(), It.IsAny<CancellationToken>()))
+                         .Returns(StreamChunks(chunks));
+
+        await _sut.StreamConverse(new ConverseRequest(), CancellationToken.None);
+        context.Response.Body.Position = 0;
+        var wire = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        var decoded = wire.Split('\n').Where(line => line.StartsWith("data: "))
+                          .Select(line => System.Text.Json.JsonSerializer.Deserialize<string>(line[6..])).ToArray();
+
+        Assert.Equal("json-string-v1", context.Response.Headers["X-CP-Stream-Format"].ToString());
+        Assert.Equal(chunks, decoded);
+    }
+
+    private static async IAsyncEnumerable<string> StreamChunks(IEnumerable<string> chunks)
+    {
+        await Task.CompletedTask;
+        foreach (var chunk in chunks) yield return chunk;
+    }
+
+    [Fact]
+    public async Task StreamConverse_UnnegotiatedClient_KeepsLegacyWireFormat()
+    {
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        _sut.ControllerContext = new ControllerContext { HttpContext = context };
+        _orchestratorMock.Setup(orchestrator => orchestrator.StreamAsync(It.IsAny<ConverseRequest>(), It.IsAny<CancellationToken>()))
+                         .Returns(StreamChunks(new[] { " token", "next" }));
+
+        await _sut.StreamConverse(new ConverseRequest(), CancellationToken.None);
+        context.Response.Body.Position = 0;
+        var wire = await new StreamReader(context.Response.Body).ReadToEndAsync();
+
+        Assert.Equal("data:  token\n\ndata: next\n\n", wire);
+        Assert.False(context.Response.Headers.ContainsKey("X-CP-Stream-Format"));
+    }
     private readonly Mock<IConversationOrchestrator>  _orchestratorMock  = new();
     private readonly Mock<ITelemetrySink>             _telemetryMock     = new();
     private readonly Mock<IConversationTurnStore>     _turnStoreMock     = new();
