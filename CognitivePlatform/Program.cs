@@ -46,7 +46,7 @@ public partial class Program
         builder.Services.AddDataPersistenceLayer(builder.Environment);
         builder.Services.AddBacklogServices(builder.Configuration);
 
-        builder.Services.AddJournalServices();
+        builder.Services.AddJournalServices(builder.Environment);
         builder.Services.AddTaskServices();
         builder.Services.AddBrainDumpServices();
         builder.Services.AddMediaServices(builder.Environment);

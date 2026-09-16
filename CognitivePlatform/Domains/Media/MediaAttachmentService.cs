@@ -56,6 +56,53 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
         return attachment;
     }
 
+    public async Task<MediaAttachment> AddImportedAttachmentAsync(string id
+                                                                , string ownerType
+                                                                , string ownerId
+                                                                , string fileName
+                                                                , string contentType
+                                                                , Stream stream
+                                                                , long fileSizeBytes
+                                                                , DateTimeOffset createdAt)
+    {
+        if (!Guid.TryParse(id, out _)) throw new ArgumentException("Imported attachment ID must be a GUID.", nameof(id));
+        if (_store is not IHistoricalObjectWriter historicalWriter)
+            throw new InvalidOperationException("The configured object store does not support historical media writes.");
+        var safeFileName = $"{id}-{SanitizeFileName(fileName)}";
+        var storagePath  = Path.Combine(_mediaRoot, ownerType, ownerId, safeFileName);
+        var existing     = _store.Get<MediaAttachment>(id, partitionKey: null);
+        if (existing is not null)
+        {
+            if (existing.OwnerType == ownerType
+             && existing.OwnerId == ownerId
+             && existing.FileName == fileName
+             && existing.ContentType == contentType
+             && existing.FileSizeBytes == fileSizeBytes
+             && existing.CreatedAt == createdAt
+             && existing.StoragePath == storagePath
+             && _fileStorage.Exists(storagePath))
+                return existing;
+            throw new InvalidOperationException($"Imported media identity collision for attachment {id}.");
+        }
+
+        var directory = Path.GetDirectoryName(storagePath)!;
+        _fileStorage.EnsureDirectory(directory);
+        await _fileStorage.WriteAsync(storagePath, stream);
+        var attachment = new MediaAttachment
+                         {
+                             Id            = id
+                           , OwnerType     = ownerType
+                           , OwnerId       = ownerId
+                           , FileName      = fileName
+                           , ContentType   = contentType
+                           , FileSizeBytes = fileSizeBytes
+                           , StoragePath   = storagePath
+                           , CreatedAt     = createdAt
+                         };
+        await historicalWriter.SaveHistorical(attachment, createdAt, partitionKey: null, id);
+        return attachment;
+    }
+
     public Task<IReadOnlyList<MediaAttachment>> GetAttachmentsAsync(string ownerType, string ownerId)
     {
         var attachments = _store.List<MediaAttachment>(partitionKey: null)

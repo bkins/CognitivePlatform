@@ -24,6 +24,7 @@ public static class PersistenceServiceCollectionExtensions
 
         var objectStore = new SqliteObjectStore(connectionString);
         services.AddSingleton<IObjectStore>(objectStore);
+        services.AddSingleton<IHistoricalObjectWriter>(objectStore);
         services.AddSingleton(objectStore);
         services.AddSingleton<StartupInvariantGuard>();
 

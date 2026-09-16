@@ -14,7 +14,7 @@ namespace CognitivePlatform.Api.Data;
 /// Domain Services own meaning.
 /// KnowledgeService coordinates meaning across domains.
 /// </summary>
-public class SqliteObjectStore : IObjectStore
+public class SqliteObjectStore : IObjectStore, IHistoricalObjectWriter
 {
     private readonly string                _connectionString;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -74,6 +74,18 @@ public class SqliteObjectStore : IObjectStore
     public async Task<string> Save<T> (T       value
                                , string? partitionKey = null
                                , string? id           = null)
+        => await SaveCore(value, DateTimeOffset.UtcNow, partitionKey, id);
+
+    public async Task<string> SaveHistorical<T>(T value
+                                              , DateTimeOffset createdUtc
+                                              , string? partitionKey = null
+                                              , string? id = null)
+        => await SaveCore(value, createdUtc, partitionKey, id);
+
+    private async Task<string> SaveCore<T>(T value
+                                         , DateTimeOffset createdUtc
+                                         , string? partitionKey
+                                         , string? id)
     {
         if (value is null)
             throw new ArgumentNullException(nameof(value));
@@ -82,8 +94,8 @@ public class SqliteObjectStore : IObjectStore
         var typeName = type.FullName ?? type.Name;
         var objectId = ResolveAndApplyId(value, id);
 
-        var nowString = DateTimeOffset.UtcNow
-                                      .ToString("O");
+        var createdString = createdUtc.ToUniversalTime().ToString("O");
+        var nowString     = DateTimeOffset.UtcNow.ToString("O");
 
         var json = JsonSerializer.Serialize(value
                                            , _jsonOptions);
@@ -95,7 +107,7 @@ public class SqliteObjectStore : IObjectStore
         command.CommandText =
             """
             INSERT INTO Objects (Id, Type, PartitionKey, Json, CreatedUtc, UpdatedUtc, DeletedUtc)
-            VALUES ($id, $type, $partitionKey, $json, $now, $now, NULL)
+            VALUES ($id, $type, $partitionKey, $json, $created, $now, NULL)
             ON CONFLICT(Id) DO UPDATE SET
                 Json         = excluded.Json,
                 UpdatedUtc   = excluded.UpdatedUtc,
@@ -113,6 +125,8 @@ public class SqliteObjectStore : IObjectStore
                                       , json);
         command.Parameters.AddWithValue("$now"
                                       , nowString);
+        command.Parameters.AddWithValue("$created"
+                                      , createdString);
 
         command.ExecuteNonQuery();
 
