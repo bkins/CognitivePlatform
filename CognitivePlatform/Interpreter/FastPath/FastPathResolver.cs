@@ -28,6 +28,9 @@ public sealed class FastPathResolver : IFastPathResolver
 
         input = input.Trim();
 
+        if (TryResolveJournalId(input, out action, out parameters))
+            return true;
+
         // ------------------------------------------------------------
         // MODE 0: SYSTEM CAPABILITIES
         // ------------------------------------------------------------
@@ -2169,6 +2172,22 @@ public sealed class FastPathResolver : IFastPathResolver
     }
 
     // ================================================================
+
+    private bool TryResolveJournalId(string input, out ActionMetadata? action, out Dictionary<string, string>? parameters)
+    {
+        action = null;
+        parameters = null;
+        var match = System.Text.RegularExpressions.Regex.Match(input,
+            @"^(?:can\s+you\s+|could\s+you\s+|please\s+)?(?:show|read|get|open)(?:\s+me)?\s+(?:the\s+)?journal\s+entry\s+(?:(?:with\s+)?(?:the\s+)?id(?:\s+of)?\s+)?[`""']?(?<id>[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})[`""']?[.?!]?\s*$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!match.Success || !Guid.TryParse(match.Groups["id"].Value, out var journalId))
+            return false;
+
+        action = _registry.Actions.FirstOrDefault(candidate => candidate.Name == "GetJournalEntry");
+        if (action is null) return false;
+        parameters = new Dictionary<string, string> { ["entryReference"] = journalId.ToString("N") };
+        return true;
+    }
     // MODE 1.3: SECRETS FAST PATHS
     // "save secret 'title' is 'value'", "get secret 'title'"
     // ================================================================

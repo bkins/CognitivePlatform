@@ -24,6 +24,7 @@ public class FastPathResolverTests
             , MakeAction("AddJournalEntry")
             , MakeAction("JournalEntriesOnThisDay")
             , MakeAction("ListJournalEntries")
+            , MakeAction("GetJournalEntry")
             , MakeAction("AddTask")
             , MakeAction("ListTasks")
             , MakeAction("CompleteTask")
@@ -209,6 +210,31 @@ public class FastPathResolverTests
     }
 
     // ================================================================
+
+    [Theory]
+    [InlineData("Can you show me the Journal entry with the ID of `32f65efa2b555d6a866fe30e6f7e17c9`")]
+    [InlineData("Show journal entry 32f65efa-2b55-5d6a-866f-e30e6f7e17c9.")]
+    [InlineData("Read journal entry with ID 32F65EFA2B555D6A866FE30E6F7E17C9")]
+    public void Exact_Journal_Id_Resolves_Identically_On_Repeated_Requests(string input)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var resolved = _resolver.TryResolve(input, out var action, out var parameters);
+
+            Assert.True(resolved);
+            Assert.Equal("GetJournalEntry", action!.Name);
+            Assert.Equal("32f65efa2b555d6a866fe30e6f7e17c9", parameters!["entryReference"]);
+        }
+    }
+
+    [Theory]
+    [InlineData("Delete journal entry 32f65efa2b555d6a866fe30e6f7e17c9")]
+    [InlineData("Show journal entry with ID not-an-id")]
+    [InlineData("Show journal entry 32f65efa2b555d6a866fe30e6f7e17c9 and delete it")]
+    public void Exact_Journal_Id_Does_Not_Claim_Invalid_Or_Mutating_Requests(string input)
+    {
+        Assert.False(_resolver.TryResolve(input, out _, out _));
+    }
     // MODE 1.3: SECRETS FAST PATHS
     // ================================================================
 

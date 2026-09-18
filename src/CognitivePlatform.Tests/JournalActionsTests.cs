@@ -11,6 +11,19 @@ namespace CognitivePlatform.Tests;
 
 public class JournalActionsTests
 {
+    [Fact]
+    public void GetJournalEntry_Normalizes_Hyphenated_Id_And_Reads_Latest_Revision()
+    {
+        var id = Guid.NewGuid();
+        var entry = MakeEntryWithRevision("Imported body");
+        _journalMock.Setup(service => service.GetById(id.ToString("N"))).Returns(entry);
+
+        var result = _actions.GetJournalEntry(id.ToString("D"));
+
+        Assert.Contains("Imported body", result);
+        _journalMock.Verify(service => service.GetById(id.ToString("N")), Times.Once);
+        _llmMock.VerifyNoOtherCalls();
+    }
     private readonly Mock<IJournalService>         _journalMock      = new();
     private readonly Mock<IJournalCommandParser>   _parserMock       = new();
     private readonly Mock<ILlmClient>              _llmMock          = new();

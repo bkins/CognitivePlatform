@@ -567,6 +567,8 @@ public sealed class JournalActions
                                                                  , out string? errorMessage )
     {
         reference = (reference ?? string.Empty).Trim();
+        if (Guid.TryParse(reference, out var journalId))
+            reference = journalId.ToString("N");
 
         if (int.TryParse(reference, out var position))
         {
