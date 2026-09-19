@@ -29,6 +29,19 @@ public sealed class ApiDeploymentScriptContractTests
         Assert.Contains("deployment.json", Script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Deployment_MergesAndValidatesExistingRuntimeConfigurationBeforeDowntime()
+    {
+        Assert.Contains("Merge-JsonObject", Script, StringComparison.Ordinal);
+        Assert.Contains("appsettings.$configEnvName.json", Script, StringComparison.Ordinal);
+        Assert.Contains("Preserving runtime configuration", Script, StringComparison.Ordinal);
+        Assert.Contains("Validate-StagedConfiguration", Script, StringComparison.Ordinal);
+
+        var mergePosition = Script.IndexOf("Preserving runtime configuration", StringComparison.Ordinal);
+        var stopPosition = Script.IndexOf("Stopping target API process", StringComparison.Ordinal);
+        Assert.True(mergePosition >= 0 && stopPosition > mergePosition);
+    }
+
     private static string FindScript()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -81,6 +81,76 @@ $stagingPath = "$deployPath.staging.$([Guid]::NewGuid().ToString('N'))"
 $failedPath = "$deployPath.failed.$timestamp"
 $backupCreated = $false
 
+function Merge-JsonObject {
+    param(
+        [Parameter(Mandatory)] [pscustomobject]$Base,
+        [Parameter(Mandatory)] [pscustomobject]$Override
+    )
+
+    foreach ($property in $Override.PSObject.Properties) {
+        $existing = $Base.PSObject.Properties[$property.Name]
+        if ($null -ne $existing -and
+            $existing.Value -is [pscustomobject] -and
+            $property.Value -is [pscustomobject]) {
+            Merge-JsonObject -Base $existing.Value -Override $property.Value | Out-Null
+            continue
+        }
+
+        if ($null -ne $existing) {
+            $existing.Value = $property.Value
+        }
+        else {
+            $Base | Add-Member -NotePropertyName $property.Name -NotePropertyValue $property.Value
+        }
+    }
+
+    return $Base
+}
+
+function Preserve-RuntimeConfiguration {
+    param(
+        [Parameter(Mandatory)] [string]$FileName
+    )
+
+    $currentPath = Join-Path $deployPath $FileName
+    if (-not (Test-Path -LiteralPath $currentPath -PathType Leaf)) {
+        return
+    }
+
+    $stagedPath = Join-Path $stagingPath $FileName
+    Write-Host "Preserving runtime configuration from: $currentPath"
+    if (-not (Test-Path -LiteralPath $stagedPath -PathType Leaf)) {
+        Copy-Item -LiteralPath $currentPath -Destination $stagedPath
+        return
+    }
+
+    $artifactConfiguration = Get-Content -LiteralPath $stagedPath -Raw | ConvertFrom-Json
+    $runtimeConfiguration = Get-Content -LiteralPath $currentPath -Raw | ConvertFrom-Json
+    $mergedConfiguration = Merge-JsonObject -Base $artifactConfiguration -Override $runtimeConfiguration
+    $mergedConfiguration |
+        ConvertTo-Json -Depth 100 |
+        Set-Content -LiteralPath $stagedPath -Encoding UTF8
+}
+
+function Validate-StagedConfiguration {
+    param(
+        [Parameter(Mandatory)] [string[]]$FileNames
+    )
+
+    foreach ($fileName in $FileNames) {
+        $path = Join-Path $stagingPath $fileName
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Out-Null
+        }
+    }
+
+    $baseConfigurationPath = Join-Path $stagingPath 'appsettings.json'
+    $baseConfiguration = Get-Content -LiteralPath $baseConfigurationPath -Raw | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$baseConfiguration.AdminSettings.AdminSecret)) {
+        throw 'Staged runtime configuration is missing AdminSettings:AdminSecret.'
+    }
+}
+
 Write-Host "========================================"
 Write-Host "Deploying CognitivePlatform API"
 Write-Host "========================================"
@@ -106,6 +176,18 @@ try {
     if (-not $stagedSha256.Equals($artifactSha256, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Staged executable hash does not match the source artifact."
     }
+
+    $configEnvName = if ($aspnetEnv.Equals('Prod', [StringComparison]::OrdinalIgnoreCase)) {
+        'Production'
+    }
+    else {
+        $aspnetEnv
+    }
+    $runtimeConfigurationFiles = @('appsettings.json', "appsettings.$configEnvName.json")
+    foreach ($configurationFile in $runtimeConfigurationFiles) {
+        Preserve-RuntimeConfiguration -FileName $configurationFile
+    }
+    Validate-StagedConfiguration -FileNames $runtimeConfigurationFiles
 
     $envConfig = @{
         ASPNETCORE_ENVIRONMENT = $aspnetEnv
