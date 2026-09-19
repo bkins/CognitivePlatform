@@ -28,6 +28,7 @@ public class LlmRouter : ILlmRouter
     private readonly ILlmRateLimiter     _rateLimiter;
     private readonly ILlmCapacityRouter  _capacityRouter;
     private readonly ILlmFallbackChain   _fallbackChain;
+    private readonly ILogger<LlmRouter>  _logger;
 
     public LlmRouter( ILlmClientFactory   factory
                     , LlmProviderDefaults defaults
@@ -35,7 +36,8 @@ public class LlmRouter : ILlmRouter
                     , ILlmUsageAggregator usageAggregator
                     , ILlmRateLimiter     rateLimiter
                     , ILlmCapacityRouter  capacityRouter
-                    , ILlmFallbackChain   fallbackChain )
+                    , ILlmFallbackChain   fallbackChain
+                    , ILogger<LlmRouter>? logger = null )
     {
         _factory          = factory;
         _defaults         = defaults;
@@ -44,6 +46,7 @@ public class LlmRouter : ILlmRouter
         _rateLimiter      = rateLimiter;
         _capacityRouter   = capacityRouter;
         _fallbackChain    = fallbackChain;
+        _logger           = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LlmRouter>.Instance;
     }
 
     public async Task<LlmResponse> SendAsync( string              prompt
@@ -58,6 +61,7 @@ public class LlmRouter : ILlmRouter
         var resolvedProvider = sessionProvider.ToString();
         string? switchNote         = null;
         string? tierDowngradeNote  = null;
+        var diagnosticId = context.Metadata.GetValueOrDefault("diagnostic_id", "unavailable");
 
         // When the session-preferred provider is exhausted (as signalled by its
         // last rate-limit snapshot), delegate to the capacity router to find
@@ -83,12 +87,15 @@ public class LlmRouter : ILlmRouter
         LlmResponse response;
         try
         {
+            _logger.LogInformation("LLM provider attempt. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Phase={Phase}", diagnosticId, resolvedProvider, resolvedModel, "primary");
             response = await client.SendAsync(prompt, resolvedModel, ct);
+            _logger.LogInformation("LLM provider succeeded. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model}", diagnosticId, resolvedProvider, resolvedModel);
         }
         catch (Exception ex) when (ex is HttpRequestException
                                 || ex is TimeoutException
                                 || ex is TaskCanceledException)
         {
+            _logger.LogWarning(ex, "LLM provider failed. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, resolvedProvider, resolvedModel, FailureReason(ex, ct));
             // Primary provider failed. Walk the explicit fallback chain (if enabled) in
             // order, skipping entries that also fail. Fall back to the capacity router
             // when the chain is disabled or not configured.
@@ -102,6 +109,7 @@ public class LlmRouter : ILlmRouter
                     var fbClient = _factory.Create(fbProvider);
                     try
                     {
+                        _logger.LogInformation("LLM fallback attempt. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model}", diagnosticId, fbProvider, fbModel);
                         fallbackResponse  = await fbClient.SendAsync(prompt, fbModel, ct);
                         resolvedModel     = fbModel;
                         resolvedProvider  = fbProvider.ToString();
@@ -114,12 +122,13 @@ public class LlmRouter : ILlmRouter
                                               || fbEx is TimeoutException
                                               || fbEx is TaskCanceledException)
                     {
-                        // This fallback failed or was rate-limited; try the next one
+                        _logger.LogWarning(fbEx, "LLM fallback failed. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, fbProvider, fbModel, FailureReason(fbEx, ct));
                     }
                 }
 
                 if (fallbackResponse is null)
                 {
+                    _logger.LogError("LLM providers exhausted. DiagnosticId={DiagnosticId} Reason={Reason}", diagnosticId, "all_attempts_failed");
                     return new LlmResponse
                            {
                                    Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
@@ -155,6 +164,7 @@ public class LlmRouter : ILlmRouter
                                           || fbEx is TimeoutException
                                           || fbEx is TaskCanceledException)
                 {
+                    _logger.LogError(fbEx, "LLM fallback failed. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, resolvedProvider, resolvedModel, FailureReason(fbEx, ct));
                     return new LlmResponse
                            {
                                    Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
@@ -214,6 +224,7 @@ public class LlmRouter : ILlmRouter
         var resolvedProvider = sessionProvider.ToString();
         string? switchNote         = null;
         string? tierDowngradeNote  = null;
+        var diagnosticId = context.Metadata.GetValueOrDefault("diagnostic_id", "unavailable");
 
         if (_rateLimiter.IsExhausted(sessionProvider.ToString()))
         {
@@ -235,13 +246,14 @@ public class LlmRouter : ILlmRouter
         IAsyncEnumerator<string>? enumerator = null;
         try
         {
+            _logger.LogInformation("LLM stream provider attempt. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model}", diagnosticId, resolvedProvider, resolvedModel);
             enumerator = client.StreamAsync(prompt, resolvedModel, ct).GetAsyncEnumerator(ct);
         }
         catch (Exception ex) when (ex is HttpRequestException
                                 || ex is TimeoutException
                                 || ex is TaskCanceledException)
         {
-            // Primary failed before starting
+            _logger.LogWarning(ex, "LLM stream provider failed before start. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, resolvedProvider, resolvedModel, FailureReason(ex, ct));
         }
 
         bool primarySucceeded = false;
@@ -260,6 +272,7 @@ public class LlmRouter : ILlmRouter
                                         || ex is TimeoutException
                                         || ex is TaskCanceledException)
                 {
+                    _logger.LogWarning(ex, "LLM stream provider failed. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, resolvedProvider, resolvedModel, FailureReason(ex, ct));
                     break;
                 }
                 primarySucceeded = true;
@@ -325,6 +338,7 @@ public class LlmRouter : ILlmRouter
 
                 if (!fallbackSuccess)
                 {
+                    _logger.LogError("LLM stream providers exhausted. DiagnosticId={DiagnosticId} Reason={Reason}", diagnosticId, "all_attempts_failed");
                     yield return "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally.";
                 }
             }
@@ -399,6 +413,15 @@ public class LlmRouter : ILlmRouter
         var client   = _factory.Create(provider);
 
         return (client, model);
+    }
+
+    private static string FailureReason(Exception exception, CancellationToken cancellationToken)
+    {
+        if (exception is TaskCanceledException && cancellationToken.IsCancellationRequested) return "cancelled";
+        if (exception is TimeoutException or TaskCanceledException) return "timeout";
+        if (exception is HttpRequestException httpException && httpException.StatusCode == System.Net.HttpStatusCode.TooManyRequests) return "rate_limited";
+        if (exception is HttpRequestException) return "transport";
+        return "internal";
     }
 
     private LlmProvider ResolveProvider(ConversationContext context)

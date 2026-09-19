@@ -18,6 +18,7 @@ public class LlmRouterTests
     private readonly Mock<ILlmRateLimiter>     _rateLimiterMock    = new();
     private readonly Mock<ILlmCapacityRouter>  _capacityRouterMock = new();
     private readonly Mock<ILlmFallbackChain>   _fallbackChainMock  = new();
+    private readonly Mock<Microsoft.Extensions.Logging.ILogger<LlmRouter>> _diagnosticLoggerMock = new();
 
     private readonly LlmProviderDefaults _defaults;
     private readonly LlmRouter           _router;
@@ -55,7 +56,24 @@ public class LlmRouterTests
                               , _aggregatorMock.Object
                               , _rateLimiterMock.Object
                               , _capacityRouterMock.Object
-                              , _fallbackChainMock.Object);
+                              , _fallbackChainMock.Object
+                              , _diagnosticLoggerMock.Object);
+    }
+
+    [Fact]
+    public async Task SendAsync_Logs_Diagnostic_Id_Without_Prompt_Content()
+    {
+        var context = new ConversationContext("session-diagnostic");
+        context.Metadata["diagnostic_id"] = "safe-diagnostic-id";
+        _groqClient.Setup(client => client.SendAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(ForContent("ok"));
+
+        await _router.SendAsync("private journal body must not be logged", context);
+
+        _diagnosticLoggerMock.Verify(logger => logger.Log(
+            It.IsAny<Microsoft.Extensions.Logging.LogLevel>(), It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+            It.Is<It.IsAnyType>((state, _) => state.ToString()!.Contains("safe-diagnostic-id") && !state.ToString()!.Contains("private journal body")),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.AtLeastOnce);
     }
 
     [Fact]

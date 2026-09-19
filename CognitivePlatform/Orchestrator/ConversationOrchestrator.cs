@@ -203,6 +203,7 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         
         // 1. Get or create the session context
         var context = _contextStore.GetOrCreate(request.SessionId);
+        context.Metadata["diagnostic_id"] = (request.ClientRequestId ?? Guid.NewGuid()).ToString("N");
         
         // 2. Wire up context with necessary references for actions and interpreter to function properly.
 // 🔑 Wire meta-actions & LlmActions FIRST

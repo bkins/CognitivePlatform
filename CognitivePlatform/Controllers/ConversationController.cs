@@ -17,28 +17,46 @@ public class ConversationController : ControllerBase
     private readonly ITelemetrySink             _telemetry;
     private readonly IConversationTurnStore     _turnStore;
     private readonly IConversationMetadataStore _metadataStore;
+    private readonly ILogger<ConversationController> _logger;
 
     public ConversationController( IConversationOrchestrator  orchestrator
                                  , ITelemetrySink             telemetry
                                  , TelemetryContext           telemetryContext
                                  , IConversationTurnStore     turnStore
-                                 , IConversationMetadataStore metadataStore )
+                                 , IConversationMetadataStore metadataStore
+                                 , ILogger<ConversationController>? logger = null )
     {
         _orchestrator  = orchestrator;
         _telemetry     = telemetry;
         _turnStore     = turnStore;
         _metadataStore = metadataStore;
+        _logger        = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConversationController>.Instance;
     }
 
     [HttpPost("converse")]
     public async Task<ActionResult<ConverseResponse>> Converse([FromBody] ConverseRequest request)
     {
+        var diagnosticId = (request.ClientRequestId ?? Guid.NewGuid()).ToString("N");
+        request.ClientRequestId ??= Guid.ParseExact(diagnosticId, "N");
+        Response.Headers["X-CP-Diagnostic-Id"] = diagnosticId;
+        _logger.LogInformation("Chat request started. DiagnosticId={DiagnosticId} SessionId={SessionId}", diagnosticId, request.SessionId);
         if (request.FastPath)
         {
             request.Streaming = false;
         }
 
-        var result = await _orchestrator.ConverseAsync(request);
+        ConverseResponse result;
+        try
+        {
+            result = await _orchestrator.ConverseAsync(request);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Chat request failed. DiagnosticId={DiagnosticId} Phase={Phase}", diagnosticId, "orchestrator");
+            throw;
+        }
+
+        _logger.LogInformation("Chat request completed. DiagnosticId={DiagnosticId} Success={Success} WasFastPath={WasFastPath} Action={Action}", diagnosticId, result.Success, result.WasFastPath, result.SelectedAction);
 
         if (result.Success.Not() && !result.IsVaultUnlockRequired && !result.IsVaultSetupRequired) return BadRequest(result);
         
@@ -49,7 +67,10 @@ public class ConversationController : ControllerBase
     public async Task StreamConverse ([FromBody] ConverseRequest request
                                     , CancellationToken          ct)
     {
-        
+        var diagnosticId = (request.ClientRequestId ?? Guid.NewGuid()).ToString("N");
+        request.ClientRequestId ??= Guid.ParseExact(diagnosticId, "N");
+        Response.Headers["X-CP-Diagnostic-Id"] = diagnosticId;
+        _logger.LogInformation("Chat stream started. DiagnosticId={DiagnosticId} SessionId={SessionId}", diagnosticId, request.SessionId);
         Response.Headers.Append("Content-Type",      "text/event-stream");
         Response.Headers.Append("Cache-Control",     "no-cache");
         Response.Headers.Append("X-Accel-Buffering", "no");
@@ -59,10 +80,24 @@ public class ConversationController : ControllerBase
         if (jsonStrings)
             Response.Headers[ConversationStreamFrame.HeaderName] = ConversationStreamFrame.JsonStringFormat;
 
-        await foreach (var chunk in _orchestrator.StreamAsync(request, ct))
+        try
         {
-            await Response.WriteAsync(ConversationStreamFrame.Encode(chunk, jsonStrings), ct);
-            await Response.Body.FlushAsync(ct);
+            await foreach (var chunk in _orchestrator.StreamAsync(request, ct))
+            {
+                await Response.WriteAsync(ConversationStreamFrame.Encode(chunk, jsonStrings), ct);
+                await Response.Body.FlushAsync(ct);
+            }
+            _logger.LogInformation("Chat stream completed. DiagnosticId={DiagnosticId}", diagnosticId);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogInformation("Chat stream cancelled. DiagnosticId={DiagnosticId}", diagnosticId);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Chat stream failed. DiagnosticId={DiagnosticId} Phase={Phase}", diagnosticId, "stream");
+            throw;
         }
 
     }

@@ -11,6 +11,21 @@ namespace CognitivePlatform.Tests;
 public class ConversationControllerTests
 {
     [Fact]
+    public async Task Converse_Propagates_Diagnostic_Id_To_Header_And_Orchestrator()
+    {
+        var diagnosticId = Guid.NewGuid();
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        _sut.ControllerContext = new ControllerContext { HttpContext = context };
+        _orchestratorMock.Setup(orchestrator => orchestrator.ConverseAsync(It.IsAny<ConverseRequest>(), It.IsAny<CancellationToken>()))
+                         .ReturnsAsync(new ConverseResponse { Message = "ok" });
+        var request = new ConverseRequest { SessionId = "conversation", Input = "safe test", ClientRequestId = diagnosticId };
+
+        await _sut.Converse(request);
+
+        Assert.Equal(diagnosticId.ToString("N"), context.Response.Headers["X-CP-Diagnostic-Id"].ToString());
+        _orchestratorMock.Verify(orchestrator => orchestrator.ConverseAsync(It.Is<ConverseRequest>(value => value.ClientRequestId == diagnosticId), It.IsAny<CancellationToken>()), Times.Once);
+    }
+    [Fact]
     public async Task StreamConverse_NegotiatedChunks_PreservesMultilineAndTokenBoundaries()
     {
         var chunks = new[] { "Results for 'joe':\r\n\r\n[journal] entry #1\n  A memory.", "\n", " next", "", "\"quoted\" \\ text 😀" };
