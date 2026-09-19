@@ -139,4 +139,22 @@ public class OrchestratorCalendarAuthTests
 
         Assert.Equal("gemini-2.5-flash", result.Model);
     }
+
+    [Fact]
+    public async Task FinalizeAsync_ReportsAndClearsResolvedProviderMetadata()
+    {
+        var orchestrator = BuildOrchestrator();
+        var context      = _contextStore.GetOrCreate(SessionId);
+        context.Metadata["resolved_provider"] = "Gemini";
+        context.Metadata["resolved_model"]    = "gemini-2.5-flash";
+        var request  = new ConverseRequest { SessionId = SessionId, Input = "test" };
+        var response = new ConverseResponse { Message = "complete" };
+
+        var result = await orchestrator.FinalizeAsync(request, response, new System.Diagnostics.Stopwatch(), TurnPath.Interpreter);
+
+        Assert.Equal("Gemini", result.Provider);
+        Assert.Equal("gemini-2.5-flash", result.Model);
+        Assert.False(context.Metadata.ContainsKey("resolved_provider"));
+        Assert.False(context.Metadata.ContainsKey("resolved_model"));
+    }
 }

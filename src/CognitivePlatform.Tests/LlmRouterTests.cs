@@ -90,6 +90,22 @@ public class LlmRouterTests
     }
 
     [Fact]
+    public async Task SendAsync_RecordsResolvedProviderAndModel_WhenCapacityRouterChangesProvider()
+    {
+        var context = new ConversationContext("session-resolved-provider");
+        _rateLimiterMock.Setup(limiter => limiter.IsExhausted("Groq")).Returns(true);
+        _capacityRouterMock.Setup(router => router.SelectModel(TaskComplexity.Standard))
+                           .Returns(new LlmModelCapacity { ModelId = new LlmModelId("Gemini", "gemini-2.5-flash") });
+        _gemini.Setup(client => client.SendAsync(It.IsAny<string>(), "gemini-2.5-flash", It.IsAny<CancellationToken>()))
+               .ReturnsAsync(ForContent("ok"));
+
+        await _router.SendAsync("hello", context);
+
+        Assert.Equal("Gemini", context.Metadata["resolved_provider"]);
+        Assert.Equal("gemini-2.5-flash", context.Metadata["resolved_model"]);
+    }
+
+    [Fact]
     public async Task SendAsync_UsesSessionProvider_WhenSessionProviderIsSet()
     {
         var context = new ConversationContext("session-2");

@@ -96,7 +96,7 @@ public class GeminiLlmClient : ILlmClient
 #if DEBUG
                 errorMessage += $"\nHTTP {(int)response.StatusCode}: {errorBody}";
 #endif
-                return new LlmResponse { Content = errorMessage };
+                throw new HttpRequestException(errorMessage, null, response.StatusCode);
             }
             
             throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {errorBody}");

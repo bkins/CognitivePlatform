@@ -1163,12 +1163,16 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         }
         else
         {
-            if (contextForMetadata.Metadata.TryGetValue("provider", out var prov) && prov.HasValue())
+            if (contextForMetadata.Metadata.TryRemove("resolved_provider", out var resolvedProvider) && resolvedProvider.HasValue())
+                response.Provider = resolvedProvider;
+            else if (contextForMetadata.Metadata.TryGetValue("provider", out var prov) && prov.HasValue())
                 response.Provider = prov;
             else if (response.Provider.HasNoValue())
                 response.Provider = "Groq";
 
-            if (contextForMetadata.Metadata.TryGetValue("model", out var mdl) && mdl.HasValue())
+            if (contextForMetadata.Metadata.TryRemove("resolved_model", out var resolvedModel) && resolvedModel.HasValue())
+                response.Model = resolvedModel;
+            else if (contextForMetadata.Metadata.TryGetValue("model", out var mdl) && mdl.HasValue())
                 response.Model = mdl;
             else if (request.Model.HasValue())
                 response.Model = request.Model;

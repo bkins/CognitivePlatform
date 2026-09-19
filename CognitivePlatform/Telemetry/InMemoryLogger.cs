@@ -13,7 +13,13 @@ internal sealed class InMemoryLogger : ILogger
         _store    = store;
     }
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        if (logLevel == LogLevel.None) return false;
+
+        return logLevel >= LogLevel.Warning
+            || !_category.StartsWith("System.Net.Http.HttpClient.OllamaEmbedding", StringComparison.Ordinal);
+    }
 
     public void Log<TState>( LogLevel                        logLevel
                            , EventId                         eventId

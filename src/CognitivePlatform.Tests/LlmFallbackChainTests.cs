@@ -236,6 +236,8 @@ public class LlmRouterFallbackTests
         var result = await BuildRouter().SendAsync("prompt", new ConversationContext("test"));
 
         Assert.Contains("unavailable", result.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Diagnostic ID:", result.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Ollama", result.Content, StringComparison.OrdinalIgnoreCase);
     }
 
 

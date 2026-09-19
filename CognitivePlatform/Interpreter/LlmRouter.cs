@@ -131,7 +131,7 @@ public class LlmRouter : ILlmRouter
                     _logger.LogError("LLM providers exhausted. DiagnosticId={DiagnosticId} Reason={Reason}", diagnosticId, "all_attempts_failed");
                     return new LlmResponse
                            {
-                                   Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
+                                   Content    = UnavailableMessage(diagnosticId)
                                  , Usage      = LlmUsageInfo.Empty
                                  , RateLimits = LlmRateLimitSnapshot.Empty
                            };
@@ -167,13 +167,16 @@ public class LlmRouter : ILlmRouter
                     _logger.LogError(fbEx, "LLM fallback failed. DiagnosticId={DiagnosticId} Provider={Provider} Model={Model} Reason={Reason}", diagnosticId, resolvedProvider, resolvedModel, FailureReason(fbEx, ct));
                     return new LlmResponse
                            {
-                                   Content    = "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally."
+                                   Content    = UnavailableMessage(diagnosticId)
                                  , Usage      = LlmUsageInfo.Empty
                                  , RateLimits = LlmRateLimitSnapshot.Empty
                            };
                 }
             }
         }
+
+        context.Metadata["resolved_provider"] = resolvedProvider;
+        context.Metadata["resolved_model"]    = resolvedModel ?? string.Empty;
 
         // FIX: this used to also write context.Metadata["model"] = resolvedModel here, with
         // the stated intent of letting "training telemetry capture the real model... when a
@@ -339,7 +342,7 @@ public class LlmRouter : ILlmRouter
                 if (!fallbackSuccess)
                 {
                     _logger.LogError("LLM stream providers exhausted. DiagnosticId={DiagnosticId} Reason={Reason}", diagnosticId, "all_attempts_failed");
-                    yield return "All LLM providers are currently unavailable. Please verify your internet connection and check if Ollama is running locally.";
+                    yield return UnavailableMessage(diagnosticId);
                 }
             }
             else
@@ -414,6 +417,9 @@ public class LlmRouter : ILlmRouter
 
         return (client, model);
     }
+
+    private static string UnavailableMessage(string diagnosticId) =>
+            $"All configured LLM provider attempts failed. Diagnostic ID: {diagnosticId}. Check the Logs page for provider-specific details.";
 
     private static string FailureReason(Exception exception, CancellationToken cancellationToken)
     {
