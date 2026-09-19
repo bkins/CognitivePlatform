@@ -124,8 +124,8 @@ function Preserve-RuntimeConfiguration {
         return
     }
 
-    $artifactConfiguration = Get-Content -LiteralPath $stagedPath -Raw | ConvertFrom-Json
-    $runtimeConfiguration = Get-Content -LiteralPath $currentPath -Raw | ConvertFrom-Json
+    $artifactConfiguration = Get-Content -LiteralPath $stagedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $runtimeConfiguration = Get-Content -LiteralPath $currentPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $mergedConfiguration = Merge-JsonObject -Base $artifactConfiguration -Override $runtimeConfiguration
     $mergedConfiguration |
         ConvertTo-Json -Depth 100 |
@@ -140,12 +140,12 @@ function Validate-StagedConfiguration {
     foreach ($fileName in $FileNames) {
         $path = Join-Path $stagingPath $fileName
         if (Test-Path -LiteralPath $path -PathType Leaf) {
-            Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Out-Null
+            Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json | Out-Null
         }
     }
 
     $baseConfigurationPath = Join-Path $stagingPath 'appsettings.json'
-    $baseConfiguration = Get-Content -LiteralPath $baseConfigurationPath -Raw | ConvertFrom-Json
+    $baseConfiguration = Get-Content -LiteralPath $baseConfigurationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]::IsNullOrWhiteSpace([string]$baseConfiguration.AdminSettings.AdminSecret)) {
         throw 'Staged runtime configuration is missing AdminSettings:AdminSecret.'
     }

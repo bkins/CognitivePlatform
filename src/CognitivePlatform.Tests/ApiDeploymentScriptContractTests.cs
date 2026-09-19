@@ -36,6 +36,8 @@ public sealed class ApiDeploymentScriptContractTests
         Assert.Contains("appsettings.$configEnvName.json", Script, StringComparison.Ordinal);
         Assert.Contains("Preserving runtime configuration", Script, StringComparison.Ordinal);
         Assert.Contains("Validate-StagedConfiguration", Script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -LiteralPath $stagedPath -Raw -Encoding UTF8", Script, StringComparison.Ordinal);
+        Assert.Contains("Get-Content -LiteralPath $currentPath -Raw -Encoding UTF8", Script, StringComparison.Ordinal);
 
         var mergePosition = Script.IndexOf("Preserving runtime configuration", StringComparison.Ordinal);
         var stopPosition = Script.IndexOf("Stopping target API process", StringComparison.Ordinal);
