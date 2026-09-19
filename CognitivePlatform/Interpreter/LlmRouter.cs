@@ -419,7 +419,7 @@ public class LlmRouter : ILlmRouter
     }
 
     private static string UnavailableMessage(string diagnosticId) =>
-            $"All configured LLM provider attempts failed. Diagnostic ID: {diagnosticId}. Check the Logs page for provider-specific details.";
+            $"All configured LLM provider attempts failed. Diagnostic ID: {diagnosticId}. Check the API Logs page for provider-specific details.";
 
     private static string FailureReason(Exception exception, CancellationToken cancellationToken)
     {

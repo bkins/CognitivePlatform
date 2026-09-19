@@ -237,6 +237,7 @@ public class LlmRouterFallbackTests
 
         Assert.Contains("unavailable", result.Content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Diagnostic ID:", result.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("API Logs", result.Content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Ollama", result.Content, StringComparison.OrdinalIgnoreCase);
     }
 
