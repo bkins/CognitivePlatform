@@ -2,6 +2,7 @@ using System.Collections;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.KnowledgeInbox;
 using CognitivePlatform.Api.KnowledgeInbox.Interfaces;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Api.Domains.Tasks;
 
@@ -21,13 +22,16 @@ namespace CognitivePlatform.Api.Domains.Tasks;
 /// </summary>
 public sealed class TaskKnowledgeSource : IKnowledgeSource
 {
-    private readonly IObjectStore _objectStore;
+    private readonly IObjectStore       _objectStore;
+    private readonly IWorkspaceContext _workspaceContext;
 
     public KnowledgeKind Kind => KnowledgeKind.Task;
 
-    public TaskKnowledgeSource (IObjectStore objectStore)
+    public TaskKnowledgeSource (IObjectStore       objectStore
+                              , IWorkspaceContext workspaceContext)
     {
-        _objectStore = objectStore;
+        _objectStore      = objectStore;
+        _workspaceContext = workspaceContext;
     }
 
 
@@ -37,7 +41,7 @@ public sealed class TaskKnowledgeSource : IKnowledgeSource
         // TODO: introduce filtering
         // NOTE: Filtering is intentionally deferred to the aggregator for now
 
-        var tasks = _objectStore.List<TaskItem>(partitionKey: null);
+        var tasks = _objectStore.List<TaskItem>(partitionKey: _workspaceContext.ActivePartitionKey);
 
         foreach (var task in tasks)
         {
@@ -69,7 +73,7 @@ public sealed class TaskKnowledgeSource : IKnowledgeSource
     public IReadOnlyList<ObjectHeader> ListHeaders (DateTimeOffset? fromUtc
                                                    , DateTimeOffset? toUtc)
     {
-        return _objectStore.List<TaskItem>(partitionKey: null, fromUtc: fromUtc, toUtc: toUtc)
+        return _objectStore.List<TaskItem>(partitionKey: _workspaceContext.ActivePartitionKey, fromUtc: fromUtc, toUtc: toUtc)
                            .Where(task => !task.IsDeleted)
                            .Select(task => new ObjectHeader(
                                        task.Id

@@ -2,17 +2,20 @@ using Moq;
 using CognitivePlatform.Api.Data;
 using CognitivePlatform.Api.Domains.Tasks;
 using CognitivePlatform.Api.KnowledgeInbox;
+using CognitivePlatform.Api.Workspace;
 
 namespace CognitivePlatform.Tests;
 
 public class TaskKnowledgeSourceTests
 {
-    private readonly Mock<IObjectStore>  _storeMock = new();
+    private readonly Mock<IObjectStore>     _storeMock = new();
+    private readonly Mock<IWorkspaceContext> _workspaceContextMock = new();
     private readonly TaskKnowledgeSource _source;
 
     public TaskKnowledgeSourceTests()
     {
-        _source = new TaskKnowledgeSource(_storeMock.Object);
+        _workspaceContextMock.SetupGet(context => context.ActivePartitionKey).Returns((string?)null);
+        _source = new TaskKnowledgeSource(_storeMock.Object, _workspaceContextMock.Object);
     }
 
 
@@ -128,6 +131,18 @@ public class TaskKnowledgeSourceTests
         Assert.Equal(2, result.Count);
     }
 
+    [Fact]
+    public void GetKnowledgeItems_UsesActiveWorkspacePartition()
+    {
+        const string partitionKey = "work";
+        _workspaceContextMock.SetupGet(context => context.ActivePartitionKey).Returns(partitionKey);
+        SetupTaskList();
+
+        _source.GetKnowledgeItems(new KnowledgeQuery(), CancellationToken.None).ToList();
+
+        _storeMock.Verify(store => store.List<TaskItem>(partitionKey, null, null), Times.Once);
+    }
+
     // ================================================================
     // HELPERS
     // ================================================================
@@ -212,5 +227,17 @@ public class TaskKnowledgeSourceTests
         _source.ListHeaders(from, to);
 
         _storeMock.Verify(store => store.List<TaskItem>(null, from, to), Times.Once);
+    }
+
+    [Fact]
+    public void ListHeaders_UsesActiveWorkspacePartition()
+    {
+        const string partitionKey = "work";
+        _workspaceContextMock.SetupGet(context => context.ActivePartitionKey).Returns(partitionKey);
+        SetupTaskList();
+
+        _source.ListHeaders(fromUtc: null, toUtc: null);
+
+        _storeMock.Verify(store => store.List<TaskItem>(partitionKey, null, null), Times.Once);
     }
 }
