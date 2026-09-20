@@ -432,6 +432,20 @@ public sealed class FastPathResolver : IFastPathResolver
         var prefix = input[..colonIndex].Trim();
         if (prefix.HasNoValue()) return false;
 
+        if (prefix.EqualsIgnoreCase("UseWorkspace"))
+        {
+            action = _registry.Actions.FirstOrDefault(registryAction =>
+                         registryAction.Name == "UseWorkspace");
+
+            if (action is null) return false;
+
+            var workspaceName = input[(colonIndex + 1)..].Trim();
+            if (workspaceName.HasNoValue()) return false;
+
+            parameters = new Dictionary<string, string> { ["name"] = workspaceName };
+            return true;
+        }
+
         if (prefix.EqualsIgnoreCase("journal"))
         {
             action = _registry.Actions.FirstOrDefault(action => action.Name == "AddJournalEntry");

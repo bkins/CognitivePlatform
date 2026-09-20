@@ -37,6 +37,7 @@ public class FastPathResolverTests
             , MakeAction("SetProvider")
             , MakeAction("ListModels")
             , MakeAction("ListProviders")
+            , MakeAction("UseWorkspace")
             , MakeAction("OpenDay")
             , MakeAction("AddCheckpoint")
             , MakeAction("CloseDay")
@@ -123,6 +124,16 @@ public class FastPathResolverTests
         Assert.True(resolved);
         Assert.Equal("AddTask",    action!.Name);
         Assert.Equal("Buy milk",   parameters!["shortDescription"]);
+    }
+
+    [Fact]
+    public void TryResolve_ResolvesToUseWorkspace_ForExplicitActionColonPrefix()
+    {
+        var resolved = _resolver.TryResolve("UseWorkspace: Personal", out var action, out var parameters);
+
+        Assert.True(resolved);
+        Assert.Equal("UseWorkspace", action!.Name);
+        Assert.Equal("Personal", parameters!["name"]);
     }
 
     // ================================================================
