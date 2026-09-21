@@ -195,6 +195,19 @@ public class MediaAttachmentServiceTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task GetAttachmentAsync_NormalizesHyphenatedGuidToStoredNFormat()
+    {
+        var id = Guid.NewGuid();
+        var storedId = id.ToString("N");
+        var attachment = new MediaAttachment { Id = storedId, FileName = "f.jpg", OwnerType = "JournalEntry", OwnerId = Guid.NewGuid().ToString("N"), ContentType = "image/jpeg", StoragePath = "/tmp/f.jpg" };
+        _storeMock.Setup(store => store.Get<MediaAttachment>(storedId, null)).Returns(attachment);
+
+        var result = await _service.GetAttachmentAsync(id.ToString());
+
+        Assert.Same(attachment, result);
+    }
+
     // -----------------------------------------------------------------------
     // GetAttachmentStreamAsync
     // -----------------------------------------------------------------------
@@ -273,6 +286,22 @@ public class MediaAttachmentServiceTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task GetAttachmentStreamAsync_NormalizesHyphenatedGuidToStoredNFormat()
+    {
+        var id = Guid.NewGuid();
+        var storedId = id.ToString("N");
+        var path = @"C:\TestMedia\f.jpg";
+        var attachment = new MediaAttachment { Id = storedId, FileName = "f.jpg", OwnerType = "JournalEntry", OwnerId = Guid.NewGuid().ToString("N"), ContentType = "image/jpeg", StoragePath = path };
+        _storeMock.Setup(store => store.Get<MediaAttachment>(storedId, null)).Returns(attachment);
+        _fileStorageMock.Setup(fs => fs.Exists(path)).Returns(true);
+        _fileStorageMock.Setup(fs => fs.OpenRead(path)).Returns(new MemoryStream([1, 2, 3]));
+
+        var result = await _service.GetAttachmentStreamAsync(id.ToString());
+
+        Assert.NotNull(result);
+    }
+
     // -----------------------------------------------------------------------
     // DeleteAttachmentAsync
     // -----------------------------------------------------------------------
@@ -305,6 +334,19 @@ public class MediaAttachmentServiceTests
         await _service.DeleteAttachmentAsync("id1");
 
         _fileStorageMock.Verify(fs => fs.Delete(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAttachmentAsync_NormalizesHyphenatedGuidToStoredNFormat()
+    {
+        var id = Guid.NewGuid();
+        var storedId = id.ToString("N");
+        _storeMock.Setup(store => store.SoftDelete<MediaAttachment>(storedId, null)).Returns(true);
+
+        var result = await _service.DeleteAttachmentAsync(id.ToString());
+
+        Assert.True(result);
+        _storeMock.Verify(store => store.SoftDelete<MediaAttachment>(storedId, null), Times.Once);
     }
 
     // -----------------------------------------------------------------------

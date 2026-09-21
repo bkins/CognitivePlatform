@@ -38,7 +38,7 @@ public sealed class MediaControllerTests : IDisposable
         var attachment = await _fixture.ReadJsonAsync<MediaAttachmentDto>(uploadResponse);
         attachment.Should().NotBeNull();
         attachment!.FileName.Should().Be("test_note.txt");
-        var attachmentId = attachment.Id.ToString("N");
+        var attachmentId = attachment.Id.ToString();
 
         _fixture.Log($"Act — GET /api/media/{ownerType}/{ownerId}");
         var listResponse = await _fixture.Client.GetAsync($"/api/media/{ownerType}/{ownerId}");

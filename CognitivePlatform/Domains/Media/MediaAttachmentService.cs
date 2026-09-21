@@ -115,13 +115,13 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     public Task<MediaAttachment?> GetAttachmentAsync(string id)
     {
-        var attachment = _store.Get<MediaAttachment>(id, partitionKey: null);
+        var attachment = GetByCompatibleId(id);
         return Task.FromResult(attachment);
     }
 
     public Task<Stream?> GetAttachmentStreamAsync(string id)
     {
-        var attachment = _store.Get<MediaAttachment>(id, partitionKey: null);
+        var attachment = GetByCompatibleId(id);
         if (attachment is null || attachment.IsDeleted)
             return Task.FromResult<Stream?>(null);
 
@@ -138,8 +138,13 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     public Task<bool> DeleteAttachmentAsync(string id)
     {
-        var deleted = _store.SoftDelete<MediaAttachment>(id, partitionKey: null);
-        return Task.FromResult(deleted);
+        foreach (var candidate in GetCompatibleIds(id))
+        {
+            if (_store.SoftDelete<MediaAttachment>(candidate, partitionKey: null))
+                return Task.FromResult(true);
+        }
+
+        return Task.FromResult(false);
     }
 
     public Task<int> GetAttachmentCountAsync(string ownerType, string ownerId)
@@ -153,6 +158,34 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     private static string BuildPartitionKey(string ownerType, string ownerId)
         => $"{ownerType}/{ownerId}";
+
+    private MediaAttachment? GetByCompatibleId(string id)
+    {
+        foreach (var candidate in GetCompatibleIds(id))
+        {
+            var attachment = _store.Get<MediaAttachment>(candidate, partitionKey: null);
+            if (attachment is not null)
+                return attachment;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetCompatibleIds(string id)
+    {
+        yield return id;
+
+        if (!Guid.TryParse(id, out var guid))
+            yield break;
+
+        var compact = guid.ToString("N");
+        if (!compact.Equals(id, StringComparison.OrdinalIgnoreCase))
+            yield return compact;
+
+        var hyphenated = guid.ToString("D");
+        if (!hyphenated.Equals(id, StringComparison.OrdinalIgnoreCase))
+            yield return hyphenated;
+    }
 
     private static string SanitizeFileName(string fileName)
     {
