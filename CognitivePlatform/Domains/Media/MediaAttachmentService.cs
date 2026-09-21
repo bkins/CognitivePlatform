@@ -138,13 +138,12 @@ public sealed class MediaAttachmentService : IMediaAttachmentService
 
     public Task<bool> DeleteAttachmentAsync(string id)
     {
-        foreach (var candidate in GetCompatibleIds(id))
-        {
-            if (_store.SoftDelete<MediaAttachment>(candidate, partitionKey: null))
-                return Task.FromResult(true);
-        }
+        var attachment = GetByCompatibleId(id);
+        if (attachment is null)
+            return Task.FromResult(false);
 
-        return Task.FromResult(false);
+        return Task.FromResult(
+            _store.SoftDelete<MediaAttachment>(attachment.Id, partitionKey: null));
     }
 
     public Task<int> GetAttachmentCountAsync(string ownerType, string ownerId)

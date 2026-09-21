@@ -309,6 +309,12 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task DeleteAttachmentAsync_ReturnsTrue_WhenSoftDeleteSucceeds()
     {
+        _storeMock.Setup(store => store.Get<MediaAttachment>("id1", null))
+                  .Returns(new MediaAttachment
+                  {
+                      Id = "id1", OwnerType = "JournalEntry", OwnerId = "owner",
+                      FileName = "file.png", ContentType = "image/png", StoragePath = "C:\\media\\file.png"
+                  });
         _storeMock.Setup(store => store.SoftDelete<MediaAttachment>("id1", null)).Returns(true);
 
         var result = await _service.DeleteAttachmentAsync("id1");
@@ -329,6 +335,12 @@ public class MediaAttachmentServiceTests
     [Fact]
     public async Task DeleteAttachmentAsync_DoesNotDeleteFile()
     {
+        _storeMock.Setup(store => store.Get<MediaAttachment>("id1", null))
+                  .Returns(new MediaAttachment
+                  {
+                      Id = "id1", OwnerType = "JournalEntry", OwnerId = "owner",
+                      FileName = "file.png", ContentType = "image/png", StoragePath = "C:\\media\\file.png"
+                  });
         _storeMock.Setup(store => store.SoftDelete<MediaAttachment>("id1", null)).Returns(true);
 
         await _service.DeleteAttachmentAsync("id1");
@@ -341,12 +353,44 @@ public class MediaAttachmentServiceTests
     {
         var id = Guid.NewGuid();
         var storedId = id.ToString("N");
+        _storeMock.Setup(store => store.Get<MediaAttachment>(storedId, null))
+                  .Returns(new MediaAttachment
+                  {
+                      Id = storedId, OwnerType = "JournalEntry", OwnerId = "owner",
+                      FileName = "file.png", ContentType = "image/png", StoragePath = "C:\\media\\file.png"
+                  });
         _storeMock.Setup(store => store.SoftDelete<MediaAttachment>(storedId, null)).Returns(true);
 
         var result = await _service.DeleteAttachmentAsync(id.ToString());
 
         Assert.True(result);
         _storeMock.Verify(store => store.SoftDelete<MediaAttachment>(storedId, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAttachmentAsync_Deletes_Resolved_Stored_Key_When_Store_Reports_NoOp_As_Success()
+    {
+        var id = Guid.NewGuid();
+        var requestedId = id.ToString("D");
+        var storedId = id.ToString("N");
+        var attachment = new MediaAttachment
+        {
+            Id = storedId,
+            OwnerType = "JournalEntry",
+            OwnerId = Guid.NewGuid().ToString("N"),
+            FileName = "receipt.png",
+            ContentType = "image/png",
+            StoragePath = "C:\\media\\receipt.png"
+        };
+        _storeMock.Setup(store => store.Get<MediaAttachment>(requestedId, null)).Returns((MediaAttachment?)null);
+        _storeMock.Setup(store => store.Get<MediaAttachment>(storedId, null)).Returns(attachment);
+        _storeMock.Setup(store => store.SoftDelete<MediaAttachment>(It.IsAny<string>(), null)).Returns(true);
+
+        var result = await _service.DeleteAttachmentAsync(requestedId);
+
+        Assert.True(result);
+        _storeMock.Verify(store => store.SoftDelete<MediaAttachment>(storedId, null), Times.Once);
+        _storeMock.Verify(store => store.SoftDelete<MediaAttachment>(requestedId, null), Times.Never);
     }
 
     // -----------------------------------------------------------------------
