@@ -1,6 +1,8 @@
 @page "/release"
 @using System.Diagnostics
 @using System.IO.Compression
+@using System.Security.Cryptography
+@using System.Text
 @using System.Text.Json
 @using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
@@ -59,16 +61,17 @@
 @* ── Version + Environment ── *@
 <MudPaper Elevation="1" Class="pa-3 mb-4">
     <MudStack Row="true" AlignItems="AlignItems.End" Spacing="3" Wrap="Wrap.Wrap">
-        <MudTextField @bind-Value="_version"
-                      Label="Version"
-                      HelperText="Used by Build and Deploy scripts."
+        <MudTextField Value="@(_version.HasNoValue() ? _nextAvailableVersion : _version)"
+                      Label="@(_version.HasNoValue() ? "Next available version" : "Reserved release version")"
+                      HelperText="@(_version.HasNoValue() ? "Reserved automatically when a build or release starts." : $"Locked to release run {_releaseRunId}")"
+                      ReadOnly="true"
                       Style="min-width:220px" />
         <MudButton Variant="Variant.Outlined"
-                   Color="Color.Default"
-                   StartIcon="@Icons.Material.Filled.Refresh"
-                   Disabled="@_rs.IsRunning"
-                   OnClick="@RegenerateVersion">
-            Regenerate
+                   Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.AddCircleOutline"
+                   Disabled="@(_rs.IsRunning || _version.HasNoValue())"
+                   OnClick="@StartNewReleaseAsync">
+            Start New Release
         </MudButton>
         <MudSpacer />
         <MudText Typo="Typo.body2" Style="line-height:40px;padding-right:4px">Environment:</MudText>
@@ -82,6 +85,12 @@
             </MudButton>
         }
     </MudStack>
+    @if (_versionGuidance.HasValue())
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+            @_versionGuidance
+        </MudAlert>
+    }
 </MudPaper>
 
 @* ── API ── *@
@@ -735,7 +744,10 @@
     private string  _gitDirectory        = string.Empty;
     private string? _workDirWarning;
     private string? _gitDirWarning;
-    private string  _version             = string.Empty; //GenerateVersion();
+    private string  _version             = string.Empty;
+    private string  _nextAvailableVersion = string.Empty;
+    private string  _releaseRunId         = string.Empty;
+    private string? _versionGuidance;
     private string  _selectedEnvironment = "DEV";
     private string  _customExe           = string.Empty;
     private string  _customArgs          = string.Empty;
@@ -759,14 +771,7 @@
       , _      => _selectedEnvironment
     };
 
-    private void RegenerateVersion() => _version = ReleaseVersionService.IncrementBuild();
-
-    private void EnsureVersion()
-    {
-        if (_version.HasNoValue()) _version = ReleaseVersionService.GetCurrentVersion();
-    }
-
-    private string EffectiveVersion => string.IsNullOrWhiteSpace(_version) ? ReleaseVersionService.GetCurrentVersion() : _version;
+    private string EffectiveVersion => _version;
 
     private static Color EnvButtonColor(string env) => env switch
     {
@@ -788,10 +793,69 @@
     {
         TerminalService.StateChanged += OnTerminalChanged;
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
-        _version = ReleaseVersionService.IncrementBuild();
+        RefreshVersionState();
         LoadArtifacts();
         LoadDeploymentState();
         LoadAuditLog();
+    }
+
+    private void RefreshVersionState()
+    {
+        var state = ReleaseVersionService.GetState();
+        _nextAvailableVersion = state.NextAvailableVersion;
+        _version = state.ActiveReservation?.Version ?? string.Empty;
+        _releaseRunId = state.ActiveReservation?.RunId ?? string.Empty;
+    }
+
+    private async Task<bool> EnsureVersionAsync(string componentScope)
+    {
+        var request = await CreateReservationRequestAsync(componentScope);
+        try
+        {
+            var reservation = ReleaseVersionService.Reserve(request);
+            _version = reservation.Version;
+            _releaseRunId = reservation.RunId;
+            _versionGuidance = null;
+            RefreshVersionState();
+            return true;
+        }
+        catch (InvalidOperationException exception)
+        {
+            _versionGuidance = exception.Message;
+            await InvokeAsync(StateHasChanged);
+            return false;
+        }
+    }
+
+    private async Task StartNewReleaseAsync()
+    {
+        var state = ReleaseVersionService.GetState();
+        if (state.ActiveReservation is null) return;
+
+        var request = await CreateReservationRequestAsync(state.ActiveReservation.ComponentScope);
+        var reservation = ReleaseVersionService.StartNew(request, "Operator selected Start New Release in CP Admin.");
+        _version = reservation.Version;
+        _releaseRunId = reservation.RunId;
+        _versionGuidance = null;
+        RefreshVersionState();
+    }
+
+    private async Task<ReleaseReservationRequest> CreateReservationRequestAsync(string componentScope)
+    {
+        var sourceIdentity = await GetGitHashAsync() ?? $"unavailable:{Path.GetFullPath(_gitDirectory.HasValue() ? _gitDirectory : _workingDirectory)}";
+        var configurationText = $"{_selectedEnvironment}|{componentScope}|{Path.GetFullPath(_workingDirectory)}|{Path.GetFullPath(_gitDirectory)}";
+        var configurationIdentity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(configurationText)));
+        return new ReleaseReservationRequest( _selectedEnvironment
+                                            , componentScope
+                                            , sourceIdentity
+                                            , configurationIdentity
+                                            , Environment.UserName);
+    }
+
+    private void CompleteCurrentReservation()
+    {
+        ReleaseVersionService.Complete(_version);
+        RefreshVersionState();
     }
 
     private void OnTerminalChanged(string id)
@@ -940,7 +1004,7 @@
 
     private async Task BuildApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("API")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("API", ApiArtifactDir);
@@ -948,18 +1012,21 @@
 
     private async Task DeployApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("API")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
+        {
             await WriteDeploymentStateAsync("API", _selectedEnvironment
                                           , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            CompleteCurrentReservation();
+        }
     }
 
     private async Task BuildAndDeployApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("API")) return;
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" ));
@@ -969,12 +1036,13 @@
             await WriteDeploymentStateAsync("API", _selectedEnvironment
                                           , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            CompleteCurrentReservation();
         }
     }
 
     private async Task BuildLaaAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("Laa")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactsPath ""{LaaArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
@@ -982,16 +1050,19 @@
 
     private async Task DeployLaaAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("Laa")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
+        {
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+            CompleteCurrentReservation();
+        }
     }
 
     private async Task BuildAndDeployLaaAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("Laa")) return;
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactsPath ""{LaaArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version ""{EffectiveVersion}""" ));
@@ -999,12 +1070,13 @@
         {
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
             await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+            CompleteCurrentReservation();
         }
     }
 
     private async Task BuildLaaWindowsAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("LaaWindows")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{LaaWinArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
@@ -1012,18 +1084,21 @@
 
     private async Task DeployLaaWindowsAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("LaaWindows")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactPath ""{LaaWinArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)
+        {
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+            CompleteCurrentReservation();
+        }
     }
 
     private async Task BuildAndDeployLaaWindowsAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("LaaWindows")) return;
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Build.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{LaaWinArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactPath ""{LaaWinArtifactDir}""" ));
@@ -1033,12 +1108,13 @@
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+            CompleteCurrentReservation();
         }
     }
 
     private async Task BuildCocoApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
@@ -1046,18 +1122,21 @@
 
     private async Task DeployCocoApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunAsync(PwshExe
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
+        {
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            CompleteCurrentReservation();
+        }
     }
 
     private async Task BuildAndDeployCocoApiAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunCoreAsync(_workingDirectory
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" ));
@@ -1067,12 +1146,13 @@
             await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
                                           , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
                                           , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            CompleteCurrentReservation();
         }
     }
 
     private async Task RunPipelineAsync()
     {
-        EnsureVersion();
+        if (!await EnsureVersionAsync("API,CocoAPI,Laa,LaaWindows")) return;
         await RunCoreAsync(_workingDirectory
             // API
             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
@@ -1107,6 +1187,7 @@
             await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
+            CompleteCurrentReservation();
         }
     }
 
