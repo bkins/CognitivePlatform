@@ -23,6 +23,7 @@ builder.Services.AddTransient<EnvironmentRoutingHandler>();
 builder.Services.AddSingleton<ITerminalStateService, TerminalStateService>();
 builder.Services.AddSingleton<IPowerShellResolver, PowerShellResolver>();
 builder.Services.AddSingleton<IReleaseVersionService, ReleaseVersionService>();
+builder.Services.AddSingleton<IReleaseSourceIdentityService, ReleaseSourceIdentityService>();
 
 builder.Services.AddTransient<IToolScriptLoader, ToolScriptLoader>();
 builder.Services.AddTransient<IToolMetadataReader, ToolMetadataReader>();

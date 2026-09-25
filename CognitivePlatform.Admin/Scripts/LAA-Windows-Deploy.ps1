@@ -45,6 +45,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "1.0.0.1" }
 
+$payloadManifestTools = Join-Path $PSScriptRoot "PayloadManifest.ps1"
+if (-not (Test-Path -LiteralPath $payloadManifestTools -PathType Leaf)) {
+    throw "Payload manifest tools not found: $payloadManifestTools"
+}
+. $payloadManifestTools
+
 $exeName = "LocalAIAssistant.Ui.Maui.exe"
 
 $deployPathMap = @{
@@ -76,7 +82,7 @@ if (-not (Test-Path -LiteralPath $exeInArtifacts -PathType Leaf)) {
     throw "Executable not found in artifact path: $exeInArtifacts"
 }
 
-$artifactSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $exeInArtifacts).Hash
+$artifactManifest = Test-PayloadManifest -RootPath $artifactPathResolved
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
 $backupPath = "$deployPath.backup.$timestamp"
 $stagingPath = "$deployPath.staging.$([Guid]::NewGuid().ToString('N'))"
@@ -85,7 +91,9 @@ $backupCreated = $false
 $deployPathWithSeparator = $deployPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
 
 Write-Host "Deploy path: $deployPath"
-Write-Host "SHA-256:    $artifactSha256"
+Write-Host "Payload manifest: $($artifactManifest.ManifestPath)"
+Write-Host "Payload files: $($artifactManifest.FileCount)"
+Write-Host "Payload manifest SHA-256: $($artifactManifest.ManifestSha256)"
 Write-Host ""
 
 try {
@@ -94,10 +102,9 @@ try {
     Get-ChildItem -LiteralPath $artifactPathResolved -Force |
         Copy-Item -Destination $stagingPath -Recurse -Force
 
-    $stagedExe = Join-Path $stagingPath $exeName
-    $stagedSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $stagedExe).Hash
-    if ($stagedSha256 -ne $artifactSha256) {
-        throw "Staged executable hash mismatch. Expected $artifactSha256 but found $stagedSha256."
+    $stagedManifest = Test-PayloadManifest -RootPath $stagingPath
+    if ($stagedManifest.ManifestSha256 -ne $artifactManifest.ManifestSha256) {
+        throw "Payload manifest mismatch after staging. Expected $($artifactManifest.ManifestSha256) but found $($stagedManifest.ManifestSha256)."
     }
 
     $stagedSettings = Join-Path $stagingPath 'appsettings.json'
@@ -112,7 +119,8 @@ try {
         Version       = $Version
         DeployedAt    = (Get-Date -Format "o")
         DeployedBy    = $env:USERNAME
-        ArtifactSha256 = $artifactSha256
+        PayloadManifestSha256 = $artifactManifest.ManifestSha256
+        PayloadFileCount      = $artifactManifest.FileCount
     } | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
 
     $processName = [System.IO.Path]::GetFileNameWithoutExtension($exeName)
@@ -144,10 +152,9 @@ try {
     Write-Host "Activating staged deployment..."
     Move-Item -LiteralPath $stagingPath -Destination $deployPath
 
-    $deployedExe = Join-Path $deployPath $exeName
-    $deployedSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $deployedExe).Hash
-    if ($deployedSha256 -ne $artifactSha256) {
-        throw "Deployed executable hash mismatch. Expected $artifactSha256 but found $deployedSha256."
+    $deployedManifest = Test-PayloadManifest -RootPath $deployPath
+    if ($deployedManifest.ManifestSha256 -ne $artifactManifest.ManifestSha256) {
+        throw "Payload manifest mismatch after activation. Expected $($artifactManifest.ManifestSha256) but found $($deployedManifest.ManifestSha256)."
     }
     if (-not (Test-Path -LiteralPath (Join-Path $deployPath 'deployment.json') -PathType Leaf)) {
         throw 'Deployment metadata is missing after activation.'
@@ -171,7 +178,8 @@ Write-Host "Deployment Successful"
 Write-Host "========================================"
 Write-Host "Deployed: v$Version to $Environment"
 Write-Host "Location: $deployPath"
-Write-Host "SHA-256: $artifactSha256"
+Write-Host "Payload manifest SHA-256: $($artifactManifest.ManifestSha256)"
+Write-Host "Verified payload files: $($artifactManifest.FileCount)"
 if ($backupCreated) { Write-Host "Rollback: $backupPath" }
 Write-Host ""
 Write-Host "To launch: & `"$deployPath\$exeName`""

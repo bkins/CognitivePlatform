@@ -11,6 +11,7 @@
 @inject IJSRuntime            Js
 @inject IPowerShellResolver    PowerShellResolver
 @inject IReleaseVersionService ReleaseVersionService
+@inject IReleaseSourceIdentityService ReleaseSourceIdentityService
 @inject IWebHostEnvironment   HostEnvironment
 
 <PageTitle>Release Management — CP Admin</PageTitle>
@@ -48,7 +49,7 @@
     <MudTextField Value="_gitDirectory"
                   ValueChanged="@((string val) => SaveGitDirectoryAsync(val))"
                   Label="Git repository directory"
-                  HelperText="Used exclusively for Git Status / Pull buttons. Saved in your browser."
+                  HelperText="Used exclusively for Git Status / Pull buttons. Release identities are recorded automatically from the configured CognitivePlatform and LAA repositories."
                   FullWidth="true"
                   Adornment="Adornment.Start"
                   AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
@@ -315,13 +316,28 @@
                                 <MudText Typo="Typo.caption">@(context.Item.Meta?.BuiltFor ?? "—")</MudText>
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Commit">
+                        <TemplateColumn Title="Source commits">
                             <CellTemplate>
                                 @{
-                                    var hash = context.Item.Meta?.GitCommitHash;
-                                    var shortHash = hash?.Length > 7 ? hash[..7] : hash;
+                                    var cognitivePlatformHash = context.Item.Meta?.CognitivePlatformCommitHash ?? context.Item.Meta?.GitCommitHash;
+                                    var localAiAssistantHash = context.Item.Meta?.LocalAIAssistantCommitHash;
+                                    var cognitivePlatformShortHash = cognitivePlatformHash?.Length > 7 ? cognitivePlatformHash[..7] : cognitivePlatformHash;
+                                    var localAiAssistantShortHash = localAiAssistantHash?.Length > 7 ? localAiAssistantHash[..7] : localAiAssistantHash;
                                 }
-                                <MudText Typo="Typo.caption" Style="font-family:monospace">@(shortHash ?? "—")</MudText>
+                                <MudText Typo="Typo.caption" Style="font-family:monospace">
+                                    CP @(cognitivePlatformShortHash ?? "—")@if (localAiAssistantShortHash.HasValue()) { <text> · LAA @localAiAssistantShortHash</text> }
+                                </MudText>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Payload manifest">
+                            <CellTemplate>
+                                @{
+                                    var payloadManifestHash = context.Item.Meta?.PayloadManifestSha256;
+                                    var payloadManifestShortHash = payloadManifestHash?.Length > 12 ? payloadManifestHash[..12] : payloadManifestHash;
+                                }
+                                <MudText Typo="Typo.caption" Style="font-family:monospace">
+                                    @(payloadManifestShortHash ?? "—")@if (context.Item.Meta?.PayloadFileCount is int payloadFileCount) { <text> · @payloadFileCount files</text> }
+                                </MudText>
                             </CellTemplate>
                         </TemplateColumn>
                         <TemplateColumn Title="Deploy to environment" SortBy="@(_ => string.Empty)">
@@ -687,6 +703,11 @@
         public string?   Version        { get; init; }
         public string?   BuiltFor       { get; init; }
         public string?   GitCommitHash  { get; init; }
+        public string?   SourceIdentity { get; init; }
+        public string?   CognitivePlatformCommitHash { get; init; }
+        public string?   LocalAIAssistantCommitHash  { get; init; }
+        public string?   PayloadManifestSha256       { get; init; }
+        public int?      PayloadFileCount            { get; init; }
         public DateTime? BuildTimestamp { get; init; }
         public string?   BuildMachine   { get; init; }
         public string?   ConsoleVersion { get; init; }
@@ -792,7 +813,9 @@
     protected override void OnInitialized()
     {
         TerminalService.StateChanged += OnTerminalChanged;
-        _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? string.Empty;
+        _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? CpRepoRoot;
+        if (_workingDirectory.HasNoValue()) _workingDirectory = CpRepoRoot;
+        _gitDirectory = CpRepoRoot;
         RefreshVersionState();
         LoadArtifacts();
         LoadDeploymentState();
@@ -842,12 +865,12 @@
 
     private async Task<ReleaseReservationRequest> CreateReservationRequestAsync(string componentScope)
     {
-        var sourceIdentity = await GetGitHashAsync() ?? $"unavailable:{Path.GetFullPath(_gitDirectory.HasValue() ? _gitDirectory : _workingDirectory)}";
-        var configurationText = $"{_selectedEnvironment}|{componentScope}|{Path.GetFullPath(_workingDirectory)}|{Path.GetFullPath(_gitDirectory)}";
+        var sourceIdentity = await ReleaseSourceIdentityService.CreateSourceIdentityAsync(componentScope);
+        var configurationText = $"{_selectedEnvironment}|{componentScope}|{Path.GetFullPath(_workingDirectory)}|{Path.GetFullPath(ScriptsDir)}|{Path.GetFullPath(ArtifactsRoot)}";
         var configurationIdentity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(configurationText)));
         return new ReleaseReservationRequest( _selectedEnvironment
                                             , componentScope
-                                            , sourceIdentity
+                                            , sourceIdentity.Value
                                             , configurationIdentity
                                             , Environment.UserName);
     }
@@ -1201,14 +1224,36 @@
     {
         if (!Directory.Exists(artifactDir)) return;
 
-        var gitHash = await GetGitHashAsync();
+        var activeReservation = ReleaseVersionService.GetState().ActiveReservation;
+        var identityScope = activeReservation?.ComponentScope ?? componentName;
+        var sourceIdentity = await ReleaseSourceIdentityService.CreateSourceIdentityAsync(identityScope);
+        if (activeReservation is not null && activeReservation.SourceIdentity != sourceIdentity.Value)
+            throw new InvalidOperationException("Release source identity changed after version reservation. Start a new release before recording artifact metadata.");
+
+        string? payloadManifestSha256 = null;
+        int? payloadFileCount = null;
+        var payloadManifestPath = Path.Combine(artifactDir, "payload-manifest.json");
+        if (File.Exists(payloadManifestPath))
+        {
+            await using var manifestStream = File.OpenRead(payloadManifestPath);
+            payloadManifestSha256 = Convert.ToHexString(await SHA256.HashDataAsync(manifestStream));
+
+            using var manifestDocument = JsonDocument.Parse(await File.ReadAllTextAsync(payloadManifestPath));
+            if (manifestDocument.RootElement.TryGetProperty("files", out var files) && files.ValueKind == JsonValueKind.Array)
+                payloadFileCount = files.GetArrayLength();
+        }
 
         var meta = new
         {
             ComponentName  = componentName
           , Version        = _version
           , BuiltFor       = _selectedEnvironment
-          , GitCommitHash  = gitHash ?? string.Empty
+          , GitCommitHash  = sourceIdentity.LocalAIAssistantCommitHash ?? sourceIdentity.CognitivePlatformCommitHash
+          , SourceIdentity = sourceIdentity.Value
+          , sourceIdentity.CognitivePlatformCommitHash
+          , sourceIdentity.LocalAIAssistantCommitHash
+          , PayloadManifestSha256 = payloadManifestSha256
+          , PayloadFileCount = payloadFileCount
           , BuildTimestamp = DateTime.UtcNow
           , BuildMachine   = Environment.MachineName
           , ConsoleVersion = "2.0.0"
@@ -1293,32 +1338,6 @@
       , "PROD" => "Prod"
       , _      => env
     };
-
-    /// <summary>Returns the current HEAD commit hash from _gitDirectory, or null if unavailable.</summary>
-    private async Task<string?> GetGitHashAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_gitDirectory) || !Directory.Exists(_gitDirectory))
-            return null;
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName               = "git"
-              , Arguments              = "rev-parse HEAD"
-              , WorkingDirectory       = _gitDirectory
-              , RedirectStandardOutput = true
-              , UseShellExecute        = false
-              , CreateNoWindow         = true
-            };
-            using var proc = Process.Start(psi);
-            if (proc is null) return null;
-            var output = await proc.StandardOutput.ReadToEndAsync();
-            await proc.WaitForExitAsync();
-            return proc.ExitCode == 0 ? output.Trim() : null;
-        }
-        catch { return null; }
-    }
 
     private Task PublishNuGetsAsync()
         => RunAsync(PwshExe

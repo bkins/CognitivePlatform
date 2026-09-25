@@ -45,6 +45,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "1.0.0.1" }
 
+$payloadManifestTools = Join-Path $PSScriptRoot "PayloadManifest.ps1"
+if (-not (Test-Path -LiteralPath $payloadManifestTools -PathType Leaf)) {
+    throw "Payload manifest tools not found: $payloadManifestTools"
+}
+. $payloadManifestTools
+
 function Log {
     param ([string]$Message)
     Write-Host "[BUILD][$Environment] $Message"
@@ -134,8 +140,13 @@ try {
         }
     }
 
+    $payloadManifest = New-PayloadManifest -RootPath $OutputPath
+
     Log "Build complete!"
     Log "  Executable: $exePath"
+    Log "  Payload manifest: $($payloadManifest.ManifestPath)"
+    Log "  Payload files: $($payloadManifest.FileCount)"
+    Log "  Payload manifest SHA-256: $($payloadManifest.ManifestSha256)"
     Log "  Version:    $Version"
     Log "  Environment: $Environment"
 
