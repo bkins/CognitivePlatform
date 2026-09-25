@@ -1239,7 +1239,7 @@
             payloadManifestSha256 = Convert.ToHexString(await SHA256.HashDataAsync(manifestStream));
 
             using var manifestDocument = JsonDocument.Parse(await File.ReadAllTextAsync(payloadManifestPath));
-            if (manifestDocument.RootElement.TryGetProperty("files", out var files) && files.ValueKind == JsonValueKind.Array)
+            if (manifestDocument.RootElement.TryGetProperty("Files", out var files) && files.ValueKind == JsonValueKind.Array)
                 payloadFileCount = files.GetArrayLength();
         }
 

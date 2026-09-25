@@ -13,6 +13,7 @@ public sealed class ReleaseManagementSourceIdentityContractTests
         Assert.Contains("LocalAIAssistantCommitHash", Page, StringComparison.Ordinal);
         Assert.Contains("PayloadManifestSha256", Page, StringComparison.Ordinal);
         Assert.Contains("PayloadFileCount", Page, StringComparison.Ordinal);
+        Assert.Contains("TryGetProperty(\"Files\"", Page, StringComparison.Ordinal);
     }
 
     [Fact]
