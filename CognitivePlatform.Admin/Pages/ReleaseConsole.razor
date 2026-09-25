@@ -13,6 +13,8 @@
 @inject IReleaseVersionService ReleaseVersionService
 @inject IReleaseSourceIdentityService ReleaseSourceIdentityService
 @inject IWebHostEnvironment   HostEnvironment
+@inject EnvironmentService    EnvService
+@inject IDialogService        DialogService
 
 <PageTitle>Release Management — CP Admin</PageTitle>
 
@@ -75,15 +77,17 @@
             Start New Release
         </MudButton>
         <MudSpacer />
-        <MudText Typo="Typo.body2" Style="line-height:40px;padding-right:4px">Environment:</MudText>
-        @foreach (var env in new[] { "DEV", "QA", "PROD" })
+        <MudChip T="string"
+                 Color="@EnvChipColor(SelectedEnvironment)"
+                 Variant="Variant.Filled"
+                 Icon="@Icons.Material.Filled.Public">
+            Header target: @SelectedEnvironment
+        </MudChip>
+        @if (_operationEnvironment.HasValue())
         {
-            <MudButton Variant="@(_selectedEnvironment == env ? Variant.Filled : Variant.Outlined)"
-                       Color="Color.Primary"
-                       Disabled="@_rs.IsRunning"
-                       OnClick="@(() => _selectedEnvironment = env)">
-                @env
-            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Operation target: @_operationEnvironment
+            </MudText>
         }
     </MudStack>
     @if (_versionGuidance.HasValue())
@@ -109,14 +113,14 @@
                StartIcon="@Icons.Material.Filled.Upload"
                Disabled="@_rs.IsRunning"
                OnClick="@DeployApiAsync">
-        Deploy API → @_selectedEnvironment
+        Deploy API → @SelectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
                Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployApiAsync">
-        Build + Deploy API → @_selectedEnvironment
+        Build + Deploy API → @SelectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -135,14 +139,14 @@
                StartIcon="@Icons.Material.Filled.Upload"
                Disabled="@_rs.IsRunning"
                OnClick="@DeployCocoApiAsync">
-        Deploy Coco API → @_selectedEnvironment
+        Deploy Coco API → @SelectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
                Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployCocoApiAsync">
-        Build + Deploy Coco API → @_selectedEnvironment
+        Build + Deploy Coco API → @SelectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -161,14 +165,14 @@
                StartIcon="@Icons.Material.Filled.PhoneAndroid"
                Disabled="@_rs.IsRunning"
                OnClick="@DeployLaaAsync">
-        Deploy LAA → @_selectedEnvironment
+        Deploy LAA → @SelectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
                Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployLaaAsync">
-        Build + Deploy LAA → @_selectedEnvironment
+        Build + Deploy LAA → @SelectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -180,7 +184,7 @@
                StartIcon="@Icons.Material.Filled.FastForward"
                Disabled="@_rs.IsRunning"
                OnClick="@RunPipelineAsync">
-        Build + Deploy All → @_selectedEnvironment
+        Build + Deploy All → @SelectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -199,14 +203,14 @@
                StartIcon="@Icons.Material.Filled.Computer"
                Disabled="@_rs.IsRunning"
                OnClick="@DeployLaaWindowsAsync">
-        Deploy LAA Windows → @_selectedEnvironment
+        Deploy LAA Windows → @SelectedEnvironment
     </MudButton>
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.PlayArrow"
                Disabled="@_rs.IsRunning"
                OnClick="@BuildAndDeployLaaWindowsAsync">
-        Build + Deploy LAA Windows → @_selectedEnvironment
+        Build + Deploy LAA Windows → @SelectedEnvironment
     </MudButton>
 </MudStack>
 
@@ -340,24 +344,18 @@
                                 </MudText>
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Deploy to environment" SortBy="@(_ => string.Empty)">
+                        <TemplateColumn Title="Deploy" SortBy="@(_ => string.Empty)">
                             <CellTemplate>
                                 @if (context.Item.CanDeployFromArtifact)
                                 {
-                                    <MudStack Row="true" Spacing="1">
-                                        @foreach (var env in new[] { "DEV", "QA", "PROD" })
-                                        {
-                                            var capturedEnv     = env;
-                                            var capturedArtifact = context.Item;
-                                            <MudButton Size="Size.Small"
-                                                       Variant="Variant.Outlined"
-                                                       Color="@EnvButtonColor(capturedEnv)"
-                                                       Disabled="@_rs.IsRunning"
-                                                       OnClick="@(() => DeployArtifactAsync(capturedArtifact, capturedEnv))">
-                                                @capturedEnv
-                                            </MudButton>
-                                        }
-                                    </MudStack>
+                                    var capturedArtifact = context.Item;
+                                    <MudButton Size="Size.Small"
+                                               Variant="Variant.Outlined"
+                                               Color="@EnvButtonColor(SelectedEnvironment)"
+                                               Disabled="@_rs.IsRunning"
+                                               OnClick="@(() => DeployArtifactAsync(capturedArtifact))">
+                                        Deploy → @SelectedEnvironment
+                                    </MudButton>
                                 }
                                 else
                                 {
@@ -521,48 +519,36 @@
         </MudText>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
             <MudText Typo="Typo.body2" Style="min-width:80px">API:</MudText>
-            @foreach (var env in new[] { "DEV", "QA", "PROD" })
-            {
-                var capturedEnv = env;
-                <MudButton Variant="Variant.Outlined"
-                           Color="@EnvButtonColor(capturedEnv)"
-                           Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_rs.IsRunning"
-                           OnClick="@(() => StartApiAsync(capturedEnv))">
-                    @capturedEnv
-                </MudButton>
-            }
+            <MudButton Variant="Variant.Outlined"
+                       Color="@EnvButtonColor(SelectedEnvironment)"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       Disabled="@_rs.IsRunning"
+                       OnClick="@StartSelectedApiAsync">
+                Start → @SelectedEnvironment
+            </MudButton>
         </MudStack>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
             <MudText Typo="Typo.body2" Style="min-width:80px">LAA Windows:</MudText>
-            @foreach (var env in new[] { "DEV", "QA", "PROD" })
-            {
-                var capturedEnv = env;
-                <MudButton Variant="Variant.Outlined"
-                           Color="@EnvButtonColor(capturedEnv)"
-                           Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.Computer"
-                           Disabled="@_rs.IsRunning"
-                           OnClick="@(() => StartLaaWindowsAsync(capturedEnv))">
-                    @capturedEnv
-                </MudButton>
-            }
+            <MudButton Variant="Variant.Outlined"
+                       Color="@EnvButtonColor(SelectedEnvironment)"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Computer"
+                       Disabled="@_rs.IsRunning"
+                       OnClick="@StartSelectedLaaWindowsAsync">
+                Start → @SelectedEnvironment
+            </MudButton>
         </MudStack>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
             <MudText Typo="Typo.body2" Style="min-width:80px">Coco API:</MudText>
-            @foreach (var env in new[] { "DEV", "QA", "PROD" })
-            {
-                var capturedEnv = env;
-                <MudButton Variant="Variant.Outlined"
-                           Color="@EnvButtonColor(capturedEnv)"
-                           Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.PlayArrow"
-                           Disabled="@_rs.IsRunning"
-                           OnClick="@(() => StartCocoApiAsync(capturedEnv))">
-                    @capturedEnv
-                </MudButton>
-            }
+            <MudButton Variant="Variant.Outlined"
+                       Color="@EnvButtonColor(SelectedEnvironment)"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       Disabled="@_rs.IsRunning"
+                       OnClick="@StartSelectedCocoApiAsync">
+                Start → @SelectedEnvironment
+            </MudButton>
         </MudStack>
     </MudExpansionPanel>
 
@@ -769,7 +755,8 @@
     private string  _nextAvailableVersion = string.Empty;
     private string  _releaseRunId         = string.Empty;
     private string? _versionGuidance;
-    private string  _selectedEnvironment = "DEV";
+    private string? _operationEnvironment;
+    private string? _confirmedProductionTarget;
     private string  _customExe           = string.Empty;
     private string  _customArgs          = string.Empty;
 
@@ -784,12 +771,14 @@
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
+    private string SelectedEnvironment => _operationEnvironment ?? ValidateEnvironment(EnvService.Current);
+
     // LAA scripts use Pascal-cased environment names (Dev / QA / Prod)
-    private string LaaEnvironment => _selectedEnvironment switch
+    private string LaaEnvironment => SelectedEnvironment switch
     {
         "DEV"  => "Dev"
       , "PROD" => "Prod"
-      , _      => _selectedEnvironment
+      , _      => SelectedEnvironment
     };
 
     private string EffectiveVersion => _version;
@@ -813,6 +802,7 @@
     protected override void OnInitialized()
     {
         TerminalService.StateChanged += OnTerminalChanged;
+        EnvService.EnvironmentChanged += OnEnvironmentChanged;
         _workingDirectory = Configuration["ReleaseConsole:WorkingDirectory"] ?? CpRepoRoot;
         if (_workingDirectory.HasNoValue()) _workingDirectory = CpRepoRoot;
         _gitDirectory = CpRepoRoot;
@@ -830,8 +820,16 @@
         _releaseRunId = state.ActiveReservation?.RunId ?? string.Empty;
     }
 
-    private async Task<bool> EnsureVersionAsync(string componentScope)
+    private async Task<bool> EnsureVersionAsync(
+        string componentScope
+      , [System.Runtime.CompilerServices.CallerMemberName] string operationName = "")
     {
+        var target = CaptureOperationEnvironment();
+        var operation = DescribeOperationName(operationName);
+        _confirmedProductionTarget = null;
+        if (!await ConfirmProductionOperationAsync(componentScope, operation, target)) return false;
+        _confirmedProductionTarget = target == "PROD" ? target : null;
+
         var request = await CreateReservationRequestAsync(componentScope);
         try
         {
@@ -852,6 +850,7 @@
 
     private async Task StartNewReleaseAsync()
     {
+        CaptureOperationEnvironment();
         var state = ReleaseVersionService.GetState();
         if (state.ActiveReservation is null) return;
 
@@ -866,9 +865,9 @@
     private async Task<ReleaseReservationRequest> CreateReservationRequestAsync(string componentScope)
     {
         var sourceIdentity = await ReleaseSourceIdentityService.CreateSourceIdentityAsync(componentScope);
-        var configurationText = $"{_selectedEnvironment}|{componentScope}|{Path.GetFullPath(_workingDirectory)}|{Path.GetFullPath(ScriptsDir)}|{Path.GetFullPath(ArtifactsRoot)}";
+        var configurationText = $"{SelectedEnvironment}|{componentScope}|{Path.GetFullPath(_workingDirectory)}|{Path.GetFullPath(ScriptsDir)}|{Path.GetFullPath(ArtifactsRoot)}";
         var configurationIdentity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(configurationText)));
-        return new ReleaseReservationRequest( _selectedEnvironment
+        return new ReleaseReservationRequest( SelectedEnvironment
                                             , componentScope
                                             , sourceIdentity.Value
                                             , configurationIdentity
@@ -886,6 +885,29 @@
         if (id != "release") return;
         try { _ = InvokeAsync(async () => { StateHasChanged(); await ScrollToBottomAsync(); }); }
         catch { /* component disposed */ }
+    }
+
+    private void OnEnvironmentChanged()
+    {
+        if (!TerminalService.Get("release").IsRunning)
+            _operationEnvironment = null;
+
+        try { _ = InvokeAsync(StateHasChanged); }
+        catch { /* component disposed */ }
+    }
+
+    private string CaptureOperationEnvironment()
+    {
+        _operationEnvironment = ValidateEnvironment(EnvService.Current);
+        return _operationEnvironment;
+    }
+
+    private static string ValidateEnvironment(string? environment)
+    {
+        var normalized = environment?.Trim().ToUpperInvariant();
+        return normalized is "DEV" or "QA" or "PROD"
+            ? normalized
+            : throw new InvalidOperationException("Release Management requires a valid DEV, QA, or PROD header environment.");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1029,7 +1051,7 @@
     {
         if (!await EnsureVersionAsync("API")) return;
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("API", ApiArtifactDir);
     }
 
@@ -1037,12 +1059,12 @@
     {
         if (!await EnsureVersionAsync("API")) return;
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
         {
-            await WriteDeploymentStateAsync("API", _selectedEnvironment
-                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("API", SelectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(SelectedEnvironment)));
             CompleteCurrentReservation();
         }
     }
@@ -1051,14 +1073,14 @@
     {
         if (!await EnsureVersionAsync("API")) return;
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("API", ApiArtifactDir);
-            await WriteDeploymentStateAsync("API", _selectedEnvironment
-                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("API", SelectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(SelectedEnvironment)));
             CompleteCurrentReservation();
         }
     }
@@ -1078,7 +1100,7 @@
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
         {
-            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+            await WriteDeploymentStateAsync("Laa", SelectedEnvironment);
             CompleteCurrentReservation();
         }
     }
@@ -1092,7 +1114,7 @@
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
-            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+            await WriteDeploymentStateAsync("Laa", SelectedEnvironment);
             CompleteCurrentReservation();
         }
     }
@@ -1112,7 +1134,7 @@
                      , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {LaaEnvironment} -Version ""{EffectiveVersion}"" -ArtifactPath ""{LaaWinArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)
         {
-            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+            await WriteDeploymentStateAsync("LaaWindows", SelectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
             CompleteCurrentReservation();
@@ -1128,7 +1150,7 @@
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
-            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+            await WriteDeploymentStateAsync("LaaWindows", SelectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
             CompleteCurrentReservation();
@@ -1139,7 +1161,7 @@
     {
         if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""");
         if (TerminalService.Get("release").ExitCode == 0)await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
     }
 
@@ -1147,12 +1169,12 @@
     {
         if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunAsync(PwshExe
-                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""");
+                     , $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""");
         if (TerminalService.Get("release").ExitCode == 0)
         {
-            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
-                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("CocoAPI", SelectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(SelectedEnvironment)));
             CompleteCurrentReservation();
         }
     }
@@ -1161,14 +1183,14 @@
     {
         if (!await EnsureVersionAsync("CocoAPI")) return;
         await RunCoreAsync(_workingDirectory
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
-                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" ));
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" ));
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
-            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
-                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("CocoAPI", SelectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(SelectedEnvironment)));
             CompleteCurrentReservation();
         }
     }
@@ -1178,11 +1200,11 @@
         if (!await EnsureVersionAsync("API,CocoAPI,Laa,LaaWindows")) return;
         await RunCoreAsync(_workingDirectory
             // API
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{ApiArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{ApiArtifactDir}"" -Version ""{EffectiveVersion}""" )
             // Coco API
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {_selectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
-            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {_selectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Build.ps1"" -Environment {SelectedEnvironment} -Version ""{EffectiveVersion}"" -OutputPath ""{CocoArtifactDir}""" )
+            , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Coco-Deploy.ps1"" -Environment {SelectedEnvironment} -SourcePath ""{CocoArtifactDir}"" -Version ""{EffectiveVersion}""" )
             // LAA Android
             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Build.ps1"" -Environment {LaaEnvironment} -Version {_version} -ArtifactsPath ""{LaaArtifactDir}""" )
             , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\Laa-Deploy.ps1"" -Environment {LaaEnvironment} -SourcePath ""{LaaArtifactDir}"" -Version {_version}" )
@@ -1194,20 +1216,20 @@
         if (TerminalService.Get("release").ExitCode == 0)
         {
             await WriteArtifactMetadataAsync("API", ApiArtifactDir);
-            await WriteDeploymentStateAsync("API", _selectedEnvironment
-                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("API", SelectedEnvironment
+                                          , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(SelectedEnvironment)));
 
             await WriteArtifactMetadataAsync("CocoAPI", CocoArtifactDir);
-            await WriteDeploymentStateAsync("CocoAPI", _selectedEnvironment
-                                          , apkName: $"Coco.API.{DeployStateEnvName(_selectedEnvironment)}.exe"
-                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(_selectedEnvironment)));
+            await WriteDeploymentStateAsync("CocoAPI", SelectedEnvironment
+                                          , apkName: $"Coco.API.{DeployStateEnvName(SelectedEnvironment)}.exe"
+                                          , appId:   Path.Combine(StagingCocoDir, DeployStateEnvName(SelectedEnvironment)));
 
             await WriteArtifactMetadataAsync("Laa", LaaArtifactDir);
-            await WriteDeploymentStateAsync("Laa", _selectedEnvironment);
+            await WriteDeploymentStateAsync("Laa", SelectedEnvironment);
 
             await WriteArtifactMetadataAsync("LaaWindows", LaaWinArtifactDir);
-            await WriteDeploymentStateAsync("LaaWindows", _selectedEnvironment
+            await WriteDeploymentStateAsync("LaaWindows", SelectedEnvironment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
                                           , appId:   Path.Combine(StagingLaaWindowsDir, LaaEnvironment));
             CompleteCurrentReservation();
@@ -1247,7 +1269,7 @@
         {
             ComponentName  = componentName
           , Version        = _version
-          , BuiltFor       = _selectedEnvironment
+          , BuiltFor       = SelectedEnvironment
           , GitCommitHash  = sourceIdentity.LocalAIAssistantCommitHash ?? sourceIdentity.CognitivePlatformCommitHash
           , SourceIdentity = sourceIdentity.Value
           , sourceIdentity.CognitivePlatformCommitHash
@@ -1359,8 +1381,9 @@
 
     // ── Deploy from artifact store ─────────────────────────────────────────────
 
-    private async Task DeployArtifactAsync(ArtifactEntry artifact, string environment)
+    private async Task DeployArtifactAsync(ArtifactEntry artifact)
     {
+        var environment = CaptureOperationEnvironment();
         if (artifact.ZipPath is null || !File.Exists(artifact.ZipPath))
         {
             TerminalService.Clear("release");
@@ -1478,6 +1501,27 @@
             catch { /* skip */ }
         }
         return "wt";
+    }
+
+    private async Task StartSelectedApiAsync()
+    {
+        var target = CaptureOperationEnvironment();
+        if (await ConfirmProductionOperationAsync("CognitivePlatform API", "start", target))
+            await StartApiAsync(target);
+    }
+
+    private async Task StartSelectedCocoApiAsync()
+    {
+        var target = CaptureOperationEnvironment();
+        if (await ConfirmProductionOperationAsync("Coco API", "start", target))
+            await StartCocoApiAsync(target);
+    }
+
+    private async Task StartSelectedLaaWindowsAsync()
+    {
+        var target = CaptureOperationEnvironment();
+        if (await ConfirmProductionOperationAsync("LAA Windows", "start", target))
+            await StartLaaWindowsAsync(target);
     }
 
     private async Task StartApiAsync(string env)
@@ -1751,8 +1795,15 @@
         var state = TerminalService.Get("release");
         if (state.IsRunning) return;
 
+        var capturedEnvironment = _operationEnvironment ?? CaptureOperationEnvironment();
+        var (component, operation) = DescribeOperation(steps);
+        if (_confirmedProductionTarget != capturedEnvironment
+         && !await ConfirmProductionOperationAsync(component, operation, capturedEnvironment)) return;
+        if (!RevalidateProductionTarget(capturedEnvironment)) return;
+
         TerminalService.Clear("release");
         TerminalService.MarkRunning("release", true, ReleaseTimeout);
+        TerminalService.AppendLine("release", new TerminalLine($"[Operation target: {capturedEnvironment}]", TerminalLineKind.PassSummary));
 
         var effectiveWorkDir = workDir;
         if ( ! string.IsNullOrWhiteSpace(effectiveWorkDir)
@@ -1804,13 +1855,13 @@
                     var args = step.Args;
                     if (args.Contains("API-Deploy.ps1"))
                     {
-                        var env = _selectedEnvironment;
+                        var env = SelectedEnvironment;
                         var envDir = DeployStateEnvName(env);
                         deployedComponents.Add(("CognitivePlatform API", $"C:\\CP\\Deploy\\API\\{envDir}"));
                     }
                     else if (args.Contains("Coco-Deploy.ps1"))
                     {
-                        var env = _selectedEnvironment;
+                        var env = SelectedEnvironment;
                         var envDir = DeployStateEnvName(env);
                         deployedComponents.Add(("Coco.API", $"C:\\CP\\Deploy\\Coco\\{envDir}"));
                     }
@@ -1820,7 +1871,7 @@
                     }
                     else if (args.Contains("LAA-Windows-Deploy.ps1"))
                     {
-                        var env = _selectedEnvironment;
+                        var env = SelectedEnvironment;
                         var envDir = DeployStateEnvName(env);
                         deployedComponents.Add(("Local AI Assistant (Windows)", $"C:\\CP\\Deploy\\LaaWindows\\{envDir}"));
                     }
@@ -1848,7 +1899,73 @@
         {
             TerminalService.SetExitCode("release", lastExitCode);
             TerminalService.MarkRunning("release", false);
+            _confirmedProductionTarget = null;
         }
+    }
+
+    private async Task<bool> ConfirmProductionOperationAsync(string component, string operation, string capturedTarget)
+    {
+        if (capturedTarget != "PROD") return true;
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Production Operation"
+          , $"Run {operation} for {component} against PROD? The target is captured for this operation."
+          , yesText: $"Run on PROD"
+          , cancelText: "Cancel");
+
+        if (confirmed != true) return false;
+
+        if (ValidateEnvironment(EnvService.Current) == capturedTarget) return true;
+
+        TerminalService.Clear("release");
+        TerminalService.AppendLine("release"
+                                 , new TerminalLine("[Production target changed before execution. Operation blocked.]"
+                                                  , TerminalLineKind.Error));
+        TerminalService.SetExitCode("release", 1);
+        return false;
+    }
+
+    private bool RevalidateProductionTarget(string capturedTarget)
+    {
+        if (capturedTarget != "PROD" || ValidateEnvironment(EnvService.Current) == capturedTarget) return true;
+
+        TerminalService.Clear("release");
+        TerminalService.AppendLine("release"
+                                 , new TerminalLine("[Production target changed before execution. Operation blocked.]"
+                                                  , TerminalLineKind.Error));
+        TerminalService.SetExitCode("release", 1);
+        return false;
+    }
+
+    private static string DescribeOperationName(string operationName)
+    {
+        if (operationName.Contains("BuildAndDeploy", StringComparison.Ordinal)) return "build and deploy";
+        if (operationName.Contains("Deploy", StringComparison.Ordinal)) return "deploy";
+        if (operationName.Contains("Build", StringComparison.Ordinal)) return "build";
+        return "release operation";
+    }
+
+    private static (string Component, string Operation) DescribeOperation((string Exe, string Args)[] steps)
+    {
+        var commandText = string.Join(' ', steps.Select(step => step.Args));
+        var component = commandText switch
+        {
+            var text when text.Contains("LAA-Windows", StringComparison.OrdinalIgnoreCase) => "LAA Windows"
+          , var text when text.Contains("Laa-", StringComparison.OrdinalIgnoreCase)         => "LAA Android"
+          , var text when text.Contains("Coco-", StringComparison.OrdinalIgnoreCase)        => "Coco API"
+          , var text when text.Contains("API-", StringComparison.OrdinalIgnoreCase)         => "CognitivePlatform API"
+          , _                                                                              => "Release Management"
+        };
+        var hasBuild = commandText.Contains("Build", StringComparison.OrdinalIgnoreCase);
+        var hasDeploy = commandText.Contains("Deploy", StringComparison.OrdinalIgnoreCase);
+        var operation = (hasBuild, hasDeploy) switch
+        {
+            (true, true) => "build and deploy"
+          , (true, false) => "build"
+          , (false, true) => "deploy"
+          , _ => "operation"
+        };
+        return (component, operation);
     }
 
     private void Abort()       => TerminalService.Abort("release");
@@ -1867,6 +1984,7 @@
     public ValueTask DisposeAsync()
     {
         TerminalService.StateChanged -= OnTerminalChanged;
+        EnvService.EnvironmentChanged -= OnEnvironmentChanged;
         return ValueTask.CompletedTask;
     }
 }

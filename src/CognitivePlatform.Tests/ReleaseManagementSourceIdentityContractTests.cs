@@ -23,6 +23,35 @@ public sealed class ReleaseManagementSourceIdentityContractTests
         Assert.Contains("Release identities are recorded automatically", Page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReleaseManagement_UsesHeaderEnvironmentAsTheOnlyDeploymentAuthority()
+    {
+        Assert.Contains("@inject EnvironmentService", Page, StringComparison.Ordinal);
+        Assert.Contains("SelectedEnvironment => _operationEnvironment ?? ValidateEnvironment(EnvService.Current)", Page, StringComparison.Ordinal);
+        Assert.DoesNotContain("_selectedEnvironment", Page, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeployArtifactAsync(capturedArtifact, capturedEnv)", Page, StringComparison.Ordinal);
+        Assert.Contains("DeployArtifactAsync(capturedArtifact)", Page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseManagement_CapturesAndDisplaysTheOperationTarget()
+    {
+        Assert.Contains("CaptureOperationEnvironment()", Page, StringComparison.Ordinal);
+        Assert.Contains("Operation target:", Page, StringComparison.Ordinal);
+        Assert.Contains("_operationEnvironment = null", Page, StringComparison.Ordinal);
+        Assert.Contains("ValidateEnvironment(EnvService.Current)", Page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseManagement_RequiresTargetSpecificProductionConfirmation()
+    {
+        Assert.Contains("ConfirmProductionOperationAsync", Page, StringComparison.Ordinal);
+        Assert.Contains("component", Page, StringComparison.Ordinal);
+        Assert.Contains("operation", Page, StringComparison.Ordinal);
+        Assert.Contains("PROD", Page, StringComparison.Ordinal);
+        Assert.Contains("Production target changed before execution", Page, StringComparison.Ordinal);
+    }
+
     private static string FindPage()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
