@@ -680,7 +680,11 @@
                                        , ArtifactMeta? Meta)
     {
         // API artifacts have a single zip; LAA artifacts are env-specific APK subdirs
-        public bool CanDeployFromArtifact => ZipPath is not null && File.Exists(ZipPath);
+        public bool IsLaaWindowsDirectory => Component.Equals("LaaWindows", StringComparison.OrdinalIgnoreCase)
+                                          && File.Exists(Path.Combine(Directory, "payload-manifest.json"))
+                                          && File.Exists(Path.Combine(Directory, "LocalAIAssistant.Ui.Maui.exe"));
+
+        public bool CanDeployFromArtifact => ZipPath is not null && File.Exists(ZipPath) || IsLaaWindowsDirectory;
     }
 
     private sealed record ArtifactMeta
@@ -1384,6 +1388,12 @@
     private async Task DeployArtifactAsync(ArtifactEntry artifact)
     {
         var environment = CaptureOperationEnvironment();
+        if (artifact.IsLaaWindowsDirectory)
+        {
+            await DeployLaaWindowsArtifactAsync(artifact, environment);
+            return;
+        }
+
         if (artifact.ZipPath is null || !File.Exists(artifact.ZipPath))
         {
             TerminalService.Clear("release");
@@ -1414,6 +1424,21 @@
             LoadAuditLog();
             StateHasChanged();
         }
+    }
+
+    private async Task DeployLaaWindowsArtifactAsync(ArtifactEntry artifact, string environment)
+    {
+        await RunCoreAsync(artifact.Directory
+                         , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {environment} -Version ""{artifact.Version}"" -ArtifactPath ""{artifact.Directory}""" ));
+
+        if (TerminalService.Get("release").ExitCode == 0)
+            await WriteDeploymentStateAsync("LaaWindows", environment
+                                          , apkName: "LocalAIAssistant.Ui.Maui.exe"
+                                          , appId:   LaaWindowsEnvDir(environment));
+
+        LoadDeploymentState();
+        LoadAuditLog();
+        StateHasChanged();
     }
 
     // ── Start deployed apps ────────────────────────────────────────────────────
