@@ -24,6 +24,13 @@ public sealed class Rel01ArtifactPromotionContractTests
         Assert.DoesNotContain("LAA-Windows-Build.ps1", ExtractMethod("DeployLaaWindowsArtifactAsync"), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReleaseManagement_RecordsPromotedArtifactVersionInDeploymentState()
+    {
+        Assert.Contains("version: artifact.Version", Page, StringComparison.Ordinal);
+        Assert.Contains("Version       = version ?? _version", Page, StringComparison.Ordinal);
+    }
+
     private static string ExtractMethod(string methodName)
     {
         var start = Page.IndexOf(methodName, StringComparison.Ordinal);

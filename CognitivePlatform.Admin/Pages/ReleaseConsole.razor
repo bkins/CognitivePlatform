@@ -1309,7 +1309,8 @@
     private async Task WriteDeploymentStateAsync( string  componentName
                                                  , string  environment
                                                  , string? apkName = null
-                                                 , string? appId   = null )
+                                                 , string? appId   = null
+                                                 , string? version = null )
     {
         var envName = DeployStateEnvName(environment);
         var key     = $"{componentName}_{envName}";
@@ -1337,7 +1338,7 @@
         {
             ComponentName = componentName
           , Environment   = envName
-          , Version       = _version
+          , Version       = version ?? _version
           , ApkName       = apkName
           , AppId         = appId
           , DeployedAt    = DateTime.UtcNow
@@ -1419,7 +1420,8 @@
             if (TerminalService.Get("release").ExitCode == 0)
                 await WriteDeploymentStateAsync(artifact.Component, environment
                                                , apkName: $"CognitivePlatform.Api.{DeployStateEnvName(environment)}.exe"
-                                               , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(environment)));
+                                               , appId:   Path.Combine(StagingApiDir, DeployStateEnvName(environment))
+                                               , version: artifact.Version);
             LoadDeploymentState();
             LoadAuditLog();
             StateHasChanged();
@@ -1434,7 +1436,8 @@
         if (TerminalService.Get("release").ExitCode == 0)
             await WriteDeploymentStateAsync("LaaWindows", environment
                                           , apkName: "LocalAIAssistant.Ui.Maui.exe"
-                                          , appId:   LaaWindowsEnvDir(environment));
+                                          , appId:   LaaWindowsEnvDir(environment)
+                                          , version: artifact.Version);
 
         LoadDeploymentState();
         LoadAuditLog();
