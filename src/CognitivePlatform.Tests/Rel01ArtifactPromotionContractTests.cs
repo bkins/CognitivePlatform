@@ -31,9 +31,18 @@ public sealed class Rel01ArtifactPromotionContractTests
         Assert.Contains("Version       = version ?? _version", Page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReleaseManagement_ReportsPromotedArtifactVersionInPipelineSummary()
+    {
+        var method = ExtractMethod("DeployLaaWindowsArtifactAsync");
+
+        Assert.Contains("RunCoreAsync(artifact.Directory, artifact.Version", method, StringComparison.Ordinal);
+        Assert.Contains("Version:  {summaryVersion ?? _version}", Page, StringComparison.Ordinal);
+    }
+
     private static string ExtractMethod(string methodName)
     {
-        var start = Page.IndexOf(methodName, StringComparison.Ordinal);
+        var start = Page.IndexOf($"private async Task {methodName}", StringComparison.Ordinal);
         var end   = Page.IndexOf("\n    }", start, StringComparison.Ordinal);
         return Page[start..(end + 6)];
     }

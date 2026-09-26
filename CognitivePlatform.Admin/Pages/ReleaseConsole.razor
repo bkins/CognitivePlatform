@@ -1408,7 +1408,7 @@
             Directory.CreateDirectory(tempDir);
             ZipFile.ExtractToDirectory(artifact.ZipPath, tempDir);
 
-            await RunCoreAsync(tempDir
+            await RunCoreAsync(tempDir, artifact.Version
                              , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\API-Deploy.ps1"" -Environment {environment} -SourcePath ""{tempDir}"" -Version {artifact.Version}" ));
         }
         finally
@@ -1430,7 +1430,7 @@
 
     private async Task DeployLaaWindowsArtifactAsync(ArtifactEntry artifact, string environment)
     {
-        await RunCoreAsync(artifact.Directory
+        await RunCoreAsync(artifact.Directory, artifact.Version
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {environment} -Version ""{artifact.Version}"" -ArtifactPath ""{artifact.Directory}""" ));
 
         if (TerminalService.Get("release").ExitCode == 0)
@@ -1818,7 +1818,13 @@
 
     // ── Core execution ─────────────────────────────────────────────────────────
 
-    private async Task RunCoreAsync(string workDir, params (string Exe, string Args)[] steps)
+    private Task RunCoreAsync(string workDir, string summaryVersion, params (string Exe, string Args)[] steps)
+        => RunCoreAsync(workDir, steps, summaryVersion);
+
+    private Task RunCoreAsync(string workDir, params (string Exe, string Args)[] steps)
+        => RunCoreAsync(workDir, steps, summaryVersion: null);
+
+    private async Task RunCoreAsync(string workDir, (string Exe, string Args)[] steps, string? summaryVersion)
     {
         var state = TerminalService.Get("release");
         if (state.IsRunning) return;
@@ -1914,7 +1920,7 @@
                     foreach (var (comp, loc) in deployedComponents)
                     {
                         TerminalService.AppendLine("release", new TerminalLine($"   • Deployed: {comp}", TerminalLineKind.PassSummary));
-                        TerminalService.AppendLine("release", new TerminalLine($"     Version:  {_version}", TerminalLineKind.PassSummary));
+                        TerminalService.AppendLine("release", new TerminalLine($"     Version:  {summaryVersion ?? _version}", TerminalLineKind.PassSummary));
                         TerminalService.AppendLine("release", new TerminalLine($"     Target:   {loc}", TerminalLineKind.PassSummary));
                         TerminalService.AppendLine("release", new TerminalLine(string.Empty));
                     }
