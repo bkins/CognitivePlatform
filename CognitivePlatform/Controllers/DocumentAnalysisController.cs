@@ -24,6 +24,7 @@ public sealed class DocumentAnalysisController : Controller
     private readonly IEmbeddingService                        _embeddings;
     private readonly IWebHostEnvironment                      _environment;
     private readonly DocumentAnalysisGate                     _gate;
+    private readonly IDocumentModelRevisionResolver           _revisions;
 
     public DocumentAnalysisController( IOptionsMonitor<DocumentAnalysisSettings> settings
                                      , IOptions<LlmClientSettings>              llmSettings
@@ -31,7 +32,8 @@ public sealed class DocumentAnalysisController : Controller
                                      , ILlmClientFactory                        clients
                                      , IEmbeddingService                        embeddings
                                      , IWebHostEnvironment                      environment
-                                     , DocumentAnalysisGate                     gate )
+                                     , DocumentAnalysisGate                     gate
+                                     , IDocumentModelRevisionResolver           revisions )
     {
         _settings          = settings;
         _llmSettings       = llmSettings;
@@ -40,11 +42,17 @@ public sealed class DocumentAnalysisController : Controller
         _embeddings        = embeddings;
         _environment       = environment;
         _gate              = gate;
+        _revisions         = revisions;
     }
 
     [HttpGet("capabilities")]
-    public IActionResult Capabilities() => Ok(new
+    public async Task<IActionResult> Capabilities(CancellationToken cancellationToken)
     {
+        var embeddingRevision = await _revisions.ResolveAsync(_embeddingSettings.Value.OllamaBaseUrl, _embeddingSettings.Value.EmbeddingModel, cancellationToken);
+        var insightRevision = _clients.DefaultProvider == LlmProvider.Ollama
+            ? await _revisions.ResolveAsync(_llmSettings.Value.Endpoint, _llmSettings.Value.DefaultModel, cancellationToken) : null;
+        return Ok(new
+        {
         protocolVersion = 1
       , insightsProvider = _clients.DefaultProvider.ToString()
       , insightsModel = _clients.DefaultProvider == LlmProvider.Ollama ? _llmSettings.Value.DefaultModel : null
@@ -54,11 +62,13 @@ public sealed class DocumentAnalysisController : Controller
       , embeddingsModel = _embeddingSettings.Value.EmbeddingModel
       , embeddingsConfigured = _embeddings is not DisconnectedEmbeddingService
       , embeddingDimensions = (int?)null
-      , modelRevision = (string?)null
-      , availability = "not_probed"
+      , embeddingsRevision = embeddingRevision
+      , insightsRevision = insightRevision
+      , availability = embeddingRevision is not null || insightRevision is not null ? "catalog_model_present" : "catalog_model_missing_or_unreachable"
       , maxDocuments = 16
       , maxTextCharacters = 200_000
-    });
+        });
+    }
 
     [HttpPost("embeddings")]
     public Task<IActionResult> Embeddings(DocumentAnalysisRequest request, CancellationToken cancellationToken)
@@ -113,14 +123,17 @@ public sealed class DocumentAnalysisController : Controller
         var references = request.Documents.Select(document => new { document.ReferenceKey, document.SourceHash }).ToArray();
         if (embedding)
         {
+            var revision = await _revisions.ResolveAsync(_embeddingSettings.Value.OllamaBaseUrl, _embeddingSettings.Value.EmbeddingModel, cancellationToken);
             var vectors = await _embeddings.EmbedBatchAsync(request.Documents.Select(document => document.Text).ToArray(), cancellationToken);
+            var afterRevision = await _revisions.ResolveAsync(_embeddingSettings.Value.OllamaBaseUrl, _embeddingSettings.Value.EmbeddingModel, cancellationToken);
+            if (revision != afterRevision) return StatusCode(409, new { code = "embedding_model_changed" });
             if (vectors.Length != references.Length || vectors.Any(vector => vector is null || vector.Length is < 1 or > 8192
                                                                           || vector.Any(value => !float.IsFinite(value)))
                                                     || vectors.Any(vector => vector.Length != vectors[0].Length))
                 return StatusCode(502, new { code = "invalid_embedding_response" });
             return Ok(new { request.ProtocolVersion, request.ClientRequestId, references, vectors
                           , provider = "Ollama", model = _embeddingSettings.Value.EmbeddingModel
-                          , dimensions = vectors[0].Length, modelRevision = (string?)null
+                          , dimensions = vectors[0].Length, modelRevision = revision
                           , provenance = "configured_model_not_provider_attested", simulated = false });
         }
 

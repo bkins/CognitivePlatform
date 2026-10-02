@@ -139,6 +139,9 @@ public sealed class DocumentAnalysisControllerTests
         builder.Services.AddSingleton(factory.Object);
         builder.Services.AddSingleton(embeddings ?? Mock.Of<IEmbeddingService>());
         builder.Services.AddSingleton<DocumentAnalysisGate>();
+        var revisions = new Mock<IDocumentModelRevisionResolver>();
+        revisions.Setup(service => service.ResolveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("test-revision");
+        builder.Services.AddSingleton(revisions.Object);
         builder.Services.AddControllers().AddApplicationPart(typeof(DocumentAnalysisController).Assembly);
         var host = builder.Build();
         host.MapControllers();
