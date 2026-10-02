@@ -40,7 +40,7 @@ public sealed class CompanionShellController : ControllerBase
         <section id="connected" hidden><label for="workspace">Shared workspace</label><select id="workspace"></select>
         <div id="layout"><aside><label for="query">Literal search in saved documents</label><input id="query" maxlength="512"><button id="search">Search</button><button id="more" hidden>Search next batch</button>
         <div id="hits" aria-label="Search results"></div><h2>Workspace tree</h2><div id="files"></div></aside>
-        <main><button id="refresh" disabled>Refresh current document</button><button id="source" disabled>Show source</button><p id="freshness"></p><article id="reader" aria-label="Saved document preview"></article><pre id="markdown" hidden></pre></main></div></section>
+        <main><button id="refresh" disabled>Refresh current document</button><button id="source" disabled>Show source</button><p id="freshness"></p><pre id="metadata" aria-label="Saved classification and relationship context"></pre><article id="reader" aria-label="Saved document preview"></article><pre id="markdown" hidden></pre></main></div></section>
         </body></html>
         """;
 
@@ -50,7 +50,7 @@ public sealed class CompanionShellController : ControllerBase
         let key='', currentPath=null, currentHash=null, currentWorkspace=null, nextOffset=null, sessionGeneration=0, workspaceGeneration=0, readGeneration=0, searchGeneration=0, lastQuery='';
         element('identity').textContent=`Server: ${location.origin}. Read-only; no editing, account upload or synchronized copy.`;
         function clearSession(message){sessionGeneration++;workspaceGeneration++;readGeneration++;searchGeneration++;key='';currentPath=null;currentHash=null;currentWorkspace=null;nextOffset=null;
-          for(const id of ['files','hits','reader','markdown','freshness'])element(id).replaceChildren();
+          for(const id of ['files','hits','reader','markdown','freshness','metadata'])element(id).replaceChildren();
           element('reader').hidden=false;element('markdown').hidden=true;element('refresh').disabled=element('source').disabled=true;element('source').textContent='Show source';element('key').value='';element('workspace').replaceChildren();element('connected').hidden=true;element('login').hidden=false;element('disconnect').hidden=true;element('status').textContent=message;}
         async function request(route,body){const generation=sessionGeneration, scope=workspaceGeneration, submittedKey=key;const cancellation=new AbortController(), timer=setTimeout(()=>cancellation.abort(),12000);
           try{const response=await fetch('/api/companion/'+route,{method:body?'POST':'GET',headers:{'X-Companion-Key':key,...(body?{'Content-Type':'application/json'}:{})},
@@ -61,7 +61,7 @@ public sealed class CompanionShellController : ControllerBase
         async function run(operation){try{await operation();}catch(error){element('status').textContent=key?'Service unavailable; last displayed snapshot is retained in memory only. Refresh to check freshness.': 'Access unavailable. Check the dedicated credential and explicitly shared workspace configuration.';}}
         function sourceButton(label,path,parent){const button=document.createElement('button');button.type='button';button.textContent=label;button.title=path;button.onclick=()=>run(()=>read(path));parent.append(button);}
         async function loadWorkspace(){workspaceGeneration++;readGeneration++;searchGeneration++;lastQuery='';currentWorkspace=element('workspace').value;currentPath=null;currentHash=null;nextOffset=null;
-          for(const id of ['files','hits','reader','markdown','freshness'])element(id).replaceChildren();element('refresh').disabled=element('source').disabled=true;element('more').hidden=true;
+          for(const id of ['files','hits','reader','markdown','freshness','metadata'])element(id).replaceChildren();element('refresh').disabled=element('source').disabled=true;element('more').hidden=true;
           const data=await request('files?'+new URLSearchParams({workspaceId:currentWorkspace}));const groups=new Map([['',element('files')]]);
           for(const file of data.files){let prefix='',parent=element('files');const parts=file.path.split('/');
             for(const folder of parts.slice(0,-1)){prefix+=folder+'/';if(!groups.has(prefix)){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=folder;details.append(summary);parent.append(details);groups.set(prefix,details);}parent=groups.get(prefix);}
@@ -75,6 +75,7 @@ public sealed class CompanionShellController : ControllerBase
           for(const node of parsed.querySelectorAll('*'))for(const attribute of [...node.attributes])if(!['class','start','colspan','rowspan'].includes(attribute.name))node.removeAttribute(attribute.name);
           for(const anchor of parsed.querySelectorAll('a'))anchor.replaceWith(document.createTextNode(anchor.textContent));
           element('reader').replaceChildren(...[...parsed.body.childNodes].map(node=>document.importNode(node,true)));element('markdown').textContent=data.markdown;
+          const metadata=data.metadata;element('metadata').textContent=metadata?.available?`Saved metadata at ${metadata.readUtc}; revision ${metadata.revision??'none'}\nType: ${metadata.type??'none'}\nTags: ${metadata.tags.join(', ')}\nAliases: ${metadata.aliases.join(', ')}\n${metadata.relationships.map(relation=>`${relation.direction}: ${relation.kind} · ${relation.relatedDocumentId} (access not implied)`).join('\n')}`:metadata?.status??'Metadata context unavailable.';
           element('freshness').textContent=`${path}\nRead ${data.readUtc}\nSHA-256 ${data.contentHash}\n${changed?'Changed since previous read.':'Saved source snapshot; refresh to check for changes.'}${data.documentId?'\nAxiom document ID: '+data.documentId:''}`;
           element('refresh').disabled=element('source').disabled=false;element('status').textContent='Read-only preview. Active URLs/images are omitted; source text is available. No Markdown or metadata is changed.';}
         async function search(offset){const query=element('query').value;if(!query.trim())return;if(query!==lastQuery)offset=0;lastQuery=query;const generation=++searchGeneration;const data=await request('search',{workspaceId:currentWorkspace,query,offset});

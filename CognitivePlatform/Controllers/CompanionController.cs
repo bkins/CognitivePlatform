@@ -29,7 +29,9 @@ public sealed class CompanionController(IOptionsMonitor<CompanionSettings> setti
     public Task<IActionResult> Document(string workspaceId, string path, CancellationToken cancellationToken)
         => GuardAsync(async token =>
         {
-            var document = await reader.ReadAsync(Find(workspaceId), path, token);
+            var workspace = Find(workspaceId);
+            var document = await reader.ReadAsync(workspace, path, token);
+            document = document with { Metadata = await new CompanionMetadataReader().ReadAsync(workspace, path, document.DocumentId, token) };
             Response.Headers.ETag = '"' + document.ContentHash + '"';
             return Ok(document);
         }, cancellationToken);
