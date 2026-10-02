@@ -29,7 +29,7 @@ public sealed class CompanionMetadataReader
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = "SELECT Version FROM SchemaInfo LIMIT 1;";
-            if (Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) != 8) return Unavailable("Metadata schema is unsupported.");
+            if (Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) is not (8 or 9)) return Unavailable("Metadata schema is unsupported.");
             command.Parameters.AddWithValue("$id", documentId.Value.ToString("D"));
             command.CommandText = "SELECT FilePath FROM DocumentMetadata WHERE DocumentId=$id LIMIT 2;";
             var observedPaths = new List<string>();

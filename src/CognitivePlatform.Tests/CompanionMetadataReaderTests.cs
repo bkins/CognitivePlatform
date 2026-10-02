@@ -5,8 +5,10 @@ namespace CognitivePlatform.Tests;
 
 public sealed class CompanionMetadataReaderTests
 {
-    [Fact]
-    public async Task Reads_Only_Published_Path_Matched_Metadata_Without_Changing_Database()
+    [Theory]
+    [InlineData(8)]
+    [InlineData(9)]
+    public async Task Reads_Only_Published_Path_Matched_Metadata_Without_Changing_Database(int schemaVersion)
     {
         var root = Path.Combine(Path.GetTempPath(), "CP-companion-metadata-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -19,7 +21,8 @@ public sealed class CompanionMetadataReaderTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "CREATE TABLE SchemaInfo(Version INTEGER); INSERT INTO SchemaInfo VALUES(8); CREATE TABLE DocumentMetadata(DocumentId TEXT,FilePath TEXT); CREATE TABLE DocumentClassification(DocumentId TEXT,TagsJson TEXT,Type TEXT,AliasesJson TEXT,Revision INTEGER); CREATE TABLE DocumentRelationships(SourceId TEXT,TargetId TEXT,Kind TEXT,Revision INTEGER); INSERT INTO DocumentMetadata VALUES($id,$path); INSERT INTO DocumentClassification VALUES($id,'[\"Cedar\"]','Project','[\"Tree\"]',2); INSERT INTO DocumentRelationships VALUES($id,$related,'references',3);";
+            command.CommandText = "CREATE TABLE SchemaInfo(Version INTEGER); INSERT INTO SchemaInfo VALUES($schema); CREATE TABLE DocumentMetadata(DocumentId TEXT,FilePath TEXT); CREATE TABLE DocumentClassification(DocumentId TEXT,TagsJson TEXT,Type TEXT,AliasesJson TEXT,Revision INTEGER); CREATE TABLE DocumentRelationships(SourceId TEXT,TargetId TEXT,Kind TEXT,Revision INTEGER); INSERT INTO DocumentMetadata VALUES($id,$path); INSERT INTO DocumentClassification VALUES($id,'[\"Cedar\"]','Project','[\"Tree\"]',2); INSERT INTO DocumentRelationships VALUES($id,$related,'references',3);";
+            command.Parameters.AddWithValue("$schema", schemaVersion);
             command.Parameters.AddWithValue("$id", identity.ToString("D"));
             command.Parameters.AddWithValue("$related", related.ToString("D"));
             command.Parameters.AddWithValue("$path", source);
