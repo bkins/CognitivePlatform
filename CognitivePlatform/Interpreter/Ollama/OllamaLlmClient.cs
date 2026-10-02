@@ -97,6 +97,7 @@ public class OllamaLlmClient : ILlmClient
         return new LlmResponse
                {
                        Content    = content
+                     , ProviderModel = json.model
                      , Usage      = usage
                      , RateLimits = LlmRateLimitSnapshot.Empty
                };

@@ -58,10 +58,7 @@ public sealed class OllamaEmbeddingService : IEmbeddingService
 
             if (!response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning( "Ollama returned {Status} for embedding: {Body}"
-                                  , response.StatusCode
-                                  , body );
+                _logger.LogWarning("Ollama returned {Status} for embedding", response.StatusCode);
                 return Array.Empty<float>();
             }
 
@@ -72,7 +69,7 @@ public sealed class OllamaEmbeddingService : IEmbeddingService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "EmbedAsync failed for text of length {Length}", text.Length);
+            _logger.LogWarning("EmbedAsync failed for text of length {Length}", text.Length);
             return Array.Empty<float>();
         }
     }

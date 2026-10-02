@@ -76,6 +76,8 @@ public partial class Program
         builder.Services.AddCrossAppIntegrations(builder.Configuration);
 
         builder.Services.AddLlmServices(builder.Configuration);
+        builder.Services.Configure<CognitivePlatform.Api.DocumentAnalysis.DocumentAnalysisSettings>(builder.Configuration.GetSection("DocumentAnalysis"));
+        builder.Services.AddSingleton<CognitivePlatform.Api.DocumentAnalysis.DocumentAnalysisGate>();
 
         builder.Services.AddControllers()
                .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

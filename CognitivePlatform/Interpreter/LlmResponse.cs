@@ -11,6 +11,8 @@ namespace CognitivePlatform.Api.Interpreter;
 /// </summary>
 public sealed class LlmResponse
 {
+    /// <summary>Actual model identifier returned by the provider, when present.</summary>
+    public string? ProviderModel { get; init; }
     /// <summary>The raw text output produced by the model.</summary>
     public string Content { get; init; } = string.Empty;
 
