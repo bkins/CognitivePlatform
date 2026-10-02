@@ -79,6 +79,9 @@ public partial class Program
         builder.Services.Configure<CognitivePlatform.Api.DocumentAnalysis.DocumentAnalysisSettings>(builder.Configuration.GetSection("DocumentAnalysis"));
         builder.Services.AddSingleton<CognitivePlatform.Api.DocumentAnalysis.DocumentAnalysisGate>();
         builder.Services.AddSingleton<CognitivePlatform.Api.DocumentAnalysis.IDocumentModelRevisionResolver, CognitivePlatform.Api.DocumentAnalysis.DocumentModelRevisionResolver>();
+        builder.Services.Configure<CognitivePlatform.Api.Companion.CompanionSettings>(builder.Configuration.GetSection("Companion"));
+        builder.Services.AddSingleton<CognitivePlatform.Api.Companion.CompanionWorkspaceReader>();
+        builder.Services.AddSingleton<CognitivePlatform.Api.Companion.CompanionRequestGate>();
 
         builder.Services.AddControllers()
                .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="ConfigurationDiagnostics" Version="1.0.5" />
+    <PackageReference Include="Markdig" Version="0.38.0" />
     <ProjectReference Include="..\..\CP.Shared.Primitives\CP.Shared.Primitives\CP.Shared.Primitives.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.12.11" />
