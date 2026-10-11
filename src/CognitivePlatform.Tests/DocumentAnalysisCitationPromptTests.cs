@@ -60,6 +60,13 @@ public sealed class DocumentAnalysisCitationPromptTests
     }
 
     [Fact]
+    public void Original_Key_Resembling_An_Alias_Is_Never_Normalized_Twice()
+    {
+        var prompt = new DocumentAnalysisCitationPrompt([Source("S2", "Sun\nBatteries"), Source("wind-key", "Air\nBatteries")]);
+        Assert.Equal("[[S2|L1]], [[wind-key|L2]]", prompt.NormalizeCitations("[[S1|L1], [S2|L2]]"));
+    }
+
+    [Fact]
     public void Changed_Source_Hash_Cannot_Be_Normalized()
     {
         var source = Source("source-key", "Original");

@@ -41,15 +41,15 @@ public sealed partial class DocumentAnalysisCitationPrompt(IReadOnlyList<Documen
     public string NormalizeCitations(string text)
     {
         var count = 0;
-        var expanded = GroupCitation().Replace(text, match =>
+        return Token().Replace(text, match =>
         {
             var items = match.Groups["item"].Captures;
+            if (items.Count == 0) return ++count > 256 ? match.Value : ResolveCitation(match) ?? match.Value;
             if (count + items.Count > 256) return match.Value;
             count += items.Count;
             var resolved = items.Select(item => ResolveCitation(Citation().Match("[[" + item.Value + "]]"))).ToArray();
             return resolved.Any(item => item is null) ? match.Value : string.Join(", ", resolved);
         });
-        return Citation().Replace(expanded, match => ++count > 256 ? match.Value : ResolveCitation(match) ?? match.Value);
     }
 
     private string? ResolveCitation(Match match)
@@ -66,8 +66,8 @@ public sealed partial class DocumentAnalysisCitationPrompt(IReadOnlyList<Documen
             return "[[" + source.ReferenceKey + "|L" + first + (match.Groups["last"].Success ? "-L" + last : "") + "]]";
     }
 
-    [GeneratedRegex(@"\[\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)(?:\],\s*\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)){1,15}\]\]", RegexOptions.CultureInvariant)]
-    private static partial Regex GroupCitation();
+    [GeneratedRegex(@"\[\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)(?:\],\s*\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)){1,15}\]\]|\[\[(?:documents\|)?(?<id>S\d{1,2})\|L(?<first>\d{1,7})(?:-L(?<last>\d{1,7}))?\]\]", RegexOptions.CultureInvariant)]
+    private static partial Regex Token();
 
     [GeneratedRegex(@"\[\[(?:documents\|)?(?<id>S\d{1,2})\|L(?<first>\d{1,7})(?:-L(?<last>\d{1,7}))?\]\]", RegexOptions.CultureInvariant)]
     private static partial Regex Citation();

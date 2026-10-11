@@ -1,5 +1,11 @@
 # Development document analysis
 
+## Citation and grounding correction
+
+Insight prompts assign explicit request-owned S1…S16 IDs and original numbered source lines before inference. The response normalizer maps only issued IDs with matching snapshot hashes, safe original keys and valid ranges. Known documents-prefix and grouped citation syntax can normalize against that explicit map; an invalid group is retained unverified. Normalization is one pass so an original key that resembles an alias cannot be remapped to another source. Limits remain bounded; Axiom still validates canonical source locations independently.
+
+The prompt asks for complete evidence ranges, respects source exclusions and tells the model to stop when facts are absent rather than add outside knowledge. The isolated Axiom Qwen review profile uses installed qwen2.5:7b after reproduced phi3:mini exclusion failures. Existing configurations remain separate. Valid locations and successful bounded examples do not establish general claim truth or human acceptance. Exact candidates, source/model identities, failed experiments and pending checks are maintained in Axiom's Semantic Qwen Grounding Correction Review document.
+
 Optional read-only endpoints for Axiom's explicit document snapshots:
 
 - `GET /api/document-analysis/capabilities`
