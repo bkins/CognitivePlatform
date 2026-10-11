@@ -72,6 +72,26 @@ public sealed class DocumentAnalysisControllerTests
     }
 
     [Fact]
+    public async Task Insights_Return_Canonical_Request_Source_Keys_With_Hash_Manifest_Unchanged()
+    {
+        var provider = new Mock<ILlmClient>(MockBehavior.Strict);
+        provider.Setup(service => service.SendAsync(It.Is<string>(prompt => prompt.Contains("\"sourceId\":\"S1\"") && prompt.Contains("\"line\":1")), "test-model", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new LlmResponse { Content = "Fact [[documents|S1|L1]]. Unknown [[S9|L1]].", ProviderModel = "test-model" });
+        await using var host = await StartAsync(Enabled(), provider: provider.Object);
+        using var client = Client(host);
+        client.DefaultRequestHeaders.Add("X-Document-Analysis-Key", Key);
+        var request = Request();
+
+        var response = await client.PostAsJsonAsync("/api/document-analysis/insights", request);
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Fact [[document-1|L1]]. Unknown [[S9|L1]].", body.GetProperty("text").GetString());
+        Assert.Equal(request.Documents[0].SourceHash, body.GetProperty("references")[0].GetProperty("sourceHash").GetString());
+        Assert.Equal(request.Documents[0].ReferenceKey, body.GetProperty("references")[0].GetProperty("referenceKey").GetString());
+    }
+
+    [Fact]
     public async Task Insights_Sanitize_Provider_Errors_And_Have_No_Domain_Dependencies()
     {
         var provider = new Mock<ILlmClient>(MockBehavior.Strict);
