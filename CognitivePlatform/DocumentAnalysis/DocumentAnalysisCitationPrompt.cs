@@ -41,20 +41,33 @@ public sealed partial class DocumentAnalysisCitationPrompt(IReadOnlyList<Documen
     public string NormalizeCitations(string text)
     {
         var count = 0;
-        return Citation().Replace(text, match =>
+        var expanded = GroupCitation().Replace(text, match =>
         {
-            if (++count > 256 || !_sources.TryGetValue(match.Groups["id"].Value, out var source)
+            var items = match.Groups["item"].Captures;
+            if (count + items.Count > 256) return match.Value;
+            count += items.Count;
+            var resolved = items.Select(item => ResolveCitation(Citation().Match("[[" + item.Value + "]]"))).ToArray();
+            return resolved.Any(item => item is null) ? match.Value : string.Join(", ", resolved);
+        });
+        return Citation().Replace(expanded, match => ++count > 256 ? match.Value : ResolveCitation(match) ?? match.Value);
+    }
+
+    private string? ResolveCitation(Match match)
+    {
+            if (!_sources.TryGetValue(match.Groups["id"].Value, out var source)
              || source.ReferenceKey.IndexOfAny(['|', '[', ']', '\r', '\n']) >= 0
              || !string.Equals(source.SourceHash, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source.Text))), StringComparison.OrdinalIgnoreCase)
              || !int.TryParse(match.Groups["first"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var first)
              || !int.TryParse(match.Groups["last"].Success ? match.Groups["last"].Value : match.Groups["first"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var last)
              || first < 1 || last < first || last > source.Text.Split('\n').Length)
-                return match.Value;
+                return null;
             // IDs were explicitly assigned before inference to these verified request
             // snapshots. Never infer a mapping from the model's response order.
             return "[[" + source.ReferenceKey + "|L" + first + (match.Groups["last"].Success ? "-L" + last : "") + "]]";
-        });
     }
+
+    [GeneratedRegex(@"\[\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)(?:\],\s*\[(?<item>S\d{1,2}\|L\d{1,7}(?:-L\d{1,7})?)){1,15}\]\]", RegexOptions.CultureInvariant)]
+    private static partial Regex GroupCitation();
 
     [GeneratedRegex(@"\[\[(?:documents\|)?(?<id>S\d{1,2})\|L(?<first>\d{1,7})(?:-L(?<last>\d{1,7}))?\]\]", RegexOptions.CultureInvariant)]
     private static partial Regex Citation();

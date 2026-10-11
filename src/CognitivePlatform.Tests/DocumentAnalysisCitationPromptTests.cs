@@ -36,6 +36,16 @@ public sealed class DocumentAnalysisCitationPromptTests
     }
 
     [Theory]
+    [InlineData("[[S2|L1-L2], [S1|L2]]", "[[wind-key|L1-L2]], [[solar-key|L2]]")]
+    [InlineData("[[S2|L1], [S3|L1]]", "[[S2|L1], [S3|L1]]")]
+    [InlineData("[[S2|L1], [S1|L3]]", "[[S2|L1], [S1|L3]]")]
+    public void Grouped_Assigned_Citations_Resolve_Only_When_Every_Range_Is_Valid(string input, string expected)
+    {
+        var prompt = new DocumentAnalysisCitationPrompt([Source("solar-key", "Sun\nBatteries"), Source("wind-key", "Air\nBatteries")]);
+        Assert.Equal(expected, prompt.NormalizeCitations(input));
+    }
+
+    [Theory]
     [InlineData("[[S3|L1]]")]
     [InlineData("[[S1|L0]]")]
     [InlineData("[[S1|L3]]")]
