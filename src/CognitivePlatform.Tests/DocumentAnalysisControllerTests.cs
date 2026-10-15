@@ -121,6 +121,7 @@ public sealed class DocumentAnalysisControllerTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("oldText", prompt);
+        Assert.Contains("REQUIRED JSON FORMAT:", prompt);
         Assert.Contains("at most 3", prompt);
         Assert.DoesNotContain("Cite each factual claim", prompt);
         var request = Request();
