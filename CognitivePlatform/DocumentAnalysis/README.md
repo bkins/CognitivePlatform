@@ -5,6 +5,7 @@ Optional read-only endpoints for Axiom's explicit document snapshots:
 - `GET /api/document-analysis/capabilities`
 - `POST /api/document-analysis/embeddings`
 - `POST /api/document-analysis/insights`
+- `POST /api/document-analysis/edits` (one snapshot; bounded proposed text replacements only)
 
 All routes require `X-Document-Analysis-Key`. Configure `DocumentAnalysis:Enabled=true` and `DocumentAnalysis:ClientKeySha256` as the hexadecimal SHA-256 of a dedicated random credential containing 32–256 characters, through Development user-secrets/environment configuration. The raw credential belongs only in Axiom's session entry; never put it in Markdown, logs, source or committed settings. Rotate/revoke the configured hash or disable the feature. These routes fail closed outside Development. HTTP is accepted only for a loopback caller; remote callers require HTTPS. Existing health/Admin credentials are not accepted.
 
@@ -15,3 +16,5 @@ Version 1 POST requests contain `protocolVersion`, `clientRequestId`, `documents
 The controller has no conversation orchestrator, action registry, agent-job or persistent-domain dependencies. The isolated integration fixture in Axiom's `POCs/CpAnalysisIntegration` registers only these endpoints, provider clients and the dedicated gate: it exercises real HTTP with installed local Ollama models and synthetic text, without starting the normal CP hosted jobs/stores. The standard Development server remains disabled until an operator supplies its dedicated credential configuration. Tests and fixtures do not authorize Production deployment or establish human relevance/grounding acceptance.
 
 Verification: the existing CP regression suite and real Kestrel auth/revocation/non-Development/hash/error/timeout tests pass. Build with `-p:SkipKillRunningProcesses=true` when using an isolated checkout so the existing server is preserved. Baseline repository compiler warnings remain separate from the newly added endpoint logic.
+
+October 14 Axiom correction: `/edits` uses its own instruction path rather than the citation-based insight prompt. It asks for at most three focused replacements as JSON `{"edits":[{"oldText":"exact original text","newText":"replacement"}]}`. The same Development authorization, source hash/ref echo, timeout, cancellation, concurrency gate and sanitized provider errors apply. It neither applies edits nor writes document state. Capabilities advertises `editPatchesSupported`. Axiom validates bounded counts/lengths, unique exact original matches, non-overlap and identity preservation before constructing a preview; Apply remains a separate local user action. Existing insight/embedding contracts remain unchanged.

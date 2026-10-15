@@ -31,6 +31,7 @@ public sealed class DocumentAnalysisControllerTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/document-analysis/capabilities")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/document-analysis/insights", Request())).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/document-analysis/embeddings", Request())).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/document-analysis/edits", Request())).StatusCode);
         client.DefaultRequestHeaders.Add("X-Document-Analysis-Key", Key);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/document-analysis/capabilities")).StatusCode);
         settings.ClientKeySha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Key + "rotated")));
@@ -102,6 +103,30 @@ public sealed class DocumentAnalysisControllerTests
         Assert.Equal(HttpStatusCode.GatewayTimeout, (await client.PostAsJsonAsync("/api/document-analysis/insights", Request())).StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, (await client.PostAsJsonAsync("/api/document-analysis/insights", Request())).StatusCode);
         completion.SetResult(new LlmResponse { Content = "derived answer" });
+    }
+
+    [Fact]
+    public async Task Edits_Use_Bounded_Replacement_Instructions_Without_Analysis_Citations_And_Reject_Multiple_Documents()
+    {
+        string? prompt = null;
+        var provider = new Mock<ILlmClient>(MockBehavior.Strict);
+        provider.Setup(service => service.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .Callback<string, string, CancellationToken>((text, model, token) => prompt = text)
+                .ReturnsAsync(new LlmResponse { Content = "{\"edits\":[]}" });
+        await using var host = await StartAsync(Enabled(), provider: provider.Object);
+        using var client = Client(host);
+        client.DefaultRequestHeaders.Add("X-Document-Analysis-Key", Key);
+
+        var response = await client.PostAsJsonAsync("/api/document-analysis/edits", Request());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("oldText", prompt);
+        Assert.Contains("at most 3", prompt);
+        Assert.DoesNotContain("Cite each factual claim", prompt);
+        var request = Request();
+        var multiple = request with { Documents = new[] { request.Documents[0], request.Documents[0] with { ReferenceKey = "other" } } };
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/document-analysis/edits", multiple)).StatusCode);
+        provider.Verify(service => service.SendAsync(It.IsAny<string>(), "test-model", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static DocumentAnalysisRequest Request()
