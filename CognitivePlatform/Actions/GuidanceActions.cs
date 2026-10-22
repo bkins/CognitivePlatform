@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CognitivePlatform.Api.Attributes;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry.Capabilities;
@@ -116,7 +116,7 @@ public static class GuidanceActions
         }
 
         sb.Append("Ask \"Tell me about [feature]\" for any area, "
-                + "or \"What can you do?\" for the full action list.");
+                + "or \"List all commands\" for the full action list.");
 
         return sb.ToString();
     }

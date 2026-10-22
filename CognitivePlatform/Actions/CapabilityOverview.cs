@@ -11,7 +11,7 @@ public static class CapabilityOverview
     {
         "tasks" => 0
       , "journal" => 1
-      , "dailyrecord" or "daily record" => 2
+      , "daily" or "dailyrecord" or "daily record" => 2
       , "calendar" => 3
       , "insights" => 4
       , "braindump" or "brain dump" => 5
@@ -33,22 +33,30 @@ public static class CapabilityOverview
         foreach (var group in groups)
         {
             var heading = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(group.Key.ToLowerInvariant());
-            var ordered = group.OrderBy(action => action.Name, StringComparer.Ordinal).ToArray();
+            var names = group.Select(action => action.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var ordered = group.Where(action => !action.Name.EndsWith("_Generated", StringComparison.OrdinalIgnoreCase)
+                                            || !names.Contains(action.Name[..^"_Generated".Length]))
+                               .OrderBy(action => action.Name, StringComparer.Ordinal)
+                               .ToArray();
+            var selected = ordered.Take(2).ToArray();
             text.AppendLine().Append("**").Append(heading).AppendLine("**");
-            foreach (var action in ordered.Take(2))
+            foreach (var action in selected)
             {
                 var description = action.Description.Replace('\r', ' ').Replace('\n', ' ');
-                text.Append("- ").Append(description.Length <= 140 ? description : description[..137] + "...");
+                text.Append("- ").Append(ShortDescription(description));
                 if (action.IsDestructive) text.Append(" (requires confirmation)");
                 text.AppendLine();
             }
 
-            var examples = ordered.SelectMany(action => (action.Examples ?? [])
-                                  .Where(example => !string.IsNullOrWhiteSpace(example) && example.Length <= 160)
-                                  .Take(2)
-                                  .Select(example => new { Text = example, Confirmation = action.IsDestructive }))
-                                  .DistinctBy(example => example.Text, StringComparer.OrdinalIgnoreCase)
-                                  .Take(2);
+            // Prefer one real example per displayed operation before taking alternatives.
+            var examplesByAction = selected.Select(action => (action.Examples ?? [])
+                                           .Where(example => !string.IsNullOrWhiteSpace(example) && example.Length <= 160)
+                                           .Select(example => new { Text = example, Confirmation = action.IsDestructive })
+                                           .Take(2).ToArray()).ToArray();
+            var examples = examplesByAction.SelectMany(examples => examples.Take(1))
+                                          .Concat(examplesByAction.SelectMany(examples => examples.Skip(1)))
+                                          .DistinctBy(example => example.Text, StringComparer.OrdinalIgnoreCase)
+                                          .Take(2);
             foreach (var example in examples)
             {
                 text.Append("Try: “").Append(example.Text).Append('”');
@@ -61,4 +69,14 @@ public static class CapabilityOverview
             .Append("Which area would you like help with? You can also ask “List all commands” for the full directory.");
         return text.ToString();
     }
+    private static string ShortDescription(string description)
+    {
+        if (description.Length <= 140) return description;
+        var preview = description[..137];
+        var boundary = preview.LastIndexOf(' ');
+        return boundary > 0
+                   ? preview[..boundary].TrimEnd(',', ';', ':') + "..."
+                   : "See the full command directory for details.";
+    }
+
 }
