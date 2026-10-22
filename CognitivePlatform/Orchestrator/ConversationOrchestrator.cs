@@ -233,6 +233,29 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
             resolveInput = workspaceRemainder!;
         }
 
+        if ((_personaSessionManager?.IsPersonaConversation(context.SessionId) ?? false)
+         || context.Metadata.ContainsKey("active_knowledge_domain"))
+        {
+            context.PendingOrganizationIntent = null;
+        }
+        else
+        {
+            var clarification = OrganizationClarification.Evaluate(resolveInput, context, _registry.GetAll(), _fastPath);
+            if (clarification.Message is not null)
+            {
+                var response = new ConverseResponse
+                               {
+                                   Message = clarification.Message
+                                 , WasFastPath = true
+                                 , ExecutionResult = "No action executed; organization intent clarification."
+                                 , ReasoningContent = "Clarifying your intent; no action selected or executed."
+                               };
+                return await FinalizeAsync(request, response, stopwatch, TurnPath.Clarification,
+                    actionName: null, succeeded: null, ct: ct);
+            }
+            resolveInput = clarification.ResolveInput ?? resolveInput;
+        }
+
         // BUG-A2: All resolved FastPath actions (destructive and non-destructive) must short-circuit
         // here. TakeTheFastPath handles the destructive confirmation prompt internally.
         // Previously destructive FastPath actions fell through to the LLM interpreter, which

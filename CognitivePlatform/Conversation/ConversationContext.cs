@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using CognitivePlatform.Api.Insights.Models;
 using CognitivePlatform.Api.Interpreter;
 using CognitivePlatform.Api.Models;
@@ -218,6 +218,8 @@ public class ConversationContext
     /// </summary>
     public PendingAction? PendingAction { get; set; }
 
+    public PendingOrganizationIntent? PendingOrganizationIntent { get; set; }
+
     public bool    ClarificationModeEnabled  { get; set; }
     public string? ClarificationForAction    { get; set; }
     public string? ClarificationForParameter { get; set; }
@@ -258,6 +260,7 @@ public class ConversationContext
         LastInterpreterReason = null;
         LastInterpreterDebug  = null;
         PendingAction         = null;
+        PendingOrganizationIntent = null;
 
         LastFailureType = InterpreterFailureType.None;
 

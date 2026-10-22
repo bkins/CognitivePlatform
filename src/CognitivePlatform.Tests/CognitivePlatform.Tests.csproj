@@ -24,6 +24,7 @@
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.CognitiveApi/WindowsArtifactEnvironmentTests.cs" Link="WindowsArtifactEnvironmentTests.cs" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.ConversationRouting/TaskRequestRoutingTests.cs" Link="TaskRequestRoutingTests.cs" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.ConversationRouting/CapabilityHelpTests.cs" Link="CapabilityHelpTests.cs" />
+        <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.ConversationRouting/OrganizationClarificationTests.cs" Link="OrganizationClarificationTests.cs" />
     </ItemGroup>
 
     <ItemGroup>

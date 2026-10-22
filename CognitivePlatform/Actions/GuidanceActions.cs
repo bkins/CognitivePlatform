@@ -128,7 +128,9 @@ public static class GuidanceActions
     private static readonly Dictionary<string, string> KnownDomainAliases =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                     {
+                    { "brain dump", "BrainDump" }
+                  , { "braindump", "BrainDump" }
+                  , {
                              "tasks", "Tasks"
                      }
                    , {
