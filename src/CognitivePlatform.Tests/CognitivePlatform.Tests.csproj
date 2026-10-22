@@ -21,6 +21,7 @@
     <ItemGroup>
         <Using Include="Xunit" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.CognitiveApi/ApiTrayManagerTests.cs" Link="ApiTrayManagerTests.cs" />
+        <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.CognitiveApi/WindowsArtifactEnvironmentTests.cs" Link="WindowsArtifactEnvironmentTests.cs" />
     </ItemGroup>
 
     <ItemGroup>

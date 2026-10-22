@@ -140,6 +140,14 @@ try {
         }
     }
 
+    # Record the exact publish inputs before hashing; Admin metadata is written later.
+    [PSCustomObject][ordered]@{
+        SchemaVersion = 1
+        BuiltFor      = $Environment
+        Version       = $Version
+        ApiBaseUrl    = $apiBaseUrl
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputPath 'build-environment.json') -Encoding utf8
+
     $payloadManifest = New-PayloadManifest -RootPath $OutputPath
 
     Log "Build complete!"

@@ -1430,6 +1430,14 @@
 
     private async Task DeployLaaWindowsArtifactAsync(ArtifactEntry artifact, string environment)
     {
+        if (!string.Equals(artifact.Meta?.BuiltFor, environment, StringComparison.OrdinalIgnoreCase))
+        {
+            TerminalService.Clear("release");
+            TerminalService.AppendLine("release", new TerminalLine($"Windows artifact was built for {artifact.Meta?.BuiltFor ?? "an unknown environment"}. Build a new Windows LAA artifact for {environment}; cross-environment promotion is not supported.", TerminalLineKind.Error));
+            TerminalService.SetExitCode("release", 1);
+            return;
+        }
+
         await RunCoreAsync(artifact.Directory, artifact.Version
                          , ( PwshExe, $@"-NonInteractive -ExecutionPolicy Bypass -File ""{ScriptsDir}\LAA-Windows-Deploy.ps1"" -Environment {environment} -Version ""{artifact.Version}"" -ArtifactPath ""{artifact.Directory}""" ));
 

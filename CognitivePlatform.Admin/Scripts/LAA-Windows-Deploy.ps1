@@ -50,6 +50,7 @@ if (-not (Test-Path -LiteralPath $payloadManifestTools -PathType Leaf)) {
     throw "Payload manifest tools not found: $payloadManifestTools"
 }
 . $payloadManifestTools
+. (Join-Path $PSScriptRoot 'WindowsArtifactEnvironment.ps1')
 
 $exeName = "LocalAIAssistant.Ui.Maui.exe"
 
@@ -83,6 +84,7 @@ if (-not (Test-Path -LiteralPath $exeInArtifacts -PathType Leaf)) {
 }
 
 $artifactManifest = Test-PayloadManifest -RootPath $artifactPathResolved
+$artifactEnvironment = Test-WindowsArtifactEnvironment -RootPath $artifactPathResolved -Environment $Environment -Version $Version
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
 $backupPath = "$deployPath.backup.$timestamp"
 $stagingPath = "$deployPath.staging.$([Guid]::NewGuid().ToString('N'))"
@@ -106,6 +108,7 @@ try {
     if ($stagedManifest.ManifestSha256 -ne $artifactManifest.ManifestSha256) {
         throw "Payload manifest mismatch after staging. Expected $($artifactManifest.ManifestSha256) but found $($stagedManifest.ManifestSha256)."
     }
+    $null = Test-WindowsArtifactEnvironment -RootPath $stagingPath -Environment $Environment -Version $Version
 
     $stagedSettings = Join-Path $stagingPath 'appsettings.json'
     if (Test-Path -LiteralPath $stagedSettings -PathType Leaf) {
@@ -116,6 +119,8 @@ try {
     [PSCustomObject]@{
         ComponentName = "LaaWindows"
         Environment   = $Environment
+        BuiltFor      = $artifactEnvironment.BuiltFor
+        ApiBaseUrl    = $artifactEnvironment.ApiBaseUrl
         Version       = $Version
         DeployedAt    = (Get-Date -Format "o")
         DeployedBy    = $env:USERNAME
