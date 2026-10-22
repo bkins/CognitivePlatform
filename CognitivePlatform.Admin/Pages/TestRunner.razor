@@ -1,6 +1,8 @@
 @page "/tests"
 @using System.Diagnostics
 @using System.IO
+@using CognitivePlatform.Admin.Services.Testing
+@inject TestRunCoordinator TestRuns
 @using CognitivePlatform.Admin.Services
 @implements IAsyncDisposable
 @inject IJSRuntime            Js
@@ -574,8 +576,7 @@
     @{
         var unitTestsState = TerminalService.Get("test-unit-tests");
         var unitTestsLines = unitTestsState.Snapshot();
-        int unitTestsPassed = unitTestsLines.Count(l => l.Kind == TerminalLineKind.Pass);
-        int unitTestsFailed = unitTestsLines.Count(l => l.Kind == TerminalLineKind.Fail);
+        var unitRun = TestRuns.Latest;
     }
     <MudItem xs="12" md="6">
         <MudPaper Elevation="2" Class="pa-3">
@@ -666,41 +667,21 @@
                             ContainerId="unit-tests-terminal-container"
                             EndElementId="unit-tests-terminal-end" />
 
-            @if (!unitTestsState.IsRunning && unitTestsState.ExitCode.HasValue && (unitTestsPassed + unitTestsFailed) > 0)
+            @if (unitRun is not null)
             {
-                <MudPaper Elevation="0"
-                          Style="background:#2d2d2d;padding:8px 16px;margin-top:2px;border-radius:0 0 4px 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:0.85rem;">
-                    <span style="color:@(unitTestsFailed == 0 ? "#4ec9b0" : "#ff6b6b")">
-                        @unitTestsPassed / @(unitTestsPassed + unitTestsFailed) passed
-                    </span>
-                    @if (unitTestsFailed > 0)
-                    {
-                        <span style="color:#ff6b6b;margin-left:12px">@unitTestsFailed failed</span>
-                    }
-                </MudPaper>
-
-                var failedTestsList = ParseFailedTests(unitTestsLines);
-                @if (failedTestsList.Count > 0)
+                <MudText Typo="Typo.caption">Run @unitRun.Id — @unitRun.Profile — @unitRun.Status</MudText>
+                <MudText Typo="Typo.body2">@unitRun.Passed passed, @unitRun.Failed failed, @unitRun.Skipped skipped; @unitRun.Projects.Count(project => project.Outcome == "BuildFailed") build failures across @unitRun.Projects.Count projects.</MudText>
+                @if (unitRun.Error is not null)
                 {
-                    <MudExpansionPanels Class="mt-3">
-                        <MudExpansionPanel Text="Failed Tests Summary" Style="background:#2d2d2d; color:#ff6b6b;">
-                            <div style="font-family:'Cascadia Code','Consolas',monospace;font-size:0.8rem;max-height:300px;overflow-y:auto;">
-                                @foreach (var test in failedTestsList)
-                                {
-                                    <div class="mb-2" style="border-bottom: 1px solid #3e3e42; padding-bottom: 8px;">
-                                        <div style="font-weight:bold;color:#ff6b6b;">[@test.Project] @test.TestName</div>
-                                        <div style="color:#d4d4d4;font-size:0.75rem;white-space:pre-wrap;margin-top:4px;">
-                                            @string.Join(System.Environment.NewLine, test.Output.Take(5))
-                                            @if (test.Output.Count > 5)
-                                            {
-                                                <span>...</span>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        </MudExpansionPanel>
-                    </MudExpansionPanels>
+                    <MudAlert Severity="Severity.Error">@unitRun.Error</MudAlert>
+                }
+                @foreach (var project in unitRun.Projects.Where(project => project.Outcome is not ("Passed" or "Pending")))
+                {
+                    <MudText Typo="Typo.body2">@System.IO.Path.GetFileNameWithoutExtension(project.Project): @project.Outcome</MudText>
+                    @foreach (var failure in project.Failures)
+                    {
+                        <pre style="white-space:pre-wrap">@failure</pre>
+                    }
                 }
             }
         </MudPaper>
@@ -1071,222 +1052,25 @@
 
     // ── Unit Tests execution ──────────────────────────────────────────────────────
 
-    private async Task RunUnitTestsAsync()
+    private Task RunUnitTestsAsync()
     {
-        var unitTestsState = TerminalService.Get("test-unit-tests");
-        if (unitTestsState.IsRunning) return;
-
-        TerminalService.Clear("test-unit-tests");
-        TerminalService.MarkRunning("test-unit-tests", true);
-
         try
         {
-            var testProjects = DetectTestProjects();
-
-            if (testProjects.Count == 0)
-            {
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine("No test projects detected.", TerminalLineKind.Error));
-                return;
-            }
-
-            int overallExitCode = 0;
-
-            await using var api = new ApiLifecycle(TerminalService, "test-unit-tests");
-            bool apiStarted = false;
-
-            ApiLifecycle.KillOrphanedProcesses();
-
-            foreach (var project in testProjects)
-            {
-                var projectName = Path.GetFileNameWithoutExtension(project);
-                var workingDir = Path.GetDirectoryName(project) ?? @"C:\Users\benho\source\repos";
-
-                // 1. Build the project
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"=== Building: {projectName} ===", TerminalLineKind.Normal));
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-
-                var buildStartInfo = new ProcessStartInfo
-                {
-                    FileName               = "dotnet"
-                  , Arguments              = $"build \"{project}\""
-                  , WorkingDirectory       = workingDir
-                  , RedirectStandardOutput = true
-                  , RedirectStandardError  = true
-                  , UseShellExecute        = false
-                  , CreateNoWindow         = true
-                };
-
-                // Run build without custom ClassifyLine to keep MSBuild output separate from test logs
-                var buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", buildStartInfo);
-                if (buildExitCode != 0 && buildExitCode != null)
-                {
-                    await Task.Delay(1000);
-                    var retryStartInfo = new ProcessStartInfo
-                    {
-                        FileName               = "dotnet"
-                      , Arguments              = $"build \"{project}\" --no-dependencies"
-                      , WorkingDirectory       = workingDir
-                      , RedirectStandardOutput = true
-                      , RedirectStandardError  = true
-                      , UseShellExecute        = false
-                      , CreateNoWindow         = true
-                    };
-                    buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", retryStartInfo);
-                }
-
-                if (buildExitCode != 0 && buildExitCode != null)
-                {
-                    await Task.Delay(1000);
-                    var retry2StartInfo = new ProcessStartInfo
-                    {
-                        FileName               = "dotnet"
-                      , Arguments              = $"build \"{project}\" /p:BuildProjectReferences=false"
-                      , WorkingDirectory       = workingDir
-                      , RedirectStandardOutput = true
-                      , RedirectStandardError  = true
-                      , UseShellExecute        = false
-                      , CreateNoWindow         = true
-                    };
-                    buildExitCode = await TerminalService.RunProcessAsync("test-unit-tests", retry2StartInfo);
-                }
-
-                if (buildExitCode is null)
-                {
-                    overallExitCode = -1;
-                    break;
-                }
-                if (buildExitCode != 0)
-                {
-                    overallExitCode = buildExitCode.Value;
-                    TerminalService.AppendLine("test-unit-tests", new TerminalLine($"Build failed for {projectName}. Skipping tests.", TerminalLineKind.Error));
-                    continue;
-                }
-
-                // 2. Start API if needed
-                if (projectName.Contains("Integration", StringComparison.OrdinalIgnoreCase) && !apiStarted)
-                {
-                    await api.StartIfNeededAsync();
-                    apiStarted = true;
-                }
-
-                // 3. Run tests with --no-build
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"=== Running tests for: {projectName} ===", TerminalLineKind.Normal));
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-
-                var dotnetArgs = $"test \"{project}\" --no-build --logger \"console;verbosity=normal\"";
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"$ dotnet {dotnetArgs}"));
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName               = "dotnet"
-                  , Arguments              = dotnetArgs
-                  , WorkingDirectory       = workingDir
-                  , RedirectStandardOutput = true
-                  , RedirectStandardError  = true
-                  , UseShellExecute        = false
-                  , CreateNoWindow         = true
-                };
-
-                // Wait for this project's run to complete
-                var exitCode = await TerminalService.RunProcessAsync("test-unit-tests", startInfo, ClassifyLine, timeout: TimeSpan.FromMinutes(2.5));
-                
-                if (exitCode is null)
-                {
-                    // User aborted
-                    overallExitCode = -1;
-                    break;
-                }
-                
-                if (exitCode != 0)
-                {
-                    overallExitCode = exitCode.Value;
-                }
-            }
-
-            TerminalService.SetExitCode("test-unit-tests", overallExitCode == -1 ? null : overallExitCode);
-
-            var snapshot = unitTestsState.Snapshot();
-            int totalPassed = snapshot.Count(l => l.Kind == TerminalLineKind.Pass);
-            int totalFailed = snapshot.Count(l => l.Kind == TerminalLineKind.Fail);
-            var failedTests = ParseFailedTests(snapshot, "Unit Tests");
-
-            TerminalService.AppendLine("test-unit-tests", new TerminalLine(string.Empty));
-            TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
-            TerminalService.AppendLine("test-unit-tests", new TerminalLine($"  Grand Total Across All Projects: {totalPassed} Passed, {totalFailed} Failed (Total {totalPassed + totalFailed})", totalFailed == 0 ? TerminalLineKind.PassSummary : TerminalLineKind.FailSummary));
-            TerminalService.AppendLine("test-unit-tests", new TerminalLine("==================================================================", TerminalLineKind.Normal));
-
-            if (failedTests.Count > 0)
-            {
-                AppendFailureSummaryToTerminal(TerminalService, "test-unit-tests", failedTests);
-            }
-
-            // Generate report
-            try
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("# Test Failures Report");
-                sb.AppendLine();
-                sb.AppendLine($"**Generated on:** {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                sb.AppendLine($"**Total Failures:** {failedTests.Count}");
-                sb.AppendLine();
-
-                if (failedTests.Count == 0)
-                {
-                    sb.AppendLine("🎉 All tests passed successfully!");
-                }
-                else
-                {
-                    var grouped = failedTests.GroupBy(t => t.Project);
-                    foreach (var group in grouped)
-                    {
-                        sb.AppendLine($"## Project: {group.Key}");
-                        sb.AppendLine();
-
-                        foreach (var test in group)
-                        {
-                            sb.AppendLine($"### ❌ {test.TestName}");
-                            sb.AppendLine("```");
-                            foreach (var line in test.Output)
-                            {
-                                sb.AppendLine(line);
-                            }
-                            sb.AppendLine("```");
-                            sb.AppendLine();
-                        }
-                    }
-                }
-
-                var reportContent = sb.ToString();
-
-                // 1. Write to repo folder
-                var reportPath = @"C:\Users\benho\source\repos\CognitivePlatform\.agents\artifacts\test_failures_report.md";
-                var reportDir = Path.GetDirectoryName(reportPath);
-                if (reportDir != null && !Directory.Exists(reportDir))
-                {
-                    Directory.CreateDirectory(reportDir);
-                }
-                File.WriteAllText(reportPath, reportContent);
-
-                // 2. Write to session artifacts folder
-                var sessionReportPath = @"C:\Users\benho\.gemini\antigravity\brain\dee025af-8abd-4cce-b0e8-0cca881839dc\test_failures_report.md";
-                File.WriteAllText(sessionReportPath, reportContent);
-            }
-            catch (Exception ex)
-            {
-                TerminalService.AppendLine("test-unit-tests", new TerminalLine($"[Failed to write failures report: {ex.Message}]", TerminalLineKind.Error));
-            }
+            TestRuns.Start(new TestRunRequest("unit", Guid.NewGuid()));
         }
-        finally
+        catch (InvalidOperationException exception)
         {
-            TerminalService.MarkRunning("test-unit-tests", false);
+            TerminalService.SetError("test-unit-tests", exception.Message);
         }
+        return Task.CompletedTask;
     }
 
-    private void AbortUnitTests()  => TerminalService.Abort("test-unit-tests");
-    private void ClearUnitTests()  => TerminalService.Clear("test-unit-tests");
+    private void AbortUnitTests()
+    {
+        if (TestRuns.Latest is { } run) TestRuns.Cancel(run.Id);
+    }
+
+    private void ClearUnitTests() => TerminalService.Clear("test-unit-tests");
 
     // ── System Audit execution ───────────────────────────────────────────────────
 
@@ -1779,6 +1563,11 @@
 
     private async Task CopyFailuresSummaryAsync(string id)
     {
+        if (id == "test-unit-tests" && TestRuns.Latest is { } run)
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", TestRuns.Summary(run.Id));
+            return;
+        }
         var state = TerminalService.Get(id);
         var suiteTitle = id switch
         {
@@ -1866,98 +1655,6 @@
             return $"error: {ex.Message}";
         }
         return string.Empty;
-    }
-
-    private IReadOnlyList<string> DetectTestProjects()
-    {
-        var reposRoot = Configuration["SystemPaths:ReposRoot"] ?? @"C:\Users\benho\source\repos";
-        var roots = new[]
-        {
-            Path.Combine(reposRoot, "CognitivePlatform"),
-            Path.Combine(reposRoot, "LocalAIAssistant"),
-            Path.Combine(reposRoot, "CP.Shared.Primitives"),
-            Path.Combine(reposRoot, "CP.Client.Core"),
-            Path.Combine(reposRoot, "ConsoleUtilities"),
-            Path.Combine(reposRoot, "ConfigurationDiagnostics"),
-            Path.Combine(reposRoot, "WatchList")
-        };
-
-        var projects = new List<string>();
-
-        foreach (var root in roots)
-        {
-            if (!Directory.Exists(root)) continue;
-
-            try
-            {
-                var files = Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories);
-                foreach (var file in files)
-                {
-                    // Skip bin/obj directories
-                    if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
-                        file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-                    {
-                        continue;
-                    }
-
-                    // Check if it's a test project
-                    if (IsTestProject(file))
-                    {
-                        projects.Add(file);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error scanning root {root}: {ex.Message}");
-            }
-        }
-
-        return projects;
-    }
-
-    private static bool IsTestProject(string csprojPath)
-    {
-        var filename = Path.GetFileNameWithoutExtension(csprojPath);
-        
-        // Exclude runner/setup/seeder projects
-        if (filename.Contains("DemoSetup", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("ValidationPlatform.Runner", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("Seeder", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        // Exclude integration tests and UI smoke tests from the Unit Tests runner
-        if (filename.Contains("Integration", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("Smoke", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("UI.Windows", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (filename.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-            filename.Contains("Tests", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        try
-        {
-            var content = File.ReadAllText(csprojPath);
-            if (content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("nunit", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-        catch
-        {
-            // Ignore read errors
-        }
-
-        return false;
     }
 
     private IReadOnlyList<string> DetectAllTestProjects()

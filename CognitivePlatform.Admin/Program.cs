@@ -1,3 +1,4 @@
+using CognitivePlatform.Admin.Services.Testing;
 using CognitivePlatform.Admin;
 using CognitivePlatform.Admin.CpAdminClients;
 using CognitivePlatform.Admin.Services;
@@ -18,6 +19,18 @@ builder.Services.AddScoped<AdminSessionService>();
 builder.Services.AddTransient<AdminSecretHandler>();
 builder.Services.AddSingleton<EnvironmentService>();
 builder.Services.AddTransient<EnvironmentRoutingHandler>();
+
+// Shared local test operations: one coordinator for UI and authenticated loopback callers.
+builder.Services.AddSingleton(new TestOperationsOptions
+{
+    RepositoryRoot = builder.Configuration["SystemPaths:ReposRoot"] ?? @"C:\Users\benho\source\repos"
+  , RootPath = builder.Configuration["TestOperations:RootPath"] ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CP", "AdminTestRuns")
+  , Secret = builder.Configuration["AdminSettings:AdminSecret"] ?? string.Empty
+});
+builder.Services.AddSingleton<TestProjectCatalog>();
+builder.Services.AddSingleton<TestRunStore>();
+builder.Services.AddSingleton<ITestProcessRunner, TestProcessRunner>();
+builder.Services.AddSingleton<TestRunCoordinator>();
 
 // Terminal state — singleton, survives page navigation so output persists when user navigates away.
 builder.Services.AddSingleton<ITerminalStateService, TerminalStateService>();
@@ -112,6 +125,8 @@ app.MapStaticAssets();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+app.MapTestOperations();
 
 app.MapGet("/backlog", () => Results.Redirect("/backlog-updated", permanent: true));
 
