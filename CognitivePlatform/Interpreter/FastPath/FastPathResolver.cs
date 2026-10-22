@@ -962,13 +962,20 @@ public sealed class FastPathResolver : IFastPathResolver
 
         var normalized = input.ToLowerInvariant().TrimEnd('?', '!', '.');
 
-        if (BooleanExtensions.Not(ListTaskSignals.Any(signal => normalized.Contains(signal))))
+        // Only a complete, unqualified request can use this provider-independent route.
+        // Negations, extra filters and compound requests still need interpretation.
+        var isActiveTaskList = Regex.IsMatch(normalized,
+            @"^(?:(?:show|list)(?: me)?(?: my)?|what are my) (?:active|open|unfinished|uncompleted) tasks$");
+
+        if (!isActiveTaskList && BooleanExtensions.Not(ListTaskSignals.Any(signal => normalized.Contains(signal))))
             return false;
 
         action = _registry.Actions.FirstOrDefault(registryAction => registryAction.Name == "ListTasks");
         if (action is null) return false;
 
         parameters = BuildListTasksParameters(normalized);
+        if (isActiveTaskList)
+            parameters["includeCompleted"] = "false";
 
         return true;
     }

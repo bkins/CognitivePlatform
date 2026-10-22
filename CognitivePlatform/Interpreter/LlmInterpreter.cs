@@ -178,6 +178,8 @@ public class LlmInterpreter : IInterpreter
                                                          , complexity: complexity
                                                          , ct:         CancellationToken.None);
             rawResponse = llmResult.Content;
+            if (llmResult.IsFailure)
+                throw new LlmProviderUnavailableException(llmResult.Content);
         }
         catch (Exception ex)
         {
@@ -196,6 +198,7 @@ public class LlmInterpreter : IInterpreter
                                     , DebugInfo           = message
                                     , Reason              = ex.GetType().Name
                                     , FailureType         = InterpreterFailureType.Exception
+                                    , ModelOutput         = rawResponse
                                     , Exception           = ex
                                     , CandidateActions    = null
                                     , MissingParameters   = null

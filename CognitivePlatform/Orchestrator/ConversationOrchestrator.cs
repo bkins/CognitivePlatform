@@ -1612,6 +1612,9 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
     // User-friendly exception types are returned as-is even in debug mode so tests are reliable.
     private string BuildExceptionMessage(Exception? exception, string debugInfo = "")
     {
+        if (exception is LlmProviderUnavailableException)
+            return exception.Message;
+
         if (exception is LlmCapacityExceededException)
             return "All AI providers are currently at capacity. Please try again later.";
 

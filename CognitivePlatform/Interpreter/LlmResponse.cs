@@ -14,6 +14,9 @@ public sealed class LlmResponse
     /// <summary>The raw text output produced by the model.</summary>
     public string Content { get; init; } = string.Empty;
 
+    /// <summary>True for a router-generated failure, rather than model-produced content.</summary>
+    public bool IsFailure { get; init; }
+
     /// <summary>
     /// Per-response token counts extracted from the response body.
     /// Returns <see cref="LlmUsageInfo.Empty"/> when the provider did not

@@ -132,6 +132,7 @@ public class LlmRouter : ILlmRouter
                     return new LlmResponse
                            {
                                    Content    = UnavailableMessage(diagnosticId)
+                                 , IsFailure  = true
                                  , Usage      = LlmUsageInfo.Empty
                                  , RateLimits = LlmRateLimitSnapshot.Empty
                            };
@@ -168,6 +169,7 @@ public class LlmRouter : ILlmRouter
                     return new LlmResponse
                            {
                                    Content    = UnavailableMessage(diagnosticId)
+                                 , IsFailure  = true
                                  , Usage      = LlmUsageInfo.Empty
                                  , RateLimits = LlmRateLimitSnapshot.Empty
                            };
