@@ -129,3 +129,7 @@ A task or feature is not complete until:
 3. All unit and regression tests pass successfully.
 4. **Git Commits & Push**: Commit changes with clear, descriptive commit messages, and push to the remote repository.
 5. **Production Data Protection**: Production data (located in `C:\CP\Data\Prod\*`) is sacred. Never run destructive or modifying commands against production data. If an operation is close to modifying production databases or folders, stop and request user permission first.
+
+## Shared Admin baseline execution — STORY-314
+
+The preferred fresh Unit Tests baseline is the authenticated Admin-owned backend: `CognitivePlatform.Admin/Scripts/Invoke-AdminTests.ps1 -Action Start -Profile unit -Wait`. This invokes the same coordinator as the Admin Test Runner Unit Tests button. Record its run ID, full project list/source markers, structured status/counts and failures/TRX; no browser sign-in or passphrase in chat is needed. Do not label an empty/no-tests/build-failed/partial profile run as a passing unit baseline. Use named client-contracts separately for headless LAA contracts; native UI acceptance and exact Production approval remain separate. See canonical Documentation/AGENT_WORKFLOW.md and Development/STORY-314 - Admin test operations review.md.
