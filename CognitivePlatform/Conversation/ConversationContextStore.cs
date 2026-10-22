@@ -22,4 +22,11 @@ public class ConversationContextStore
     public ConversationContext GetOrCreate(string sessionId) =>
         _sessions.GetOrAdd(sessionId
                          , id => new ConversationContext(id, _options));
+
+    /// <summary>Read routing state without allocating a conversation for an unknown id.</summary>
+    public bool HasPendingOrganizationIntent(string sessionId)
+    {
+        return _sessions.TryGetValue(sessionId, out var context)
+            && context.PendingOrganizationIntent is not null;
+    }
 }

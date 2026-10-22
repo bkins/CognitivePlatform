@@ -13,6 +13,7 @@ namespace CognitivePlatform.Api.Controllers;
 [Route("api/[controller]")]
 public class ConversationController : ControllerBase
 {
+    private readonly ConversationContextStore? _contexts;
     private readonly IConversationOrchestrator  _orchestrator;
     private readonly ITelemetrySink             _telemetry;
     private readonly IConversationTurnStore     _turnStore;
@@ -24,13 +25,22 @@ public class ConversationController : ControllerBase
                                  , TelemetryContext           telemetryContext
                                  , IConversationTurnStore     turnStore
                                  , IConversationMetadataStore metadataStore
-                                 , ILogger<ConversationController>? logger = null )
+                                 , ILogger<ConversationController>? logger = null
+                                 , ConversationContextStore? contexts = null )
     {
+        _contexts      = contexts;
         _orchestrator  = orchestrator;
         _telemetry     = telemetry;
         _turnStore     = turnStore;
         _metadataStore = metadataStore;
         _logger        = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ConversationController>.Instance;
+    }
+
+    // This returns routing state only; history and domain data stay on their existing endpoints.
+    [HttpGet("{id}/organization-clarification-pending")]
+    public bool OrganizationClarificationPending(string id)
+    {
+        return _contexts?.HasPendingOrganizationIntent(id) == true;
     }
 
     [HttpPost("converse")]
