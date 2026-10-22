@@ -1492,6 +1492,29 @@ public sealed class ConversationOrchestrator : IConversationOrchestrator
         // Get or create session context
         var context = _contextStore.GetOrCreate(request.SessionId);
 
+        // Flow replies must share non-streaming state, history, idempotency and execution guards.
+        if (request.ClientRequestId.HasValue)
+        {
+            var cached = await _idempotencyStore.TryGetAsync(request.ClientRequestId.Value, ct);
+            if (cached is not null)
+            {
+                yield return cached.Message ?? string.Empty;
+                yield break;
+            }
+        }
+        var organizationInput = request.Input;
+        if (_fastPath.TryExtractWorkspacePrefix(request.Input, out _, out var organizationRemainder))
+            organizationInput = organizationRemainder!;
+        if (!(_personaSessionManager?.IsPersonaConversation(context.SessionId) ?? false)
+         && !context.Metadata.ContainsKey("active_knowledge_domain")
+         && (context.PendingOrganizationIntent is not null || OrganizationClarification.IsStarter(organizationInput)))
+        {
+            var response = await ConverseAsync(request, ct);
+            yield return response.Message ?? string.Empty;
+            yield break;
+        }
+
+
         // Persist model into the per-request "model" slot (same priority as ConverseAsync)
         if (request.Model.HasValue())
         {

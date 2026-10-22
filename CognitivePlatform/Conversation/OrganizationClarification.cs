@@ -7,6 +7,12 @@ namespace CognitivePlatform.Api.Conversation;
 /// <summary>Bounded organization discovery; every action still goes through ordinary resolution/execution.</summary>
 public static class OrganizationClarification
 {
+    public static bool IsStarter(string input)
+    {
+        var normalized = Regex.Replace(input.Trim().TrimEnd('?', '!', '.'), @"\s+", " ").ToLowerInvariant();
+        return normalized is "help me get organized" or "i need help getting organized" or "help me organize my day";
+    }
+
     public static OrganizationClarificationDecision Evaluate(string input, ConversationContext context,
         IReadOnlyCollection<ActionMetadata> actions, IFastPathResolver fastPath)
     {
@@ -17,7 +23,7 @@ public static class OrganizationClarification
         }
 
         var normalized = Regex.Replace(input.Trim().TrimEnd('?', '!', '.'), @"\s+", " ").ToLowerInvariant();
-        var isStarter = normalized is "help me get organized" or "i need help getting organized" or "help me organize my day";
+        var isStarter = IsStarter(input);
         if (!isStarter && context.PendingOrganizationIntent is null) return new();
         var names = actions.Select(action => action.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var available = new List<string>();
