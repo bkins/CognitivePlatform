@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CognitivePlatform.Api.Domains.DailyRecord;
 using CognitivePlatform.Api.Models;
 using CognitivePlatform.Api.Registry;
@@ -40,6 +40,11 @@ public sealed class FastPathResolver : IFastPathResolver
                               .FirstOrDefault(action => action.Name == "ListActions");
 
             parameters = new Dictionary<string, string>();
+            var normalized = input.TrimEnd('?', '!', '.').ToLowerInvariant();
+            if (normalized is "list actions" or "list commands" or "show commands"
+                           or "list all commands" or "list all actions" or "show all actions"
+                           or "show all commands")
+                parameters["full"] = "true";
 
             return action != null;
         }
@@ -2477,7 +2482,14 @@ public sealed class FastPathResolver : IFastPathResolver
                     or "list actions"
                     or "list commands"
                     or "show commands"
-                    or "show capabilities";
+                    or "show capabilities"
+                    or "what can you help me do"
+                    or "how can you help me"
+                    or "what can i use this for"
+                    or "list all commands"
+                    or "list all actions"
+                    or "show all commands"
+                    or "show all actions";
     }
 
     // ================================================================

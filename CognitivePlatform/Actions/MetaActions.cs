@@ -62,7 +62,7 @@ public static class MetaActions
     /// This is the "meta-action" the interpreter can choose when the user asks
     /// something like "What can you do?" or "List your commands."
     /// </summary>
-    [NaturalLanguageAction(Description = "Lists all registered actions known to the system, including their names and descriptions."
+    [NaturalLanguageAction(Description = "Explains supported feature areas with examples. Set full=true for the complete action directory."
                          , Examples =
                            [
                                    "What can you do?"
@@ -71,10 +71,16 @@ public static class MetaActions
                            ]
                          , Category = "interpreter"
     )]
-    public static string ListActions()
+    public static string ListActions(bool full = false)
     {
         if (_capabilityRegistry is null
          && _registry is null) return "The action registry is not available yet. MetaActions.SetRegistry(...) was not called.";
+
+        if (!full)
+        {
+            var actions = _capabilityRegistry?.GetAll() ?? _registry!.Actions;
+            return CapabilityOverview.Build(actions);
+        }
 
         var result = _capabilityRegistry is not null
                              ? BuildListActionsResult(_capabilityRegistry)
