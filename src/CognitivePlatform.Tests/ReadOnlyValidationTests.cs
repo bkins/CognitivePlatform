@@ -23,6 +23,7 @@ public sealed class ReadOnlyValidationTests
     [InlineData("missing", "Unavailable")]
     [InlineData("configuration", "Failed")]
     [InlineData("launcher-tamper", "Failed")]
+    [InlineData("linked-payload", "Failed")]
     public async Task Canonical_Deployment_Inspection_Is_ReadOnly_And_Rejects_Corrupt_Or_Missing_Evidence(string scenario, string expected)
     {
         var root = Path.Combine(Path.GetTempPath(), $"cp-integrity-{Guid.NewGuid():N}");
@@ -55,6 +56,14 @@ public sealed class ReadOnlyValidationTests
             if (scenario == "windows-extra") File.WriteAllText(Path.Combine(windowsDeployment, "extra.bin"), "unexpected");
             if (scenario == "missing") File.Delete(Path.Combine(windowsDeployment, "payload-manifest.json"));
             if (scenario == "launcher-tamper") File.WriteAllText(Path.Combine(apiDeployment, "start-api.ps1"), "changed-launcher");
+            if (scenario == "linked-payload")
+            {
+                var junction = new ProcessStartInfo("pwsh");
+                var command = $"New-Item -ItemType Junction -Path '{Path.Combine(apiDeployment, "payload-link").Replace("'", "''")}' -Target '{windowsArtifact.Replace("'", "''")}' | Out-Null";
+                foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(command)) }) junction.ArgumentList.Add(argument);
+                var linked = await new TestProcessRunner().RunAsync(junction, _ => { }, TimeSpan.FromSeconds(10), CancellationToken.None);
+                Assert.Equal(0, linked.ExitCode);
+            }
             var before = Directory.GetFiles(root, "*", SearchOption.AllDirectories).ToDictionary(path => path, Hash);
             var script = Path.Combine(AdminLifecycleSafetyTests.RepositoryRoot, "CognitivePlatform", "CognitivePlatform.Admin", "Scripts", "Invoke-ReadOnlyDeploymentValidation.ps1");
             var start = new ProcessStartInfo("pwsh");
@@ -71,7 +80,12 @@ public sealed class ReadOnlyValidationTests
             Assert.Equal(before.Count, Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
             Assert.All(before, pair => Assert.Equal(pair.Value, Hash(pair.Key)));
         }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        finally
+        {
+            var link = Path.Combine(apiDeployment, "payload-link");
+            if (Directory.Exists(link)) Directory.Delete(link);
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     private static string RuntimeJson(string field = "valid", int pid = 123) => JsonSerializer.Serialize(new

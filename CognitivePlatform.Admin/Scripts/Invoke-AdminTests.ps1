@@ -40,13 +40,13 @@ $headers = @{ 'X-Admin-Secret' = $secret }
 $base = $BaseUri.AbsoluteUri.TrimEnd('/') + '/api/operations'
 
 function Invoke-Operation {
-    param ([string]$Path, [string]$Method = 'Get', [object]$Body = $null)
+    param ([string]$Path, [string]$Method = 'Get', [object]$Body = $null, [switch]$Raw)
     $parameters = @{ Uri = $base + $Path; Method = $Method; Headers = $headers; MaximumRedirection = 0; TimeoutSec = 30 }
     if ($null -ne $Body) {
         $parameters.Body = $Body | ConvertTo-Json -Depth 4
         $parameters.ContentType = 'application/json'
     }
-    Invoke-RestMethod @parameters
+    if ($Raw) { (Invoke-WebRequest @parameters).Content } else { Invoke-RestMethod @parameters }
 }
 
 if ($Action -notin @('Profiles','Start') -and $RunId -eq [Guid]::Empty) { throw 'RunId is required for this action.' }
@@ -57,7 +57,7 @@ $result = switch ($Action) {
     'Logs' { Invoke-Operation "/test-runs/$RunId/logs?after=$After&limit=$Limit" }
     'Results' { Invoke-Operation "/test-runs/$RunId/results" }
     'Summary' { Invoke-Operation "/test-runs/$RunId/summary" }
-    'Evidence' { Invoke-Operation "/test-runs/$RunId/evidence" }
+    'Evidence' { Invoke-Operation "/test-runs/$RunId/evidence" -Raw }
     'Cancel' { Invoke-Operation "/test-runs/$RunId/cancel" 'Post'; @{ id = $RunId; cancellationRequested = $true } }
 }
 if ($Action -eq 'Start' -and $Wait) {
@@ -70,5 +70,5 @@ if ($Action -eq 'Start' -and $Wait) {
         Start-Sleep -Seconds 2
     } while ($true)
 }
-if ($Action -eq 'Summary') { $result } else { $result | ConvertTo-Json -Depth 12 }
+if ($Action -in @('Summary','Evidence')) { $result } else { $result | ConvertTo-Json -Depth 12 }
 if ($Action -eq 'Start' -and $Wait -and $result.status -ne 'Passed') { exit 1 }
