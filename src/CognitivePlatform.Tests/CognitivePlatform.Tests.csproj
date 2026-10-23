@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <Using Include="Xunit" />
+        <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Providers.Windows/WindowsProcessSession.cs" Link="WindowsProcessSession.cs" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.CognitiveApi/ApiTrayManagerTests.cs" Link="ApiTrayManagerTests.cs" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.CognitiveApi/WindowsArtifactEnvironmentTests.cs" Link="WindowsArtifactEnvironmentTests.cs" />
         <Compile Include="../../../CP/ValidationPlatform/src/ValidationPlatform.Tests.ConversationRouting/TaskRequestRoutingTests.cs" Link="TaskRequestRoutingTests.cs" />

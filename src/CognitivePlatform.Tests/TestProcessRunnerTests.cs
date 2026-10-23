@@ -5,6 +5,34 @@ namespace CognitivePlatform.Tests;
 
 public sealed class TestProcessRunnerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Timeout_Bounds_Output_Drain_When_Exited_Parent_Leaves_Inherited_Pipes_Open(bool cancel)
+    {
+        var pidFile = Path.Combine(Path.GetTempPath(), $"cp-owned-worker-{Guid.NewGuid():N}.txt");
+        var script = $"$child = Start-Process pwsh -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 25' -NoNewWindow -PassThru; $child.Id | Set-Content -LiteralPath '{pidFile}'";
+        var start = new ProcessStartInfo("pwsh");
+        foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script)) }) start.ArgumentList.Add(argument);
+        try
+        {
+            using var cancellation = new CancellationTokenSource();
+            if (cancel) cancellation.CancelAfter(TimeSpan.FromSeconds(3));
+            var running = new TestProcessRunner().RunAsync(start, _ => { }, cancel ? TimeSpan.FromMinutes(1) : TimeSpan.FromSeconds(3), cancellation.Token).WaitAsync(TimeSpan.FromSeconds(8));
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+            else Assert.True((await running).TimedOut);
+        }
+        finally
+        {
+            if (File.Exists(pidFile))
+            {
+                using var child = Process.GetProcessById(int.Parse(File.ReadAllText(pidFile).Trim()));
+                if (!child.HasExited) child.Kill(true);
+                File.Delete(pidFile);
+            }
+        }
+    }
+
     [Fact]
     public async Task Timeout_Kills_Only_Its_Own_Child_While_Unrelated_Process_Survives()
     {

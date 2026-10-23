@@ -30,4 +30,10 @@
     </None>
   </ItemGroup>
 
+  <Target Name="ExcludeReferencedApiSettingsFromAdminPublish" BeforeTargets="_HandleFileConflictsForPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\CognitivePlatform'))\appsettings*.json" />
+    </ItemGroup>
+  </Target>
+
 </Project>

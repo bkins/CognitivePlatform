@@ -21,27 +21,30 @@ public sealed class TestProcessRunner : ITestProcessRunner
         using var timeoutSource = new CancellationTokenSource(timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
         process.Start();
-        var stdout = PumpAsync(process.StandardOutput, output);
-        var stderr = PumpAsync(process.StandardError, output);
+        var stdout = PumpAsync(process.StandardOutput, output, linked.Token);
+        var stderr = PumpAsync(process.StandardError, output, linked.Token);
         try
         {
             await process.WaitForExitAsync(linked.Token);
-            await Task.WhenAll(stdout, stderr);
+            await Task.WhenAll(stdout, stderr).WaitAsync(linked.Token);
             return new TestProcessResult(process.ExitCode);
         }
         catch (OperationCanceledException)
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
             catch (InvalidOperationException) { /* Child exited between the check and termination. */ }
-            await process.WaitForExitAsync(CancellationToken.None);
-            await Task.WhenAll(stdout, stderr);
+            await process.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            // Descendants may retain inherited pipe handles after the owned parent exits.
+            // Cancellation must bound draining as well as waiting for the process itself.
+            try { await Task.WhenAll(stdout, stderr); }
+            catch (OperationCanceledException) { }
             cancellationToken.ThrowIfCancellationRequested();
             return new TestProcessResult(null, TimedOut: true);
         }
     }
 
-    private static async Task PumpAsync(StreamReader reader, Action<string> output)
+    private static async Task PumpAsync(StreamReader reader, Action<string> output, CancellationToken cancellationToken)
     {
-        while (await reader.ReadLineAsync() is { } line) output(line);
+        while (await reader.ReadLineAsync(cancellationToken) is { } line) output(line);
     }
 }
