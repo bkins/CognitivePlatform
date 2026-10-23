@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Net.Sockets;
 using System.Text.Json;
 
@@ -44,7 +46,7 @@ public sealed class ApiLifecycle : IAsyncDisposable
             {
                 if (_owned.HasExited) throw new InvalidOperationException($"Owned API exited with code {_owned.ExitCode} before readiness.");
                 _owned.Refresh();
-                _executable ??= _owned.MainModule?.FileName;
+                _executable ??= GetExecutablePath(_owned);
                 if (await _probe() is { } processId)
                 {
                     if (processId != _owned.Id) throw new InvalidOperationException("API readiness belongs to a different process; refusing to use it.");
@@ -72,7 +74,7 @@ public sealed class ApiLifecycle : IAsyncDisposable
         {
             if (process.HasExited) return;
             process.Refresh();
-            if (_executable is null || process.StartTime.ToUniversalTime() != _startedAt || !string.Equals(process.MainModule?.FileName, _executable, StringComparison.OrdinalIgnoreCase))
+            if (_executable is null || process.StartTime.ToUniversalTime() != _startedAt || !string.Equals(GetExecutablePath(process), _executable, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Owned API identity changed; refusing termination.");
             try { process.Kill(entireProcessTree: true); }
             catch (InvalidOperationException) when (process.HasExited) { return; }
@@ -80,6 +82,19 @@ public sealed class ApiLifecycle : IAsyncDisposable
             _log("[Owned API stopped; existing processes preserved.]");
         }
     }
+
+    // MainModule may describe ntdll.dll while the Windows loader initializes.
+    private static string? GetExecutablePath(Process process)
+    {
+        if (!OperatingSystem.IsWindows()) return process.MainModule?.FileName;
+        var buffer = new StringBuilder(32768);
+        var length = buffer.Capacity;
+        return QueryFullProcessImageName(process.Handle, 0, buffer, ref length) ? buffer.ToString() : null;
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder path, ref int length);
 
     private static ProcessStartInfo DefaultStart()
     {

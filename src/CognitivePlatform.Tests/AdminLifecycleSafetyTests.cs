@@ -178,6 +178,36 @@ public sealed class AdminLifecycleSafetyTests
         }
         finally { if (!worker.HasExited) { worker.Kill(true); worker.WaitForExit(); } }
     }
+    [Theory]
+    [InlineData("_executable")]
+    [InlineData("_startedAt")]
+    [InlineData("missing-image")]
+    public async Task Owned_Api_Changed_Or_Missing_Identity_Preserves_Worker(string identity)
+    {
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        ApiLifecycle? lifecycle = null;
+        var probes = 0;
+        Task<int?> Probe() => Task.FromResult(++probes == 1 ? (int?)null
+            : ((Process)typeof(ApiLifecycle).GetField("_owned", flags)!.GetValue(lifecycle)!).Id);
+        lifecycle = new ApiLifecycle(_ => { }, Probe, Worker(), TimeSpan.FromSeconds(5));
+        await lifecycle.StartIfNeededAsync();
+        var owned = (Process)typeof(ApiLifecycle).GetField("_owned", flags)!.GetValue(lifecycle)!;
+        using var worker = Process.GetProcessById(owned.Id);
+        try
+        {
+            var image = typeof(ApiLifecycle).GetField("_executable", flags)!;
+            Assert.EndsWith("pwsh.exe", image.GetValue(lifecycle) as string, StringComparison.OrdinalIgnoreCase);
+            if (identity == "_startedAt") typeof(ApiLifecycle).GetField(identity, flags)!.SetValue(lifecycle, DateTime.MinValue);
+            else image.SetValue(lifecycle, identity == "missing-image" ? null : "unrelated.exe");
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => lifecycle.DisposeAsync().AsTask());
+
+            Assert.Contains("refusing termination", error.Message);
+            Assert.False(worker.HasExited);
+        }
+        finally { if (!worker.HasExited) { worker.Kill(true); worker.WaitForExit(); } }
+    }
+
     public static string RepositoryRoot
     {
         get
