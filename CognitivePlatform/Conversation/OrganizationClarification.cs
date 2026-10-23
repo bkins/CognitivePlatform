@@ -88,7 +88,7 @@ public static class OrganizationClarification
                 return Retry(context, pending, available, "That option isn't available in this catalog. ");
             pending.SelectedArea = area;
             pending.UnclearReplies = 0;
-            var dayContext = pending.TargetDay == "tomorrow" ? "For tomorrow, Daily opens today; this choice explains the available features. " : string.Empty;
+            var dayContext = pending.TargetDay == "tomorrow" ? "For tomorrow, this is preparation; Daily opens today. " : string.Empty;
             return new(dayContext + (area == "tasks"
                 ? names.Contains("GetDomainGuidance")
                     ? "For your tasks, would you like to review active tasks or learn about task features?"
