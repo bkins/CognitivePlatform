@@ -19,13 +19,14 @@ function Assert-NoLinks([string]$Root) {
         if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Linked payload entry.' }
     }
 }
-function Get-ApiInventory([string]$Root) {
+function Get-ApiInventory([string]$Root, [switch]$Deployment) {
     Assert-NoLinks $Root
     $inventory = [System.Collections.Generic.SortedDictionary[string,string]]::new([StringComparer]::Ordinal)
     foreach($file in Get-ChildItem -LiteralPath $Root -File -Recurse -Force) {
         $relative = [System.IO.Path]::GetRelativePath($Root,$file.FullName).Replace('\','/')
         # Preserved runtime configuration and explicitly known evidence/log files are not payload bytes.
         if ($relative -like 'PromptLogs/*' -or $relative -in @('metadata.json','deployment.json','payload-manifest.json') -or $relative -like 'appsettings*.json') { continue }
+        if ($Deployment -and $relative -in @('environment.json','start-api.ps1')) { continue } # Independently pinned below.
         $inventory.Add($relative,(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)
     }
     return ,$inventory
@@ -39,12 +40,12 @@ try {
         Add-Check 'API payload' 'Unavailable' 'Pinned API artifact or deployment directory is missing.'
     } else {
         $artifact = Get-ApiInventory $target.ApiArtifact
-        $deployed = Get-ApiInventory $target.ApiDeployment
+        $deployed = Get-ApiInventory $target.ApiDeployment -Deployment
         $artifactDigest = Get-InventoryDigest $artifact
         $deploymentDigest = Get-InventoryDigest $deployed
         if ($artifactDigest -cne $target.ApiInventorySha256 -or $deploymentDigest -cne $artifactDigest) { throw 'API inventory mismatch.' }
         # Re-read both inventories to reject a target or approved artifact changed during collection.
-        if ((Get-InventoryDigest (Get-ApiInventory $target.ApiArtifact)) -cne $artifactDigest -or (Get-InventoryDigest (Get-ApiInventory $target.ApiDeployment)) -cne $deploymentDigest) { throw 'API changed during collection.' }
+        if ((Get-InventoryDigest (Get-ApiInventory $target.ApiArtifact)) -cne $artifactDigest -or (Get-InventoryDigest (Get-ApiInventory $target.ApiDeployment -Deployment)) -cne $deploymentDigest) { throw 'API changed during collection.' }
         Add-Check 'API payload' 'Passed' "$($artifact.Count) payload files match the pinned inventory; preserved settings/logs excluded explicitly."
     }
 } catch { Add-Check 'API payload' 'Failed' 'API inventory is unsafe, unreadable, changed, or differs from the pinned artifact.' }
@@ -53,6 +54,7 @@ try {
     if (!(Test-Path -LiteralPath $settingsFile -PathType Leaf)) { Add-Check 'API preserved configuration' 'Unavailable' 'Runtime settings are missing.' }
     else {
         Assert-NoLinks $target.ApiDeployment
+        if ((Get-FileHash -LiteralPath (Join-Path $target.ApiDeployment 'environment.json')).Hash -cne $target.ApiEnvironmentSha256 -or (Get-FileHash -LiteralPath (Join-Path $target.ApiDeployment 'start-api.ps1')).Hash -cne $target.ApiLauncherSha256) { throw 'Generated launcher/environment do not match pinned deployment evidence.' }
         $beforeSettings = (Get-FileHash -LiteralPath $settingsFile).Hash
         $settings = Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
         $environmentFile = Join-Path $target.ApiDeployment $(if($target.Environment -eq 'Dev'){'appsettings.Development.json'}else{'appsettings.Production.json'})
@@ -66,6 +68,7 @@ try {
             $effectiveDatabase = if([IO.Path]::IsPathRooted($database)){$database}else{Join-Path $dataRoot $database}
             if ([IO.Path]::GetFullPath($effectiveDatabase) -ine [IO.Path]::GetFullPath($target.Database)) { throw 'Database configuration mismatch.' }
             if ((Get-FileHash -LiteralPath $settingsFile).Hash -cne $beforeSettings -or (Get-FileHash -LiteralPath $environmentFile).Hash -cne $beforeEnvironment) { throw 'Configuration changed.' }
+            if ((Get-FileHash -LiteralPath (Join-Path $target.ApiDeployment 'environment.json')).Hash -cne $target.ApiEnvironmentSha256 -or (Get-FileHash -LiteralPath (Join-Path $target.ApiDeployment 'start-api.ps1')).Hash -cne $target.ApiLauncherSha256) { throw 'Generated deployment files changed during inspection.' }
             Add-Check 'API preserved configuration' 'Passed' 'Allowlisted database path matches target; configuration values and credentials are not exported. Runtime GET separately verifies effective environment/content-root/version/source.'
         }
     }

@@ -22,6 +22,7 @@ public sealed class ReadOnlyValidationTests
     [InlineData("unsafe-manifest", "Failed")]
     [InlineData("missing", "Unavailable")]
     [InlineData("configuration", "Failed")]
+    [InlineData("launcher-tamper", "Failed")]
     public async Task Canonical_Deployment_Inspection_Is_ReadOnly_And_Rejects_Corrupt_Or_Missing_Evidence(string scenario, string expected)
     {
         var root = Path.Combine(Path.GetTempPath(), $"cp-integrity-{Guid.NewGuid():N}");
@@ -36,6 +37,8 @@ public sealed class ReadOnlyValidationTests
             var database = Path.Combine(root, "data", "platform.db");
             File.WriteAllText(Path.Combine(apiDeployment, "appsettings.json"), JsonSerializer.Serialize(new { SystemPaths = new { DataRoot = Path.Combine(root, "data") }, credential = "private-fixture-value" }));
             File.WriteAllText(Path.Combine(apiDeployment, "appsettings.Development.json"), JsonSerializer.Serialize(new { SystemPaths = new { DatabasePath = scenario == "configuration" ? Path.Combine(root, "wrong.db") : database } }));
+            File.WriteAllText(Path.Combine(apiDeployment, "environment.json"), "fixture-environment");
+            File.WriteAllText(Path.Combine(apiDeployment, "start-api.ps1"), "fixture-launcher");
             foreach (var folder in new[] { windowsArtifact, windowsDeployment })
             {
                 File.WriteAllText(Path.Combine(folder, "payload.bin"), "windows");
@@ -45,12 +48,13 @@ public sealed class ReadOnlyValidationTests
             var manifest = JsonSerializer.Serialize(new { SchemaVersion = 1, Algorithm = "SHA256", Files = new[] { "payload.bin", "build-environment.json" }.Select(name => new { RelativePath = scenario == "unsafe-manifest" && name == "payload.bin" ? "../outside.bin" : name, Length = new FileInfo(Path.Combine(windowsArtifact, name)).Length, Sha256 = Hash(Path.Combine(windowsArtifact, name)) }) });
             foreach (var folder in new[] { windowsArtifact, windowsDeployment }) File.WriteAllText(Path.Combine(folder, "payload-manifest.json"), manifest);
             var apiDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("payload.bin\t" + Hash(Path.Combine(apiArtifact, "payload.bin")) + "\n")));
-            var target = Target with { ApiArtifact = apiArtifact, ApiDeployment = apiDeployment, ApiInventorySha256 = apiDigest, Database = database, WindowsArtifact = windowsArtifact, WindowsDeployment = windowsDeployment, WindowsManifestSha256 = Hash(Path.Combine(windowsArtifact, "payload-manifest.json")) };
+            var target = Target with { ApiArtifact = apiArtifact, ApiDeployment = apiDeployment, ApiInventorySha256 = apiDigest, Database = database, WindowsArtifact = windowsArtifact, WindowsDeployment = windowsDeployment, WindowsManifestSha256 = Hash(Path.Combine(windowsArtifact, "payload-manifest.json")), ApiEnvironmentSha256 = Hash(Path.Combine(apiDeployment, "environment.json")), ApiLauncherSha256 = Hash(Path.Combine(apiDeployment, "start-api.ps1")) };
             if (scenario == "api-tamper") File.WriteAllText(Path.Combine(apiDeployment, "payload.bin"), "changed");
             if (scenario == "api-extra") File.WriteAllText(Path.Combine(apiDeployment, "extra.bin"), "unexpected");
             if (scenario == "windows-tamper") File.WriteAllText(Path.Combine(windowsDeployment, "payload.bin"), "changed");
             if (scenario == "windows-extra") File.WriteAllText(Path.Combine(windowsDeployment, "extra.bin"), "unexpected");
             if (scenario == "missing") File.Delete(Path.Combine(windowsDeployment, "payload-manifest.json"));
+            if (scenario == "launcher-tamper") File.WriteAllText(Path.Combine(apiDeployment, "start-api.ps1"), "changed-launcher");
             var before = Directory.GetFiles(root, "*", SearchOption.AllDirectories).ToDictionary(path => path, Hash);
             var script = Path.Combine(AdminLifecycleSafetyTests.RepositoryRoot, "CognitivePlatform", "CognitivePlatform.Admin", "Scripts", "Invoke-ReadOnlyDeploymentValidation.ps1");
             var start = new ProcessStartInfo("pwsh");
