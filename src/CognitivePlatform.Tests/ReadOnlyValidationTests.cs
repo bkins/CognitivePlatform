@@ -39,6 +39,8 @@ public sealed class ReadOnlyValidationTests
     [InlineData("configuration", "Failed")]
     [InlineData("launcher-tamper", "Failed")]
     [InlineData("linked-payload", "Failed")]
+    [InlineData("artifact-tamper", "Failed")]
+    [InlineData("manifest-pin", "Failed")]
     public async Task Canonical_Deployment_Inspection_Is_ReadOnly_And_Rejects_Corrupt_Or_Missing_Evidence(string scenario, string expected)
     {
         var root = Path.Combine(Path.GetTempPath(), $"cp-integrity-{Guid.NewGuid():N}");
@@ -71,6 +73,16 @@ public sealed class ReadOnlyValidationTests
             if (scenario == "windows-extra") File.WriteAllText(Path.Combine(windowsDeployment, "extra.bin"), "unexpected");
             if (scenario == "missing") File.Delete(Path.Combine(windowsDeployment, "payload-manifest.json"));
             if (scenario == "launcher-tamper") File.WriteAllText(Path.Combine(apiDeployment, "start-api.ps1"), "changed-launcher");
+            if (scenario == "artifact-tamper")
+            {
+                File.WriteAllText(Path.Combine(apiArtifact, "payload.bin"), "changed-together");
+                File.WriteAllText(Path.Combine(apiDeployment, "payload.bin"), "changed-together");
+            }
+            if (scenario == "manifest-pin")
+            {
+                File.AppendAllText(Path.Combine(windowsArtifact, "payload-manifest.json"), "\n");
+                File.AppendAllText(Path.Combine(windowsDeployment, "payload-manifest.json"), "\n");
+            }
             if (scenario == "linked-payload")
             {
                 var junction = new ProcessStartInfo("pwsh");
@@ -92,6 +104,8 @@ public sealed class ReadOnlyValidationTests
             Assert.Equal(3, checks.Count);
             if (expected == "Passed") Assert.All(checks, check => Assert.Equal("Passed", check.Outcome));
             else Assert.Contains(checks, check => check.Outcome == expected);
+            if (scenario == "api-extra") Assert.Contains("extra.bin", checks[0].Detail);
+            if (scenario == "api-tamper") Assert.Contains("payload.bin", checks[0].Detail);
             Assert.Equal(before.Count, Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
             Assert.All(before, pair => Assert.Equal(pair.Value, Hash(pair.Key)));
         }
@@ -137,6 +151,7 @@ public sealed class ReadOnlyValidationTests
         }));
         var check = await ReadOnlyValidator.RuntimeAsync(Target, client, CancellationToken.None);
         Assert.Equal(expected, check.Outcome);
+        if (field == "version") Assert.Contains("0.0.0", check.Detail);
     }
 
     [Fact]

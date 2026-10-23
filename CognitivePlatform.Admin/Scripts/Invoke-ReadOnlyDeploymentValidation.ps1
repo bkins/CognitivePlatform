@@ -25,7 +25,7 @@ function Get-ApiInventory([string]$Root, [switch]$Deployment) {
     foreach($file in Get-ChildItem -LiteralPath $Root -File -Recurse -Force) {
         $relative = [System.IO.Path]::GetRelativePath($Root,$file.FullName).Replace('\','/')
         # Preserved runtime configuration and explicitly known evidence/log files are not payload bytes.
-        if ($relative -like 'PromptLogs/*' -or $relative -in @('metadata.json','deployment.json','payload-manifest.json') -or $relative -like 'appsettings*.json') { continue }
+        if (($Deployment -and $relative -like 'PromptLogs/*') -or $relative -in @('metadata.json','deployment.json','payload-manifest.json') -or $relative -like 'appsettings*.json') { continue }
         if ($Deployment -and $relative -in @('environment.json','start-api.ps1')) { continue } # Independently pinned below.
         $inventory.Add($relative,(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)
     }
@@ -35,6 +35,7 @@ function Get-InventoryDigest($Inventory) {
     $text = -join @($Inventory.GetEnumerator() | ForEach-Object { $_.Key + "`t" + $_.Value + "`n" })
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($text)))
 }
+$apiFailure = 'API inventory is unsafe, unreadable, changed, or differs from the pinned artifact.'
 try {
     if (!(Test-Path -LiteralPath $target.ApiArtifact -PathType Container) -or !(Test-Path -LiteralPath $target.ApiDeployment -PathType Container)) {
         Add-Check 'API payload' 'Unavailable' 'Pinned API artifact or deployment directory is missing.'
@@ -43,12 +44,22 @@ try {
         $deployed = Get-ApiInventory $target.ApiDeployment -Deployment
         $artifactDigest = Get-InventoryDigest $artifact
         $deploymentDigest = Get-InventoryDigest $deployed
-        if ($artifactDigest -cne $target.ApiInventorySha256 -or $deploymentDigest -cne $artifactDigest) { throw 'API inventory mismatch.' }
+        if ($artifactDigest -cne $target.ApiInventorySha256) {
+            $apiFailure = "Approved artifact inventory hash differs: expected $($target.ApiInventorySha256); observed $artifactDigest."
+            throw 'Approved API inventory mismatch.'
+        }
+        if ($deploymentDigest -cne $artifactDigest) {
+            $missing = @($artifact.Keys | Where-Object {!$deployed.ContainsKey($_)} | Select-Object -First 20)
+            $extra = @($deployed.Keys | Where-Object {!$artifact.ContainsKey($_)} | Select-Object -First 20)
+            $changed = @($artifact.Keys | Where-Object {$deployed.ContainsKey($_) -and $deployed[$_] -cne $artifact[$_]} | Select-Object -First 20)
+            $apiFailure = "API payload differs. Missing: [$($missing -join ', ')]; extra: [$($extra -join ', ')]; changed: [$($changed -join ', ')]. Lists capped at20 each."
+            throw 'Deployed API inventory mismatch.'
+        }
         # Re-read both inventories to reject a target or approved artifact changed during collection.
         if ((Get-InventoryDigest (Get-ApiInventory $target.ApiArtifact)) -cne $artifactDigest -or (Get-InventoryDigest (Get-ApiInventory $target.ApiDeployment -Deployment)) -cne $deploymentDigest) { throw 'API changed during collection.' }
         Add-Check 'API payload' 'Passed' "$($artifact.Count) payload files match the pinned inventory; preserved settings/logs excluded explicitly."
     }
-} catch { Add-Check 'API payload' 'Failed' 'API inventory is unsafe, unreadable, changed, or differs from the pinned artifact.' }
+} catch { Add-Check 'API payload' 'Failed' $apiFailure }
 try {
     $settingsFile = Join-Path $target.ApiDeployment 'appsettings.json'
     if (!(Test-Path -LiteralPath $settingsFile -PathType Leaf)) { Add-Check 'API preserved configuration' 'Unavailable' 'Runtime settings are missing.' }

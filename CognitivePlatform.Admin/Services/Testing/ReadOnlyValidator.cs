@@ -25,6 +25,17 @@ public sealed class ReadOnlyValidator(TestOperationsOptions options, ITestProces
             var data = json.RootElement.GetProperty("data");
             var environment = data.GetProperty("Environment");
             var version = data.GetProperty("Version");
+            static string Value(JsonElement parent, string name)
+            {
+                var value = parent.GetProperty(name).GetString() ?? string.Empty;
+                return value.Length <= 512 ? value : value[..512] + " [truncated]";
+            }
+            var observed = JsonSerializer.Serialize(new
+            {
+                application = Value(version, "application"), version = Value(version, "version"), source = Value(version, "commitSha"),
+                environment = Value(environment, "environmentName"), database = Value(environment, "databasePath"), contentRoot = Value(environment, "contentRoot"),
+                processId = environment.GetProperty("processId").GetInt32(), startedAtUtc = Value(environment, "startedAtUtc")
+            });
             var expectedEnvironment = target.Environment == "Dev" ? "Development" : "Prod";
             var valid = version.GetProperty("application").GetString() == "CognitivePlatform.Api"
                 && version.GetProperty("version").GetString() == target.ApiVersion
@@ -33,8 +44,8 @@ public sealed class ReadOnlyValidator(TestOperationsOptions options, ITestProces
                 && SamePath(environment.GetProperty("databasePath").GetString(), target.Database)
                 && SamePath(environment.GetProperty("contentRoot").GetString(), target.ApiDeployment)
                 && environment.GetProperty("processId").GetInt32() > 0;
-            if (!valid) return new("Runtime identity", "Failed", "Observed application/environment/version/source/database/content-root identity does not match the pinned target.");
-            return new("Runtime identity", "Passed", $"{target.Environment}; API {target.ApiVersion}; source {target.ApiCommit}; PID {environment.GetProperty("processId").GetInt32()}; started {environment.GetProperty("startedAtUtc").GetString()}");
+            if (!valid) return new("Runtime identity", "Failed", "Identity differs from pinned target. Observed allowlisted fields: " + observed);
+            return new("Runtime identity", "Passed", "Observed allowlisted identity matches pinned target: " + observed);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (HttpRequestException) { return new("Runtime identity", "Unavailable", "Pinned loopback endpoint is unreachable."); }
