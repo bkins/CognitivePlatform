@@ -609,13 +609,19 @@ public class TaskServiceTests
     // EMBEDDING (fire-and-forget)
     // ================================================================
 
-    [Fact]
-    public async Task Create_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1100)]
+    public async Task Create_QueuesEmbedding_WhenEmbeddingServiceIsAvailable(int embeddingDelayMs)
     {
-        var vectorStoreTcs = new TaskCompletionSource<bool>();
+        var vectorStoreTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
         _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                      .ReturnsAsync(new float[] { 0.1f, 0.2f });
+                      .Returns(async () =>
+                       {
+                           await Task.Delay(embeddingDelayMs);
+                           return new float[] { 0.1f, 0.2f };
+                       });
         _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
                         .Returns(Task.CompletedTask)
                         .Callback(() => vectorStoreTcs.TrySetResult(true));
@@ -624,7 +630,7 @@ public class TaskServiceTests
 
         _service.Create(task);
 
-        await Task.WhenAny(vectorStoreTcs.Task, Task.Delay(1000));
+        await vectorStoreTcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         _embeddingMock.Verify(service => service.EmbedAsync("Write tests Unit tests for the parser"
                                                            , It.IsAny<CancellationToken>())
@@ -652,7 +658,7 @@ public class TaskServiceTests
     {
         var taskId    = Guid.NewGuid();
         var task      = new TaskItem { Id = taskId.ToString("N"), ShortDescription = "Old task" };
-        var deleteTcs = new TaskCompletionSource<bool>();
+        var deleteTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _storeMock.Setup(store => store.Get<TaskItem>(taskId.ToString("N")
                                                      , It.IsAny<string?>()))
@@ -665,7 +671,7 @@ public class TaskServiceTests
 
         _service.Delete(taskId);
 
-        await Task.WhenAny(deleteTcs.Task, Task.Delay(1000));
+        await deleteTcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         _vectorStoreMock.Verify(store => store.DeleteByReferenceAsync("task"
                                                                      , taskId.ToString("N")

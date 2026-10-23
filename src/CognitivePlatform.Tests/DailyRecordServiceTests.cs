@@ -558,21 +558,27 @@ public class DailyRecordServiceTests
     // EMBEDDING (fire-and-forget)
     // ================================================================
 
-    [Fact]
-    public async Task OpenDayAsync_QueuesEmbedding_WhenEmbeddingServiceIsAvailable()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1100)]
+    public async Task OpenDayAsync_QueuesEmbedding_WhenEmbeddingServiceIsAvailable(int embeddingDelayMs)
     {
-        var vectorStoreTcs = new TaskCompletionSource<bool>();
+        var vectorStoreTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _storeMock.Setup(store => store.Get<DailyRecord>(TodayKey, null)).Returns((DailyRecord?)null);
         _embeddingMock.Setup(service => service.IsAvailable).Returns(true);
         _embeddingMock.Setup(service => service.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                      .ReturnsAsync(new float[] { 0.1f, 0.2f });
+                      .Returns(async () =>
+                       {
+                           await Task.Delay(embeddingDelayMs);
+                           return new float[] { 0.1f, 0.2f };
+                       });
         _vectorStoreMock.Setup(store => store.SaveAsync(It.IsAny<VectorEntry>(), It.IsAny<CancellationToken>()))
                         .Returns(Task.CompletedTask)
                         .Callback(() => vectorStoreTcs.TrySetResult(true));
 
         await _service.OpenDayAsync("Deep work session.", Array.Empty<string>());
 
-        await Task.WhenAny(vectorStoreTcs.Task, Task.Delay(1000));
+        await vectorStoreTcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         _embeddingMock.Verify(service => service.EmbedAsync(It.Is<string>(text => text.Contains("Deep work session."))
                                                            , It.IsAny<CancellationToken>())
