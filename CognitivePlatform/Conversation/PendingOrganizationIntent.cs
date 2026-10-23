@@ -5,6 +5,8 @@ public sealed class PendingOrganizationIntent
 {
     public string OriginalInput { get; init; } = string.Empty;
     public string[] OfferedAreas { get; init; } = [];
+    public string IntentFamily { get; init; } = "organization";
+    public string? TargetDay { get; init; }
     public string? SelectedArea { get; set; }
     public int UnclearReplies { get; set; }
 }
