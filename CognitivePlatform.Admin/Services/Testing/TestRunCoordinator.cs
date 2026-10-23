@@ -75,6 +75,7 @@ public sealed class TestRunCoordinator : IDisposable
               , Profile   = request.Profile
               , StartedAt = DateTimeOffset.UtcNow
               , Status    = TestRunStatus.Pending
+              , HostBuild = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(TestRunCoordinator).Assembly)?.InformationalVersion ?? "unavailable"
               , Target    = request.Profile.StartsWith("runtime-", StringComparison.Ordinal) || request.Profile.StartsWith("deployment-", StringComparison.Ordinal) ? ValidationTarget.ForProfile(request.Profile) : null
             };
             _store.Save(run);

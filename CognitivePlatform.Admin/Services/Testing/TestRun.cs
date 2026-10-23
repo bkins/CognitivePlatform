@@ -12,7 +12,7 @@ public sealed class TestRun
     public ValidationTarget? Target { get; set; }
     public List<ValidationCheck> Checks { get; set; } = [];
     public Dictionary<string, string> Sources { get; set; } = [];
-    public string HostBuild { get; set; } = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(TestRunCoordinator).Assembly)?.InformationalVersion ?? "unavailable";
+    public string HostBuild { get; set; } = "unavailable";
     public string BuildSettings { get; set; } = "Isolated artifacts; SkipKillRunningProcesses=true";
     public string? Error { get; set; }
     public int Passed => Projects.Sum(project => project.Passed);
