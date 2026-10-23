@@ -7,7 +7,8 @@ public static class TestSourceSnapshot
     public static Dictionary<string, string> Capture(TestOperationsOptions options, TestProfile profile)
     {
         var result = new Dictionary<string, string>();
-        foreach (var relative in profile.Roots)
+        // Contract projects can live in another repository while referencing API production code.
+        foreach (var relative in profile.Roots.Concat(["CognitivePlatform"]).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var path = Path.Combine(options.RepositoryRoot, relative);
             if (!Directory.Exists(path)) continue;

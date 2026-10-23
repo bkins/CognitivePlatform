@@ -11,6 +11,21 @@ namespace CognitivePlatform.Tests;
 
 public sealed class ReadOnlyValidationTests
 {
+    [Fact]
+    public void Contract_Evidence_Also_Captures_Referenced_Admin_And_Api_Source_Repository()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cp-source-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "CognitivePlatform"));
+        Directory.CreateDirectory(Path.Combine(root, "contracts"));
+        try
+        {
+            var sources = TestSourceSnapshot.Capture(new() { RepositoryRoot = root }, new("routing-contracts", "isolated", ["contracts"]));
+            Assert.Contains("CognitivePlatform", sources.Keys);
+            Assert.Contains("contracts", sources.Keys);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     private static readonly ValidationTarget Target = ValidationTarget.ForProfile("runtime-dev");
 
     [Theory]
