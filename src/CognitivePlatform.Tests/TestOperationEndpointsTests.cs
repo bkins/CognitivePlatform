@@ -57,6 +57,12 @@ public sealed class TestOperationEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, (await http.PostAsJsonAsync("/api/operations/test-runs", new { profile = "unit", requestId = Guid.NewGuid(), command = "shell" })).StatusCode);
         var coordinator = app.Services.GetRequiredService<TestRunCoordinator>();
         for (var attempt = 0; attempt < 100 && !coordinator.Get(id)!.FinishedAt.HasValue; attempt++) await Task.Delay(10);
+        var packetResponse = await http.GetAsync($"/api/operations/test-runs/{id}/evidence");
+        Assert.Equal(HttpStatusCode.OK, packetResponse.StatusCode);
+        var packet = await packetResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(id, packet.GetProperty("runId").GetGuid());
+        http.DefaultRequestHeaders.Remove("X-Admin-Secret");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"/api/operations/test-runs/{id}/evidence")).StatusCode);
         await app.StopAsync();
         if (Directory.Exists(root)) Directory.Delete(root, true);
     }

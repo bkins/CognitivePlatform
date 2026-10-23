@@ -12,6 +12,7 @@ public sealed class TestRunCoordinator : IDisposable
     private readonly ITestProcessRunner _runner;
     private readonly ITerminalStateService _terminal;
     private readonly Dictionary<Guid, TestRun> _runs;
+    private readonly Func<ValidationTarget, bool, Action<string>, CancellationToken, Task<IReadOnlyList<ValidationCheck>>> _validate;
     private CancellationTokenSource? _cancellation;
     private Guid? _active;
     private bool _disposed;
@@ -20,13 +21,15 @@ public sealed class TestRunCoordinator : IDisposable
                             , TestProjectCatalog catalog
                             , TestRunStore store
                             , ITestProcessRunner runner
-                            , ITerminalStateService terminal)
+                            , ITerminalStateService terminal
+                            , Func<ValidationTarget, bool, Action<string>, CancellationToken, Task<IReadOnlyList<ValidationCheck>>>? validate = null)
     {
         _options = options;
         _catalog = catalog;
         _store = store;
         _runner = runner;
         _terminal = terminal;
+        _validate = validate ?? new ReadOnlyValidator(options, runner).ExecuteAsync;
         _runs = store.Load().ToDictionary(run => run.Id);
         var latest = Latest;
         if (latest is not null)
@@ -72,6 +75,7 @@ public sealed class TestRunCoordinator : IDisposable
               , Profile   = request.Profile
               , StartedAt = DateTimeOffset.UtcNow
               , Status    = TestRunStatus.Pending
+              , Target    = request.Profile.StartsWith("runtime-", StringComparison.Ordinal) || request.Profile.StartsWith("deployment-", StringComparison.Ordinal) ? ValidationTarget.ForProfile(request.Profile) : null
             };
             _store.Save(run);
             _runs.Add(run.Id, run);
@@ -114,6 +118,20 @@ public sealed class TestRunCoordinator : IDisposable
             token.ThrowIfCancellationRequested();
             var profile = Profiles.Single(profile => profile.Id == run.Profile);
             var sources = TestSourceSnapshot.Capture(_options, profile);
+            if (run.Target is not null)
+            {
+                Change(run, () => { run.Sources = sources; run.BuildSettings = "Read-only pinned target inspection; no target process or domain-data mutation"; });
+                var checks = await _validate(run.Target, run.Profile.StartsWith("deployment-", StringComparison.Ordinal), line => Log(run, line), token);
+                token.ThrowIfCancellationRequested();
+                Change(run, () =>
+                {
+                    run.Checks = checks.Select(check => check with { Name = _store.Redact(check.Name), Detail = _store.Redact(check.Detail) }).ToList();
+                    run.Status = checks.Count == 0 ? TestRunStatus.NoTests
+                        : checks.Any(check => check.Outcome == "TimedOut") ? TestRunStatus.TimedOut
+                        : checks.All(check => check.Outcome == "Passed") ? TestRunStatus.Passed : TestRunStatus.Failed;
+                });
+                return;
+            }
             var projects = _catalog.Discover(run.Profile);
             Change(run, () => { run.Sources = sources; run.Projects = projects.Select(path => new TestProjectResult { Project = path }).ToList(); });
             Log(run, $"Run {run.Id} Profile={run.Profile}; {projects.Count} actual test projects; {run.BuildSettings}");
@@ -156,8 +174,8 @@ public sealed class TestRunCoordinator : IDisposable
             lock (_gate)
             {
                 Log(run, $"{run.Status}: {run.Passed} passed; {run.Failed} failed; {run.Skipped} skipped; build failures {run.Projects.Count(project => project.Outcome == "BuildFailed")}. RunId={run.Id}");
-                WriteReport(run);
                 run.FinishedAt = DateTimeOffset.UtcNow;
+                WriteReport(run);
                 _store.Save(run);
                 _terminal.SetExitCode(TerminalId, run.Status == TestRunStatus.Passed ? 0 : 1);
                 _terminal.MarkRunning(TerminalId, false);
@@ -205,7 +223,27 @@ public sealed class TestRunCoordinator : IDisposable
     {
         var lines = new List<string> { $"# Test run {run.Id}", $"Profile: {run.Profile}; Status: {run.Status}", $"Passed: {run.Passed}; Failed: {run.Failed}; Skipped: {run.Skipped}" };
         foreach (var project in run.Projects) lines.Add($"- {project.Project}: {project.Outcome}; {project.Error}" + Environment.NewLine + string.Join(Environment.NewLine, project.Failures));
-        File.WriteAllLines(Path.Combine(_store.DirectoryFor(run.Id), "summary.md"), lines.Select(_store.Redact));
+        foreach (var check in run.Checks) lines.Add($"- {check.Name}: {check.Outcome}; {check.Detail}");
+        if (run.Target is not null) lines.Add($"Validation checks: {run.Checks.Count}; passed {run.Checks.Count(check => check.Outcome == "Passed")}. Unit-test counts above apply only to executed test projects.");
+        var report = string.Join(Environment.NewLine, lines.Select(_store.Redact)) + Environment.NewLine;
+        File.WriteAllText(Path.Combine(_store.DirectoryFor(run.Id), "summary.md"), report);
+        var snapshot = _store.Redact(System.Text.Json.JsonSerializer.Serialize(run, TestRunStore.JsonOptions));
+        var packet = new { schemaVersion = 1, runId = run.Id, result = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(snapshot), markdown = report,
+            reportSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(report))),
+            resultSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(snapshot))) };
+        File.WriteAllText(Path.Combine(_store.DirectoryFor(run.Id), "evidence.json"), System.Text.Json.JsonSerializer.Serialize(packet, TestRunStore.JsonOptions));
+    }
+
+    public string Evidence(Guid id)
+    {
+        lock (_gate)
+        {
+            if (!_runs.TryGetValue(id, out var run)) throw new KeyNotFoundException("Test run not found.");
+            if (!run.FinishedAt.HasValue) throw new InvalidOperationException("Evidence is available only after completion.");
+            var path = Path.Combine(_store.DirectoryFor(id), "evidence.json");
+            if (!File.Exists(path)) throw new KeyNotFoundException("This historical run predates evidence packets.");
+            return File.ReadAllText(path);
+        }
     }
 
     public void Dispose()

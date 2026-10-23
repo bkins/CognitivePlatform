@@ -670,7 +670,18 @@
             @if (unitRun is not null)
             {
                 <MudText Typo="Typo.caption">Run @unitRun.Id — @unitRun.Profile — @unitRun.Status</MudText>
-                <MudText Typo="Typo.body2">@unitRun.Passed passed, @unitRun.Failed failed, @unitRun.Skipped skipped; @unitRun.Projects.Count(project => project.Outcome == "BuildFailed") build failures across @unitRun.Projects.Count projects.</MudText>
+                @if (unitRun.Target is not null)
+                {
+                    <MudText Typo="Typo.body2">Validation: @unitRun.Checks.Count(check => check.Outcome == "Passed") / @unitRun.Checks.Count checks passed. Target: @unitRun.Target.Environment. No unit tests were executed by this inspection.</MudText>
+                    @foreach (var check in unitRun.Checks)
+                    {
+                        <MudText Typo="Typo.body2">@check.Name: @check.Outcome — @check.Detail</MudText>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">@unitRun.Passed passed, @unitRun.Failed failed, @unitRun.Skipped skipped; @unitRun.Projects.Count(project => project.Outcome == "BuildFailed") build failures across @unitRun.Projects.Count projects.</MudText>
+                }
                 @if (unitRun.Error is not null)
                 {
                     <MudAlert Severity="Severity.Error">@unitRun.Error</MudAlert>

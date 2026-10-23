@@ -6,6 +6,16 @@ namespace CognitivePlatform.Tests;
 
 public sealed class AdminLifecycleSafetyTests
 {
+    private static void AssertExited(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            Assert.True(process.HasExited, $"Owned worker {processId} is still running.");
+        }
+        catch (ArgumentException) { /* The terminated process object has already been released. */ }
+    }
+
     private static ProcessStartInfo Worker()
     {
         var start = new ProcessStartInfo("pwsh") { UseShellExecute = false, CreateNoWindow = true };
@@ -43,7 +53,7 @@ public sealed class AdminLifecycleSafetyTests
         using var unrelated = Process.Start(Worker())!;
         var pidFile = Path.Combine(Path.GetTempPath(), $"cp-readiness-{Guid.NewGuid():N}.txt");
         var worker = Worker();
-        worker.ArgumentList[^1] = $"$PID | Set-Content -LiteralPath '{pidFile}'; Start-Sleep -Seconds 30";
+        worker.ArgumentList[^1] = $"$PID | Set-Content -LiteralPath '{pidFile}.tmp'; Move-Item -LiteralPath '{pidFile}.tmp' -Destination '{pidFile}'; Start-Sleep -Seconds 30";
         var probeCount = 0;
         Task<int?> Probe()
         {
@@ -60,7 +70,7 @@ public sealed class AdminLifecycleSafetyTests
                 else await lifecycle.StartIfNeededAsync();
             }
             Assert.False(unrelated.HasExited);
-            Assert.DoesNotContain(Process.GetProcesses(), process => process.Id == int.Parse(File.ReadAllText(pidFile).Trim()));
+            AssertExited(int.Parse(File.ReadAllText(pidFile).Trim()));
         }
         finally { if (!unrelated.HasExited) unrelated.Kill(true); File.Delete(pidFile); }
     }
@@ -71,7 +81,7 @@ public sealed class AdminLifecycleSafetyTests
         using var unrelated = Process.Start(Worker())!;
         var pidFile = Path.Combine(Path.GetTempPath(), $"cp-lifecycle-{Guid.NewGuid():N}.txt");
         var worker = Worker();
-        worker.ArgumentList[^1] = $"$PID | Set-Content -LiteralPath '{pidFile}'; Start-Sleep -Seconds 30";
+        worker.ArgumentList[^1] = $"$PID | Set-Content -LiteralPath '{pidFile}.tmp'; Move-Item -LiteralPath '{pidFile}.tmp' -Destination '{pidFile}'; Start-Sleep -Seconds 30";
         try
         {
             await using var lifecycle = new ApiLifecycle(_ => { }, () => Task.FromResult<int?>(null), worker, TimeSpan.FromSeconds(2));
@@ -79,7 +89,7 @@ public sealed class AdminLifecycleSafetyTests
             Assert.False(unrelated.HasExited);
             Assert.True(File.Exists(pidFile));
             var pid = int.Parse(File.ReadAllText(pidFile).Trim());
-            Assert.DoesNotContain(Process.GetProcesses(), process => process.Id == pid);
+            AssertExited(pid);
         }
         finally { if (!unrelated.HasExited) unrelated.Kill(true); File.Delete(pidFile); }
     }
@@ -108,7 +118,7 @@ public sealed class AdminLifecycleSafetyTests
             Assert.Throws<InvalidOperationException>(() => session.Attach(unrelated.Id));
             session.Dispose();
             Assert.False(unrelated.HasExited);
-            Assert.DoesNotContain(Process.GetProcesses(), process => process.Id == id);
+            AssertExited(id);
         }
         finally { if (!unrelated.HasExited) unrelated.Kill(true); }
     }

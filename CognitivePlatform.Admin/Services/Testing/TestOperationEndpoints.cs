@@ -38,6 +38,7 @@ public static class TestOperationEndpoints
         group.MapGet("/test-runs/{id:guid}/results", (Guid id, TestRunCoordinator coordinator) =>
             coordinator.Get(id) is { } run ? Results.Json(run, TestRunStore.JsonOptions) : Results.NotFound());
         group.MapGet("/test-runs/{id:guid}/summary", (Guid id, TestRunCoordinator coordinator) => Results.Text(coordinator.Summary(id), "text/markdown"));
+        group.MapGet("/test-runs/{id:guid}/evidence", (Guid id, TestRunCoordinator coordinator) => Results.Text(coordinator.Evidence(id), "application/json"));
         group.MapGet("/test-runs/{id:guid}/logs", (Guid id, int? after, int? limit, TestRunCoordinator coordinator) =>
             Results.Json(coordinator.Logs(id, after ?? 0, limit ?? 200)));
         group.MapPost("/test-runs/{id:guid}/cancel", (Guid id, TestRunCoordinator coordinator) =>

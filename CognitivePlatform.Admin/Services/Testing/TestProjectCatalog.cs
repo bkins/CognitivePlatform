@@ -8,12 +8,18 @@ public sealed class TestProjectCatalog(TestOperationsOptions options)
     [
         new("unit", "Unit Tests", ["CognitivePlatform", "LocalAIAssistant", "CP.Shared.Primitives", "CP.Client.Core", "ConsoleUtilities", "ConfigurationDiagnostics", "WatchList"])
       , new("client-contracts", "Headless LAA client contracts", ["CP/ValidationPlatform/src/ValidationPlatform.Tests.LaaSmoke"], "FullyQualifiedName!~ValidationPlatform.Tests.LaaSmoke.SmokeTests")
+      , new("routing-contracts", "Isolated conversation routing contracts (not live conversation)", ["CP/ValidationPlatform/src/ValidationPlatform.Tests.ConversationRouting"])
+      , new("runtime-dev", "Read-only Dev runtime identity", ["CognitivePlatform"])
+      , new("runtime-prod", "Read-only accepted Production runtime identity", ["CognitivePlatform"])
+      , new("deployment-dev", "Read-only Dev API and Windows deployment integrity", ["CognitivePlatform"])
+      , new("deployment-prod", "Read-only accepted Production API and Windows deployment integrity", ["CognitivePlatform"])
     ];
 
     public IReadOnlyList<string> Discover(string profile)
     {
         var selected = Profiles.SingleOrDefault(item => item.Id == profile)
                     ?? throw new ArgumentException("Unknown test profile.", nameof(profile));
+        if (profile.StartsWith("runtime-", StringComparison.Ordinal) || profile.StartsWith("deployment-", StringComparison.Ordinal)) return [];
         var projects = new List<string>();
         foreach (var relative in selected.Roots)
         {

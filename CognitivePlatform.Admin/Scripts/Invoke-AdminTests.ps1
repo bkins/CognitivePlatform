@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param (
-    [ValidateSet('Profiles','Start','Status','Logs','Results','Summary','Cancel')]
+    [ValidateSet('Profiles','Start','Status','Logs','Results','Summary','Evidence','Cancel')]
     [string]$Action = 'Start'
-  , [ValidateSet('unit','client-contracts')]
+  , [ValidateSet('unit','client-contracts','routing-contracts','runtime-dev','runtime-prod','deployment-dev','deployment-prod')]
     [string]$Profile = 'unit'
   , [Guid]$RunId = [Guid]::Empty
   , [Guid]$RequestId = [Guid]::NewGuid()
@@ -57,6 +57,7 @@ $result = switch ($Action) {
     'Logs' { Invoke-Operation "/test-runs/$RunId/logs?after=$After&limit=$Limit" }
     'Results' { Invoke-Operation "/test-runs/$RunId/results" }
     'Summary' { Invoke-Operation "/test-runs/$RunId/summary" }
+    'Evidence' { Invoke-Operation "/test-runs/$RunId/evidence" }
     'Cancel' { Invoke-Operation "/test-runs/$RunId/cancel" 'Post'; @{ id = $RunId; cancellationRequested = $true } }
 }
 if ($Action -eq 'Start' -and $Wait) {
