@@ -73,7 +73,10 @@ public static class OrganizationClarification
         var answer = Regex.Replace(normalized, @"^(?:actually|instead|no)[, ]+", "");
         if (pending.TargetDay == "tomorrow" && Regex.IsMatch(answer,
             @"^(?:please )?(?:(?:can|could) you )?(?:open|start|create) (?:tomorrow(?:'s)? (?:daily )?(?:plan|record)|(?:a |my )?daily (?:plan|record) for tomorrow)$"))
+        {
+            pending.SelectedArea = null;
             return new(Question(available, pending));
+        }
 
         var area = answer switch
         {
@@ -140,6 +143,7 @@ public static class OrganizationClarification
             context.PendingOrganizationIntent = null;
             return new(prefix + "I'll stop this clarification rather than guess. Ask for a specific task or feature when you're ready.");
         }
+        pending.SelectedArea = null;
         return new(prefix + Question(available, pending));
     }
 
