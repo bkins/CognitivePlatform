@@ -123,6 +123,61 @@ public sealed class AdminLifecycleSafetyTests
         finally { if (!unrelated.HasExited) unrelated.Kill(true); }
     }
 
+    [Fact]
+    public void Windows_Launch_Captures_Executable_Instead_Of_Transient_Loader_Module()
+    {
+        var sessions = new List<WindowsProcessSession>();
+        var failures = new List<Exception>();
+        try
+        {
+            for (var batch = 0; batch < 2; batch++)
+            {
+                sessions.Clear();
+                for (var index = 0; index < 4; index++)
+                {
+                    var session = new WindowsProcessSession();
+                    session.Launch(Worker());
+                    sessions.Add(session);
+                    var capturedImage = typeof(WindowsProcessSession).GetField("_executable",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(session) as string;
+                    Assert.EndsWith("pwsh.exe", capturedImage, StringComparison.OrdinalIgnoreCase);
+                }
+                foreach (var session in sessions)
+                {
+                    try { session.Dispose(); }
+                    catch (Exception error) { failures.Add(error); }
+                }
+            }
+            Assert.Empty(failures);
+        }
+        finally
+        {
+            // Every session owns only its explicitly launched temporary worker.
+            foreach (var session in sessions)
+                if (session.Process is not null) session.Dispose();
+        }
+    }
+    [Theory]
+    [InlineData("_executable")]
+    [InlineData("_startedAt")]
+    public void Windows_Changed_Identity_Is_Refused_Without_Terminating_Worker(string field)
+    {
+        var session = new WindowsProcessSession();
+        session.Launch(Worker());
+        using var worker = Process.GetProcessById(session.Process!.Id);
+        try
+        {
+            var member = typeof(WindowsProcessSession).GetField(field,
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            member.SetValue(session, field == "_executable" ? "unrelated.exe" : DateTime.MinValue);
+
+            var error = Assert.Throws<InvalidOperationException>(() => session.Dispose());
+
+            Assert.Contains("refusing termination", error.Message);
+            Assert.False(worker.HasExited);
+        }
+        finally { if (!worker.HasExited) { worker.Kill(true); worker.WaitForExit(); } }
+    }
     public static string RepositoryRoot
     {
         get
