@@ -37,16 +37,18 @@ public sealed class ApiLifecycle : IAsyncDisposable
 
         _owned = Process.Start(_start) ?? throw new InvalidOperationException("API did not start.");
         _startedAt = _owned.StartTime.ToUniversalTime();
-        _executable = _owned.MainModule?.FileName;
         try
         {
             var timer = Stopwatch.StartNew();
             while (timer.Elapsed < _startupTimeout)
             {
                 if (_owned.HasExited) throw new InvalidOperationException($"Owned API exited with code {_owned.ExitCode} before readiness.");
+                _owned.Refresh();
+                _executable ??= _owned.MainModule?.FileName;
                 if (await _probe() is { } processId)
                 {
                     if (processId != _owned.Id) throw new InvalidOperationException("API readiness belongs to a different process; refusing to use it.");
+                    if (_executable is null) throw new InvalidOperationException("Owned API executable identity is unavailable; refusing readiness.");
                     _log($"[Owned Development API PID {processId} ready.]");
                     return;
                 }
