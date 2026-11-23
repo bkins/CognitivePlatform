@@ -14,7 +14,7 @@ namespace CognitivePlatform.Api.Data;
 /// Domain Services own meaning.
 /// KnowledgeService coordinates meaning across domains.
 /// </summary>
-public class SqliteObjectStore : IObjectStore, IHistoricalObjectWriter
+public partial class SqliteObjectStore : IObjectStore, IHistoricalObjectWriter
 {
     private readonly string                _connectionString;
     private readonly JsonSerializerOptions _jsonOptions;
